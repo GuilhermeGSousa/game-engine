@@ -1,0 +1,13 @@
+[package]
+name = "game-engine"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = ["crates/*"]
+
+[dependencies]
+app = { path = "crates/app" }
+core = { path = "crates/core" }
+render = { path = "crates/render" }
+window = { path = "crates/window" }

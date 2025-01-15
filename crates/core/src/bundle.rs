@@ -1,31 +1,51 @@
-use std::any::TypeId;
-
 use crate::component::Component;
+use crate::table::Table;
+use any_vec::any_value::AnyValueTypelessRaw;
+use std::any::TypeId;
+use std::mem;
+use std::ptr::NonNull;
+use typle::typle;
 
 pub trait ComponentBundle {
     fn get_type_ids() -> Vec<TypeId>;
+
+    fn get_components<F: FnMut(TypeId, AnyValueTypelessRaw)>(self, f: F);
+
+    fn generate_empty_table() -> Table;
 }
 
-macro_rules! tuple_impls {
-    ( $head:ident, $( $tail:ident, )* ) => {
-        impl<$head, $( $tail ),*> ComponentBundle for ($head, $( $tail ),*)
-        where
-            $head: Component,
-            $( $tail: Component ),*
-        {
-            fn get_type_ids() -> Vec<TypeId> {
-                let mut type_ids = Vec::new();
-                type_ids.push(TypeId::of::<$head>());
-                $( type_ids.push(TypeId::of::<$tail>()); )*
-                type_ids.sort();
-                type_ids
-            }
+#[typle(Tuple for 0..=12)]
+impl<T> ComponentBundle for T
+where
+    T: Tuple,
+    T<_>: Component,
+{
+    fn get_type_ids() -> Vec<TypeId> {
+        let mut type_ids = Vec::new();
+        for typle_index!(i) in 0..T::LEN {
+            type_ids.push(TypeId::of::<T<{ i }>>());
         }
+        type_ids.sort();
+        type_ids
+    }
 
-        tuple_impls!($( $tail, )*);
-    };
+    fn get_components<F: FnMut(TypeId, AnyValueTypelessRaw)>(self, mut f: F) {
+        for typle_index!(i) in 0..T::LEN {
+            let a = self[[i]];
 
-    () => {};
+            let raw_val = unsafe {
+                AnyValueTypelessRaw::new(NonNull::from(&a).cast::<u8>(), mem::size_of::<T<{ i }>>())
+            };
+
+            f(TypeId::of::<T<{ i }>>(), raw_val);
+        }
+    }
+
+    fn generate_empty_table() -> Table {
+        let mut table = Table::new();
+        for typle_index!(i) in 0..T::LEN {
+            table.add_column::<T<{ i }>>();
+        }
+        table
+    }
 }
-
-tuple_impls!(A, B, C, D, E, F, G, H, I, J,);

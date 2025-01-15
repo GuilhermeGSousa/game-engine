@@ -28,7 +28,7 @@ impl World {
         }
     }
 
-    pub fn spawn<T: ComponentBundle>(&mut self, _bundle: T) -> Entity {
+    pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> Entity {
         let entity = Entity(self.entity_count);
         self.entity_count += 1;
 
@@ -39,16 +39,22 @@ impl World {
             .archetype_index
             .entry(entity_type.clone())
             .or_insert_with(|| {
-                let archetype = Archetype::new(entity_type);
+                let archetype = Archetype::new(T::generate_empty_table());
                 self.archetypes.push(archetype);
                 self.archetypes.len() - 1
             });
 
         let _archetype = &mut self.archetypes[*archetype_index];
-        // Add components to archetype
+        bundle.get_components(|type_id, raw_value| {
+            _archetype.add_component(type_id, raw_value);
+        });
 
-        let entity_record = EntityRecord::new(*archetype_index, 0);
+        let entity_record = EntityRecord::new(*archetype_index, _archetype.get_row_count() - 1);
         self.entity_index.insert(entity.clone(), entity_record);
         entity
+    }
+
+    pub fn add_system(&mut self) {
+        // TODO
     }
 }

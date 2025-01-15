@@ -1,22 +1,25 @@
-use crate::component::ComponentStorage;
-use crate::entity::EntityType;
+use std::any::TypeId;
+
+use any_vec::any_value::AnyValueTypelessRaw;
+
+use crate::table::Table;
 
 pub struct Archetype {
-    pub entity_type: EntityType,
-    pub components: Vec<Box<dyn ComponentStorage>>,
+    data_table: Table,
 }
 
 impl Archetype {
-    pub fn new(entity_type: EntityType) -> Archetype {
-        Archetype {
-            entity_type: entity_type,
-            components: Vec::new(),
+    pub fn new(data_table: Table) -> Archetype {
+        Archetype { data_table }
+    }
+
+    pub fn add_component(&mut self, type_id: TypeId, raw_value: AnyValueTypelessRaw) {
+        if let Some(column) = self.data_table.get_column_mut(type_id) {
+            column.push(raw_value);
         }
     }
 
-    pub fn remove_column(&mut self, column: usize) {
-        for component in self.components.iter_mut() {
-            component.remove(column);
-        }
+    pub fn get_row_count(&self) -> usize {
+        self.data_table.get_row_count()
     }
 }

@@ -3,6 +3,8 @@ pub mod bundle;
 pub mod common;
 pub mod component;
 pub mod entity;
+pub mod system;
+pub mod table;
 pub mod world;
 
 #[cfg(test)]

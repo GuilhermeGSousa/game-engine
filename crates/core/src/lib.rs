@@ -9,7 +9,7 @@ pub mod world;
 
 #[cfg(test)]
 mod tests {
-    use crate::{component::Component, world};
+    use crate::{component::Component, system::FnSystem, world};
 
     #[derive(Component)]
     struct Health;
@@ -17,9 +17,14 @@ mod tests {
     #[derive(Component)]
     struct Position;
 
+    fn system((pos, health): (Position, Health)) {
+        println!("System running");
+    }
+
     #[test]
     fn spawn_entity() {
         let mut world = world::World::new();
         world.spawn((Health, Position));
+        world.add_system(FnSystem::new(system));
     }
 }

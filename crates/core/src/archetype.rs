@@ -1,8 +1,13 @@
-use std::any::TypeId;
+use std::{any::TypeId, collections::HashMap};
 
 use any_vec::any_value::AnyValueTypelessRaw;
 
 use crate::table::Table;
+
+struct ArchetypeEdge {
+    add_index: usize,
+    remove_index: usize,
+}
 
 pub struct Archetype {
     data_table: Table,

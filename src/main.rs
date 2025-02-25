@@ -1,6 +1,10 @@
 use app::App;
-use core::component::Component;
+use render::plugin::RenderPlugin;
+use window::plugin::WindowPlugin;
 
 fn main() {
-    App::new().run();
+    App::empty()
+        .register_plugin(WindowPlugin)
+        .register_plugin(RenderPlugin)
+        .run();
 }

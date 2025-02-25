@@ -3,5 +3,21 @@ name = "render"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-wgpu = "22.0"
+app = { path = "../app" }
+window = { path = "../window" }
+env_logger = "0.11.6"
+log = "0.4"
+wgpu = "24.0"
+cfg-if = "1"
+pollster = "0.4"
+bevy_ecs = { version = "0.15.2" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "1.0"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.30"

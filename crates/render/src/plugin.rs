@@ -22,12 +22,16 @@ struct RenderQueue(wgpu::Queue);
 #[derive(Resource)]
 struct RenderConfig(wgpu::SurfaceConfiguration);
 
+#[derive(Resource)]
+struct RenderPipeline(wgpu::RenderPipeline);
+
 fn render(
     mut window: ResMut<Window>,
     surface: Res<RenderSurface>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut config: ResMut<RenderConfig>,
+    pipeline: Res<RenderPipeline>,
 ) {
     if window.should_resize() {
         let size = window.size();
@@ -50,7 +54,7 @@ fn render(
             });
 
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -69,6 +73,8 @@ fn render(
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
+            render_pass.set_pipeline(&pipeline.0);
+            render_pass.draw(0..3, 0..1);
         }
 
         queue.0.submit(std::iter::once(encoder.finish()));
@@ -138,11 +144,63 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"), // 1.
+                buffers: &[],                 // 2.
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                // 3.
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    // 4.
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw, // 2.
+                cull_mode: Some(wgpu::Face::Back),
+                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                polygon_mode: wgpu::PolygonMode::Fill,
+                // Requires Features::DEPTH_CLIP_CONTROL
+                unclipped_depth: false,
+                // Requires Features::CONSERVATIVE_RASTERIZATION
+                conservative: false,
+            },
+            depth_stencil: None, // 1.
+            multisample: wgpu::MultisampleState {
+                count: 1,                         // 2.
+                mask: !0,                         // 3.
+                alpha_to_coverage_enabled: false, // 4.
+            },
+            multiview: None, // 5.
+            cache: None,     // 6.
+        });
         app.insert_resource(RenderSurface(surface));
         app.insert_resource(RenderAdapter(adapter));
         app.insert_resource(RenderDevice(device));
         app.insert_resource(RenderQueue(queue));
         app.insert_resource(RenderConfig(config));
+        app.insert_resource(RenderPipeline(render_pipeline));
         app.add_system(app::update_group::UpdateGroup::Update, render);
     }
 }

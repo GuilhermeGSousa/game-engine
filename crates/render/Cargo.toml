@@ -11,7 +11,13 @@ app = { path = "../app" }
 window = { path = "../window" }
 env_logger = "0.11.6"
 log = "0.4"
-wgpu = "24.0"
+wgpu = { version = "24", default-features = false, features = [
+    "wgsl",
+    "dx12",
+    "metal",
+    "naga-ir",
+    "fragile-send-sync-non-atomic-wasm",
+] }
 cfg-if = "1"
 pollster = "0.4"
 bevy_ecs = { version = "0.15.2" }

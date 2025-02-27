@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
+use crate::ApplicationWindowHandler;
 use app::{plugin::Plugin, runner::AppExit, App};
 use bevy_ecs::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+use winit::platform::web::EventLoopExtWebSys;
+
 use winit::{
     event_loop::{ControlFlow, EventLoop},
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::Window as WinitWindow,
 };
-
-use crate::ApplicationWindowHandler;
 
 #[derive(Resource)]
 pub struct Window {
@@ -77,7 +80,6 @@ fn winit_runner(mut app: App) -> AppExit {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             event_loop.spawn_app(state);
-            AppExit::Success
         } else {
             let _ = event_loop.run_app(&mut state);
         }
@@ -97,6 +99,25 @@ impl Plugin for WindowPlugin {
         let window = event_loop
             .create_window(win_attr)
             .expect("create window err.");
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Winit prevents sizing with CSS, so we have to set
+            // the size manually when on web.
+            use winit::dpi::PhysicalSize;
+            let _ = window.request_inner_size(PhysicalSize::new(450, 400));
+
+            use winit::platform::web::WindowExtWebSys;
+            web_sys::window()
+                .and_then(|win| win.document())
+                .and_then(|doc| {
+                    let dst = doc.get_element_by_id("wasm-example")?;
+                    let canvas = web_sys::Element::from(window.canvas()?);
+                    dst.append_child(&canvas).ok()?;
+                    Some(())
+                })
+                .expect("Couldn't append canvas to document body.");
+        }
 
         app.insert_resource(Window::new(window));
         app.insert_non_send_resource(event_loop);

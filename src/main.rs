@@ -1,10 +1,7 @@
-use app::App;
-use render::plugin::RenderPlugin;
-use window::plugin::WindowPlugin;
+mod lib;
+
+use crate::lib::run_game;
 
 fn main() {
-    App::empty()
-        .register_plugin(WindowPlugin)
-        .register_plugin(RenderPlugin)
-        .run();
+    run_game();
 }

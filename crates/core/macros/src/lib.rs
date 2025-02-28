@@ -5,6 +5,7 @@ extern crate syn;
 extern crate quote;
 
 use proc_macro::TokenStream;
+use syn::{parse_macro_input, FnArg, ItemFn, Type, TypeReference};
 
 #[proc_macro_derive(Component)]
 pub fn component(input: TokenStream) -> TokenStream {
@@ -16,6 +17,25 @@ fn impl_component(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let gen = quote! {
         impl Component for #name {
+            fn name() -> String {
+                String::from(stringify!(#name))
+            }
+        }
+
+    };
+    gen.into()
+}
+
+#[proc_macro_derive(Resource)]
+pub fn resource(input: TokenStream) -> TokenStream {
+    let ast = syn::parse(input).unwrap();
+    impl_resource(&ast)
+}
+
+fn impl_resource(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let gen = quote! {
+        impl Resource for #name {
             fn name() -> String {
                 String::from(stringify!(#name))
             }

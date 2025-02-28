@@ -1,9 +1,10 @@
 use app::App;
 use render::plugin::RenderPlugin;
-use window::plugin::WindowPlugin;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
+
+use window::plugin::WindowPlugin;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {

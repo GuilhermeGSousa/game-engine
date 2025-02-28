@@ -1,6 +1,4 @@
-mod lib;
-
-use crate::lib::run_game;
+use game_engine::run_game;
 
 fn main() {
     run_game();

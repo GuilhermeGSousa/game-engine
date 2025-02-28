@@ -1,13 +1,12 @@
-use std::{any::TypeId, collections::HashMap};
+use std::any::TypeId;
 
-use any_vec::any_value::AnyValueTypelessRaw;
+use any_vec::{any_value::AnyValueTypelessRaw, mem::Heap, AnyVecMut, AnyVecRef};
 
-use crate::table::Table;
-
-struct ArchetypeEdge {
-    add_index: usize,
-    remove_index: usize,
-}
+use crate::{
+    component::{Component, ComponentId},
+    query::ComponentQuery,
+    table::Table,
+};
 
 pub struct Archetype {
     data_table: Table,
@@ -26,5 +25,48 @@ impl Archetype {
 
     pub fn get_row_count(&self) -> usize {
         self.data_table.get_row_count()
+    }
+
+    pub fn has_component<T: ComponentQuery + 'static>(&self) -> bool {
+        self.data_table.has_column(T::get_component_id())
+    }
+
+    pub fn len(&self) -> usize {
+        self.data_table.get_row_count()
+    }
+
+    pub unsafe fn get_component_vector_unsafe<T: ComponentQuery + 'static>(
+        &self,
+    ) -> AnyVecRef<T, Heap> {
+        self.data_table
+            .get_column(T::get_component_id())
+            .unwrap()
+            .as_vec_unchecked()
+    }
+
+    pub unsafe fn get_component_vector_mut_unsafe<T: ComponentQuery + 'static>(
+        &mut self,
+    ) -> AnyVecMut<T, Heap> {
+        self.data_table
+            .get_column_mut(T::get_component_id())
+            .unwrap()
+            .as_vec_mut_unchecked()
+    }
+
+    pub unsafe fn get_component_unsafe<T: Component + 'static>(&self, index: usize) -> &T {
+        self.data_table
+            .get_column(ComponentId::of::<T>())
+            .unwrap()
+            .get_unsafe(index)
+    }
+
+    pub unsafe fn get_component_mut_unsafe<T: Component + 'static>(
+        &mut self,
+        index: usize,
+    ) -> &mut T {
+        self.data_table
+            .get_column_mut(ComponentId::of::<T>())
+            .unwrap()
+            .get_mut_unsafe(index)
     }
 }

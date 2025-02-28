@@ -1,6 +1,6 @@
 use app::App;
 use plugin::Window;
-use winit::{application::ApplicationHandler, event::WindowEvent, window::Window as WinitWindow};
+use winit::{application::ApplicationHandler, event::WindowEvent};
 
 pub mod plugin;
 
@@ -8,15 +8,11 @@ pub fn run() {}
 
 pub struct ApplicationWindowHandler {
     app: App,
-    window: Option<WinitWindow>,
 }
 
 impl ApplicationWindowHandler {
     pub fn new(app: App) -> Self {
-        Self {
-            app: app,
-            window: None,
-        }
+        Self { app: app }
     }
 }
 

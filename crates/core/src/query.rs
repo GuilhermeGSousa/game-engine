@@ -3,38 +3,29 @@ use crate::{
     component::{Component, ComponentId},
 };
 
-pub trait ComponentQuery {
-    fn is_mutable() -> bool;
+pub trait SystemInput {
     fn get_component_id() -> ComponentId;
-    unsafe fn get_component_unsafe(archetype: &mut Archetype, index: usize) -> Self;
+    unsafe fn get_component_data_unsafe(archetype: &mut Archetype, index: usize) -> Self;
 }
 
 // Implement for immutable access (&T)
-impl<'a, T: Component + 'static> ComponentQuery for &'a T {
-    fn is_mutable() -> bool {
-        false
-    }
-
+impl<'a, T: Component + 'static> SystemInput for &'a T {
     fn get_component_id() -> ComponentId {
         ComponentId::of::<T>()
     }
 
-    unsafe fn get_component_unsafe(archetype: &mut Archetype, index: usize) -> Self {
+    unsafe fn get_component_data_unsafe(archetype: &mut Archetype, index: usize) -> Self {
         &*(archetype.get_component_unsafe(index) as *const T)
     }
 }
 
 // Implement for mutable access (&mut T)
-impl<'a, T: Component + 'static> ComponentQuery for &'a mut T {
-    fn is_mutable() -> bool {
-        true
-    }
-
+impl<'a, T: Component + 'static> SystemInput for &'a mut T {
     fn get_component_id() -> ComponentId {
         ComponentId::of::<T>()
     }
 
-    unsafe fn get_component_unsafe(archetype: &mut Archetype, index: usize) -> Self {
+    unsafe fn get_component_data_unsafe(archetype: &mut Archetype, index: usize) -> Self {
         &mut *(archetype.get_component_mut_unsafe(index) as *mut T)
     }
 }

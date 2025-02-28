@@ -1,4 +1,4 @@
-use crate::{plugin::Plugin, update_group::UpdateGroup, App};
+use crate::{plugin::Plugin, App};
 
 pub enum AppExit {
     Success,

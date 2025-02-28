@@ -42,7 +42,7 @@ where
     }
 
     fn generate_empty_table() -> Table {
-        let mut table = Table::new();
+        let mut table: Table = Table::new();
         for typle_index!(i) in 0..T::LEN {
             table.add_column::<T<{ i }>>();
         }

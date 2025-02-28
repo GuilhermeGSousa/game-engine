@@ -5,11 +5,13 @@ use crate::{
     bundle::ComponentBundle,
     common::generate_type_id,
     entity::{Entity, EntityRecord, EntityType},
+    resource::{Resource, ResourceId, ToAny},
 };
 
 pub struct World {
     entity_count: usize,
     archetypes: Vec<Archetype>,
+    resources: HashMap<ResourceId, Box<dyn Resource>>,
 
     // We need
     // map entity to archetype
@@ -25,6 +27,7 @@ impl World {
             archetypes: Vec::new(),
             entity_index: HashMap::new(),
             archetype_index: HashMap::new(),
+            resources: HashMap::new(),
         }
     }
 
@@ -60,5 +63,22 @@ impl World {
 
     pub fn get_archetypes_mut(&mut self) -> &mut Vec<Archetype> {
         &mut self.archetypes
+    }
+
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) {
+        self.resources
+            .insert(ResourceId::of::<T>(), Box::new(resource));
+    }
+
+    pub fn get_resource<T: 'static>(&self) -> Option<&T> {
+        self.resources
+            .get(&ResourceId::of::<T>())
+            .and_then(|resource| resource.as_any().downcast_ref())
+    }
+
+    pub fn get_resource_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.resources
+            .get_mut(&ResourceId::of::<T>())
+            .and_then(|resource| resource.as_any_mut().downcast_mut())
     }
 }

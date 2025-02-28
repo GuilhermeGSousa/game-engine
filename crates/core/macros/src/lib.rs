@@ -5,7 +5,6 @@ extern crate syn;
 extern crate quote;
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, FnArg, ItemFn, Type, TypeReference};
 
 #[proc_macro_derive(Component)]
 pub fn component(input: TokenStream) -> TokenStream {

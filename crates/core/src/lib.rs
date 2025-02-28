@@ -22,7 +22,7 @@ mod tests {
     #[derive(Component)]
     struct Position;
 
-    fn system(pos: &mut Position, vel: &Health) {
+    fn system(_pos: &mut Position, _vel: &Health) {
         println!("{:?} {:?}", Position::name(), Health::name());
     }
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::{
     archetype::Archetype,
@@ -80,5 +80,63 @@ impl World {
         self.resources
             .get_mut(&ResourceId::of::<T>())
             .and_then(|resource| resource.as_any_mut().downcast_mut())
+    }
+
+    pub fn as_unsafe_world_cell_mut(&mut self) -> UnsafeWorldCell<'_> {
+        UnsafeWorldCell::new_mutable(self)
+    }
+
+    pub fn as_unsafe_world_cell_ref(&self) -> UnsafeWorldCell<'_> {
+        UnsafeWorldCell::new_ref(self)
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct UnsafeWorldCell<'w> {
+    ptr: *mut World,
+    is_mutable: bool,
+    _marker: PhantomData<(&'w World, &'w UnsafeCell<World>)>,
+}
+
+impl<'w> From<&'w mut World> for UnsafeWorldCell<'w> {
+    fn from(value: &'w mut World) -> Self {
+        value.as_unsafe_world_cell_mut()
+    }
+}
+
+impl<'w> From<&'w World> for UnsafeWorldCell<'w> {
+    fn from(value: &'w World) -> Self {
+        value.as_unsafe_world_cell_ref()
+    }
+}
+
+impl<'w> UnsafeWorldCell<'w> {
+    fn assert_mutable(&self) {
+        debug_assert!(self.is_mutable, "UnsafeWorldCell is not mutable");
+    }
+
+    pub(crate) fn new_mutable(world: &'w mut World) -> Self {
+        Self {
+            ptr: ptr::from_mut(world),
+            is_mutable: true,
+            _marker: PhantomData,
+        }
+    }
+
+    pub(crate) fn new_ref(world: &'w World) -> Self {
+        Self {
+            ptr: ptr::from_ref(world).cast_mut(),
+            is_mutable: false,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn get_world(&self) -> &'w World {
+        unsafe { &*self.ptr }
+    }
+
+    pub fn get_world_mut(&self) -> &'w mut World {
+        self.assert_mutable();
+        unsafe { &mut *self.ptr }
     }
 }

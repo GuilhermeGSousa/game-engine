@@ -2,7 +2,11 @@ use std::any::TypeId;
 
 use any_vec::{any_value::AnyValueTypelessRaw, mem::Heap, AnyVecMut, AnyVecRef};
 
-use crate::{component::ComponentId, query::SystemInput, table::Table};
+use crate::{
+    component::{Component, ComponentId},
+    system_input::SystemInput,
+    table::Table,
+};
 
 pub struct Archetype {
     data_table: Table,
@@ -23,28 +27,28 @@ impl Archetype {
         self.data_table.get_row_count()
     }
 
-    pub fn has_component<T: SystemInput + 'static>(&self) -> bool {
-        self.data_table.has_column(T::get_component_id())
+    pub fn has_component<'s, T: Component + 'static>(&self) -> bool {
+        self.data_table.has_column(ComponentId::of::<T>())
     }
 
     pub fn len(&self) -> usize {
         self.data_table.get_row_count()
     }
 
-    pub unsafe fn get_component_vector_unsafe<T: SystemInput + 'static>(
+    pub unsafe fn get_component_vector_unsafe<'s, T: Component + 'static>(
         &self,
     ) -> AnyVecRef<T, Heap> {
         self.data_table
-            .get_column(T::get_component_id())
+            .get_column(ComponentId::of::<T>())
             .unwrap()
             .as_vec_unchecked()
     }
 
-    pub unsafe fn get_component_vector_mut_unsafe<T: SystemInput + 'static>(
+    pub unsafe fn get_component_vector_mut_unsafe<'s, T: Component + 'static>(
         &mut self,
     ) -> AnyVecMut<T, Heap> {
         self.data_table
-            .get_column_mut(T::get_component_id())
+            .get_column_mut(ComponentId::of::<T>())
             .unwrap()
             .as_vec_mut_unchecked()
     }

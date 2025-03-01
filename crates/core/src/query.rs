@@ -1,31 +1,51 @@
-use crate::{
-    archetype::Archetype,
-    component::{Component, ComponentId},
-};
+use std::marker::PhantomData;
 
-pub trait SystemInput {
-    fn get_component_id() -> ComponentId;
-    unsafe fn get_component_data_unsafe(archetype: &mut Archetype, index: usize) -> Self;
+use crate::{bundle::ComponentBundle, system_input::SystemInput, world::UnsafeWorldCell};
+
+pub struct Query<'world, T: ComponentBundle> {
+    world: UnsafeWorldCell<'world>,
+    _marker: PhantomData<T>,
 }
 
-// Implement for immutable access (&T)
-impl<'a, T: Component + 'static> SystemInput for &'a T {
-    fn get_component_id() -> ComponentId {
-        ComponentId::of::<T>()
+impl<'world, T: ComponentBundle> Query<'world, T> {
+    pub fn new(world: UnsafeWorldCell<'world>) -> Self {
+        Self {
+            world,
+            _marker: PhantomData,
+        }
     }
 
-    unsafe fn get_component_data_unsafe(archetype: &mut Archetype, index: usize) -> Self {
-        &*(archetype.get_component_unsafe(index) as *const T)
+    pub fn iter(&self) -> QueryIter<'world, T> {
+        QueryIter {
+            world: self.world,
+            _marker: PhantomData,
+        }
     }
 }
 
-// Implement for mutable access (&mut T)
-impl<'a, T: Component + 'static> SystemInput for &'a mut T {
-    fn get_component_id() -> ComponentId {
-        ComponentId::of::<T>()
-    }
+pub struct QueryIter<'world, T> {
+    world: UnsafeWorldCell<'world>,
+    _marker: PhantomData<T>,
+}
 
-    unsafe fn get_component_data_unsafe(archetype: &mut Archetype, index: usize) -> Self {
-        &mut *(archetype.get_component_mut_unsafe(index) as *mut T)
+impl<'world, T> Iterator for QueryIter<'world, T>
+where
+    T: ComponentBundle,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
+unsafe impl<T> SystemInput for Query<'_, T>
+where
+    T: ComponentBundle,
+{
+    type Data<'world> = Query<'world, T>;
+
+    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+        Query::new(world)
     }
 }

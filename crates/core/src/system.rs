@@ -1,78 +1,84 @@
-use crate::{query::SystemInput, world::World};
+use std::marker::PhantomData;
 
-pub trait SystemFunction<Args> {
-    fn run(&self, world: &mut World);
+use crate::{
+    bundle::ComponentBundle, query::Query, system_input::SystemInput, world::UnsafeWorldCell,
+};
+use typle::typle;
+
+pub type BoxedSystem = Box<dyn System>;
+
+pub trait System {
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>);
 }
 
-impl<FunctionType, A> SystemFunction<(A,)> for FunctionType
-where
-    FunctionType: Fn(A) + 'static,
-    A: SystemInput + 'static,
-{
-    fn run(&self, world: &mut World) {
-        let archetypes = world.get_archetypes_mut();
-        for archetype in archetypes {
-            let mut has_all_components = true;
-            has_all_components &= archetype.has_component::<A>();
-            if !has_all_components {
-                continue;
-            }
-            let len = archetype.len();
-            unsafe {
-                for i in 0..len {
-                    self(A::get_component_data_unsafe(archetype, i));
-                }
-            }
+pub struct ScheduledSystem {
+    system: BoxedSystem,
+}
+
+impl ScheduledSystem {
+    pub fn new(system: impl System + 'static) -> Self {
+        Self {
+            system: Box::new(system),
         }
     }
 }
 
-// Try doing this with typle!
-macro_rules! impl_system_function {
-    ($($arg:ident),*) => {
-        impl<FunctionType, $($arg),*> SystemFunction<($($arg,)*)> for FunctionType
-        where
-            FunctionType: Fn($($arg),*) + 'static,
-            $($arg: SystemInput + 'static),*
-        {
-            fn run(&self, world: &mut World){
-                for archetype in world.get_archetypes_mut() {
-                    let mut has_all_components = true;
-                    $(
-                        has_all_components &= archetype.has_component::<$arg>();
-                    )*
-
-                    if !has_all_components {
-                        continue;
-                    }
-
-                    let len = archetype.len();
-
-                    unsafe {
-                        for i in 0..len {
-                            self(
-                                $(
-                                    $arg::get_component_data_unsafe(archetype, i),
-                                )*
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    };
+impl System for ScheduledSystem {
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        self.system.run(world);
+    }
 }
 
-// impl_system_function!(A);
-impl_system_function!(A, B);
-impl_system_function!(A, B, C);
-impl_system_function!(A, B, C, D);
-impl_system_function!(A, B, C, D, E);
-impl_system_function!(A, B, C, D, E, F);
-impl_system_function!(A, B, C, D, E, F, G);
-impl_system_function!(A, B, C, D, E, F, G, H);
-impl_system_function!(A, B, C, D, E, F, G, H, I);
-impl_system_function!(A, B, C, D, E, F, G, H, I, J);
-impl_system_function!(A, B, C, D, E, F, G, H, I, J, K);
-impl_system_function!(A, B, C, D, E, F, G, H, I, J, K, L);
-impl_system_function!(A, B, C, D, E, F, G, H, I, J, K, L, M);
+pub trait IntoSystem {
+    fn into_system(self) -> ScheduledSystem;
+}
+
+impl<T: System + 'static> IntoSystem for T {
+    fn into_system(self) -> ScheduledSystem {
+        ScheduledSystem::new(self)
+    }
+}
+
+pub struct FunctionSystem<F, Input> {
+    pub func: F,
+    _marker: PhantomData<Input>,
+}
+
+impl<F, Input> FunctionSystem<F, Input> {
+    pub fn new(func: F) -> Self {
+        Self {
+            func,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<F> System for FunctionSystem<F, ()>
+where
+    F: Fn() + 'static,
+{
+    fn run<'world>(&mut self, _world: UnsafeWorldCell<'world>) {
+        (self.func)()
+    }
+}
+
+// impl<F, T0: ComponentBundle> System for FunctionSystem<F, Query<'_, T0>>
+// where
+//     for<'a> F: FnMut(Query<'a, T0>) + 'static,
+// {
+//     fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+//         (self.func)(Query::new(world))
+//     }
+// }
+
+impl<F, T0> System for FunctionSystem<F, T0>
+where
+    for<'a> F: FnMut(T0) + FnMut(T0::Data<'a>) + 'static,
+    T0: SystemInput,
+{
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        unsafe {
+            (self.func)(T0::get_data(world));
+        }
+    }
+}

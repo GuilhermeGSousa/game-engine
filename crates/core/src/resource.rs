@@ -1,6 +1,11 @@
-use std::any::{Any, TypeId};
+use std::{
+    any::{Any, TypeId},
+    marker::PhantomData,
+};
 
 pub use core_macros::Resource;
+
+use crate::{system_input::SystemInput, world::UnsafeWorldCell};
 
 pub type ResourceId = TypeId;
 
@@ -26,45 +31,26 @@ pub trait Resource: 'static {
 }
 
 pub struct Res<'world, T: Resource> {
-    pub value: &'world T,
+    pub value: UnsafeWorldCell<'world>,
+    _marker: PhantomData<T>,
 }
 
-// unsafe impl<'world, T: Resource> SystemInput for Res<'world, T> {
-//     unsafe fn get_data(world: UnsafeWorldCell<'world>) -> Self {
-//         Self {
-//             value: world.get_world().get_resource().unwrap(),
-//         }
-//     }
-// }
-
-// unsafe impl<'world, T: Resource> SystemInput for Option<Res<'world, T>> {
-//     unsafe fn get_data(world: UnsafeWorldCell<'world>) -> Self {
-//         if let Some(resource) = world.get_world().get_resource() {
-//             Some(Res { value: resource })
-//         } else {
-//             None
-//         }
-//     }
-// }
-
-pub struct ResMut<'a, T: Resource> {
-    pub value: &'a mut T,
+impl<'world, T: Resource> Res<'world, T> {
+    pub fn new(world: UnsafeWorldCell<'world>) -> Self {
+        Self {
+            value: world,
+            _marker: PhantomData,
+        }
+    }
 }
 
-// unsafe impl<'world, T: Resource> SystemInput for ResMut<'world, T> {
-//     unsafe fn get_data(world: UnsafeWorldCell<'world>) -> Self {
-//         Self {
-//             value: world.get_world_mut().get_resource_mut().unwrap(),
-//         }
-//     }
-// }
+unsafe impl<T> SystemInput for Res<'_, T>
+where
+    T: Resource,
+{
+    type Data<'world> = Res<'world, T>;
 
-// unsafe impl<'world, T: Resource> SystemInput for Option<ResMut<'world, T>> {
-//     unsafe fn get_data(world: UnsafeWorldCell<'world>) -> Self {
-//         if let Some(resource) = world.get_world_mut().get_resource_mut() {
-//             Some(ResMut { value: resource })
-//         } else {
-//             None
-//         }
-//     }
-// }
+    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+        Res::new(world)
+    }
+}

@@ -18,9 +18,7 @@ mod tests {
         component::Component,
         query::Query,
         resource::{Res, Resource},
-        schedule,
-        system::{FunctionSystem, ScheduledSystem, System},
-        world,
+        schedule, world,
     };
 
     #[derive(Component)]
@@ -40,7 +38,7 @@ mod tests {
         }
     }
 
-    fn system_easy() {
+    fn system_easy(input: ()) {
         // Do something to test this system
     }
 
@@ -48,19 +46,28 @@ mod tests {
         // Do something to test this system
     }
 
+    fn system_intermediate_2(time: Res<Time>) {
+        // Do something to test this system
+    }
+
+    fn system_intermediate_hard(a: (Query<(Position,)>, Res<Time>)) {
+        // Do something to test this system
+    }
+
+    fn system_intermediate_hard_2(a: Query<(Position,)>, time: Res<Time>) {
+        // Do something to test this system
+    }
+
     #[test]
     fn spawn_entity() {
         let mut world = world::World::new();
 
-        let a: Box<dyn Fn() + 'static> = Box::new(system_easy);
-        let b: Box<dyn Fn(Query<(Position,)>) + 'static> = Box::new(system_intermediate);
-
-        let a = FunctionSystem::new(system_easy);
-        let b = FunctionSystem::new(system_intermediate);
         let mut schedule = schedule::Scheduler::default()
-            .add_scheduled_system(ScheduledSystem::new(a))
-            .add_scheduled_system(ScheduledSystem::new(b));
-        //let schedule = schedule::Scheduler::default().add_system(system_intermediate);
+            .add_system(system_easy)
+            .add_system(system_intermediate)
+            .add_system(system_intermediate_2)
+            .add_system(system_intermediate_hard)
+            .add_system(system_intermediate_hard_2);
 
         world.spawn((Health, Position));
 

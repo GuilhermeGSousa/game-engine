@@ -1,7 +1,20 @@
 use crate::world::UnsafeWorldCell;
-use typle::{typle, typle_for};
+use typle::{typle, typle_args};
 
 pub unsafe trait SystemInput {
     type Data<'world>;
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world>;
+}
+
+#[typle(Tuple for 0..=12)]
+unsafe impl<T> SystemInput for T
+where
+    T: Tuple,
+    T<_>: SystemInput + 'static,
+{
+    type Data<'world> = typle_for!(i in .. => T<{i}>::Data<'world>);
+
+    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+        typle_for!(i in .. => <T<{i}>>::get_data(world))
+    }
 }

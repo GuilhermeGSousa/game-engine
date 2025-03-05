@@ -11,7 +11,7 @@ pub(crate) struct Scheduler {
 
 impl Scheduler {
     #[allow(unused)]
-    pub fn add_system(mut self, system: impl IntoSystem + 'static) -> Self {
+    pub fn add_system<M>(mut self, system: impl IntoSystem<M> + 'static) -> Self {
         self.systems.push(system.into_system());
         self
     }

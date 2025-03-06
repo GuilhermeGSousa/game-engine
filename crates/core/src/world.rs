@@ -1,17 +1,19 @@
-use std::{any::Any, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
+use std::{cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
+
+use anymap::AnyMap;
 
 use crate::{
     archetype::Archetype,
     bundle::ComponentBundle,
     common::generate_type_id,
     entity::{Entity, EntityRecord, EntityType},
-    resource::{Resource, ResourceId, ToAny},
+    resource::Resource,
 };
 
 pub struct World {
     entity_count: usize,
     archetypes: Vec<Archetype>,
-    resources: HashMap<ResourceId, Box<dyn Any>>,
+    resources: AnyMap,
 
     // We need
     // map entity to archetype
@@ -27,7 +29,7 @@ impl World {
             archetypes: Vec::new(),
             entity_index: HashMap::new(),
             archetype_index: HashMap::new(),
-            resources: HashMap::new(),
+            resources: AnyMap::new(),
         }
     }
 
@@ -66,32 +68,19 @@ impl World {
     }
 
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
-        self.resources
-            .insert(ResourceId::of::<T>(), Box::new(resource));
+        self.resources.insert(resource);
     }
 
     pub fn remove_resource<T: Resource + 'static>(&mut self) -> Option<T> {
-        self.resources
-            .remove(&ResourceId::of::<T>())
-            .and_then(|res| {
-                if let Ok(res) = res.downcast::<T>() {
-                    Some(*res)
-                } else {
-                    None
-                }
-            })
+        self.resources.remove()
     }
 
     pub fn get_resource<T: 'static>(&self) -> Option<&T> {
-        self.resources
-            .get(&ResourceId::of::<T>())
-            .and_then(|resource| resource.as_any().downcast_ref())
+        self.resources.get()
     }
 
     pub fn get_resource_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        self.resources
-            .get_mut(&ResourceId::of::<T>())
-            .and_then(|resource| resource.as_any_mut().downcast_mut())
+        self.resources.get_mut()
     }
 
     pub fn as_unsafe_world_cell_mut(&mut self) -> UnsafeWorldCell<'_> {

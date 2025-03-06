@@ -30,7 +30,7 @@ impl Schedule {
     #[allow(unused)]
     pub fn run(&mut self, world: &mut World) {
         for system in &mut self.systems {
-            system.run(world.as_unsafe_world_cell_ref());
+            system.run(world.as_unsafe_world_cell_mut());
         }
     }
 }

@@ -5,13 +5,19 @@ use crate::{
 
 #[derive(Default)]
 #[allow(unused)]
-pub(crate) struct Scheduler {
+pub struct Schedule {
     systems: Vec<ScheduledSystem>,
 }
 
-impl Scheduler {
+impl Schedule {
+    pub fn new() -> Schedule {
+        Self {
+            systems: Vec::new(),
+        }
+    }
+
     #[allow(unused)]
-    pub fn add_system<M>(mut self, system: impl IntoSystem<M> + 'static) -> Self {
+    pub fn add_system<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
         self.systems.push(system.into_system());
         self
     }

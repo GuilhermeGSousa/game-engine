@@ -1,4 +1,4 @@
-use std::{cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
+use std::{any::Any, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::{
     archetype::Archetype,
@@ -11,7 +11,7 @@ use crate::{
 pub struct World {
     entity_count: usize,
     archetypes: Vec<Archetype>,
-    resources: HashMap<ResourceId, Box<dyn Resource>>,
+    resources: HashMap<ResourceId, Box<dyn Any>>,
 
     // We need
     // map entity to archetype
@@ -68,6 +68,18 @@ impl World {
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
         self.resources
             .insert(ResourceId::of::<T>(), Box::new(resource));
+    }
+
+    pub fn remove_resource<T: Resource + 'static>(&mut self) -> Option<T> {
+        self.resources
+            .remove(&ResourceId::of::<T>())
+            .and_then(|res| {
+                if let Ok(res) = res.downcast::<T>() {
+                    Some(*res)
+                } else {
+                    None
+                }
+            })
     }
 
     pub fn get_resource<T: 'static>(&self) -> Option<&T> {

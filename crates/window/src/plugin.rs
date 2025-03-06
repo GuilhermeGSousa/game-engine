@@ -1,8 +1,8 @@
+use core::resource::Resource;
 use std::sync::Arc;
 
 use crate::ApplicationWindowHandler;
 use app::{plugin::Plugin, runner::AppExit, App};
-use bevy_ecs::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
 use winit::platform::web::EventLoopExtWebSys;
@@ -19,6 +19,9 @@ pub struct Window {
     size: (u32, u32),
     should_resize: bool,
 }
+
+#[derive(Resource)]
+pub struct WindowEventLoop(EventLoop<()>);
 
 impl Window {
     pub fn new(window: WinitWindow) -> Self {
@@ -73,15 +76,15 @@ impl HasWindowHandle for Window {
 pub struct WindowPlugin;
 
 fn winit_runner(mut app: App) -> AppExit {
-    let event_loop = app.remove_non_send_resource::<EventLoop<()>>().unwrap();
+    let event_loop = app.remove_resource::<WindowEventLoop>().unwrap();
 
     let mut state = ApplicationWindowHandler::new(app);
 
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
-            event_loop.spawn_app(state);
+            event_loop.0.spawn_app(state);
         } else {
-            let _ = event_loop.run_app(&mut state);
+            let _ = event_loop.0.run_app(&mut state);
         }
     }
     AppExit::Success
@@ -120,7 +123,7 @@ impl Plugin for WindowPlugin {
         }
 
         app.insert_resource(Window::new(window));
-        app.insert_non_send_resource(event_loop);
+        app.insert_resource(WindowEventLoop(event_loop));
         app.set_runner(winit_runner);
     }
 }

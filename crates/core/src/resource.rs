@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId},
     marker::PhantomData,
+    ops::{Deref, DerefMut},
 };
 
 pub use core_macros::Resource;
@@ -24,21 +25,21 @@ impl<T: 'static> ToAny for T {
     }
 }
 
-pub trait Resource: 'static {
+pub trait Resource: Any + 'static {
     fn name() -> String
     where
         Self: Sized;
 }
 
 pub struct Res<'world, T: Resource> {
-    pub value: UnsafeWorldCell<'world>,
+    pub value: &'world T,
     _marker: PhantomData<T>,
 }
 
 impl<'world, T: Resource> Res<'world, T> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         Self {
-            value: world,
+            value: world.get_world().get_resource::<T>().unwrap(),
             _marker: PhantomData,
         }
     }
@@ -52,5 +53,61 @@ where
 
     unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
         Res::new(world)
+    }
+}
+
+impl<T> Deref for Res<'_, T>
+where
+    T: Resource,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+pub struct ResMut<'world, T: Resource> {
+    pub value: &'world mut T,
+    _marker: PhantomData<T>,
+}
+
+impl<'world, T: Resource> ResMut<'world, T> {
+    pub fn new(world: UnsafeWorldCell<'world>) -> Self {
+        Self {
+            value: world.get_world_mut().get_resource_mut::<T>().unwrap(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+unsafe impl<T> SystemInput for ResMut<'_, T>
+where
+    T: Resource,
+{
+    type Data<'world> = ResMut<'world, T>;
+
+    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+        ResMut::new(world)
+    }
+}
+
+impl<T> Deref for ResMut<'_, T>
+where
+    T: Resource,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> DerefMut for ResMut<'_, T>
+where
+    T: Resource,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
     }
 }

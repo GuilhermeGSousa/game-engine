@@ -36,12 +36,12 @@ impl ApplicationHandler for ApplicationWindowHandler {
             WindowEvent::RedrawRequested => {
                 println!("The window requested a redraw");
                 self.app.update();
-                let window = self.app.resource::<Window>();
+                let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();
             }
             WindowEvent::Resized(size) => {
                 println!("The window was resized to {:?}", size);
-                let mut window = self.app.get_mut_resource::<Window>().unwrap();
+                let window = self.app.get_mut_resource::<Window>().unwrap();
                 window.request_resize((size.width, size.height));
             }
             _ => (),

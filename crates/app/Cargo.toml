@@ -10,7 +10,6 @@ crate-type = ["cdylib", "rlib"]
 core = { path = "../core" }
 getrandom = { version = "0.2", features = ["js"] }
 uuid = { version = "0.8", features = ["wasm-bindgen"] }
-bevy_ecs = { version = "0.15.2" }
 cfg-if = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

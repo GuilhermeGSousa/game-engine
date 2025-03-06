@@ -1,6 +1,4 @@
-use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
-use bevy_ecs::system::Resource;
-use bevy_ecs::world::{Mut, World};
+use core::{resource::Resource, schedule::Schedule, system::IntoSystem, world::World};
 use runner::{run_once, AppExit};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -23,7 +21,7 @@ impl App {
     pub fn empty() -> App {
         Self {
             runner: Box::new(runner::run_once),
-            world: World::default(),
+            world: World::new(),
             update_schedule: Schedule::default(),
         }
     }
@@ -44,17 +42,12 @@ impl App {
         self
     }
 
-    pub fn add_system<T>(
+    pub fn add_system<M>(
         &mut self,
         update_group: UpdateGroup,
-        system: impl IntoSystemConfigs<T>,
+        system: impl IntoSystem<M> + 'static,
     ) -> &mut Self {
-        self.update_schedule.add_systems(system);
-        self
-    }
-
-    pub fn insert_non_send_resource<R: 'static>(&mut self, value: R) -> &mut Self {
-        self.world.insert_non_send_resource(value);
+        self.update_schedule.add_system(system);
         self
     }
 
@@ -63,15 +56,15 @@ impl App {
         self
     }
 
-    pub fn remove_non_send_resource<R: 'static>(&mut self) -> Option<R> {
-        self.world.remove_non_send_resource()
+    pub fn remove_resource<R: Resource>(&mut self) -> Option<R> {
+        self.world.remove_resource()
     }
 
-    pub fn resource<R: Resource>(&self) -> &R {
-        self.world.resource()
+    pub fn get_resource<R: Resource>(&self) -> Option<&R> {
+        self.world.get_resource()
     }
 
-    pub fn get_mut_resource<R: Resource>(&mut self) -> Option<Mut<'_, R>> {
+    pub fn get_mut_resource<R: Resource>(&mut self) -> Option<&mut R> {
         self.world.get_resource_mut()
     }
 

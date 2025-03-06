@@ -62,7 +62,8 @@ mod tests {
     fn spawn_entity() {
         let mut world = world::World::new();
 
-        let mut schedule = schedule::Scheduler::default()
+        let mut schedule = schedule::Schedule::new();
+        schedule
             .add_system(system_easy)
             .add_system(system_intermediate)
             .add_system(system_intermediate_2)

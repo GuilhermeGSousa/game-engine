@@ -1,8 +1,7 @@
+use core::resource::{Res, ResMut, Resource};
 use std::sync::Arc;
 
 use app::plugin::Plugin;
-use bevy_ecs::prelude::*;
-
 use window::plugin::Window;
 
 pub struct RenderPlugin;
@@ -92,7 +91,7 @@ impl Plugin for RenderPlugin {
             ..Default::default()
         });
 
-        let window = app.resource::<Window>();
+        let window = app.get_resource::<Window>().unwrap();
         let size = window.size();
 
         let surface = Arc::new(

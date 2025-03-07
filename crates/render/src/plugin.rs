@@ -2,84 +2,36 @@ use core::resource::{Res, ResMut, Resource};
 use std::sync::Arc;
 
 use app::plugin::Plugin;
+use wgpu::util::DeviceExt;
 use window::plugin::Window;
+
+use crate::{
+    systems::render,
+    vertex::{Vertex, VERTICES},
+};
 
 pub struct RenderPlugin;
 
 #[derive(Resource)]
-struct RenderSurface(Arc<wgpu::Surface<'static>>);
+pub(crate) struct RenderSurface(pub(crate) Arc<wgpu::Surface<'static>>);
 
 #[derive(Resource)]
-struct RenderAdapter(wgpu::Adapter);
+pub(crate) struct RenderAdapter(pub(crate) wgpu::Adapter);
 
 #[derive(Resource)]
-struct RenderDevice(wgpu::Device);
+pub(crate) struct RenderDevice(pub(crate) wgpu::Device);
 
 #[derive(Resource)]
-struct RenderQueue(wgpu::Queue);
+pub(crate) struct RenderQueue(pub(crate) wgpu::Queue);
 
 #[derive(Resource)]
-struct RenderConfig(wgpu::SurfaceConfiguration);
+pub(crate) struct RenderConfig(pub(crate) wgpu::SurfaceConfiguration);
 
 #[derive(Resource)]
-struct RenderPipeline(wgpu::RenderPipeline);
+pub(crate) struct RenderPipeline(pub(crate) wgpu::RenderPipeline);
 
-fn render(
-    mut window: ResMut<Window>,
-    surface: Res<RenderSurface>,
-    device: Res<RenderDevice>,
-    queue: Res<RenderQueue>,
-    mut config: ResMut<RenderConfig>,
-    pipeline: Res<RenderPipeline>,
-) {
-    if window.should_resize() {
-        let size = window.size();
-        let surface = surface.0.clone();
-        config.0.width = size.0;
-        config.0.height = size.1;
-        surface.configure(&device.0, &config.0);
-        window.clear_resize();
-    }
-
-    if let Ok(output) = surface.0.get_current_texture() {
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = device
-            .0
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            render_pass.set_pipeline(&pipeline.0);
-            render_pass.draw(0..3, 0..1);
-        }
-
-        queue.0.submit(std::iter::once(encoder.finish()));
-        output.present();
-    }
-}
+#[derive(Resource)]
+pub(crate) struct RenderBuffer(pub(crate) wgpu::Buffer);
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut app::App) {
@@ -157,8 +109,8 @@ impl Plugin for RenderPlugin {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"), // 1.
-                buffers: &[],                 // 2.
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::describe()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -194,12 +146,20 @@ impl Plugin for RenderPlugin {
             multiview: None, // 5.
             cache: None,     // 6.
         });
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         app.insert_resource(RenderSurface(surface));
         app.insert_resource(RenderAdapter(adapter));
         app.insert_resource(RenderDevice(device));
         app.insert_resource(RenderQueue(queue));
         app.insert_resource(RenderConfig(config));
         app.insert_resource(RenderPipeline(render_pipeline));
+        app.insert_resource(RenderBuffer(vertex_buffer));
         app.add_system(app::update_group::UpdateGroup::Update, render);
     }
 }

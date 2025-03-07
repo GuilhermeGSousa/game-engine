@@ -10,20 +10,21 @@ crate-type = ["cdylib", "rlib"]
 app = { path = "../app" }
 core = { path = "../core" }
 window = { path = "../window" }
+bytemuck = { version = "1.22.0", features = ["derive"] }
 env_logger = "0.11.6"
-log = "0.4"
-wgpu = { version = "24", default-features = false, features = [
+log = "0.4.26"
+wgpu = { version = "24.0.1", default-features = false, features = [
     "wgsl",
     "dx12",
     "metal",
     "naga-ir",
     "fragile-send-sync-non-atomic-wasm",
 ] }
-cfg-if = "1"
-pollster = "0.4"
+cfg-if = "1.0.0"
+pollster = "0.4.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.6"
-console_log = "1.0"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4.30"
+console_error_panic_hook = "0.1.7"
+console_log = "1.0.0"
+wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4.50"

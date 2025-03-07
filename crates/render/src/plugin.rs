@@ -6,32 +6,15 @@ use wgpu::util::DeviceExt;
 use window::plugin::Window;
 
 use crate::{
+    resources::{
+        RenderAdapter, RenderBuffer, RenderConfig, RenderDevice, RenderPipeline, RenderQueue,
+        RenderSurface,
+    },
     systems::render,
-    vertex::{Vertex, VERTICES},
+    vertex::{Vertex, INDICES, VERTICES},
 };
 
 pub struct RenderPlugin;
-
-#[derive(Resource)]
-pub(crate) struct RenderSurface(pub(crate) Arc<wgpu::Surface<'static>>);
-
-#[derive(Resource)]
-pub(crate) struct RenderAdapter(pub(crate) wgpu::Adapter);
-
-#[derive(Resource)]
-pub(crate) struct RenderDevice(pub(crate) wgpu::Device);
-
-#[derive(Resource)]
-pub(crate) struct RenderQueue(pub(crate) wgpu::Queue);
-
-#[derive(Resource)]
-pub(crate) struct RenderConfig(pub(crate) wgpu::SurfaceConfiguration);
-
-#[derive(Resource)]
-pub(crate) struct RenderPipeline(pub(crate) wgpu::RenderPipeline);
-
-#[derive(Resource)]
-pub(crate) struct RenderBuffer(pub(crate) wgpu::Buffer);
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut app::App) {
@@ -139,12 +122,12 @@ impl Plugin for RenderPlugin {
             },
             depth_stencil: None, // 1.
             multisample: wgpu::MultisampleState {
-                count: 1,                         // 2.
-                mask: !0,                         // 3.
-                alpha_to_coverage_enabled: false, // 4.
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
             },
-            multiview: None, // 5.
-            cache: None,     // 6.
+            multiview: None,
+            cache: None,
         });
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -153,13 +136,19 @@ impl Plugin for RenderPlugin {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
         app.insert_resource(RenderSurface(surface));
         app.insert_resource(RenderAdapter(adapter));
         app.insert_resource(RenderDevice(device));
         app.insert_resource(RenderQueue(queue));
         app.insert_resource(RenderConfig(config));
         app.insert_resource(RenderPipeline(render_pipeline));
-        app.insert_resource(RenderBuffer(vertex_buffer));
+        app.insert_resource(RenderBuffer::new(vertex_buffer, index_buffer));
         app.add_system(app::update_group::UpdateGroup::Update, render);
     }
 }

@@ -3,10 +3,10 @@ use core::resource::{Res, ResMut};
 use window::plugin::Window;
 
 use crate::{
-    plugin::{
+    resources::{
         RenderBuffer, RenderConfig, RenderDevice, RenderPipeline, RenderQueue, RenderSurface,
     },
-    vertex::VERTICES,
+    vertex::{INDICES, VERTICES},
 };
 
 pub(crate) fn render(
@@ -59,10 +59,11 @@ pub(crate) fn render(
                 timestamp_writes: None,
             });
             render_pass.set_pipeline(&pipeline.0);
-            render_pass.set_vertex_buffer(0, buffer.0.slice(..));
+            render_pass.set_vertex_buffer(0, buffer.vertex_buffer.slice(..));
 
-            let num_vertices = VERTICES.len() as u32;
-            render_pass.draw(0..num_vertices, 0..1);
+            let num_indices = INDICES.len() as u32;
+            render_pass.set_index_buffer(buffer.index_buffer.slice(..), wgpu::IndexFormat::Uint16); // 1.
+            render_pass.draw_indexed(0..num_indices, 0, 0..1); // 2.
         }
 
         queue.0.submit(std::iter::once(encoder.finish()));

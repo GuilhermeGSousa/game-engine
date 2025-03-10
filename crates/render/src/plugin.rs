@@ -149,6 +149,6 @@ impl Plugin for RenderPlugin {
         app.insert_resource(RenderConfig(config));
         app.insert_resource(RenderPipeline(render_pipeline));
         app.insert_resource(RenderBuffer::new(vertex_buffer, index_buffer));
-        app.add_system(app::update_group::UpdateGroup::Update, render);
+        app.add_system(app::update_group::UpdateGroup::Render, render);
     }
 }

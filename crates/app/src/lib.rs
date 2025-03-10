@@ -15,6 +15,8 @@ pub struct App {
     runner: runner::RunnerFn,
     world: World,
     update_schedule: Schedule,
+    late_update_schedule: Schedule,
+    render_schedule: Schedule,
 }
 
 impl App {
@@ -23,6 +25,8 @@ impl App {
             runner: Box::new(runner::run_once),
             world: World::new(),
             update_schedule: Schedule::default(),
+            late_update_schedule: Schedule::default(),
+            render_schedule: Schedule::default(),
         }
     }
 
@@ -47,7 +51,11 @@ impl App {
         update_group: UpdateGroup,
         system: impl IntoSystem<M> + 'static,
     ) -> &mut Self {
-        self.update_schedule.add_system(system);
+        match update_group {
+            UpdateGroup::Update => self.update_schedule.add_system(system),
+            UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
+            UpdateGroup::Render => self.render_schedule.add_system(system),
+        };
         self
     }
 
@@ -70,5 +78,7 @@ impl App {
 
     pub fn update(&mut self) {
         self.update_schedule.run(&mut self.world);
+        self.late_update_schedule.run(&mut self.world);
+        self.render_schedule.run(&mut self.world);
     }
 }

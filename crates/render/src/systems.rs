@@ -66,6 +66,8 @@ pub(crate) fn render(
             render_pass.draw_indexed(0..num_indices, 0, 0..1); // 2.
         }
 
+        // UI stuff must run here
+
         queue.0.submit(std::iter::once(encoder.finish()));
         output.present();
     }

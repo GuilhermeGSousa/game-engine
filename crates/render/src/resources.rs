@@ -1,25 +1,23 @@
 use core::resource::Resource;
 use std::sync::Arc;
 
-use crate::vertex;
+#[derive(Resource)]
+pub struct RenderSurface(pub(crate) Arc<wgpu::Surface<'static>>);
 
 #[derive(Resource)]
-pub(crate) struct RenderSurface(pub(crate) Arc<wgpu::Surface<'static>>);
+pub struct RenderAdapter(pub(crate) wgpu::Adapter);
 
 #[derive(Resource)]
-pub(crate) struct RenderAdapter(pub(crate) wgpu::Adapter);
+pub struct RenderDevice(pub wgpu::Device);
 
 #[derive(Resource)]
-pub(crate) struct RenderDevice(pub(crate) wgpu::Device);
+pub struct RenderQueue(pub wgpu::Queue);
 
 #[derive(Resource)]
-pub(crate) struct RenderQueue(pub(crate) wgpu::Queue);
+pub struct RenderConfig(pub(crate) wgpu::SurfaceConfiguration);
 
 #[derive(Resource)]
-pub(crate) struct RenderConfig(pub(crate) wgpu::SurfaceConfiguration);
-
-#[derive(Resource)]
-pub(crate) struct RenderPipeline(pub(crate) wgpu::RenderPipeline);
+pub struct RenderPipeline(pub(crate) wgpu::RenderPipeline);
 
 #[derive(Resource)]
 pub(crate) struct RenderBuffer {

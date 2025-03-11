@@ -4,7 +4,8 @@ use window::plugin::Window;
 
 use crate::{
     resources::{
-        RenderBuffer, RenderConfig, RenderDevice, RenderPipeline, RenderQueue, RenderSurface,
+        RenderBuffer, RenderConfig, RenderDevice, RenderDifuseBindGroup, RenderPipeline,
+        RenderQueue, RenderSurface,
     },
     vertex::{INDICES, VERTICES},
 };
@@ -17,6 +18,7 @@ pub(crate) fn render(
     mut config: ResMut<RenderConfig>,
     pipeline: Res<RenderPipeline>,
     buffer: Res<RenderBuffer>,
+    difuse_bind_group: Res<RenderDifuseBindGroup>,
 ) {
     if window.should_resize() {
         let size = window.size();
@@ -59,6 +61,7 @@ pub(crate) fn render(
                 timestamp_writes: None,
             });
             render_pass.set_pipeline(&pipeline.0);
+            render_pass.set_bind_group(0, &difuse_bind_group.0, &[]);
             render_pass.set_vertex_buffer(0, buffer.vertex_buffer.slice(..));
 
             let num_indices = INDICES.len() as u32;

@@ -1,4 +1,3 @@
-use core::resource::{Res, ResMut, Resource};
 use std::sync::Arc;
 
 use app::plugin::Plugin;
@@ -7,10 +6,11 @@ use window::plugin::Window;
 
 use crate::{
     resources::{
-        RenderAdapter, RenderBuffer, RenderConfig, RenderDevice, RenderPipeline, RenderQueue,
-        RenderSurface,
+        RenderAdapter, RenderBuffer, RenderConfig, RenderDevice, RenderDifuseBindGroup,
+        RenderPipeline, RenderQueue, RenderSurface,
     },
     systems::render,
+    texture,
     vertex::{Vertex, INDICES, VERTICES},
 };
 
@@ -78,12 +78,56 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
+        let diffuse_bytes = include_bytes!("res/happy-tree.png");
+        let diffuse_texture =
+            texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png").unwrap();
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the
+                        // corresponding Texture entry above.
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout"),
+            });
+
+        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+                },
+            ],
+            label: Some("diffuse_bind_group"),
+        });
+
         let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -149,6 +193,7 @@ impl Plugin for RenderPlugin {
         app.insert_resource(RenderConfig(config));
         app.insert_resource(RenderPipeline(render_pipeline));
         app.insert_resource(RenderBuffer::new(vertex_buffer, index_buffer));
+        app.insert_resource(RenderDifuseBindGroup(diffuse_bind_group));
         app.add_system(app::update_group::UpdateGroup::Render, render);
     }
 }

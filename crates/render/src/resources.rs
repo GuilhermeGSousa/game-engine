@@ -33,3 +33,6 @@ impl RenderBuffer {
         }
     }
 }
+
+#[derive(Resource)]
+pub struct RenderDifuseBindGroup(pub(crate) wgpu::BindGroup);

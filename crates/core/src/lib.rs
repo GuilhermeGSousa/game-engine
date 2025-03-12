@@ -42,7 +42,7 @@ mod tests {
         // Do something to test this system
     }
 
-    fn system_intermediate(query: Query<(Position,)>) {
+    fn system_intermediate(query: Query<(&Position,)>) {
         // Do something to test this system
     }
 
@@ -50,11 +50,11 @@ mod tests {
         // Do something to test this system
     }
 
-    fn system_intermediate_hard(a: (Query<(Position,)>, Res<Time>)) {
+    fn system_intermediate_hard(a: (Query<(&Position,)>, Res<Time>)) {
         // Do something to test this system
     }
 
-    fn system_intermediate_hard_2(a: Query<(Position,)>, time: Res<Time>) {
+    fn system_intermediate_hard_2(a: Query<(&Position,)>, time: Res<Time>) {
         // Do something to test this system
     }
 

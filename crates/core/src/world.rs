@@ -49,12 +49,10 @@ impl World {
                 self.archetypes.len() - 1
             });
 
-        let _archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
-        bundle.get_components(|type_id, raw_value| {
-            _archetype.add_component(type_id, raw_value);
-        });
+        let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
+        bundle.add_to_archetype(archetype);
 
-        let entity_record = EntityRecord::new(*archetype_index, _archetype.get_row_count() - 1);
+        let entity_record = EntityRecord::new(*archetype_index, archetype.get_row_count() - 1);
         self.entity_index.insert(entity.clone(), entity_record);
         entity
     }

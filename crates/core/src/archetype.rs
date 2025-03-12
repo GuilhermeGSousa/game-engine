@@ -3,8 +3,8 @@ use std::any::TypeId;
 use any_vec::{any_value::AnyValueTypelessRaw, mem::Heap, AnyVecMut, AnyVecRef};
 
 use crate::{
+    bundle::ComponentBundle,
     component::{Component, ComponentId},
-    system_input::SystemInput,
     table::Table,
 };
 
@@ -35,16 +35,18 @@ impl Archetype {
         self.data_table.get_row_count()
     }
 
-    pub unsafe fn get_component_vector_unsafe<'s, T: Component + 'static>(
-        &self,
-    ) -> AnyVecRef<T, Heap> {
+    pub fn is_compatible_with_bundle<T: ComponentBundle>(&self) -> bool {
+        true
+    }
+
+    pub unsafe fn get_component_vector_unsafe<T: Component + 'static>(&self) -> AnyVecRef<T, Heap> {
         self.data_table
             .get_column(ComponentId::of::<T>())
             .unwrap()
             .as_vec_unchecked()
     }
 
-    pub unsafe fn get_component_vector_mut_unsafe<'s, T: Component + 'static>(
+    pub unsafe fn get_component_vector_mut_unsafe<T: Component + 'static>(
         &mut self,
     ) -> AnyVecMut<T, Heap> {
         self.data_table

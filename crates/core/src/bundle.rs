@@ -1,4 +1,5 @@
-use crate::component::Component;
+use crate::archetype::Archetype;
+use crate::component::{Component, ComponentBorrow};
 use crate::table::Table;
 use any_vec::any_value::AnyValueTypelessRaw;
 use std::any::TypeId;
@@ -9,10 +10,12 @@ use typle::typle;
 pub trait ComponentBundle {
     fn get_type_ids() -> Vec<TypeId>;
 
-    fn get_components<F: FnMut(TypeId, AnyValueTypelessRaw)>(self, f: F);
+    fn add_to_archetype(self, archetype: &mut Archetype);
 
     fn generate_empty_table() -> Table;
 }
+
+pub trait ComponentBorrowBundle {}
 
 #[typle(Tuple for 0..=12)]
 impl<T> ComponentBundle for T
@@ -29,18 +32,6 @@ where
         type_ids
     }
 
-    fn get_components<F: FnMut(TypeId, AnyValueTypelessRaw)>(self, mut f: F) {
-        for typle_index!(i) in 0..T::LEN {
-            let a = self[[i]];
-
-            let raw_val = unsafe {
-                AnyValueTypelessRaw::new(NonNull::from(&a).cast::<u8>(), mem::size_of::<T<{ i }>>())
-            };
-
-            f(TypeId::of::<T<{ i }>>(), raw_val);
-        }
-    }
-
     fn generate_empty_table() -> Table {
         let mut table: Table = Table::new();
         for typle_index!(i) in 0..T::LEN {
@@ -48,4 +39,24 @@ where
         }
         table
     }
+
+    fn add_to_archetype(self, archetype: &mut Archetype) {
+        for typle_index!(i) in 0..T::LEN {
+            let raw_val = unsafe {
+                AnyValueTypelessRaw::new(
+                    NonNull::from(&self[[i]]).cast::<u8>(),
+                    mem::size_of::<T<{ i }>>(),
+                )
+            };
+            archetype.add_component(TypeId::of::<T<{ i }>>(), raw_val);
+        }
+    }
+}
+
+#[typle(Tuple for 0..=12)]
+impl<T> ComponentBorrowBundle for T
+where
+    T: Tuple,
+    T<_>: ComponentBorrow,
+{
 }

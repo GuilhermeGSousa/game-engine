@@ -1,5 +1,5 @@
 use crate::world::UnsafeWorldCell;
-use typle::{typle, typle_args};
+use typle::typle;
 
 pub unsafe trait SystemInput {
     type Data<'world>;

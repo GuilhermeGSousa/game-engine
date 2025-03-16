@@ -3,7 +3,6 @@ use std::any::TypeId;
 use any_vec::{any_value::AnyValueTypelessRaw, mem::Heap, AnyVecMut, AnyVecRef};
 
 use crate::{
-    bundle::ComponentBundle,
     component::{Component, ComponentId},
     table::Table,
 };
@@ -33,10 +32,6 @@ impl Archetype {
 
     pub fn len(&self) -> usize {
         self.data_table.get_row_count()
-    }
-
-    pub fn is_compatible_with_bundle<T: ComponentBundle>(&self) -> bool {
-        true
     }
 
     pub unsafe fn get_component_vector_unsafe<T: Component + 'static>(&self) -> AnyVecRef<T, Heap> {

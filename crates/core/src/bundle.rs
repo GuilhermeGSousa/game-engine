@@ -1,5 +1,5 @@
 use crate::archetype::Archetype;
-use crate::component::{Component, ComponentBorrow};
+use crate::component::Component;
 use crate::table::Table;
 use any_vec::any_value::AnyValueTypelessRaw;
 use std::any::TypeId;
@@ -14,8 +14,6 @@ pub trait ComponentBundle {
 
     fn generate_empty_table() -> Table;
 }
-
-pub trait ComponentBorrowBundle {}
 
 #[typle(Tuple for 0..=12)]
 impl<T> ComponentBundle for T
@@ -51,12 +49,4 @@ where
             archetype.add_component(TypeId::of::<T<{ i }>>(), raw_val);
         }
     }
-}
-
-#[typle(Tuple for 0..=12)]
-impl<T> ComponentBorrowBundle for T
-where
-    T: Tuple,
-    T<_>: ComponentBorrow,
-{
 }

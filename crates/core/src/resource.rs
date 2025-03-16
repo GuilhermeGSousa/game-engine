@@ -1,5 +1,5 @@
 use std::{
-    any::{Any, TypeId},
+    any::TypeId,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };

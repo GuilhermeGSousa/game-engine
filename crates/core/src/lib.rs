@@ -18,7 +18,8 @@ mod tests {
         component::Component,
         query::Query,
         resource::{Res, Resource},
-        schedule, world,
+        schedule::{self, Schedule},
+        world,
     };
 
     #[derive(Component)]
@@ -38,41 +39,18 @@ mod tests {
         }
     }
 
-    fn system_easy(input: ()) {
-        // Do something to test this system
-    }
-
-    fn system_intermediate(query: Query<(&Position,)>) {
-        // Do something to test this system
-    }
-
-    fn system_intermediate_2(time: Res<Time>) {
-        // Do something to test this system
-    }
-
-    fn system_intermediate_hard(a: (Query<(&Position,)>, Res<Time>)) {
-        // Do something to test this system
-    }
-
-    fn system_intermediate_hard_2(a: Query<(&Position,)>, time: Res<Time>) {
-        // Do something to test this system
+    fn system_query(query: Query<(&Position,)>) {
+        //for (position,) in query.iter() {}
     }
 
     #[test]
-    fn spawn_entity() {
+    fn test_query() {
         let mut world = world::World::new();
-
-        let mut schedule = schedule::Schedule::new();
-        schedule
-            .add_system(system_easy)
-            .add_system(system_intermediate)
-            .add_system(system_intermediate_2)
-            .add_system(system_intermediate_hard)
-            .add_system(system_intermediate_hard_2);
+        let mut schedule = Schedule::new();
+        schedule.add_system(system_query);
 
         world.spawn((Health, Position));
-
-        world.insert_resource(Time::new());
+        world.spawn((Position,));
 
         schedule.run(&mut world);
     }

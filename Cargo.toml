@@ -1,3 +1,6 @@
+[profile.release]
+strip = true
+
 [package]
 name = "game-engine"
 version = "0.1.0"
@@ -8,6 +11,21 @@ members = ["crates/*"]
 
 [dependencies]
 app = { path = "crates/app" }
-core = { path = "crates/core" }
 render = { path = "crates/render" }
+ui = { path = "crates/ui" }
 window = { path = "crates/window" }
+core = { path = "crates/core" }
+cfg-if = "1"
+env_logger = "0.11.6"
+log = "0.4.26"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "1.0"
+wgpu = { version = "24.0", features = ["webgl"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.30"
+web-sys = { version = "0.3", features = ["Document", "Window", "Element"] }

@@ -1,6 +1,5 @@
-use app::App;
-use core::component::Component;
+use game_engine::run_game;
 
 fn main() {
-    App::new().run();
+    run_game();
 }

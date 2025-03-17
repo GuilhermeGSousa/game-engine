@@ -3,5 +3,35 @@ name = "render"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-wgpu = "22.0"
+app = { path = "../app" }
+core = { path = "../core" }
+window = { path = "../window" }
+bytemuck = { version = "1.22.0", features = ["derive"] }
+env_logger = "0.11.6"
+log = "0.4.26"
+wgpu = { version = "24.0.1", default-features = false, features = [
+    "wgsl",
+    "dx12",
+    "metal",
+    "naga-ir",
+    "fragile-send-sync-non-atomic-wasm",
+] }
+cfg-if = "1.0.0"
+pollster = "0.4.0"
+anyhow = "1.0" 
+
+[dependencies.image]
+version = "0.25.5"
+default-features = false
+features = ["png", "jpeg"]
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.7"
+console_log = "1.0.0"
+wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4.50"

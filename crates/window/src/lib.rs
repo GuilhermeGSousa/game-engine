@@ -1,58 +1,84 @@
-use winit::{
-    application::ApplicationHandler,
-    event::*,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowId},
-};
+use app::App;
+use plugin::Window;
+use winit::{application::ApplicationHandler, event::WindowEvent};
 
-#[derive(Default)]
-struct AppWindow {
-    window: Option<Window>,
+pub mod plugin;
+
+pub fn run() {}
+
+pub struct ApplicationWindowHandler {
+    app: App,
 }
 
-impl ApplicationHandler for AppWindow {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.window = Some(
-            event_loop
-                .create_window(Window::default_attributes())
-                .unwrap(),
-        );
+impl ApplicationWindowHandler {
+    pub fn new(app: App) -> Self {
+        Self { app: app }
+    }
+}
+
+impl ApplicationHandler for ApplicationWindowHandler {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let _ = event_loop;
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        let _ = window_id;
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                // Redraw the application.
-                //
-                // It's preferable for applications that do not render continuously to render in
-                // this event rather than in AboutToWait, since rendering in here allows
-                // the program to gracefully handle redraws requested by the OS.
-
-                // Draw.
-
-                // Queue a RedrawRequested event.
-                //
-                // You only need to call this if you've determined that you need to redraw in
-                // applications which do not always need to. Applications that redraw continuously
-                // can render here instead.
-                self.window.as_ref().unwrap().request_redraw();
+                println!("The window requested a redraw");
+                self.app.update();
+                let window = self.app.get_resource::<Window>().unwrap();
+                window.request_redraw();
+            }
+            WindowEvent::Resized(size) => {
+                println!("The window was resized to {:?}", size);
+                let window = self.app.get_mut_resource::<Window>().unwrap();
+                window.request_resize((size.width, size.height));
             }
             _ => (),
         }
     }
+
+    fn new_events(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        cause: winit::event::StartCause,
+    ) {
+        let _ = (event_loop, cause);
+    }
+
+    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: ()) {
+        let _ = (event_loop, event);
+    }
+
+    fn device_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        let _ = (event_loop, device_id, event);
+    }
+
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let _ = event_loop;
+    }
 }
 
-pub fn run() {
-    let event_loop = EventLoop::new().unwrap();
+#[cfg(test)]
+mod tests {
 
-    // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-    // dispatched any events. This is ideal for games and similar applications.
-    event_loop.set_control_flow(ControlFlow::Poll);
-
-    let mut app = AppWindow::default();
-    let _ = event_loop.run_app(&mut app);
+    #[test]
+    fn test_window() {
+        super::run();
+    }
 }

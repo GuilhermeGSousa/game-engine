@@ -3,5 +3,16 @@ name = "window"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-winit = { version = "0.30.5", features = ["rwh_05"] }
+app = { path = "../app" }
+core = { path = "../core" }
+cfg-if = "1"
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["Document", "Window", "Element"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.50"

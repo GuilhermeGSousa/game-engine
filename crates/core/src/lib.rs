@@ -26,7 +26,10 @@ mod tests {
     struct Health;
 
     #[derive(Component)]
-    struct Position;
+    struct Position {
+        pub x: f32,
+        pub y: f32,
+    }
 
     #[derive(Resource)]
     struct Time {
@@ -39,18 +42,28 @@ mod tests {
         }
     }
 
-    fn system_query(query: Query<(&Position,)>) {
-        //for (position,) in query.iter() {}
+    fn system_query(query: Query<(&Position, &mut Health)>) {
+        for (position, hp) in query.iter() {
+            print!("{}", position.x);
+        }
+    }
+
+    fn system_query_2(query: Query<(&Position)>) {
+        for (position) in query.iter() {
+            print!("{}", position.x);
+        }
     }
 
     #[test]
     fn test_query() {
         let mut world = world::World::new();
         let mut schedule = Schedule::new();
-        schedule.add_system(system_query);
 
-        world.spawn((Health, Position));
-        world.spawn((Position,));
+        schedule.add_system(system_query);
+        schedule.add_system(system_query_2);
+
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Position { x: 20.0, y: 20.0 },));
 
         schedule.run(&mut world);
     }

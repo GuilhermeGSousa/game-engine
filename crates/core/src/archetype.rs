@@ -26,8 +26,12 @@ impl Archetype {
         self.data_table.get_row_count()
     }
 
-    pub fn has_component<'s, T: Component + 'static>(&self) -> bool {
-        self.data_table.has_column(ComponentId::of::<T>())
+    pub fn contains(&self, component_id: ComponentId) -> bool {
+        self.data_table.has_column(component_id)
+    }
+
+    pub fn contains_all(&self, component_ids: Vec<ComponentId>) -> bool {
+        component_ids.iter().all(|id| self.contains(*id))
     }
 
     pub fn len(&self) -> usize {

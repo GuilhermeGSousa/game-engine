@@ -1,7 +1,11 @@
-use std::marker::PhantomData;
+use std::{any::TypeId, marker::PhantomData};
 
-use crate::{component::Component, system_input::SystemInput, world::UnsafeWorldCell};
-use typle::typle;
+use crate::{
+    component::{Component, ComponentId},
+    system_input::SystemInput,
+    world::UnsafeWorldCell,
+};
+use typle::{typle, typle_args, typle_for};
 
 pub struct Query<'world, T: QueryData> {
     world: UnsafeWorldCell<'world>,
@@ -9,7 +13,15 @@ pub struct Query<'world, T: QueryData> {
 }
 
 pub trait QueryData {
-    //type Item<'a>;
+    type Item<'a>;
+
+    fn get_component_ids() -> Vec<ComponentId>;
+
+    fn fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        archetype_index: usize,
+        entity_index: usize,
+    ) -> Option<Self::Item<'w>>;
 }
 
 enum ArchetypeIteratorState {
@@ -46,48 +58,45 @@ impl<'world, T> Iterator for QueryIter<'world, T>
 where
     T: QueryData,
 {
-    type Item = T;
+    type Item = T::Item<'world>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
-        // let archetypes = self.world.get_world_mut().get_archetypes_mut();
+        let archetypes = self.world.get_world_mut().get_archetypes_mut();
 
-        // if let ArchetypeIteratorState::Pending(pending_index) = self.archetype_iteration_state {
-        //     // Loop until we find a good one
-        //     let mut current_index = pending_index;
-        //     while current_index < archetypes.len() {
-        //         if archetypes[current_index].has_data_for::<T>() {
-        //             self.archetype_iteration_state =
-        //                 ArchetypeIteratorState::Iterating(current_index);
-        //             self.current_entity_index = 0;
-        //             break;
-        //         }
+        if let ArchetypeIteratorState::Pending(pending_index) = self.archetype_iteration_state {
+            // Loop until we find a good one
+            let mut current_index = pending_index;
+            while current_index < archetypes.len() {
+                if archetypes[current_index].contains_all(T::get_component_ids()) {
+                    self.archetype_iteration_state =
+                        ArchetypeIteratorState::Iterating(current_index);
+                    self.current_entity_index = 0;
+                    break;
+                }
 
-        //         current_index += 1;
-        //     }
-        // }
+                current_index += 1;
+            }
+        }
 
-        // match self.archetype_iteration_state {
-        //     ArchetypeIteratorState::Pending(_) => None,
-        //     ArchetypeIteratorState::Iterating(index) => {
-        //         let current_archetype = &archetypes[index];
+        match self.archetype_iteration_state {
+            ArchetypeIteratorState::Pending(_) => None,
+            ArchetypeIteratorState::Iterating(index) => {
+                match T::fetch(self.world, index, self.current_entity_index) {
+                    Some(value) => {
+                        self.current_entity_index += 1;
+                        if self.current_entity_index >= archetypes[index].len() {
+                            self.archetype_iteration_state =
+                                ArchetypeIteratorState::Pending(index + 1);
+                        }
 
-        //         match current_archetype.get_components::<T>(self.current_entity_index) {
-        //             Some(value) => {
-        //                 self.current_entity_index += 1;
-        //                 if self.current_entity_index >= current_archetype.len() {
-        //                     self.archetype_iteration_state =
-        //                         ArchetypeIteratorState::Pending(index + 1);
-        //                 }
-
-        //                 return Some(value);
-        //             }
-        //             None => {
-        //                 panic!("This should not be possible!")
-        //             }
-        //         };
-        //     }
-        // }
+                        return Some(value);
+                    }
+                    None => {
+                        panic!("This should not be possible!")
+                    }
+                };
+            }
+        }
     }
 }
 
@@ -102,7 +111,49 @@ where
     }
 }
 
-impl<T> QueryData for &T where T: Component {}
+impl<T> QueryData for &T
+where
+    T: Component,
+{
+    type Item<'w> = &'w T;
+
+    fn get_component_ids() -> Vec<ComponentId> {
+        {
+            vec![TypeId::of::<T>()]
+        }
+    }
+
+    fn fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        archetype_index: usize,
+        entity_index: usize,
+    ) -> Option<Self::Item<'w>> {
+        let archetype = &world.get_world().get_archetypes()[archetype_index];
+        unsafe { Some(archetype.get_component_unsafe(entity_index)) }
+    }
+}
+
+impl<T> QueryData for &mut T
+where
+    T: Component,
+{
+    type Item<'w> = &'w mut T;
+
+    fn get_component_ids() -> Vec<ComponentId> {
+        {
+            vec![TypeId::of::<T>()]
+        }
+    }
+
+    fn fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        archetype_index: usize,
+        entity_index: usize,
+    ) -> Option<Self::Item<'w>> {
+        let archetype = &mut world.get_world_mut().get_archetypes_mut()[archetype_index];
+        unsafe { Some(archetype.get_component_mut_unsafe(entity_index)) }
+    }
+}
 
 #[typle(Tuple for 0..=12)]
 impl<T> QueryData for T
@@ -110,4 +161,29 @@ where
     T: Tuple,
     T<_>: QueryData,
 {
+    type Item<'w> = typle_for!(i in .. => T<{i}>::Item<'w>);
+
+    fn get_component_ids() -> Vec<ComponentId> {
+        {
+            let mut res = Vec::new();
+
+            for typle_index!(i) in 0..T::LEN {
+                res.extend(T::<{ i }>::get_component_ids());
+            }
+
+            res
+        }
+    }
+
+    fn fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        archetype_index: usize,
+        entity_index: usize,
+    ) -> Option<Self::Item<'w>> {
+        unsafe {
+            Some(
+                typle_for!(i in .. => <T<{i}>>::fetch(world, archetype_index, entity_index).unwrap()),
+            )
+        }
+    }
 }

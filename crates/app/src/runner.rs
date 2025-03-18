@@ -7,7 +7,7 @@ pub enum AppExit {
 
 pub(crate) type RunnerFn = Box<dyn FnOnce(App) -> AppExit>;
 
-pub fn run_once(mut app: App) -> AppExit {
+pub fn run_once(_app: App) -> AppExit {
     AppExit::Success
 }
 
@@ -15,12 +15,8 @@ pub struct ScheduleRunnerPlugin();
 
 impl Plugin for ScheduleRunnerPlugin {
     fn build(&self, app: &mut App) {
-        app.set_runner(move |mut app: App| {
-            loop {
-                app.update();
-            }
-
-            AppExit::Success
+        app.set_runner(move |mut app: App| loop {
+            app.update();
         });
     }
 }

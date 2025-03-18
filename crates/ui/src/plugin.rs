@@ -5,5 +5,5 @@ use app::plugin::Plugin;
 pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
-    fn build(&self, app: &mut app::App) {}
+    fn build(&self, _app: &mut app::App) {}
 }

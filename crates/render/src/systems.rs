@@ -7,7 +7,7 @@ use crate::{
         RenderBuffer, RenderConfig, RenderDevice, RenderDifuseBindGroup, RenderPipeline,
         RenderQueue, RenderSurface,
     },
-    vertex::{INDICES, VERTICES},
+    vertex::INDICES,
 };
 
 pub(crate) fn render(

@@ -5,7 +5,7 @@ use crate::{
     system_input::SystemInput,
     world::UnsafeWorldCell,
 };
-use typle::{typle, typle_args, typle_for};
+use typle::typle;
 
 pub struct Query<'world, T: QueryData> {
     world: UnsafeWorldCell<'world>,
@@ -155,6 +155,8 @@ where
     }
 }
 
+#[allow(unused_mut)]
+#[allow(unused_variables)]
 #[typle(Tuple for 0..=12)]
 impl<T> QueryData for T
 where
@@ -180,10 +182,6 @@ where
         archetype_index: usize,
         entity_index: usize,
     ) -> Option<Self::Item<'w>> {
-        unsafe {
-            Some(
-                typle_for!(i in .. => <T<{i}>>::fetch(world, archetype_index, entity_index).unwrap()),
-            )
-        }
+        Some(typle_for!(i in .. => <T<{i}>>::fetch(world, archetype_index, entity_index).unwrap()))
     }
 }

@@ -6,8 +6,8 @@ use window::plugin::Window;
 
 use crate::{
     resources::{
-        RenderAdapter, RenderBuffer, RenderConfig, RenderDevice, RenderDifuseBindGroup,
-        RenderPipeline, RenderQueue, RenderSurface,
+        RenderBuffer, RenderConfig, RenderDevice, RenderDifuseBindGroup, RenderPipeline,
+        RenderQueue, RenderSurface,
     },
     systems::render,
     texture,
@@ -187,7 +187,6 @@ impl Plugin for RenderPlugin {
         });
 
         app.insert_resource(RenderSurface(surface));
-        app.insert_resource(RenderAdapter(adapter));
         app.insert_resource(RenderDevice(device));
         app.insert_resource(RenderQueue(queue));
         app.insert_resource(RenderConfig(config));

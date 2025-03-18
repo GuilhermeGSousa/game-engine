@@ -6,6 +6,7 @@ pub unsafe trait SystemInput {
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world>;
 }
 
+#[allow(unused_variables)]
 #[typle(Tuple for 0..=12)]
 unsafe impl<T> SystemInput for T
 where

@@ -5,9 +5,6 @@ use std::sync::Arc;
 pub struct RenderSurface(pub(crate) Arc<wgpu::Surface<'static>>);
 
 #[derive(Resource)]
-pub struct RenderAdapter(pub(crate) wgpu::Adapter);
-
-#[derive(Resource)]
 pub struct RenderDevice(pub wgpu::Device);
 
 #[derive(Resource)]

@@ -90,6 +90,7 @@ fn winit_runner(mut app: App) -> AppExit {
     AppExit::Success
 }
 
+#[allow(deprecated)]
 impl Plugin for WindowPlugin {
     fn build(&self, app: &mut App) {
         let mut event_loop_builder = EventLoop::builder();

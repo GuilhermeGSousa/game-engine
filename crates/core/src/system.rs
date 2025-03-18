@@ -42,6 +42,7 @@ impl<F, Input> FunctionSystem<F, Input> {
     }
 }
 
+#[allow(unused_variables)]
 #[typle(Tuple for 0..=12)]
 impl<F, T> System for FunctionSystem<F, T>
 where
@@ -52,9 +53,7 @@ where
         + 'static,
 {
     fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        unsafe {
-            (self.func)(typle_args!(i in .. => <T<{i}>>::get_data(world)));
-        }
+        (self.func)(typle_args!(i in .. => unsafe { <T<{i}>>::get_data(world) } ));
     }
 }
 

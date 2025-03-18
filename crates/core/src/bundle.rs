@@ -15,6 +15,8 @@ pub trait ComponentBundle {
     fn generate_empty_table() -> Table;
 }
 
+#[allow(unused_mut)]
+#[allow(unused_variables)]
 #[typle(Tuple for 0..=12)]
 impl<T> ComponentBundle for T
 where

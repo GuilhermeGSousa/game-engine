@@ -8,7 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 app = { path = "../app" }
-core = { path = "../core" }
+ecs = { path = "../ecs" }
 cfg-if = "1"
 winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
 

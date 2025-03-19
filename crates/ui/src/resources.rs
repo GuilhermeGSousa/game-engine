@@ -1,4 +1,4 @@
-use core::resource::Resource;
+use ecs::resource::Resource;
 
 use egui::Context;
 use egui_wgpu::{

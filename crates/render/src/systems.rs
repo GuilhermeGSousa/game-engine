@@ -1,4 +1,4 @@
-use core::resource::{Res, ResMut};
+use ecs::resource::{Res, ResMut};
 
 use window::plugin::Window;
 

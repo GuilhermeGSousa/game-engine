@@ -8,7 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 app = { path = "../app" }
-core = { path = "../core" }
+ecs = { path = "../ecs" }
 window = { path = "../window" }
 bytemuck = { version = "1.22.0", features = ["derive"] }
 env_logger = "0.11.6"
@@ -22,7 +22,7 @@ wgpu = { version = "24.0.1", default-features = false, features = [
 ] }
 cfg-if = "1.0.0"
 pollster = "0.4.0"
-anyhow = "1.0" 
+anyhow = "1.0"
 
 [dependencies.image]
 version = "0.25.5"

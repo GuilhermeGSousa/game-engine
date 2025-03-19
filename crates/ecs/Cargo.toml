@@ -1,0 +1,13 @@
+[package]
+name = "ecs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+any_vec = "0.14.0"
+anymap = "0.12.1"
+typle = "0.10.6"
+ecs-macros = { path = "macros" }

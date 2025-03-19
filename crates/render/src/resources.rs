@@ -1,4 +1,4 @@
-use core::resource::Resource;
+use ecs::resource::Resource;
 use std::sync::Arc;
 
 #[derive(Resource)]

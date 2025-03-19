@@ -1,4 +1,4 @@
-use core::component::Component;
+use ecs::component::Component;
 
 #[derive(Component)]
 pub struct UI {}

@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-pub use core_macros::Component;
+pub use ecs_macros::Component;
 
 pub type ComponentId = TypeId;
 

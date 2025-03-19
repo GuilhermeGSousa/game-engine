@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-pub use core_macros::Resource;
+pub use ecs_macros::Resource;
 
 use crate::{system_input::SystemInput, world::UnsafeWorldCell};
 

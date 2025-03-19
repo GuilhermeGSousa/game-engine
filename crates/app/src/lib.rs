@@ -1,4 +1,4 @@
-use core::{resource::Resource, schedule::Schedule, system::IntoSystem, world::World};
+use ecs::{resource::Resource, schedule::Schedule, system::IntoSystem, world::World};
 use runner::{run_once, AppExit};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;

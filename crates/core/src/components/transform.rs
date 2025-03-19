@@ -1,4 +1,4 @@
-use cgmath::{Matrix4, Transform as cTransform};
+use cgmath::{Matrix4, SquareMatrix as _, Transform as cTransform};
 use ecs::component::Component;
 
 #[derive(Component)]
@@ -7,8 +7,8 @@ pub struct Transform {
 }
 
 impl Transform {
-    fn new() -> Self {
-        todo!()
+    pub fn from_matrix(matrix: Matrix4<f32>) -> Self {
+        Self { matrix: matrix }
     }
 
     fn inverse(&self) -> Option<Self> {
@@ -17,6 +17,22 @@ impl Transform {
         match inverse {
             Some(inverse) => Some(Self { matrix: inverse }),
             None => None,
+        }
+    }
+
+    fn identity() -> Self {
+        Self {
+            matrix: Matrix4::<f32>::identity(),
+        }
+    }
+}
+
+impl std::ops::Mul<Transform> for Transform {
+    type Output = Transform;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self {
+            matrix: self.matrix * rhs.matrix,
         }
     }
 }

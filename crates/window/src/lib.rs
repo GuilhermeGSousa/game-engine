@@ -1,7 +1,13 @@
 use app::App;
+use input::Input;
 use plugin::Window;
-use winit::{application::ApplicationHandler, event::WindowEvent};
+use winit::{
+    application::ApplicationHandler,
+    event::{KeyEvent, WindowEvent},
+    keyboard::PhysicalKey,
+};
 
+pub mod input;
 pub mod plugin;
 
 pub fn run() {}
@@ -30,19 +36,28 @@ impl ApplicationHandler for ApplicationWindowHandler {
         let _ = window_id;
         match event {
             WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                println!("The window requested a redraw");
                 self.app.update();
                 let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();
             }
             WindowEvent::Resized(size) => {
-                println!("The window was resized to {:?}", size);
                 let window = self.app.get_mut_resource::<Window>().unwrap();
                 window.request_resize((size.width, size.height));
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        state,
+                        physical_key: PhysicalKey::Code(keycode),
+                        ..
+                    },
+                ..
+            } => {
+                let input_state = self.app.get_mut_resource::<Input>().unwrap();
+                input_state.update_key_input(PhysicalKey::Code(keycode), state);
             }
             _ => (),
         }
@@ -62,11 +77,17 @@ impl ApplicationHandler for ApplicationWindowHandler {
 
     fn device_event(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        device_id: winit::event::DeviceId,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
         event: winit::event::DeviceEvent,
     ) {
-        let _ = (event_loop, device_id, event);
+        match event {
+            winit::event::DeviceEvent::MouseMotion { delta } => {
+                let input_state = self.app.get_mut_resource::<Input>().unwrap();
+                input_state.update_mouse_delta(delta);
+            }
+            _ => (),
+        }
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {

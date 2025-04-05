@@ -1,8 +1,8 @@
-use ecs::resource::Resource;
+use ecs::resource::{ResMut, Resource};
 use std::sync::Arc;
 
-use crate::ApplicationWindowHandler;
-use app::{plugin::Plugin, runner::AppExit, App};
+use crate::{input::Input, ApplicationWindowHandler};
+use app::{plugins::Plugin, runner::AppExit, update_group::UpdateGroup, App};
 
 #[cfg(target_arch = "wasm32")]
 use winit::platform::web::EventLoopExtWebSys;
@@ -87,7 +87,12 @@ fn winit_runner(mut app: App) -> AppExit {
             let _ = event_loop.0.run_app(&mut state);
         }
     }
+    println!("App exited");
     AppExit::Success
+}
+
+fn update_input(mut input: ResMut<Input>) {
+    input.update();
 }
 
 #[allow(deprecated)]
@@ -123,8 +128,10 @@ impl Plugin for WindowPlugin {
                 .expect("Couldn't append canvas to document body.");
         }
 
+        app.insert_resource(Input::new());
         app.insert_resource(Window::new(window));
         app.insert_resource(WindowEventLoop(event_loop));
+        app.add_system(UpdateGroup::Render, update_input);
         app.set_runner(winit_runner);
     }
 }

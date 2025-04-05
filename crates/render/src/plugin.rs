@@ -1,20 +1,20 @@
+use core::transform::TransformRaw;
 use std::sync::Arc;
 
-use app::plugin::Plugin;
+use crate::{
+    components::camera::CameraUniform,
+    resources::{RenderContext, RenderWorldState},
+    systems::{render, update_camera, update_window},
+    texture,
+    vertex::{Vertex, VertexBufferLayout},
+};
+use app::plugins::Plugin;
 use wgpu::util::DeviceExt;
 use window::plugin::Window;
 
-use crate::{
-    resources::{
-        RenderBuffer, RenderConfig, RenderDevice, RenderDifuseBindGroup, RenderPipeline,
-        RenderQueue, RenderSurface,
-    },
-    systems::render,
-    texture,
-    vertex::{Vertex, INDICES, VERTICES},
-};
-
 pub struct RenderPlugin;
+
+impl RenderPlugin {}
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut app::App) {
@@ -78,6 +78,7 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
+        // This is a texture
         let diffuse_bytes = include_bytes!("res/happy-tree.png");
         let diffuse_texture =
             texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png").unwrap();
@@ -124,10 +125,44 @@ impl Plugin for RenderPlugin {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
 
+        // Camera initialization
+        let camera_uniform = CameraUniform::new();
+
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
+        // Setup render pipeline
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout],
+                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -137,7 +172,7 @@ impl Plugin for RenderPlugin {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::describe()],
+                buffers: &[Vertex::describe(), TransformRaw::describe()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -174,25 +209,33 @@ impl Plugin for RenderPlugin {
             cache: None,
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
+        app.insert_resource(RenderContext {
+            device: device,
+            surface: surface,
+            surface_config: config,
+            queue: queue,
+            pipeline: render_pipeline,
+            diffuse_bind_group: diffuse_bind_group,
+            camera_bind_group: camera_bind_group,
+            camera_buffer: camera_buffer,
+            camera_uniform: camera_uniform,
         });
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        app.insert_resource(RenderWorldState::new());
 
-        app.insert_resource(RenderSurface(surface));
-        app.insert_resource(RenderDevice(device));
-        app.insert_resource(RenderQueue(queue));
-        app.insert_resource(RenderConfig(config));
-        app.insert_resource(RenderPipeline(render_pipeline));
-        app.insert_resource(RenderBuffer::new(vertex_buffer, index_buffer));
-        app.insert_resource(RenderDifuseBindGroup(diffuse_bind_group));
-        app.add_system(app::update_group::UpdateGroup::Render, render);
+        app.add_system(
+            app::update_group::UpdateGroup::Render,
+            update_window::update_window,
+        );
+        app.add_system(
+            app::update_group::UpdateGroup::Render,
+            render::prepare_render_state,
+        );
+        app.add_system(
+            app::update_group::UpdateGroup::Render,
+            update_camera::update_camera,
+        );
+
+        app.add_system(app::update_group::UpdateGroup::Render, render::render);
     }
 }

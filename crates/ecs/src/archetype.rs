@@ -1,6 +1,4 @@
-use std::any::TypeId;
-
-use any_vec::{any_value::AnyValueTypelessRaw, mem::Heap, AnyVecMut, AnyVecRef};
+use any_vec::{any_value::AnyValueWrapper, mem::Heap, AnyVecMut, AnyVecRef};
 
 use crate::{
     component::{Component, ComponentId},
@@ -16,8 +14,8 @@ impl Archetype {
         Archetype { data_table }
     }
 
-    pub fn add_component(&mut self, type_id: TypeId, raw_value: AnyValueTypelessRaw) {
-        if let Some(column) = self.data_table.get_column_mut(type_id) {
+    pub fn add_component<T: Component>(&mut self, raw_value: AnyValueWrapper<T>) {
+        if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
             column.push(raw_value);
         }
     }

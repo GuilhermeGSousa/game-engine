@@ -8,5 +8,6 @@ This is a small game engine I am using as a way to learn more about, game engine
 
 ### Features
 - An archetype based ECS system, and my attempt at implementing an API as ergonomic as Bevy's.
-- A renderer that only renders the same triangle every time.
+- A very basic renderer
+- Some barebone functionality, (transform, camera, mesh components)
 - WASM support.

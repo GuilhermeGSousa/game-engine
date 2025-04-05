@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 ecs = { path = "../ecs" }
-cgmath = "0.18"
+bytemuck = { version = "1.22.0", features = ["derive"] }
+glam = { version = "0.30.1" }

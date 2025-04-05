@@ -3,6 +3,7 @@ pub mod bundle;
 pub mod common;
 pub mod component;
 pub mod entity;
+pub mod events;
 pub mod query;
 pub mod resource;
 pub mod schedule;
@@ -15,11 +16,7 @@ pub mod world;
 mod tests {
 
     use crate::{
-        component::Component,
-        query::Query,
-        resource::{Res, Resource},
-        schedule::{self, Schedule},
-        world,
+        component::Component, query::Query, resource::Resource, schedule::Schedule, world,
     };
 
     #[derive(Component)]

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use any_vec::{any_value::AnyValueTypelessRaw, mem::Heap, AnyVec, AnyVecMut, AnyVecRef};
+use any_vec::{any_value::AnyValueWrapper, mem::Heap, AnyVec, AnyVecMut, AnyVecRef};
 
 use crate::component::{Component, ComponentId};
 
@@ -15,8 +15,8 @@ impl Column {
         }
     }
 
-    pub fn push(&mut self, raw_value: AnyValueTypelessRaw) {
-        unsafe { self.data.push_unchecked(raw_value) };
+    pub fn push<T>(&mut self, raw_value: AnyValueWrapper<T>) {
+        self.data.push(raw_value);
     }
 
     pub fn len(&self) -> usize {

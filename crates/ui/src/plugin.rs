@@ -1,4 +1,4 @@
-use app::plugin::Plugin;
+use app::plugins::Plugin;
 
 // use crate::systems::draw_ui;
 

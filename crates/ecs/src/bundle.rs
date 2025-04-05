@@ -1,10 +1,9 @@
 use crate::archetype::Archetype;
 use crate::component::Component;
 use crate::table::Table;
-use any_vec::any_value::AnyValueTypelessRaw;
+use any_vec::any_value::AnyValueWrapper;
 use std::any::TypeId;
-use std::mem;
-use std::ptr::NonNull;
+
 use typle::typle;
 
 pub trait ComponentBundle {
@@ -42,13 +41,7 @@ where
 
     fn add_to_archetype(self, archetype: &mut Archetype) {
         for typle_index!(i) in 0..T::LEN {
-            let raw_val = unsafe {
-                AnyValueTypelessRaw::new(
-                    NonNull::from(&self[[i]]).cast::<u8>(),
-                    mem::size_of::<T<{ i }>>(),
-                )
-            };
-            archetype.add_component(TypeId::of::<T<{ i }>>(), raw_val);
+            archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]));
         }
     }
 }

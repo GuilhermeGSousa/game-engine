@@ -1,13 +1,16 @@
-use ecs::{resource::Resource, schedule::Schedule, system::IntoSystem, world::World};
+use ecs::{
+    bundle::ComponentBundle, resource::Resource, schedule::Schedule, system::IntoSystem,
+    world::World,
+};
 use runner::{run_once, AppExit};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use plugin::Plugin;
-use std::mem::replace;
+use plugins::Plugin;
+use std::{mem::replace, time::Instant};
 use update_group::UpdateGroup;
 
-pub mod plugin;
+pub mod plugins;
 pub mod runner;
 pub mod update_group;
 
@@ -17,6 +20,7 @@ pub struct App {
     update_schedule: Schedule,
     late_update_schedule: Schedule,
     render_schedule: Schedule,
+    last_update: Instant,
 }
 
 impl App {
@@ -27,6 +31,7 @@ impl App {
             update_schedule: Schedule::default(),
             late_update_schedule: Schedule::default(),
             render_schedule: Schedule::default(),
+            last_update: Instant::now(),
         }
     }
 
@@ -43,6 +48,11 @@ impl App {
 
     pub fn set_runner(&mut self, f: impl FnOnce(App) -> AppExit + 'static) -> &mut Self {
         self.runner = Box::new(f);
+        self
+    }
+
+    pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> &mut Self {
+        self.world.spawn(bundle);
         self
     }
 
@@ -77,6 +87,8 @@ impl App {
     }
 
     pub fn update(&mut self) {
+        print!("Delta time: {:.2?} ", self.last_update.elapsed());
+        self.last_update = Instant::now();
         self.update_schedule.run(&mut self.world);
         self.late_update_schedule.run(&mut self.world);
         self.render_schedule.run(&mut self.world);

@@ -1,7 +1,6 @@
-use crate::{
-    system::{IntoSystem, ScheduledSystem, System},
-    world::World,
-};
+use crate::world::World;
+
+use super::{IntoSystem, ScheduledSystem, System};
 
 #[derive(Default)]
 #[allow(unused)]

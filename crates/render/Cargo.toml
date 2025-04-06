@@ -26,6 +26,7 @@ cfg-if = "1.0.0"
 pollster = "0.4.0"
 anyhow = "1.0"
 send_wrapper = { version = "0.6.0" }
+tobj = { version = "4.0.3", default-features = false, features = ["async"] }
 
 [dependencies.image]
 version = "0.25.5"

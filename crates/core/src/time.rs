@@ -1,6 +1,5 @@
-use std::time::Instant;
-
 use ecs::resource::Resource;
+use std::time::Instant;
 
 #[derive(Resource)]
 pub struct Time {

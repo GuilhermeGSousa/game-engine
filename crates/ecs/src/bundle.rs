@@ -1,13 +1,15 @@
-use crate::archetype::Archetype;
-use crate::component::Component;
-use crate::table::Table;
+use crate::{
+    archetype::Archetype,
+    component::{Component, ComponentId},
+    table::Table,
+};
 use any_vec::any_value::AnyValueWrapper;
 use std::any::TypeId;
 
 use typle::typle;
 
 pub trait ComponentBundle {
-    fn get_type_ids() -> Vec<TypeId>;
+    fn get_component_ids() -> Vec<ComponentId>;
 
     fn add_to_archetype(self, archetype: &mut Archetype);
 
@@ -22,7 +24,7 @@ where
     T: Tuple,
     T<_>: Component,
 {
-    fn get_type_ids() -> Vec<TypeId> {
+    fn get_component_ids() -> Vec<TypeId> {
         let mut type_ids = Vec::new();
         for typle_index!(i) in 0..T::LEN {
             type_ids.push(TypeId::of::<T<{ i }>>());

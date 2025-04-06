@@ -1,3 +1,4 @@
+pub mod assets;
 pub mod time;
 pub mod transform;
 

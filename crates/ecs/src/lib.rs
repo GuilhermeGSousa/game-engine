@@ -6,17 +6,14 @@ pub mod entity;
 pub mod events;
 pub mod query;
 pub mod resource;
-pub mod schedule;
 pub mod system;
-pub mod system_input;
 pub mod table;
 pub mod world;
 
 #[cfg(test)]
 mod tests {
-
     use crate::{
-        component::Component, query::Query, resource::Resource, schedule::Schedule, world,
+        component::Component, query::Query, resource::Resource, system::Schedule, world::World,
     };
 
     #[derive(Component)]
@@ -53,7 +50,7 @@ mod tests {
 
     #[test]
     fn test_query() {
-        let mut world = world::World::new();
+        let mut world = World::new();
         let mut schedule = Schedule::new();
 
         schedule.add_system(system_query);

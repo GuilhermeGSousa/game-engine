@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use crate::{
     components::camera::CameraUniform,
+    mesh::vertex::{Vertex, VertexBufferLayout},
     resources::{RenderContext, RenderWorldState},
     systems::{render, update_camera, update_window},
     texture,
-    vertex::{Vertex, VertexBufferLayout},
 };
 use app::plugins::Plugin;
 use wgpu::util::DeviceExt;

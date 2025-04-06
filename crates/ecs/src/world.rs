@@ -37,7 +37,7 @@ impl World {
         let entity = Entity(self.entity_count);
         self.entity_count += 1;
 
-        let type_ids = T::get_type_ids();
+        let type_ids = T::get_component_ids();
         let entity_type = generate_type_id(&type_ids);
 
         let archetype_index = self

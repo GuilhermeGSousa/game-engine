@@ -5,12 +5,9 @@ use app::{plugins::TimePlugin, App};
 use ecs::{query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
 use render::{
-    components::{
-        camera::Camera,
-        mesh::{Mesh, MeshAsset},
-    },
+    components::camera::Camera,
+    mesh::{vertex::Vertex, Mesh, MeshAsset},
     plugin::RenderPlugin,
-    vertex::Vertex,
 };
 
 use window::{
@@ -135,7 +132,7 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
 }
 
 fn rotate_meshes(meshes: Query<(&Mesh, &mut Transform)>, time: Res<Time>) {
-    for (_, mut transform) in meshes.iter() {
+    for (_, transform) in meshes.iter() {
         transform.rotation *= Quat::from_axis_angle(Vec3::Y, time.delta() * 100.0);
     }
 }

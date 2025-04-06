@@ -1,5 +1,7 @@
 use ecs::{
-    bundle::ComponentBundle, resource::Resource, schedule::Schedule, system::IntoSystem,
+    bundle::ComponentBundle,
+    resource::Resource,
+    system::{schedule::Schedule, IntoSystem},
     world::World,
 };
 use runner::{run_once, AppExit};
@@ -7,7 +9,7 @@ use runner::{run_once, AppExit};
 use wasm_bindgen::prelude::*;
 
 use plugins::Plugin;
-use std::{mem::replace, time::Instant};
+use std::mem::replace;
 use update_group::UpdateGroup;
 
 pub mod plugins;
@@ -20,7 +22,6 @@ pub struct App {
     update_schedule: Schedule,
     late_update_schedule: Schedule,
     render_schedule: Schedule,
-    last_update: Instant,
 }
 
 impl App {
@@ -31,7 +32,6 @@ impl App {
             update_schedule: Schedule::default(),
             late_update_schedule: Schedule::default(),
             render_schedule: Schedule::default(),
-            last_update: Instant::now(),
         }
     }
 
@@ -87,8 +87,6 @@ impl App {
     }
 
     pub fn update(&mut self) {
-        print!("Delta time: {:.2?} ", self.last_update.elapsed());
-        self.last_update = Instant::now();
         self.update_schedule.run(&mut self.world);
         self.late_update_schedule.run(&mut self.world);
         self.render_schedule.run(&mut self.world);

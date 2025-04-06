@@ -7,8 +7,7 @@ use ecs::{
 use wgpu::util::DeviceExt;
 
 use crate::{
-    components::mesh::Mesh,
-    render_mesh::RenderMesh,
+    mesh::{render_mesh::RenderMesh, Mesh},
     resources::{RenderContext, RenderWorldState},
 };
 

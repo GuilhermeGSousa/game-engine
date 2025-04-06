@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use ecs::component::Component;
+use vertex::Vertex;
 
-use crate::vertex::Vertex;
+pub mod render_mesh;
+pub mod vertex;
 
 pub struct MeshAsset {
     pub vertices: Vec<Vertex>,

@@ -1,11 +1,12 @@
 use std::{any::TypeId, marker::PhantomData};
 
+use typle::typle;
+
 use crate::{
     component::{Component, ComponentId},
-    system_input::SystemInput,
+    system::system_input::SystemInput,
     world::UnsafeWorldCell,
 };
-use typle::typle;
 
 pub struct Query<'world, T: QueryData> {
     world: UnsafeWorldCell<'world>,

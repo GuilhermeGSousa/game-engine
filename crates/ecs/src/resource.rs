@@ -6,7 +6,7 @@ use std::{
 
 pub use ecs_macros::Resource;
 
-use crate::{system_input::SystemInput, world::UnsafeWorldCell};
+use crate::{system::system_input::SystemInput, world::UnsafeWorldCell};
 
 pub type ResourceId = TypeId;
 

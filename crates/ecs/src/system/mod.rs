@@ -1,8 +1,12 @@
+pub mod schedule;
+pub mod system_input;
+
 use std::marker::PhantomData;
 
-use crate::{system_input::SystemInput, world::UnsafeWorldCell};
-
+use system_input::SystemInput;
 use typle::typle;
+
+use crate::world::UnsafeWorldCell;
 
 pub type BoxedSystem = Box<dyn System>;
 

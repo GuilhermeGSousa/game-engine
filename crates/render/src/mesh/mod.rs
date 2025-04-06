@@ -1,3 +1,4 @@
+use core::assets::Asset;
 use std::sync::Arc;
 
 use ecs::component::Component;
@@ -16,6 +17,8 @@ impl Drop for MeshAsset {
         println!("MeshAsset dropped");
     }
 }
+
+impl Asset for MeshAsset {}
 
 #[derive(Component)]
 pub struct Mesh {

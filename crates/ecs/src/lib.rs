@@ -13,7 +13,8 @@ pub mod world;
 #[cfg(test)]
 mod tests {
     use crate::{
-        component::Component, query::Query, resource::Resource, system::Schedule, world::World,
+        component::Component, query::Query, resource::Resource, system::schedule::Schedule,
+        world::World,
     };
 
     #[derive(Component)]

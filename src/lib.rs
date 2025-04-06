@@ -1,7 +1,14 @@
-use core::{time::Time, transform::Transform};
+use core::{
+    assets::asset_manager::{self, AssetManager},
+    time::Time,
+    transform::Transform,
+};
 use std::sync::Arc;
 
-use app::{plugins::TimePlugin, App};
+use app::{
+    plugins::{AssetManagerPlugin, TimePlugin},
+    App,
+};
 use ecs::{query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
 use render::{
@@ -61,14 +68,25 @@ pub fn run_game() {
 
     let mut app = App::empty();
     app.register_plugin(TimePlugin)
+        .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
-        .add_system(app::update_group::UpdateGroup::Update, rotate_meshes);
+        .add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
+        .add_system(app::update_group::UpdateGroup::Startup, load_asset);
 
     spawn_stuff(&mut app);
 
     app.run();
+}
+
+fn load_asset(asset_manager: Res<AssetManager>) {
+    // Load an asset using the asset manager
+    let result = asset_manager.load_asset::<MeshAsset>("path/to/mesh.asset");
+    match result {
+        Ok(handle) => println!("Loaded asset"),
+        Err(e) => println!("Failed to load asset: {}", e),
+    }
 }
 
 fn spawn_stuff(app: &mut app::App) {

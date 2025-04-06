@@ -1,3 +1,4 @@
+use core::assets::asset_manager::AssetManager;
 use core::time::Time;
 
 use ecs::resource::ResMut;
@@ -19,5 +20,13 @@ impl Plugin for TimePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Time::new());
         app.add_system(UpdateGroup::Update, update_time);
+    }
+}
+
+pub struct AssetManagerPlugin;
+
+impl Plugin for AssetManagerPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(AssetManager::new());
     }
 }

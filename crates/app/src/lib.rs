@@ -19,6 +19,7 @@ pub mod update_group;
 pub struct App {
     runner: runner::RunnerFn,
     world: World,
+    startup_schedule: Schedule,
     update_schedule: Schedule,
     late_update_schedule: Schedule,
     render_schedule: Schedule,
@@ -29,6 +30,7 @@ impl App {
         Self {
             runner: Box::new(runner::run_once),
             world: World::new(),
+            startup_schedule: Schedule::default(),
             update_schedule: Schedule::default(),
             late_update_schedule: Schedule::default(),
             render_schedule: Schedule::default(),
@@ -41,6 +43,7 @@ impl App {
     }
 
     pub fn run(&mut self) {
+        self.startup_schedule.run(&mut self.world);
         let runner = replace(&mut self.runner, Box::new(run_once));
         let app = replace(self, App::empty());
         (runner)(app);
@@ -62,6 +65,7 @@ impl App {
         system: impl IntoSystem<M> + 'static,
     ) -> &mut Self {
         match update_group {
+            UpdateGroup::Startup => self.startup_schedule.add_system(system),
             UpdateGroup::Update => self.update_schedule.add_system(system),
             UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
             UpdateGroup::Render => self.render_schedule.add_system(system),

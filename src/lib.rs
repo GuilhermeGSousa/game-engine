@@ -1,8 +1,4 @@
-use core::{
-    assets::asset_manager::{self, AssetManager},
-    time::Time,
-    transform::Transform,
-};
+use core::{assets::asset_manager::AssetManager, time::Time, transform::Transform};
 use std::sync::Arc;
 
 use app::{
@@ -84,7 +80,7 @@ fn load_asset(asset_manager: Res<AssetManager>) {
     // Load an asset using the asset manager
     let result = asset_manager.load_asset::<MeshAsset>("path/to/mesh.asset");
     match result {
-        Ok(handle) => println!("Loaded asset"),
+        Ok(_) => println!("Loaded asset"),
         Err(e) => println!("Failed to load asset: {}", e),
     }
 }

@@ -15,10 +15,4 @@ impl AssetManager {
         // In a real implementation, this would involve file I/O and parsing
         Err("Not implemented".to_string())
     }
-
-    async fn load_asset_async<A: Asset>(&self, path: &str) -> Result<AssetHandle<A>, String> {
-        // Placeholder for actual async asset loading logic
-        // In a real implementation, this would involve async file I/O and parsing
-        Err("Not implemented".to_string())
-    }
 }

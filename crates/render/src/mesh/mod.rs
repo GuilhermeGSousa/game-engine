@@ -4,6 +4,7 @@ use std::sync::Arc;
 use ecs::component::Component;
 use vertex::Vertex;
 
+pub mod obj_loader;
 pub mod render_mesh;
 pub mod vertex;
 

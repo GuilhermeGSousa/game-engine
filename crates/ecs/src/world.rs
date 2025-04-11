@@ -8,6 +8,7 @@ use crate::{
     common::generate_type_id,
     entity::{Entity, EntityRecord, EntityType},
     resource::Resource,
+    system::system_input::SystemInput,
 };
 
 pub struct World {
@@ -106,6 +107,22 @@ impl<'w> From<&'w mut World> for UnsafeWorldCell<'w> {
 impl<'w> From<&'w World> for UnsafeWorldCell<'w> {
     fn from(value: &'w World) -> Self {
         value.as_unsafe_world_cell_ref()
+    }
+}
+
+unsafe impl SystemInput for &World {
+    type Data<'world> = &'world World;
+
+    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+        world.get_world()
+    }
+}
+
+unsafe impl SystemInput for &mut World {
+    type Data<'world> = &'world mut World;
+
+    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+        world.get_world_mut()
     }
 }
 

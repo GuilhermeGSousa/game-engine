@@ -1,4 +1,4 @@
-use core::assets::asset_manager::AssetManager;
+use core::assets::asset_server::AssetServer;
 use core::time::Time;
 
 use ecs::resource::ResMut;
@@ -27,6 +27,6 @@ pub struct AssetManagerPlugin;
 
 impl Plugin for AssetManagerPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(AssetManager::new());
+        app.insert_resource(AssetServer::new());
     }
 }

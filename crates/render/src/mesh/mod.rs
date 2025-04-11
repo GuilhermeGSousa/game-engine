@@ -19,7 +19,15 @@ impl Drop for MeshAsset {
     }
 }
 
-impl Asset for MeshAsset {}
+impl Asset for MeshAsset {
+    fn loader() -> Box<dyn core::assets::asset_loader::AssetLoader<Asset = Self>> {
+        todo!()
+    }
+
+    fn id(path: String) -> core::assets::AssetId {
+        todo!()
+    }
+}
 
 #[derive(Component)]
 pub struct Mesh {

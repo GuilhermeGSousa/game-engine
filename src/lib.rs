@@ -1,11 +1,14 @@
-use core::{assets::asset_manager::AssetManager, time::Time, transform::Transform};
+use core::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use std::sync::Arc;
 
 use app::{
     plugins::{AssetManagerPlugin, TimePlugin},
     App,
 };
-use ecs::{query::Query, resource::Res};
+use ecs::{
+    query::Query,
+    resource::{Res, ResMut},
+};
 use glam::{Quat, Vec2, Vec3};
 use render::{
     components::camera::Camera,
@@ -76,9 +79,9 @@ pub fn run_game() {
     app.run();
 }
 
-fn load_asset(asset_manager: Res<AssetManager>) {
+fn load_asset(mut asset_manager: ResMut<AssetServer>) {
     // Load an asset using the asset manager
-    let result = asset_manager.load_asset::<MeshAsset>("path/to/mesh.asset");
+    let result = asset_manager.load::<MeshAsset>("path/to/mesh.asset");
     match result {
         Ok(_) => println!("Loaded asset"),
         Err(e) => println!("Failed to load asset: {}", e),

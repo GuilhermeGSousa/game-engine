@@ -1,6 +1,6 @@
 use ecs::{
     bundle::ComponentBundle,
-    resource::Resource,
+    resource::{ResMut, Resource},
     system::{schedule::Schedule, IntoSystem},
     world::World,
 };
@@ -8,6 +8,7 @@ use runner::{run_once, AppExit};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+use essential::assets::{asset_server::AssetServer, asset_store::AssetStore, Asset};
 use plugins::Plugin;
 use std::mem::replace;
 use update_group::UpdateGroup;
@@ -19,6 +20,7 @@ pub mod update_group;
 pub struct App {
     runner: runner::RunnerFn,
     world: World,
+    startup_schedule: Schedule,
     update_schedule: Schedule,
     late_update_schedule: Schedule,
     render_schedule: Schedule,
@@ -29,6 +31,7 @@ impl App {
         Self {
             runner: Box::new(runner::run_once),
             world: World::new(),
+            startup_schedule: Schedule::default(),
             update_schedule: Schedule::default(),
             late_update_schedule: Schedule::default(),
             render_schedule: Schedule::default(),
@@ -39,8 +42,25 @@ impl App {
         plugin.build(self);
         self
     }
+    pub fn register_asset<A: Asset>(&mut self) -> &mut Self {
+        let asset_store = AssetStore::<A>::new();
+        let asset_server = self
+            .get_mut_resource::<AssetServer>()
+            .expect("Asset Server not found");
+
+        asset_server.register_asset::<A>(&asset_store);
+
+        self.update_schedule
+            .add_system(|mut asset_store: ResMut<AssetStore<A>>| {
+                asset_store.track_assets();
+            });
+
+        self.world.insert_resource(asset_store);
+        self
+    }
 
     pub fn run(&mut self) {
+        self.startup_schedule.run(&mut self.world);
         let runner = replace(&mut self.runner, Box::new(run_once));
         let app = replace(self, App::empty());
         (runner)(app);
@@ -62,6 +82,7 @@ impl App {
         system: impl IntoSystem<M> + 'static,
     ) -> &mut Self {
         match update_group {
+            UpdateGroup::Startup => self.startup_schedule.add_system(system),
             UpdateGroup::Update => self.update_schedule.add_system(system),
             UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
             UpdateGroup::Render => self.render_schedule.add_system(system),

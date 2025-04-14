@@ -10,7 +10,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "main"
+name = "game-engine-bin"
 path = "src/bin.rs"
 
 [workspace]
@@ -18,7 +18,7 @@ members = ["crates/*"]
 
 [dependencies]
 app = { path = "crates/app" }
-core = { path = "crates/core" }
+essential = { path = "crates/essential" }
 render = { path = "crates/render" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }

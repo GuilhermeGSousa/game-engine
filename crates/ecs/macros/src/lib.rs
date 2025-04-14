@@ -33,8 +33,9 @@ pub fn resource(input: TokenStream) -> TokenStream {
 
 fn impl_resource(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
+    let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
     let gen = quote! {
-        impl Resource for #name {
+        impl #impl_generics Resource for #name #type_generics #where_clause  {
             fn name() -> String {
                 String::from(stringify!(#name))
             }

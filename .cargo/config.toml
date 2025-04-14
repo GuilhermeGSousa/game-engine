@@ -3,3 +3,6 @@ runner = "wasm-server-runner"
 
 [env]
 WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML = "index.html"
+
+# [build]
+# target = "wasm32-unknown-unknown"

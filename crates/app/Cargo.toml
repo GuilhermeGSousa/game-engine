@@ -8,7 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 ecs = { path = "../ecs" }
-core = { path = "../core" }
+essential = { path = "../essential" }
 getrandom = { version = "0.2", features = ["js"] }
 uuid = { version = "0.8", features = ["wasm-bindgen"] }
 cfg-if = "1"

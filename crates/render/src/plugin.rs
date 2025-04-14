@@ -1,9 +1,12 @@
-use core::transform::TransformRaw;
+use essential::transform::TransformRaw;
 use std::sync::Arc;
 
 use crate::{
     components::camera::CameraUniform,
-    mesh::vertex::{Vertex, VertexBufferLayout},
+    mesh::{
+        vertex::{Vertex, VertexBufferLayout},
+        ModelAsset,
+    },
     resources::{RenderContext, RenderWorldState},
     systems::{render, update_camera, update_window},
     texture,
@@ -237,5 +240,6 @@ impl Plugin for RenderPlugin {
         );
 
         app.add_system(app::update_group::UpdateGroup::Render, render::render);
+        app.register_asset::<ModelAsset>();
     }
 }

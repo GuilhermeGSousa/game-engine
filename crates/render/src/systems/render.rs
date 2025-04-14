@@ -1,4 +1,4 @@
-use core::transform::Transform;
+use essential::transform::Transform;
 
 use ecs::{
     query::Query,
@@ -86,7 +86,7 @@ pub(crate) fn render(render_state: Res<RenderWorldState>, context: Res<RenderCon
 
             render_state.meshes.iter().for_each(|mesh| {
                 render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.set_vertex_buffer(1, mesh.instance_buffer.slice(..));
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
             });

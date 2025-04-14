@@ -1,12 +1,15 @@
-use core::{time::Time, transform::Transform};
+use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use std::sync::Arc;
 
-use app::{plugins::TimePlugin, App};
+use app::{
+    plugins::{AssetManagerPlugin, TimePlugin},
+    App,
+};
 use ecs::{query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
 use render::{
     components::camera::Camera,
-    mesh::{vertex::Vertex, Mesh, MeshAsset},
+    mesh::{vertex::Vertex, Mesh, MeshAsset, ModelAsset},
     plugin::RenderPlugin,
 };
 
@@ -42,7 +45,7 @@ pub(crate) const VERTICES: &[Vertex] = &[
     }, // E
 ];
 
-pub(crate) const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
+pub(crate) const INDICES: &[u32] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -61,6 +64,7 @@ pub fn run_game() {
 
     let mut app = App::empty();
     app.register_plugin(TimePlugin)
+        .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
@@ -77,6 +81,9 @@ fn spawn_stuff(app: &mut app::App) {
         indices: INDICES.to_vec(),
     });
 
+    let server = app.get_mut_resource::<AssetServer>().unwrap();
+    let handle = server.load::<ModelAsset>("res/teapot.obj");
+
     // Lets make a bunch of instances
     for z in 0..NUM_INSTANCES_PER_ROW {
         for x in 0..NUM_INSTANCES_PER_ROW {
@@ -85,6 +92,7 @@ fn spawn_stuff(app: &mut app::App) {
             app.spawn((
                 Mesh {
                     mesh_asset: mesh_asset.clone(),
+                    handle: handle.clone(),
                 },
                 Transform::from_translation_rotation(pos, Quat::IDENTITY),
             ));

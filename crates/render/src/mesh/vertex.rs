@@ -9,6 +9,7 @@ pub trait VertexBufferLayout {
 pub struct Vertex {
     pub pos_coords: [f32; 3],
     pub uv_coords: [f32; 2],
+    // TODO: Add normals
 }
 
 impl VertexBufferLayout for Vertex {

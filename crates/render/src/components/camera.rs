@@ -1,4 +1,4 @@
-use core::transform::Transform;
+use essential::transform::Transform;
 
 use bytemuck::{Pod, Zeroable};
 use ecs::component::Component;

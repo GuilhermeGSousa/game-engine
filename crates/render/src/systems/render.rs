@@ -7,12 +7,12 @@ use ecs::{
 use wgpu::util::DeviceExt;
 
 use crate::{
-    mesh::{render_mesh::RenderMesh, Mesh},
+    mesh::{render_mesh::RenderMesh, MeshComponent},
     resources::{RenderContext, RenderWorldState},
 };
 
 pub(crate) fn prepare_render_state(
-    meshes: Query<(&Mesh, &Transform)>,
+    meshes: Query<(&MeshComponent, &Transform)>,
     context: Res<RenderContext>,
     mut render_state: ResMut<RenderWorldState>,
 ) {

@@ -9,7 +9,7 @@ use ecs::{query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
 use render::{
     components::camera::Camera,
-    mesh::{vertex::Vertex, Mesh, MeshAsset, ModelAsset},
+    mesh::{vertex::Vertex, Mesh, MeshComponent, SubMesh},
     plugin::RenderPlugin,
 };
 
@@ -76,13 +76,14 @@ pub fn run_game() {
 }
 
 fn spawn_stuff(app: &mut app::App) {
-    let mesh_asset = Arc::new(MeshAsset {
+    let mesh_asset = Arc::new(SubMesh {
         vertices: VERTICES.to_vec(),
         indices: INDICES.to_vec(),
+        material_index: 0,
     });
 
     let server = app.get_mut_resource::<AssetServer>().unwrap();
-    let handle = server.load::<ModelAsset>("res/teapot.obj");
+    let handle = server.load::<Mesh>("res/teapot.obj");
 
     // Lets make a bunch of instances
     for z in 0..NUM_INSTANCES_PER_ROW {
@@ -90,7 +91,7 @@ fn spawn_stuff(app: &mut app::App) {
             let pos = Vec3::Z * z as f32 + Vec3::X * x as f32 - INSTANCE_DISPLACEMENT;
 
             app.spawn((
-                Mesh {
+                MeshComponent {
                     mesh_asset: mesh_asset.clone(),
                     handle: handle.clone(),
                 },
@@ -139,7 +140,7 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
     }
 }
 
-fn rotate_meshes(meshes: Query<(&Mesh, &mut Transform)>, time: Res<Time>) {
+fn rotate_meshes(meshes: Query<(&MeshComponent, &mut Transform)>, time: Res<Time>) {
     for (_, transform) in meshes.iter() {
         transform.rotation *= Quat::from_axis_angle(Vec3::Y, time.delta() * 100.0);
     }

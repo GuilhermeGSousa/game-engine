@@ -1,36 +1,41 @@
 use essential::assets::{handle::AssetHandle, Asset};
+use material::Material;
 use std::sync::Arc;
 
 use ecs::component::Component;
 use vertex::Vertex;
 
+pub mod material;
 pub mod obj_loader;
 pub mod render_mesh;
+pub mod texture;
 pub mod vertex;
 
-pub struct MeshAsset {
+pub struct SubMesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    pub material_index: usize,
 }
 
-impl Drop for MeshAsset {
+impl Drop for SubMesh {
     fn drop(&mut self) {
         println!("MeshAsset dropped");
     }
 }
 
-pub struct ModelAsset {
-    pub meshes: Vec<MeshAsset>,
+pub struct Mesh {
+    pub meshes: Vec<SubMesh>,
+    pub materials: Vec<Material>,
 }
 
-impl Asset for ModelAsset {
+impl Asset for Mesh {
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
         Box::new(obj_loader::ObjLoader)
     }
 }
 
 #[derive(Component)]
-pub struct Mesh {
-    pub mesh_asset: Arc<MeshAsset>,
-    pub handle: AssetHandle<ModelAsset>,
+pub struct MeshComponent {
+    pub mesh_asset: Arc<SubMesh>,
+    pub handle: AssetHandle<Mesh>,
 }

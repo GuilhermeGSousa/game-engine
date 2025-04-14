@@ -7,7 +7,6 @@ pub mod plugin;
 pub mod render_pass;
 pub mod resources;
 pub mod systems;
-pub mod texture;
 pub mod wgpu_wrapper;
 
 #[cfg(test)]

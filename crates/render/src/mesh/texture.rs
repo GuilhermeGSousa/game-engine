@@ -1,13 +1,15 @@
+use essential::assets::Asset;
+use glam::IVec2;
 use image::GenericImageView;
 
-pub struct Texture {
+pub struct TextureOld {
     #[allow(unused)]
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
 }
 
-impl Texture {
+impl TextureOld {
     pub fn from_bytes(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -75,5 +77,16 @@ impl Texture {
             view,
             sampler,
         })
+    }
+}
+
+pub struct Texture {
+    data: Vec<u8>,
+    dimensions: IVec2,
+}
+
+impl Asset for Texture {
+    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
+        todo!()
     }
 }

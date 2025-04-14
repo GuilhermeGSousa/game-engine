@@ -4,12 +4,12 @@ use std::sync::Arc;
 use crate::{
     components::camera::CameraUniform,
     mesh::{
+        texture,
         vertex::{Vertex, VertexBufferLayout},
-        ModelAsset,
+        Mesh,
     },
     resources::{RenderContext, RenderWorldState},
     systems::{render, update_camera, update_window},
-    texture,
 };
 use app::plugins::Plugin;
 use wgpu::util::DeviceExt;
@@ -84,7 +84,8 @@ impl Plugin for RenderPlugin {
         // This is a texture
         let diffuse_bytes = include_bytes!("res/happy-tree.png");
         let diffuse_texture =
-            texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png").unwrap();
+            texture::TextureOld::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png")
+                .unwrap();
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -240,6 +241,6 @@ impl Plugin for RenderPlugin {
         );
 
         app.add_system(app::update_group::UpdateGroup::Render, render::render);
-        app.register_asset::<ModelAsset>();
+        app.register_asset::<Mesh>();
     }
 }

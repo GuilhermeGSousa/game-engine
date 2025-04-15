@@ -53,8 +53,16 @@ impl AssetLoader for ObjLoader {
             })
             .collect::<Vec<_>>();
 
-        let materials = Vec::new(); // TODO: Load materials
+        let mesh_materials = Vec::new();
+        // for m in materials.map_err(|_| ())? {
+        //     if let Some(diffuse_path) = m.diffuse_texture {
+        //         texture_loader.load(diffuse_path.into()); // shit
+        //     }
+        // }
 
-        Ok(Mesh { meshes, materials })
+        Ok(Mesh {
+            meshes,
+            materials: mesh_materials,
+        })
     }
 }

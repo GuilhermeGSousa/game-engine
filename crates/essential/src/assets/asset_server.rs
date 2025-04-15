@@ -34,8 +34,9 @@ impl LoadedAsset {
 }
 
 enum AssetLoadEvent {
+    LoadStarted((AssetId, Task<()>)),
     Loaded(LoadedAsset),
-    Failed(AssetId),
+    LoadFailed(AssetId),
 }
 
 #[derive(Resource)]
@@ -65,7 +66,7 @@ impl AssetServer {
             .insert(type_id, asset.clone_drop_sender());
     }
 
-    pub fn load<A: Asset>(&mut self, path: impl Into<AssetPath>) -> AssetHandle<A>
+    pub fn load<A: Asset>(&self, path: impl Into<AssetPath>) -> AssetHandle<A>
     where
         A: 'static,
     {
@@ -86,7 +87,7 @@ impl AssetServer {
         handle
     }
 
-    fn load_asset_internal<A: Asset>(&mut self, path: AssetPath, id: AssetId) {
+    fn load_asset_internal<A: Asset>(&self, path: AssetPath, id: AssetId) {
         let asset_loader = A::loader();
 
         let sender = self.asset_load_event_sender.clone();
@@ -101,13 +102,15 @@ impl AssetServer {
                     ()
                 }
                 Err(_) => {
-                    sender.send(AssetLoadEvent::Failed(id)).unwrap();
+                    sender.send(AssetLoadEvent::LoadFailed(id)).unwrap();
                     ()
                 }
             }
         });
 
-        self.pending_tasks.insert(id, task);
+        self.asset_load_event_sender
+            .send(AssetLoadEvent::LoadStarted((id, task)))
+            .unwrap();
     }
 }
 
@@ -118,11 +121,14 @@ pub fn handle_asset_load_events(world: &mut world::World) {
         .asset_load_event_receiver
         .try_iter()
         .for_each(|event| match event {
+            AssetLoadEvent::LoadStarted((id, task)) => {
+                server.pending_tasks.insert(id, task);
+            }
             AssetLoadEvent::Loaded(loaded_asset) => {
                 server.pending_tasks.remove(&loaded_asset.id).unwrap();
                 loaded_asset.value.insert(loaded_asset.id, world);
             }
-            AssetLoadEvent::Failed(id) => {
+            AssetLoadEvent::LoadFailed(id) => {
                 server.pending_tasks.remove(&id).unwrap();
             }
         });

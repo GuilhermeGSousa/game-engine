@@ -2,7 +2,10 @@ use std::io::{BufReader, Cursor};
 
 use super::{texture::Texture, vertex::Vertex, Mesh, SubMesh};
 use async_trait::async_trait;
-use essential::assets::{asset_loader::AssetLoader, utils::load_to_string, Asset, AssetPath};
+use essential::assets::{
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
+    AssetPath,
+};
 
 pub(crate) struct ObjLoader;
 

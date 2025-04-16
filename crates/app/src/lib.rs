@@ -50,10 +50,11 @@ impl App {
 
         asset_server.register_asset::<A>(&asset_store);
 
-        self.update_schedule
-            .add_system(|mut asset_store: ResMut<AssetStore<A>>| {
-                asset_store.track_assets();
-            });
+        self.update_schedule.add_system(
+            |mut asset_store: ResMut<AssetStore<A>>, asset_server: ResMut<AssetServer>| {
+                asset_store.track_assets(asset_server);
+            },
+        );
 
         self.world.insert_resource(asset_store);
         self

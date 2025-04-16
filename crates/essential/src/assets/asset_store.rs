@@ -1,9 +1,10 @@
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 
-use ecs::resource::Resource;
+use ecs::resource::{ResMut, Resource};
 
 use super::{
+    asset_server::AssetServer,
     handle::{AssetHandle, AssetLifetimeEvent},
     Asset, AssetId,
 };
@@ -47,7 +48,7 @@ impl<A: Asset + 'static> AssetStore<A> {
         self.assets.insert(id, entry);
     }
 
-    pub fn track_assets(&mut self) {
+    pub fn track_assets(&mut self, mut asset_server: ResMut<AssetServer>) {
         for event in self.drop_receiver.try_iter() {
             if let Some(entry) = self.assets.get_mut(&event.id()) {
                 match event {
@@ -57,6 +58,7 @@ impl<A: Asset + 'static> AssetStore<A> {
 
                 if entry.ref_count <= 0 {
                     self.assets.remove(&event.id());
+                    asset_server.process_handle_drop(&event.id());
                 }
             }
         }

@@ -1,4 +1,4 @@
-use super::{Asset, AssetPath};
+use super::{asset_server::AssetLoadContext, Asset, AssetPath};
 use async_trait::async_trait;
 
 #[async_trait]

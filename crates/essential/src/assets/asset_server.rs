@@ -1,4 +1,7 @@
-use std::{any::TypeId, collections::HashMap};
+use std::{
+    any::TypeId,
+    collections::{HashMap, HashSet},
+};
 
 use crossbeam_channel::{Receiver, Sender};
 use ecs::{resource::Resource, world};
@@ -37,15 +40,25 @@ enum AssetLoadEvent {
     LoadStarted((AssetId, Task<()>)),
     Loaded(LoadedAsset),
     LoadFailed(AssetId),
+    Unloaded(AssetId),
+}
+
+pub struct AssetLoadContext;
+
+impl<'a> AssetLoadContext {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn request_load<A: Asset>(&mut self, path: impl Into<AssetPath>) {}
 }
 
 #[derive(Resource)]
 pub struct AssetServer {
     pending_tasks: HashMap<AssetId, Task<()>>,
+    loaded_assets: HashSet<AssetId>,
     asset_load_event_sender: Sender<AssetLoadEvent>,
     asset_load_event_receiver: Receiver<AssetLoadEvent>,
-
-    // Data
     asset_lifetime_send_map: HashMap<TypeId, Sender<AssetLifetimeEvent>>,
 }
 
@@ -54,6 +67,7 @@ impl AssetServer {
         let (asset_load_event_sender, asset_load_event_receiver) = crossbeam_channel::unbounded();
         AssetServer {
             pending_tasks: HashMap::new(),
+            loaded_assets: HashSet::new(),
             asset_load_event_sender,
             asset_load_event_receiver,
             asset_lifetime_send_map: HashMap::new(),
@@ -70,6 +84,10 @@ impl AssetServer {
     where
         A: 'static,
     {
+        self.load_with_context::<A>(path)
+    }
+
+    pub fn load_with_context<A: Asset>(&self, path: impl Into<AssetPath>) -> AssetHandle<A> {
         let path = path.into();
         let id = AssetId::new::<A>(&path);
         let lifetime_sender = self
@@ -80,14 +98,19 @@ impl AssetServer {
 
         let handle = AssetHandle::new(id, lifetime_sender);
 
-        if !self.pending_tasks.contains_key(&id) {
-            self.load_asset_internal::<A>(path, id);
+        if !self.pending_tasks.contains_key(&id) && !self.loaded_assets.contains(&id) {
+            self.request_load::<A>(path.clone());
         }
 
         handle
     }
 
-    fn load_asset_internal<A: Asset>(&self, path: AssetPath, id: AssetId) {
+    pub fn process_handle_drop(&mut self, id: &AssetId) {
+        self.loaded_assets.remove(id);
+    }
+
+    fn request_load<A: Asset>(&self, path: AssetPath) {
+        let id = AssetId::new::<A>(&path);
         let asset_loader = A::loader();
 
         let sender = self.asset_load_event_sender.clone();
@@ -125,11 +148,17 @@ pub fn handle_asset_load_events(world: &mut world::World) {
                 server.pending_tasks.insert(id, task);
             }
             AssetLoadEvent::Loaded(loaded_asset) => {
-                server.pending_tasks.remove(&loaded_asset.id).unwrap();
+                server.pending_tasks.remove(&loaded_asset.id);
+                server.loaded_assets.insert(loaded_asset.id);
                 loaded_asset.value.insert(loaded_asset.id, world);
             }
             AssetLoadEvent::LoadFailed(id) => {
-                server.pending_tasks.remove(&id).unwrap();
+                server.pending_tasks.remove(&id);
+                server.loaded_assets.remove(&id);
+            }
+            AssetLoadEvent::Unloaded(id) => {
+                server.pending_tasks.remove(&id);
+                server.loaded_assets.remove(&id);
             }
         });
     world.insert_resource(server);

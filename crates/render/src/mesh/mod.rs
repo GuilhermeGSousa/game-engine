@@ -1,6 +1,5 @@
 use essential::assets::{handle::AssetHandle, Asset};
 use material::Material;
-use std::sync::Arc;
 
 use ecs::component::Component;
 use vertex::Vertex;
@@ -37,6 +36,5 @@ impl Asset for Mesh {
 
 #[derive(Component)]
 pub struct MeshComponent {
-    pub mesh_asset: Arc<SubMesh>,
     pub handle: AssetHandle<Mesh>,
 }

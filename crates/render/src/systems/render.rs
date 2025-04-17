@@ -1,4 +1,4 @@
-use essential::transform::Transform;
+use essential::{assets::asset_store::AssetStore, transform::Transform};
 
 use ecs::{
     query::Query,
@@ -7,43 +7,48 @@ use ecs::{
 use wgpu::util::DeviceExt;
 
 use crate::{
-    mesh::{render_mesh::RenderMesh, MeshComponent},
+    mesh::{render_mesh::RenderMesh, Mesh, MeshComponent},
     resources::{RenderContext, RenderWorldState},
 };
 
 pub(crate) fn prepare_render_state(
     meshes: Query<(&MeshComponent, &Transform)>,
     context: Res<RenderContext>,
+    mesh_store: Res<AssetStore<Mesh>>,
     mut render_state: ResMut<RenderWorldState>,
 ) {
     render_state.clear();
 
     for (mesh, transform) in meshes.iter() {
-        let mesh = RenderMesh {
-            vertices: context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Vertex Buffer"),
-                    contents: bytemuck::cast_slice(&mesh.mesh_asset.vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                }),
-            indices: context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Index Buffer"),
-                    contents: bytemuck::cast_slice(&mesh.mesh_asset.indices),
-                    usage: wgpu::BufferUsages::INDEX,
-                }),
-            index_count: mesh.mesh_asset.indices.len() as u32,
-            instance_buffer: context
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Instance Buffer"),
-                    contents: bytemuck::cast_slice(&[transform.to_raw()]),
-                    usage: wgpu::BufferUsages::VERTEX,
-                }),
-        };
-        render_state.add_mesh(mesh);
+        if let Some(mesh_asset) = mesh_store.get(&mesh.handle) {
+            for sub_mesh in mesh_asset.meshes.iter() {
+                let render_mesh = RenderMesh {
+                    vertices: context.device.create_buffer_init(
+                        &wgpu::util::BufferInitDescriptor {
+                            label: Some("Vertex Buffer"),
+                            contents: bytemuck::cast_slice(&sub_mesh.vertices),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        },
+                    ),
+                    indices: context
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("Index Buffer"),
+                            contents: bytemuck::cast_slice(&sub_mesh.indices),
+                            usage: wgpu::BufferUsages::INDEX,
+                        }),
+                    index_count: sub_mesh.indices.len() as u32,
+                    instance_buffer: context.device.create_buffer_init(
+                        &wgpu::util::BufferInitDescriptor {
+                            label: Some("Instance Buffer"),
+                            contents: bytemuck::cast_slice(&[transform.to_raw()]),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        },
+                    ),
+                };
+                render_state.add_mesh(render_mesh);
+            }
+        }
     }
 }
 

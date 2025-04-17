@@ -47,13 +47,23 @@ impl AssetLoader for ObjLoader {
             .into_iter()
             .map(|m| {
                 let vertices = (0..m.mesh.positions.len() / 3)
-                    .map(|vertex_index| Vertex {
-                        pos_coords: [
-                            m.mesh.positions[vertex_index * 3],
-                            m.mesh.positions[vertex_index * 3 + 1],
-                            m.mesh.positions[vertex_index * 3 + 2],
-                        ],
-                        uv_coords: [0.0, 0.0],
+                    .map(|vertex_index| {
+                        let uv_coords = match m.mesh.texcoords.len() {
+                            0 => [0.0, 0.0],
+                            _ => [
+                                m.mesh.texcoords[vertex_index * 2],
+                                m.mesh.texcoords[vertex_index * 2 + 1],
+                            ],
+                        };
+
+                        Vertex {
+                            pos_coords: [
+                                m.mesh.positions[vertex_index * 3],
+                                m.mesh.positions[vertex_index * 3 + 1],
+                                m.mesh.positions[vertex_index * 3 + 2],
+                            ],
+                            uv_coords: uv_coords,
+                        }
                     })
                     .collect::<Vec<_>>();
 

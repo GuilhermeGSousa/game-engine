@@ -1,6 +1,11 @@
 use std::io::{BufReader, Cursor};
 
-use super::{texture::Texture, vertex::Vertex, Mesh, SubMesh};
+use super::{
+    material::{self, Material},
+    texture::Texture,
+    vertex::Vertex,
+    Mesh, SubMesh,
+};
 use async_trait::async_trait;
 use essential::assets::{
     asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
@@ -60,12 +65,19 @@ impl AssetLoader for ObjLoader {
             })
             .collect::<Vec<_>>();
 
-        let mesh_materials = Vec::new();
-        // for m in materials.map_err(|_| ())? {
-        //     if let Some(diffuse_path) = m.diffuse_texture {
-        //         texture_loader.load(diffuse_path.into()); // shit
-        //     }
-        // }
+        let mesh_materials = materials
+            .unwrap()
+            .iter()
+            .map(|m| {
+                let mut material = Material::new();
+                if let Some(diffuse_texture) = &m.diffuse_texture {
+                    material.set_diffuse_texture(
+                        load_context.asset_server().load::<Texture>(diffuse_texture),
+                    )
+                }
+                material
+            })
+            .collect::<Vec<_>>();
 
         Ok(Mesh {
             meshes,

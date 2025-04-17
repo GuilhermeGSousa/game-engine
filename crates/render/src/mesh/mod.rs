@@ -9,6 +9,7 @@ pub mod material;
 pub mod obj_loader;
 pub mod render_mesh;
 pub mod texture;
+pub mod texture_loader;
 pub mod vertex;
 
 pub struct SubMesh {

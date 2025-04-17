@@ -1,6 +1,7 @@
 use essential::assets::Asset;
-use glam::IVec2;
 use image::GenericImageView;
+
+use super::texture_loader::TextureLoader;
 
 pub struct TextureOld {
     #[allow(unused)]
@@ -82,11 +83,20 @@ impl TextureOld {
 
 pub struct Texture {
     data: Vec<u8>,
-    dimensions: IVec2,
+}
+
+impl Texture {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+        let img = image::load_from_memory(bytes).map_err(|_| ())?;
+
+        Ok(Texture {
+            data: img.to_rgba8().into_raw(),
+        })
+    }
 }
 
 impl Asset for Texture {
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
-        todo!()
+        Box::new(TextureLoader)
     }
 }

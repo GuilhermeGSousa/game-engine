@@ -23,6 +23,10 @@ impl AssetPath {
             normalized.drain(..2);
         }
 
+        if !normalized.starts_with("res/") {
+            normalized = format!("res/{}", normalized);
+        }
+
         // Remove duplicate slashes
         normalized = normalized.replace("//", "/");
 
@@ -44,6 +48,12 @@ impl Into<AssetPath> for String {
 }
 
 impl Into<AssetPath> for &str {
+    fn into(self) -> AssetPath {
+        AssetPath::new(self)
+    }
+}
+
+impl Into<AssetPath> for &String {
     fn into(self) -> AssetPath {
         AssetPath::new(self)
     }

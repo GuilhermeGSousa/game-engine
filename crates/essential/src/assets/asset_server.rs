@@ -48,6 +48,12 @@ pub struct AssetLoadContext {
 }
 
 impl AssetLoadContext {
+    pub fn asset_server(&self) -> &AssetServer {
+        &self.asset_server
+    }
+}
+
+impl AssetLoadContext {
     pub(crate) fn new(asset_server: AssetServer) -> Self {
         Self { asset_server }
     }

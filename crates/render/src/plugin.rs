@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::{
     components::camera::CameraUniform,
     mesh::{
-        texture,
+        texture::{self, Texture},
         vertex::{Vertex, VertexBufferLayout},
         Mesh,
     },
@@ -242,5 +242,6 @@ impl Plugin for RenderPlugin {
 
         app.add_system(app::update_group::UpdateGroup::Render, render::render);
         app.register_asset::<Mesh>();
+        app.register_asset::<Texture>();
     }
 }

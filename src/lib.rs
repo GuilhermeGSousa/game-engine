@@ -83,7 +83,7 @@ fn spawn_stuff(app: &mut app::App) {
     });
 
     let server = app.get_mut_resource::<AssetServer>().unwrap();
-    let handle = server.load::<Mesh>("res/teapot.obj");
+    let handle = server.load::<Mesh>("res/cube.obj");
 
     // Lets make a bunch of instances
     for z in 0..NUM_INSTANCES_PER_ROW {

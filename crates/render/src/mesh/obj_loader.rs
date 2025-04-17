@@ -13,7 +13,11 @@ pub(crate) struct ObjLoader;
 impl AssetLoader for ObjLoader {
     type Asset = Mesh;
 
-    async fn load(&self, path: AssetPath) -> Result<Self::Asset, ()> {
+    async fn load(
+        &self,
+        path: AssetPath,
+        load_context: &mut AssetLoadContext,
+    ) -> Result<Self::Asset, ()> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);
         let mut obj_reader = BufReader::new(obj_cursor);

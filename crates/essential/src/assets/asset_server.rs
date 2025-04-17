@@ -1,6 +1,7 @@
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet},
+    sync::{Arc, RwLock},
 };
 
 use crossbeam_channel::{Receiver, Sender};
@@ -40,43 +41,55 @@ enum AssetLoadEvent {
     LoadStarted((AssetId, Task<()>)),
     Loaded(LoadedAsset),
     LoadFailed(AssetId),
-    Unloaded(AssetId),
 }
 
-pub struct AssetLoadContext;
+pub struct AssetLoadContext {
+    asset_server: AssetServer,
+}
 
-impl<'a> AssetLoadContext {
-    pub fn new() -> Self {
-        Self {}
+impl AssetLoadContext {
+    pub(crate) fn new(asset_server: AssetServer) -> Self {
+        Self { asset_server }
     }
 
     pub fn request_load<A: Asset>(&mut self, path: impl Into<AssetPath>) {}
 }
 
-#[derive(Resource)]
-pub struct AssetServer {
-    pending_tasks: HashMap<AssetId, Task<()>>,
-    loaded_assets: HashSet<AssetId>,
+pub(crate) struct AssetServerData {
+    pending_tasks: RwLock<HashMap<AssetId, Task<()>>>,
+    loaded_assets: RwLock<HashSet<AssetId>>,
+    asset_lifetime_send_map: RwLock<HashMap<TypeId, Sender<AssetLifetimeEvent>>>,
     asset_load_event_sender: Sender<AssetLoadEvent>,
     asset_load_event_receiver: Receiver<AssetLoadEvent>,
-    asset_lifetime_send_map: HashMap<TypeId, Sender<AssetLifetimeEvent>>,
+}
+
+#[derive(Resource, Clone)]
+pub struct AssetServer {
+    data: Arc<AssetServerData>,
 }
 
 impl AssetServer {
     pub fn new() -> Self {
         let (asset_load_event_sender, asset_load_event_receiver) = crossbeam_channel::unbounded();
-        AssetServer {
-            pending_tasks: HashMap::new(),
-            loaded_assets: HashSet::new(),
+        let server_data = AssetServerData {
+            pending_tasks: RwLock::new(HashMap::new()),
+            loaded_assets: RwLock::new(HashSet::new()),
+            asset_lifetime_send_map: RwLock::new(HashMap::new()),
             asset_load_event_sender,
             asset_load_event_receiver,
-            asset_lifetime_send_map: HashMap::new(),
+        };
+
+        Self {
+            data: Arc::new(server_data),
         }
     }
 
     pub fn register_asset<A: Asset>(&mut self, asset: &AssetStore<A>) {
         let type_id = TypeId::of::<A>();
-        self.asset_lifetime_send_map
+        self.data
+            .asset_lifetime_send_map
+            .write()
+            .unwrap()
             .insert(type_id, asset.clone_drop_sender());
     }
 
@@ -84,21 +97,26 @@ impl AssetServer {
     where
         A: 'static,
     {
-        self.load_with_context::<A>(path)
+        self.load_internal::<A>(path)
     }
 
-    pub fn load_with_context<A: Asset>(&self, path: impl Into<AssetPath>) -> AssetHandle<A> {
+    pub fn load_internal<A: Asset>(&self, path: impl Into<AssetPath>) -> AssetHandle<A> {
         let path = path.into();
         let id = AssetId::new::<A>(&path);
         let lifetime_sender = self
+            .data
             .asset_lifetime_send_map
+            .read()
+            .unwrap()
             .get(&TypeId::of::<A>())
             .expect("Asset lifetime sender not found, make sure to register it")
             .clone();
 
         let handle = AssetHandle::new(id, lifetime_sender);
 
-        if !self.pending_tasks.contains_key(&id) && !self.loaded_assets.contains(&id) {
+        if !self.data.pending_tasks.read().unwrap().contains_key(&id)
+            && !self.data.loaded_assets.read().unwrap().contains(&id)
+        {
             self.request_load::<A>(path.clone());
         }
 
@@ -106,17 +124,20 @@ impl AssetServer {
     }
 
     pub fn process_handle_drop(&mut self, id: &AssetId) {
-        self.loaded_assets.remove(id);
+        self.data.loaded_assets.write().unwrap().remove(id);
     }
 
     fn request_load<A: Asset>(&self, path: AssetPath) {
         let id = AssetId::new::<A>(&path);
         let asset_loader = A::loader();
 
-        let sender = self.asset_load_event_sender.clone();
+        let sender = self.data.asset_load_event_sender.clone();
 
+        let server = self.clone();
         let task = LoadTaskPool::get_or_init(TaskPool::new).spawn(async move {
-            let asset = asset_loader.load(path).await;
+            let asset = asset_loader
+                .load(path, &mut AssetLoadContext::new(server))
+                .await;
             match asset {
                 Ok(asset) => {
                     sender
@@ -131,34 +152,42 @@ impl AssetServer {
             }
         });
 
-        self.asset_load_event_sender
+        self.data
+            .asset_load_event_sender
             .send(AssetLoadEvent::LoadStarted((id, task)))
             .unwrap();
     }
 }
 
 pub fn handle_asset_load_events(world: &mut world::World) {
-    let mut server = world.remove_resource::<AssetServer>().unwrap();
+    let server = world.remove_resource::<AssetServer>().unwrap();
 
     server
+        .data
         .asset_load_event_receiver
         .try_iter()
         .for_each(|event| match event {
             AssetLoadEvent::LoadStarted((id, task)) => {
-                server.pending_tasks.insert(id, task);
+                server.data.pending_tasks.write().unwrap().insert(id, task);
             }
             AssetLoadEvent::Loaded(loaded_asset) => {
-                server.pending_tasks.remove(&loaded_asset.id);
-                server.loaded_assets.insert(loaded_asset.id);
+                server
+                    .data
+                    .pending_tasks
+                    .write()
+                    .unwrap()
+                    .remove(&loaded_asset.id);
+                server
+                    .data
+                    .loaded_assets
+                    .write()
+                    .unwrap()
+                    .insert(loaded_asset.id);
                 loaded_asset.value.insert(loaded_asset.id, world);
             }
             AssetLoadEvent::LoadFailed(id) => {
-                server.pending_tasks.remove(&id);
-                server.loaded_assets.remove(&id);
-            }
-            AssetLoadEvent::Unloaded(id) => {
-                server.pending_tasks.remove(&id);
-                server.loaded_assets.remove(&id);
+                server.data.pending_tasks.write().unwrap().remove(&id);
+                server.data.loaded_assets.write().unwrap().remove(&id);
             }
         });
     world.insert_resource(server);

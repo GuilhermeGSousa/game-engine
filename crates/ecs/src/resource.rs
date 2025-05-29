@@ -30,7 +30,7 @@ impl<'world, T: Resource> Res<'world, T> {
     }
 }
 
-unsafe impl<T> SystemInput for Res<'_, T>
+unsafe impl<'a, T> SystemInput for Res<'a, T>
 where
     T: Resource,
 {

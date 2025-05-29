@@ -16,6 +16,10 @@ impl Material {
     pub fn set_diffuse_texture(&mut self, texture: AssetHandle<Texture>) {
         self.diffuse_texture = Some(texture);
     }
+
+    pub fn diffuse_texture(&self) -> Option<&AssetHandle<Texture>> {
+        self.diffuse_texture.as_ref()
+    }
 }
 
 impl Asset for Material {

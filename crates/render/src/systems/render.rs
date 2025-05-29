@@ -1,58 +1,8 @@
-use essential::{assets::asset_store::AssetStore, transform::Transform};
+use ecs::resource::Res;
 
-use ecs::{
-    query::Query,
-    resource::{Res, ResMut},
-};
-use wgpu::util::DeviceExt;
+use crate::resources::RenderContext;
 
-use crate::{
-    mesh::{render_mesh::RenderMesh, Mesh, MeshComponent},
-    resources::{RenderContext, RenderWorldState},
-};
-
-pub(crate) fn prepare_render_state(
-    meshes: Query<(&MeshComponent, &Transform)>,
-    context: Res<RenderContext>,
-    mesh_store: Res<AssetStore<Mesh>>,
-    mut render_state: ResMut<RenderWorldState>,
-) {
-    render_state.clear();
-
-    for (mesh, transform) in meshes.iter() {
-        if let Some(mesh_asset) = mesh_store.get(&mesh.handle) {
-            for sub_mesh in mesh_asset.meshes.iter() {
-                let render_mesh = RenderMesh {
-                    vertices: context.device.create_buffer_init(
-                        &wgpu::util::BufferInitDescriptor {
-                            label: Some("Vertex Buffer"),
-                            contents: bytemuck::cast_slice(&sub_mesh.vertices),
-                            usage: wgpu::BufferUsages::VERTEX,
-                        },
-                    ),
-                    indices: context
-                        .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: Some("Index Buffer"),
-                            contents: bytemuck::cast_slice(&sub_mesh.indices),
-                            usage: wgpu::BufferUsages::INDEX,
-                        }),
-                    index_count: sub_mesh.indices.len() as u32,
-                    instance_buffer: context.device.create_buffer_init(
-                        &wgpu::util::BufferInitDescriptor {
-                            label: Some("Instance Buffer"),
-                            contents: bytemuck::cast_slice(&[transform.to_raw()]),
-                            usage: wgpu::BufferUsages::VERTEX,
-                        },
-                    ),
-                };
-                render_state.add_mesh(render_mesh);
-            }
-        }
-    }
-}
-
-pub(crate) fn render(render_state: Res<RenderWorldState>, context: Res<RenderContext>) {
+pub(crate) fn render(context: Res<RenderContext>) {
     if let Ok(output) = context.surface.get_current_texture() {
         let view = output
             .texture
@@ -86,15 +36,15 @@ pub(crate) fn render(render_state: Res<RenderWorldState>, context: Res<RenderCon
             });
             render_pass.set_pipeline(&context.pipeline);
 
-            render_pass.set_bind_group(0, &context.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &context.camera_bind_group, &[]);
+            render_pass.set_bind_group(0, &context.camera_bind_group, &[]);
 
-            render_state.meshes.iter().for_each(|mesh| {
-                render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.set_vertex_buffer(1, mesh.instance_buffer.slice(..));
-                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-            });
+            // render_state.meshes.iter().for_each(|mesh| {
+            //     render_pass.set_bind_group(1, &mesh.material.diffuse_bind_group, &[]);
+            //     render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+            //     render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+            //     render_pass.set_vertex_buffer(1, mesh.instance_buffer.slice(..));
+            //     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            // });
         }
         context.queue.submit(std::iter::once(encoder.finish()));
         output.present();

@@ -9,14 +9,14 @@ use super::{
     Asset, AssetId,
 };
 
-struct AssetStoreEntry<A: Asset> {
+pub struct AssetStoreEntry<A: Asset> {
     pub(crate) asset: A,
     pub(crate) ref_count: i32,
 }
 
 #[derive(Resource)]
 pub struct AssetStore<A: Asset + 'static> {
-    assets: HashMap<AssetId, AssetStoreEntry<A>>,
+    pub assets: HashMap<AssetId, AssetStoreEntry<A>>,
     drop_sender: Sender<AssetLifetimeEvent>,
     drop_receiver: Receiver<AssetLifetimeEvent>,
     _marker: std::marker::PhantomData<A>,
@@ -66,5 +66,18 @@ impl<A: Asset + 'static> AssetStore<A> {
 
     pub fn clone_drop_sender(&self) -> Sender<AssetLifetimeEvent> {
         self.drop_sender.clone()
+    }
+}
+
+impl<'a, A: Asset + 'static> IntoIterator for &'a AssetStore<A> {
+    type Item = (&'a AssetId, &'a A);
+
+    type IntoIter = std::iter::Map<
+        std::collections::hash_map::Iter<'a, AssetId, AssetStoreEntry<A>>,
+        fn((&'a AssetId, &'a AssetStoreEntry<A>)) -> (&'a AssetId, &'a A),
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.assets.iter().map(|(id, entry)| (id, &entry.asset))
     }
 }

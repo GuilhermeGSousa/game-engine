@@ -1,15 +1,9 @@
 use std::io::{BufReader, Cursor};
 
-use super::{
-    material::{self, Material},
-    texture::Texture,
-    vertex::Vertex,
-    Mesh, SubMesh,
-};
+use super::{material::Material, texture::Texture, vertex::Vertex, Mesh, SubMesh};
 use async_trait::async_trait;
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
-    AssetPath,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
 };
 
 pub(crate) struct ObjLoader;
@@ -27,6 +21,16 @@ impl AssetLoader for ObjLoader {
         let obj_cursor = Cursor::new(obj_text);
         let mut obj_reader = BufReader::new(obj_cursor);
 
+        tobj::load_obj_buf(
+            &mut obj_reader,
+            &tobj::LoadOptions {
+                single_index: true,
+                triangulate: true,
+                ..Default::default()
+            },
+            |p| {},
+        );
+
         let (models, materials) = tobj::load_obj_buf_async(
             &mut obj_reader,
             &tobj::LoadOptions {
@@ -35,7 +39,10 @@ impl AssetLoader for ObjLoader {
                 ..Default::default()
             },
             move |p| async move {
-                let mat = load_to_string(AssetPath::new(p)).await.unwrap();
+                load_context
+                    .asset_server()
+                    .load::<Material>(AssetPath::new(p));
+                let mat: String = load_to_string(AssetPath::new(p)).await.unwrap();
                 let mat_cursor = Cursor::new(mat);
                 tobj::load_mtl_buf(&mut BufReader::new(mat_cursor))
             },

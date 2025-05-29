@@ -4,11 +4,15 @@ use std::sync::Arc;
 use crate::{
     components::camera::CameraUniform,
     mesh::{
-        texture::{self, Texture},
+        layouts::MeshLayouts,
+        render_material::RenderMaterial,
+        render_texture::RenderTexture,
+        texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
         Mesh,
     },
-    resources::{RenderContext, RenderWorldState},
+    render_asset::RenderAssetPlugin,
+    resources::RenderContext,
     systems::{render, update_camera, update_window},
 };
 use app::plugins::Plugin;
@@ -81,53 +85,7 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
-        // This is a texture
-        let diffuse_bytes = include_bytes!("res/happy-tree.png");
-        let diffuse_texture =
-            texture::TextureOld::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png")
-                .unwrap();
-
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        // This should match the filterable field of the
-                        // corresponding Texture entry above.
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-                label: Some("texture_bind_group_layout"),
-            });
-
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                },
-            ],
-            label: Some("diffuse_bind_group"),
-        });
-
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\mesh.wgsl"));
 
         // Camera initialization
         let camera_uniform = CameraUniform::new();
@@ -162,11 +120,13 @@ impl Plugin for RenderPlugin {
             label: Some("camera_bind_group"),
         });
 
+        let mesh_layouts = MeshLayouts::new(&device);
+
         // Setup render pipeline
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
+                bind_group_layouts: &[&mesh_layouts.mesh_layout, &camera_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -219,22 +179,20 @@ impl Plugin for RenderPlugin {
             surface_config: config,
             queue: queue,
             pipeline: render_pipeline,
-            diffuse_bind_group: diffuse_bind_group,
             camera_bind_group: camera_bind_group,
             camera_buffer: camera_buffer,
             camera_uniform: camera_uniform,
         });
 
-        app.insert_resource(RenderWorldState::new());
+        app.insert_resource(mesh_layouts);
 
         app.add_system(
             app::update_group::UpdateGroup::Render,
             update_window::update_window,
         );
-        app.add_system(
-            app::update_group::UpdateGroup::Render,
-            render::prepare_render_state,
-        );
+        app.register_plugin(RenderAssetPlugin::<RenderTexture>::new());
+        app.register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
+
         app.add_system(
             app::update_group::UpdateGroup::Render,
             update_camera::update_camera,

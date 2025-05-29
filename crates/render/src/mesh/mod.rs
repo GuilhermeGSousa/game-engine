@@ -4,9 +4,13 @@ use material::Material;
 use ecs::component::Component;
 use vertex::Vertex;
 
+pub mod layouts;
 pub mod material;
 pub mod obj_loader;
+pub mod render_instanced_mesh;
+pub mod render_material;
 pub mod render_mesh;
+pub mod render_texture;
 pub mod texture;
 pub mod texture_loader;
 pub mod vertex;
@@ -25,7 +29,7 @@ impl Drop for SubMesh {
 
 pub struct Mesh {
     pub meshes: Vec<SubMesh>,
-    pub materials: Vec<Material>,
+    pub materials: Vec<AssetHandle<Material>>,
 }
 
 impl Asset for Mesh {

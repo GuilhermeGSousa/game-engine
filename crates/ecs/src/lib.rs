@@ -13,7 +13,10 @@ pub mod world;
 #[cfg(test)]
 mod tests {
     use crate::{
-        component::Component, query::Query, resource::Resource, system::schedule::Schedule,
+        component::Component,
+        query::Query,
+        resource::{Res, Resource},
+        system::{schedule::Schedule, system_input::StaticSystemInput},
         world::World,
     };
 
@@ -49,6 +52,8 @@ mod tests {
         }
     }
 
+    fn system_query_3(res: StaticSystemInput<Res<'static, Time>>) {}
+
     #[test]
     fn test_query() {
         let mut world = World::new();
@@ -56,6 +61,7 @@ mod tests {
 
         schedule.add_system(system_query);
         schedule.add_system(system_query_2);
+        schedule.add_system(system_query_3);
 
         world.spawn((Health, Position { x: 10.0, y: 20.0 }));
         world.spawn((Position { x: 20.0, y: 20.0 },));

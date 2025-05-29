@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 pub mod components;
 pub mod mesh;
 pub mod plugin;
-pub mod render_pass;
+pub mod render_asset;
 pub mod resources;
 pub mod systems;
 pub mod wgpu_wrapper;

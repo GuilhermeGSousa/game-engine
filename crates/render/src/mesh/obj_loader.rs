@@ -1,4 +1,7 @@
-use std::io::{BufReader, Cursor};
+use std::{
+    io::{BufRead, BufReader, Cursor},
+    path::Path,
+};
 
 use super::{material::Material, texture::Texture, vertex::Vertex, Mesh, SubMesh};
 use async_trait::async_trait;
@@ -19,33 +22,37 @@ impl AssetLoader for ObjLoader {
     ) -> Result<Self::Asset, ()> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);
-        let mut obj_reader = BufReader::new(obj_cursor);
 
-        tobj::load_obj_buf(
-            &mut obj_reader,
+        let mat_handles = BufReader::new(obj_cursor.clone())
+            .lines()
+            .filter_map(Result::ok)
+            .filter_map(|line| {
+                if line.starts_with("mtllib") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() > 1 {
+                        let mtl_path = path.to_path().parent().unwrap().join(parts[1]);
+                        Some(
+                            load_context
+                                .asset_server()
+                                .load::<Material>(mtl_path.to_str().unwrap()),
+                        )
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let (models, _) = tobj::load_obj_buf_async(
+            &mut BufReader::new(obj_cursor),
             &tobj::LoadOptions {
                 single_index: true,
                 triangulate: true,
                 ..Default::default()
             },
-            |p| {},
-        );
-
-        let (models, materials) = tobj::load_obj_buf_async(
-            &mut obj_reader,
-            &tobj::LoadOptions {
-                single_index: true,
-                triangulate: true,
-                ..Default::default()
-            },
-            move |p| async move {
-                load_context
-                    .asset_server()
-                    .load::<Material>(AssetPath::new(p));
-                let mat: String = load_to_string(AssetPath::new(p)).await.unwrap();
-                let mat_cursor = Cursor::new(mat);
-                tobj::load_mtl_buf(&mut BufReader::new(mat_cursor))
-            },
+            move |_| async move { Err(tobj::LoadError::GenericFailure) },
         )
         .await
         .map_err(|_| ())?;
@@ -82,23 +89,9 @@ impl AssetLoader for ObjLoader {
             })
             .collect::<Vec<_>>();
 
-        let mesh_materials = materials
-            .unwrap()
-            .iter()
-            .map(|m| {
-                let mut material = Material::new();
-                if let Some(diffuse_texture) = &m.diffuse_texture {
-                    material.set_diffuse_texture(
-                        load_context.asset_server().load::<Texture>(diffuse_texture),
-                    )
-                }
-                material
-            })
-            .collect::<Vec<_>>();
-
         Ok(Mesh {
             meshes,
-            materials: mesh_materials,
+            materials: mat_handles,
         })
     }
 }

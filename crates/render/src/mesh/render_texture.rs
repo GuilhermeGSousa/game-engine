@@ -1,4 +1,7 @@
-use crate::{render_asset::RenderAsset, resources::RenderContext};
+use crate::{
+    render_asset::{AssetPreparationError, RenderAsset},
+    resources::RenderContext,
+};
 use ecs::{resource::Res, system::system_input::SystemInputData};
 
 use super::texture::Texture;
@@ -72,8 +75,12 @@ impl RenderAsset for RenderTexture {
     fn prepare_asset(
         source_asset: &Self::SourceAsset,
         params: &mut SystemInputData<Self::PreparationParams>,
-    ) -> Self {
+    ) -> Result<Self, AssetPreparationError> {
         let (render_context,) = params;
-        RenderTexture::from_texture(&source_asset, &render_context.device, &render_context.queue)
+        Ok(RenderTexture::from_texture(
+            &source_asset,
+            &render_context.device,
+            &render_context.queue,
+        ))
     }
 }

@@ -1,4 +1,7 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    path::Path,
+};
 
 pub mod asset_container;
 pub mod asset_loader;
@@ -38,6 +41,10 @@ impl AssetPath {
     #[cfg(target_arch = "wasm32")]
     pub fn to_request_path(&self) -> String {
         self.normalized_path.clone()
+    }
+
+    pub fn to_path(&self) -> &Path {
+        Path::new(&self.normalized_path)
     }
 }
 

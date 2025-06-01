@@ -5,7 +5,9 @@ use crate::{
     components::camera::CameraUniform,
     mesh::{
         layouts::MeshLayouts,
+        material::Material,
         render_material::RenderMaterial,
+        render_mesh::RenderMesh,
         render_texture::RenderTexture,
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
@@ -190,6 +192,7 @@ impl Plugin for RenderPlugin {
             app::update_group::UpdateGroup::Render,
             update_window::update_window,
         );
+        app.register_plugin(RenderAssetPlugin::<RenderMesh>::new());
         app.register_plugin(RenderAssetPlugin::<RenderTexture>::new());
         app.register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
 
@@ -198,8 +201,10 @@ impl Plugin for RenderPlugin {
             update_camera::update_camera,
         );
 
-        app.add_system(app::update_group::UpdateGroup::Render, render::render);
         app.register_asset::<Mesh>();
         app.register_asset::<Texture>();
+        app.register_asset::<Material>();
+
+        app.add_system(app::update_group::UpdateGroup::Render, render::render);
     }
 }

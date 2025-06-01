@@ -7,14 +7,18 @@ use ecs::{
 };
 use essential::assets::{asset_store::AssetStore, Asset, AssetId};
 
-pub(crate) trait RenderAsset: 'static {
+pub enum AssetPreparationError {
+    NotReady,
+}
+
+pub(crate) trait RenderAsset: Sized + 'static {
     type SourceAsset: Asset;
     type PreparationParams: SystemInput;
 
     fn prepare_asset(
         source_asset: &Self::SourceAsset,
         params: &mut SystemInputData<Self::PreparationParams>,
-    ) -> Self;
+    ) -> Result<Self, AssetPreparationError>;
 }
 
 pub(crate) fn prepare_render_asset<A: RenderAsset>(
@@ -25,7 +29,10 @@ pub(crate) fn prepare_render_asset<A: RenderAsset>(
     for (asset_id, asset) in asset_store.into_iter() {
         let prepared_asset = A::prepare_asset(asset, &mut params);
 
-        render_assets.insert(*asset_id, prepared_asset);
+        match prepared_asset {
+            Ok(prepared_asset) => render_assets.insert(*asset_id, prepared_asset),
+            Err(_) => {}
+        };
     }
 }
 

@@ -1,7 +1,7 @@
 use ecs::resource::Res;
 
 use crate::{
-    render_asset::{RenderAsset, RenderAssets},
+    render_asset::{AssetPreparationError, RenderAsset, RenderAssets},
     resources::RenderContext,
 };
 
@@ -23,7 +23,7 @@ impl RenderAsset for RenderMaterial {
     fn prepare_asset(
         source_asset: &Self::SourceAsset,
         params: &mut ecs::system::system_input::SystemInputData<Self::PreparationParams>,
-    ) -> Self {
+    ) -> Result<Self, AssetPreparationError> {
         let (render_context, render_textures, mesh_layouts) = params;
 
         let diffuse_texture = source_asset.diffuse_texture();
@@ -40,18 +40,22 @@ impl RenderAsset for RenderMaterial {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&render_texture.sampler),
                 });
+
+                let diffuse_bind_group =
+                    render_context
+                        .device
+                        .create_bind_group(&wgpu::BindGroupDescriptor {
+                            layout: &mesh_layouts.mesh_layout,
+                            entries: &entries,
+                            label: Some("diffuse_bind_group"),
+                        });
+
+                Ok(RenderMaterial { diffuse_bind_group })
+            } else {
+                Err(AssetPreparationError::NotReady)
             }
+        } else {
+            Err(AssetPreparationError::NotReady)
         }
-
-        let diffuse_bind_group =
-            render_context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &mesh_layouts.mesh_layout,
-                    entries: &entries,
-                    label: Some("diffuse_bind_group"),
-                });
-
-        RenderMaterial { diffuse_bind_group }
     }
 }

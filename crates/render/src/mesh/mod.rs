@@ -6,6 +6,7 @@ use vertex::Vertex;
 
 pub mod layouts;
 pub mod material;
+pub mod mtl_loader;
 pub mod obj_loader;
 pub mod render_instanced_mesh;
 pub mod render_material;

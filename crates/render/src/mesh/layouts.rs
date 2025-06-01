@@ -28,7 +28,7 @@ impl MeshLayouts {
                     count: None,
                 },
             ],
-            label: Some("texture_bind_group_layout"),
+            label: Some("mesh_bind_group_layout"),
         });
 
         Self { mesh_layout }

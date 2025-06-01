@@ -1,10 +1,9 @@
 use crate::{
+    assets::texture::Texture,
     render_asset::{AssetPreparationError, RenderAsset},
     resources::RenderContext,
 };
 use ecs::{resource::Res, system::system_input::SystemInputData};
-
-use super::texture::Texture;
 
 pub(crate) struct RenderTexture {
     pub(crate) texture: wgpu::Texture,

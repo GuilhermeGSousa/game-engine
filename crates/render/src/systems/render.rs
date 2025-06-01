@@ -3,8 +3,8 @@ use essential::transform::Transform;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    mesh::{render_material::RenderMaterial, render_mesh::RenderMesh, MeshComponent},
-    render_asset::RenderAssets,
+    components::mesh_component::MeshComponent,
+    render_asset::{render_material::RenderMaterial, render_mesh::RenderMesh, RenderAssets},
     resources::RenderContext,
 };
 

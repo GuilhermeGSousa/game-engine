@@ -1,7 +1,7 @@
 use ecs::resource::Resource;
 use std::sync::Arc;
 
-use crate::{components::camera::CameraUniform, mesh::render_texture::RenderTexture};
+use crate::{components::camera::CameraUniform, render_asset::render_texture::RenderTexture};
 
 #[derive(Resource)]
 pub struct RenderContext {

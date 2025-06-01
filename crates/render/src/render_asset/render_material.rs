@@ -1,11 +1,13 @@
 use ecs::resource::Res;
 
 use crate::{
+    assets::material::Material,
+    layouts::MeshLayouts,
     render_asset::{AssetPreparationError, RenderAsset, RenderAssets},
     resources::RenderContext,
 };
 
-use super::{layouts::MeshLayouts, material::Material, render_texture::RenderTexture};
+use super::render_texture::RenderTexture;
 
 pub(crate) struct RenderMaterial {
     pub(crate) diffuse_bind_group: wgpu::BindGroup,

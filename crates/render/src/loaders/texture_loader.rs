@@ -2,7 +2,7 @@ use essential::assets::{
     asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, AssetPath,
 };
 
-use super::texture::Texture;
+use crate::assets::texture::Texture;
 
 pub struct TextureLoader;
 

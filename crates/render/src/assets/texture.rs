@@ -1,7 +1,7 @@
 use essential::assets::Asset;
 use image::GenericImageView;
 
-use super::texture_loader::TextureLoader;
+use crate::loaders::texture_loader::TextureLoader;
 
 pub struct Texture {
     data: Vec<u8>,

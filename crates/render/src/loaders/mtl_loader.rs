@@ -5,7 +5,8 @@ use essential::assets::{
     asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
 };
 
-use super::{material::Material, texture::Texture};
+use crate::assets::{material::Material, texture::Texture};
+
 pub(crate) struct MTLLoader;
 
 #[async_trait]

@@ -3,11 +3,10 @@ use essential::assets::AssetId;
 use wgpu::util::DeviceExt;
 
 use crate::{
+    assets::mesh::Mesh,
     render_asset::{AssetPreparationError, RenderAsset},
     resources::RenderContext,
 };
-
-use super::Mesh;
 
 pub(crate) struct RenderSubMesh {
     pub(crate) vertices: wgpu::Buffer,

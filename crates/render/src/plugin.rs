@@ -2,18 +2,18 @@ use essential::transform::TransformRaw;
 use std::sync::Arc;
 
 use crate::{
-    components::camera::CameraUniform,
-    mesh::{
-        layouts::MeshLayouts,
+    assets::{
         material::Material,
-        render_material::RenderMaterial,
-        render_mesh::RenderMesh,
-        render_texture::RenderTexture,
+        mesh::Mesh,
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
-        Mesh,
     },
-    render_asset::RenderAssetPlugin,
+    components::camera::CameraUniform,
+    layouts::MeshLayouts,
+    render_asset::{
+        render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::RenderTexture,
+        RenderAssetPlugin,
+    },
     resources::RenderContext,
     systems::{render, update_camera, update_window},
 };

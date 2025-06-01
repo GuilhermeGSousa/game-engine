@@ -1,6 +1,8 @@
 use essential::assets::{handle::AssetHandle, Asset};
 
-use super::{mtl_loader::MTLLoader, texture::Texture};
+use crate::loaders::mtl_loader::MTLLoader;
+
+use super::texture::Texture;
 
 pub struct Material {
     diffuse_texture: Option<AssetHandle<Texture>>,

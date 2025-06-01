@@ -1,12 +1,14 @@
-use std::{
-    io::{BufRead, BufReader, Cursor},
-    path::Path,
-};
+use std::io::{BufRead, BufReader, Cursor};
 
-use super::{material::Material, texture::Texture, vertex::Vertex, Mesh, SubMesh};
 use async_trait::async_trait;
 use essential::assets::{
     asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
+};
+
+use crate::assets::{
+    material::Material,
+    mesh::{Mesh, SubMesh},
+    vertex::Vertex,
 };
 
 pub(crate) struct ObjLoader;

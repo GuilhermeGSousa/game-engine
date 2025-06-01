@@ -1,3 +1,7 @@
+pub mod render_material;
+pub mod render_mesh;
+pub mod render_texture;
+
 use std::collections::HashMap;
 
 use app::plugins::Plugin;

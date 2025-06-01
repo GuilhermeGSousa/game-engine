@@ -2,7 +2,7 @@ use ecs::resource::ResMut;
 
 use window::plugin::Window;
 
-use crate::{mesh::render_texture::RenderTexture, resources::RenderContext};
+use crate::{render_asset::render_texture::RenderTexture, resources::RenderContext};
 
 pub(crate) fn update_window(mut window: ResMut<Window>, mut context: ResMut<RenderContext>) {
     if window.should_resize() {

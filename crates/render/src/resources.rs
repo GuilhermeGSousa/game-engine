@@ -1,7 +1,7 @@
 use ecs::resource::Resource;
 use std::sync::Arc;
 
-use crate::components::camera::CameraUniform;
+use crate::{components::camera::CameraUniform, mesh::render_texture::RenderTexture};
 
 #[derive(Resource)]
 pub struct RenderContext {
@@ -16,4 +16,5 @@ pub struct RenderContext {
     pub camera_bind_group: wgpu::BindGroup,
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,
+    pub(crate) depth_texture: RenderTexture,
 }

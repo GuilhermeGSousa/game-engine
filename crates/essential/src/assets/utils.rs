@@ -14,7 +14,7 @@ fn format_url(file_name: &str) -> reqwest::Url {
     base.join(file_name).unwrap()
 }
 
-pub async fn load_to_string(path: AssetPath) -> Result<String, ()> {
+pub async fn load_to_string<'a>(path: AssetPath<'a>) -> Result<String, ()> {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             let url = format_url(path);
@@ -36,7 +36,7 @@ pub async fn load_to_string(path: AssetPath) -> Result<String, ()> {
     Ok(txt)
 }
 
-pub async fn load_binary(path: AssetPath) -> Result<Vec<u8>, ()> {
+pub async fn load_binary<'a>(path: AssetPath<'a>) -> Result<Vec<u8>, ()> {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             let url = format_url(path);

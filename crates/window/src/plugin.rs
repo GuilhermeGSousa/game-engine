@@ -87,7 +87,7 @@ fn winit_runner(mut app: App) -> AppExit {
             let _ = event_loop.0.run_app(&mut state);
         }
     }
-    println!("App exited");
+
     AppExit::Success
 }
 

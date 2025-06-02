@@ -12,7 +12,7 @@ impl AssetLoader for TextureLoader {
 
     async fn load(
         &self,
-        path: AssetPath,
+        path: AssetPath<'static>,
         _load_context: &mut AssetLoadContext,
     ) -> Result<Self::Asset, ()> {
         let data = load_binary(path).await;

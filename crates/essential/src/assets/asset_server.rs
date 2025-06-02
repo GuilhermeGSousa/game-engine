@@ -57,8 +57,6 @@ impl AssetLoadContext {
     pub(crate) fn new(asset_server: AssetServer) -> Self {
         Self { asset_server }
     }
-
-    pub fn request_load<A: Asset>(&mut self, path: impl Into<AssetPath>) {}
 }
 
 pub(crate) struct AssetServerData {
@@ -99,15 +97,15 @@ impl AssetServer {
             .insert(type_id, asset.clone_drop_sender());
     }
 
-    pub fn load<A: Asset>(&self, path: impl Into<AssetPath>) -> AssetHandle<A>
+    pub fn load<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A>
     where
         A: 'static,
     {
         self.load_internal::<A>(path)
     }
 
-    pub fn load_internal<A: Asset>(&self, path: impl Into<AssetPath>) -> AssetHandle<A> {
-        let path = path.into();
+    pub fn load_internal<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A> {
+        let path = path.into().into_owned();
         let id = AssetId::new::<A>(&path);
         let lifetime_sender = self
             .data
@@ -133,7 +131,7 @@ impl AssetServer {
         self.data.loaded_assets.write().unwrap().remove(id);
     }
 
-    fn request_load<A: Asset>(&self, path: AssetPath) {
+    fn request_load<A: Asset>(&self, path: AssetPath<'static>) {
         let id = AssetId::new::<A>(&path);
         let asset_loader = A::loader();
 

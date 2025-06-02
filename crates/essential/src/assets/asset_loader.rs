@@ -7,7 +7,7 @@ pub trait AssetLoader: Send + Sync + 'static {
 
     async fn load(
         &self,
-        path: AssetPath,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
     ) -> Result<Self::Asset, ()>;
 }

@@ -5,6 +5,7 @@ use crate::{
 };
 use ecs::{resource::Res, system::system_input::SystemInputData};
 
+#[allow(dead_code)]
 pub(crate) struct RenderTexture {
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,

@@ -7,8 +7,8 @@ use app::{
 use ecs::{query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
 use render::{
-    components::camera::Camera,
-    loaders::{Mesh, MeshComponent},
+    assets::mesh::Mesh,
+    components::{camera::Camera, mesh_component::MeshComponent},
     plugin::RenderPlugin,
 };
 

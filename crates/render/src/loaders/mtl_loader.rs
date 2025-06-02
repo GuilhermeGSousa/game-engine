@@ -15,7 +15,7 @@ impl AssetLoader for MTLLoader {
 
     async fn load(
         &self,
-        path: AssetPath,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
     ) -> Result<Self::Asset, ()> {
         let obj_text = load_to_string(path.clone()).await?;

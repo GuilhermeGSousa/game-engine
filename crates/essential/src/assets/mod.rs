@@ -1,6 +1,7 @@
 use std::{
+    borrow::Cow,
     hash::{DefaultHasher, Hash, Hasher},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 pub mod asset_container;
@@ -13,11 +14,11 @@ pub mod utils;
 
 // Path to an asset in a virtual file system.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct AssetPath {
-    normalized_path: String,
+pub struct AssetPath<'a> {
+    normalized_path: Cow<'a, Path>,
 }
 
-impl AssetPath {
+impl<'a> AssetPath<'a> {
     pub fn new(path: impl AsRef<str>) -> Self {
         let mut normalized = path.as_ref().replace('\\', "/");
 
@@ -30,11 +31,8 @@ impl AssetPath {
             normalized = format!("res/{}", normalized);
         }
 
-        // Remove duplicate slashes
-        normalized = normalized.replace("//", "/");
-
-        Self {
-            normalized_path: normalized,
+        AssetPath {
+            normalized_path: Cow::Owned(Path::new(&normalized).to_owned()),
         }
     }
 
@@ -44,25 +42,33 @@ impl AssetPath {
     }
 
     pub fn to_path(&self) -> &Path {
-        Path::new(&self.normalized_path)
+        &self.normalized_path
+    }
+
+    pub fn into_owned(self) -> AssetPath<'static> {
+        AssetPath {
+            normalized_path: Cow::Owned(self.normalized_path.into_owned()),
+        }
     }
 }
 
-impl Into<AssetPath> for String {
-    fn into(self) -> AssetPath {
-        AssetPath::new(self)
+impl<'a> From<PathBuf> for AssetPath<'a> {
+    fn from(path: PathBuf) -> Self {
+        AssetPath {
+            normalized_path: Cow::Owned(path),
+        }
     }
 }
 
-impl Into<AssetPath> for &str {
-    fn into(self) -> AssetPath {
-        AssetPath::new(self)
+impl<'a> From<String> for AssetPath<'a> {
+    fn from(path: String) -> Self {
+        AssetPath::new(path)
     }
 }
 
-impl Into<AssetPath> for &String {
-    fn into(self) -> AssetPath {
-        AssetPath::new(self)
+impl<'a> From<&'a str> for AssetPath<'a> {
+    fn from(path: &'a str) -> Self {
+        AssetPath::new(path)
     }
 }
 

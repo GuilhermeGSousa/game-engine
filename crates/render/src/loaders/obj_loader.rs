@@ -14,12 +14,13 @@ use crate::assets::{
 pub(crate) struct ObjLoader;
 
 #[async_trait]
+#[allow(deprecated)]
 impl AssetLoader for ObjLoader {
     type Asset = Mesh;
 
     async fn load(
         &self,
-        path: AssetPath,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
     ) -> Result<Self::Asset, ()> {
         let obj_text = load_to_string(path.clone()).await?;
@@ -33,11 +34,7 @@ impl AssetLoader for ObjLoader {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() > 1 {
                         let mtl_path = path.to_path().parent().unwrap().join(parts[1]);
-                        Some(
-                            load_context
-                                .asset_server()
-                                .load::<Material>(mtl_path.to_str().unwrap()),
-                        )
+                        Some(load_context.asset_server().load::<Material>(mtl_path))
                     } else {
                         None
                     }

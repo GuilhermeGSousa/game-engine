@@ -1,7 +1,7 @@
 use ecs::resource::Resource;
 use std::sync::Arc;
 
-use crate::{components::camera::CameraUniform, mesh::render_mesh::RenderMesh};
+use crate::{components::camera::CameraUniform, render_asset::render_texture::RenderTexture};
 
 #[derive(Resource)]
 pub struct RenderContext {
@@ -12,27 +12,9 @@ pub struct RenderContext {
     pub pipeline: wgpu::RenderPipeline,
 
     // Probably temp
-    pub diffuse_bind_group: wgpu::BindGroup,
+    // pub diffuse_bind_group: wgpu::BindGroup,
     pub camera_bind_group: wgpu::BindGroup,
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,
-}
-
-#[derive(Resource)]
-pub(crate) struct RenderWorldState {
-    pub(crate) meshes: Vec<RenderMesh>,
-}
-
-impl RenderWorldState {
-    pub fn new() -> Self {
-        Self { meshes: Vec::new() }
-    }
-
-    pub fn add_mesh(&mut self, mesh: RenderMesh) {
-        self.meshes.push(mesh);
-    }
-
-    pub fn clear(&mut self) {
-        self.meshes.clear();
-    }
+    pub(crate) depth_texture: RenderTexture,
 }

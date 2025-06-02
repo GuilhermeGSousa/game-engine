@@ -35,17 +35,20 @@ impl TaskPool {
                 std::thread::Builder::new()
                     .spawn(move || {
                         Self::LOCAL_EXECUTOR.with(|local_executor| loop {
-                            let tick_forever = async move {
-                                loop {
-                                    local_executor.tick().await;
-                                }
-                            };
-                            let res = pollster::block_on(
-                                executor.run(tick_forever.or(shutdown_rcv.recv())),
-                            );
-
-                            res.unwrap_err();
-                            break;
+                            let res = std::panic::catch_unwind(|| {
+                                let tick_forever = async move {
+                                    loop {
+                                        local_executor.tick().await;
+                                    }
+                                };
+                                pollster::block_on(
+                                    executor.run(tick_forever.or(shutdown_rcv.recv())),
+                                )
+                            });
+                            if let Ok(val) = res {
+                                val.unwrap_err();
+                                break;
+                            }
                         })
                     })
                     .expect("Failed to spawn thread")

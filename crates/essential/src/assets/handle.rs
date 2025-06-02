@@ -33,6 +33,13 @@ impl<A: Asset> AssetHandle<A> {
     pub fn id(&self) -> AssetId {
         self.id
     }
+
+    pub fn to_untyped(&self) -> AssetHandleUntyped {
+        AssetHandleUntyped {
+            id: self.id,
+            lifetime_sender: self.lifetime_sender.clone(),
+        }
+    }
 }
 
 impl<A: Asset> Clone for AssetHandle<A> {
@@ -53,5 +60,33 @@ impl<A: Asset> Drop for AssetHandle<A> {
         let _ = self
             .lifetime_sender
             .send(AssetLifetimeEvent::Dropped(self.id));
+    }
+}
+
+pub struct AssetHandleUntyped {
+    id: AssetId,
+    lifetime_sender: Sender<AssetLifetimeEvent>,
+}
+
+impl AssetHandleUntyped {
+    pub fn id(&self) -> AssetId {
+        self.id
+    }
+
+    pub fn to_typed<A: Asset>(&self) -> AssetHandle<A> {
+        AssetHandle {
+            id: self.id,
+            lifetime_sender: self.lifetime_sender.clone(),
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl Clone for AssetHandleUntyped {
+    fn clone(&self) -> Self {
+        AssetHandleUntyped {
+            id: self.id,
+            lifetime_sender: self.lifetime_sender.clone(),
+        }
     }
 }

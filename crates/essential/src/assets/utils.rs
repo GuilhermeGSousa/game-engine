@@ -14,7 +14,7 @@ fn format_url(file_name: &str) -> reqwest::Url {
     base.join(file_name).unwrap()
 }
 
-pub async fn load_to_string(path: AssetPath) -> Result<String, ()> {
+pub async fn load_to_string<'a>(path: AssetPath<'a>) -> Result<String, ()> {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             let url = format_url(path);
@@ -36,20 +36,23 @@ pub async fn load_to_string(path: AssetPath) -> Result<String, ()> {
     Ok(txt)
 }
 
-pub async fn load_binary(file_name: &str) -> anyhow::Result<Vec<u8>> {
+pub async fn load_binary<'a>(path: AssetPath<'a>) -> Result<Vec<u8>, ()> {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
-            let url = format_url(file_name);
+            let url = format_url(path);
             let data = reqwest::get(url)
                 .await?
                 .bytes()
                 .await?
                 .to_vec();
         } else {
-            let path = std::path::Path::new(env!("OUT_DIR"))
-                .join("res")
-                .join(file_name);
-            let data = std::fs::read(path)?;
+            let path = std::env::current_exe().unwrap().parent().unwrap()
+                .join(path.normalized_path);
+            let data = std::fs::read(&path).map_err(|_|
+                {
+                    println!("Failed to load file: {}", &path.display());
+                    ()
+                })?;
         }
     }
 

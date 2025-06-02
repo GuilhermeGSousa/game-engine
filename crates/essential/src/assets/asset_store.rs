@@ -1,21 +1,22 @@
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 
-use ecs::resource::Resource;
+use ecs::resource::{ResMut, Resource};
 
 use super::{
+    asset_server::AssetServer,
     handle::{AssetHandle, AssetLifetimeEvent},
     Asset, AssetId,
 };
 
-struct AssetStoreEntry<A: Asset> {
+pub struct AssetStoreEntry<A: Asset> {
     pub(crate) asset: A,
     pub(crate) ref_count: i32,
 }
 
 #[derive(Resource)]
 pub struct AssetStore<A: Asset + 'static> {
-    assets: HashMap<AssetId, AssetStoreEntry<A>>,
+    pub assets: HashMap<AssetId, AssetStoreEntry<A>>,
     drop_sender: Sender<AssetLifetimeEvent>,
     drop_receiver: Receiver<AssetLifetimeEvent>,
     _marker: std::marker::PhantomData<A>,
@@ -47,7 +48,7 @@ impl<A: Asset + 'static> AssetStore<A> {
         self.assets.insert(id, entry);
     }
 
-    pub fn track_assets(&mut self) {
+    pub fn track_assets(&mut self, mut asset_server: ResMut<AssetServer>) {
         for event in self.drop_receiver.try_iter() {
             if let Some(entry) = self.assets.get_mut(&event.id()) {
                 match event {
@@ -57,6 +58,7 @@ impl<A: Asset + 'static> AssetStore<A> {
 
                 if entry.ref_count <= 0 {
                     self.assets.remove(&event.id());
+                    asset_server.process_handle_drop(&event.id());
                 }
             }
         }
@@ -64,5 +66,18 @@ impl<A: Asset + 'static> AssetStore<A> {
 
     pub fn clone_drop_sender(&self) -> Sender<AssetLifetimeEvent> {
         self.drop_sender.clone()
+    }
+}
+
+impl<'a, A: Asset + 'static> IntoIterator for &'a AssetStore<A> {
+    type Item = (&'a AssetId, &'a A);
+
+    type IntoIter = std::iter::Map<
+        std::collections::hash_map::Iter<'a, AssetId, AssetStoreEntry<A>>,
+        fn((&'a AssetId, &'a AssetStoreEntry<A>)) -> (&'a AssetId, &'a A),
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.assets.iter().map(|(id, entry)| (id, &entry.asset))
     }
 }

@@ -1,7 +1,7 @@
 use essential::transform::TransformRaw;
 use std::mem;
 
-use crate::mesh::vertex::VertexBufferLayout;
+use crate::assets::vertex::VertexBufferLayout;
 
 impl VertexBufferLayout for TransformRaw {
     fn describe() -> wgpu::VertexBufferLayout<'static> {

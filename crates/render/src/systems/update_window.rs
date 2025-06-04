@@ -2,9 +2,16 @@ use ecs::resource::ResMut;
 
 use window::plugin::Window;
 
-use crate::{render_asset::render_texture::RenderTexture, resources::RenderContext};
+use crate::{
+    render_asset::{render_texture::RenderTexture, render_window::RenderWindow},
+    resources::RenderContext,
+};
 
-pub(crate) fn update_window(mut window: ResMut<Window>, mut context: ResMut<RenderContext>) {
+pub(crate) fn update_window(
+    mut window: ResMut<Window>,
+    mut render_window: ResMut<RenderWindow>,
+    mut context: ResMut<RenderContext>,
+) {
     if window.should_resize() {
         let size = window.size();
         let surface = context.surface.clone();
@@ -16,6 +23,11 @@ pub(crate) fn update_window(mut window: ResMut<Window>, mut context: ResMut<Rend
             &context.surface_config,
             "depth_texture",
         );
+
         window.clear_resize();
+    }
+
+    if let Ok(output) = context.surface.get_current_texture() {
+        render_window.set_swapchain_texture(output);
     }
 }

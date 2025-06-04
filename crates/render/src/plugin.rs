@@ -12,10 +12,13 @@ use crate::{
     layouts::MeshLayouts,
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::RenderTexture,
-        RenderAssetPlugin,
+        render_window::RenderWindow, RenderAssetPlugin,
     },
     resources::RenderContext,
-    systems::{render, update_camera, update_window},
+    systems::{
+        render::{self, present_window},
+        update_camera, update_window,
+    },
 };
 use app::plugins::Plugin;
 use wgpu::util::DeviceExt;
@@ -195,6 +198,8 @@ impl Plugin for RenderPlugin {
             depth_texture: depth_texture,
         });
 
+        app.insert_resource(RenderWindow::new());
+
         app.insert_resource(mesh_layouts);
 
         app.add_system(
@@ -215,5 +220,7 @@ impl Plugin for RenderPlugin {
         app.register_asset::<Material>();
 
         app.add_system(app::update_group::UpdateGroup::Render, render::render);
+
+        app.add_system(app::update_group::UpdateGroup::LateRender, present_window);
     }
 }

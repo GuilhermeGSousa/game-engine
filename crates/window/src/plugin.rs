@@ -1,7 +1,7 @@
 use ecs::resource::{ResMut, Resource};
 use std::sync::Arc;
 
-use crate::{input::Input, ApplicationWindowHandler};
+use crate::{input::Input, winit_events::WinitEvents, ApplicationWindowHandler};
 use app::{plugins::Plugin, runner::AppExit, update_group::UpdateGroup, App};
 
 #[cfg(target_arch = "wasm32")]
@@ -131,6 +131,7 @@ impl Plugin for WindowPlugin {
         app.insert_resource(Input::new());
         app.insert_resource(Window::new(window));
         app.insert_resource(WindowEventLoop(event_loop));
+        app.insert_resource(WinitEvents::new());
         app.add_system(UpdateGroup::Render, update_input);
         app.set_runner(winit_runner);
     }

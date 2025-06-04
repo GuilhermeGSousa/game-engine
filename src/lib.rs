@@ -12,6 +12,7 @@ use render::{
     plugin::RenderPlugin,
 };
 
+use ui::plugin::UIPlugin;
 use window::{
     input::{Input, InputState},
     plugin::WindowPlugin,
@@ -40,6 +41,7 @@ pub fn run_game() {
         .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
+        .register_plugin(UIPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(app::update_group::UpdateGroup::Update, rotate_meshes);
 

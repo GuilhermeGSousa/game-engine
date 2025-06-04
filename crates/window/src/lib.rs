@@ -7,18 +7,25 @@ use winit::{
     keyboard::PhysicalKey,
 };
 
+use crate::winit_events::WinitEvents;
+
 pub mod input;
 pub mod plugin;
+pub mod winit_events;
 
 pub fn run() {}
 
 pub struct ApplicationWindowHandler {
     app: App,
+    winit_events: Vec<winit::event::WindowEvent>,
 }
 
 impl ApplicationWindowHandler {
     pub fn new(app: App) -> Self {
-        Self { app: app }
+        Self {
+            app: app,
+            winit_events: Vec::new(),
+        }
     }
 }
 
@@ -34,11 +41,19 @@ impl ApplicationHandler for ApplicationWindowHandler {
         event: winit::event::WindowEvent,
     ) {
         let _ = window_id;
+
+        self.winit_events.push(event.clone());
+
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                let winit_events = self.winit_events.drain(..).collect::<Vec<_>>();
+                self.app
+                    .get_mut_resource::<WinitEvents>()
+                    .unwrap()
+                    .winit_events = winit_events;
                 self.app.update();
                 let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();

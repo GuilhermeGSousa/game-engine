@@ -20,6 +20,7 @@ members = ["crates/*"]
 app = { path = "crates/app" }
 essential = { path = "crates/essential" }
 render = { path = "crates/render" }
+ui = { path = "crates/ui" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 cfg-if = "1.0.0"

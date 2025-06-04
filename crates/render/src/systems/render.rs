@@ -1,10 +1,16 @@
-use ecs::{query::Query, resource::Res};
+use ecs::{
+    query::Query,
+    resource::{Res, ResMut},
+};
 use essential::transform::Transform;
 use wgpu::util::DeviceExt;
 
 use crate::{
     components::mesh_component::MeshComponent,
-    render_asset::{render_material::RenderMaterial, render_mesh::RenderMesh, RenderAssets},
+    render_asset::{
+        render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
+        RenderAssets,
+    },
     resources::RenderContext,
 };
 
@@ -12,13 +18,10 @@ pub(crate) fn render(
     context: Res<RenderContext>,
     mesh_query: Query<(&MeshComponent, &Transform)>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
+    render_window: Res<RenderWindow>,
     render_materials: Res<RenderAssets<RenderMaterial>>,
 ) {
-    if let Ok(output) = context.surface.get_current_texture() {
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
+    if let Some(view) = render_window.get_view() {
         let mut encoder = context
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -95,6 +98,9 @@ pub(crate) fn render(
             }
         }
         context.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
     }
+}
+
+pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
+    render_window.present();
 }

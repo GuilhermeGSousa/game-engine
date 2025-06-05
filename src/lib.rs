@@ -6,6 +6,7 @@ use app::{
 };
 use ecs::{query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
+use physics::{physics_body::PhysicsBody, plugin::PhysicsPlugin};
 use render::{
     assets::mesh::Mesh,
     components::{camera::Camera, mesh_component::MeshComponent},
@@ -46,6 +47,7 @@ pub fn run_game() {
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
         .register_plugin(UIPlugin)
+        .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
         .add_system(app::update_group::UpdateGroup::Render, render_ui);
@@ -69,6 +71,7 @@ fn spawn_stuff(app: &mut app::App) {
                     handle: handle.clone(),
                 },
                 Transform::from_translation_rotation(pos, Quat::IDENTITY),
+                PhysicsBody::new(1.0),
             ));
         }
     }

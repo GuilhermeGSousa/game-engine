@@ -1,0 +1,10 @@
+[package]
+name = "physics"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+app = { path = "../app" }
+essential = { path = "../essential" }
+ecs = { path = "../ecs" }
+glam = { version = "0.30.1" }

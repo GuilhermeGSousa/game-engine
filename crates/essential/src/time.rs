@@ -1,5 +1,7 @@
 use ecs::resource::Resource;
 
+const FIXED_DELTA_TIME: f32 = 1.0 / 30.0; // 30 FPS
+
 #[derive(Resource)]
 pub struct Time {
     last_update: web_time::Instant,
@@ -19,5 +21,9 @@ impl Time {
 
     pub fn update(&mut self) {
         self.last_update = web_time::Instant::now();
+    }
+
+    pub fn fixed_delta_time() -> f32 {
+        FIXED_DELTA_TIME
     }
 }

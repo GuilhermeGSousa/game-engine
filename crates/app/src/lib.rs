@@ -8,7 +8,10 @@ use runner::{run_once, AppExit};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use essential::assets::{asset_server::AssetServer, asset_store::AssetStore, Asset};
+use essential::{
+    assets::{asset_server::AssetServer, asset_store::AssetStore, Asset},
+    time::Time,
+};
 use plugins::Plugin;
 use std::mem::replace;
 use update_group::UpdateGroup;
@@ -22,9 +25,13 @@ pub struct App {
     world: World,
     startup_schedule: Schedule,
     update_schedule: Schedule,
+    fixed_update_schedule: Schedule,
     late_update_schedule: Schedule,
+    late_fixed_update_schedule: Schedule,
     render_schedule: Schedule,
     late_render_schedule: Schedule,
+
+    accumulated_fixed_time: f32,
 }
 
 impl App {
@@ -34,9 +41,12 @@ impl App {
             world: World::new(),
             startup_schedule: Schedule::default(),
             update_schedule: Schedule::default(),
+            fixed_update_schedule: Schedule::default(),
             late_update_schedule: Schedule::default(),
+            late_fixed_update_schedule: Schedule::default(),
             render_schedule: Schedule::default(),
             late_render_schedule: Schedule::default(),
+            accumulated_fixed_time: 0.0,
         }
     }
 
@@ -87,7 +97,9 @@ impl App {
         match update_group {
             UpdateGroup::Startup => self.startup_schedule.add_system(system),
             UpdateGroup::Update => self.update_schedule.add_system(system),
+            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system(system),
             UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
+            UpdateGroup::LateFixedUpdate => self.late_fixed_update_schedule.add_system(system),
             UpdateGroup::Render => self.render_schedule.add_system(system),
             UpdateGroup::LateRender => self.late_render_schedule.add_system(system),
         };
@@ -102,7 +114,11 @@ impl App {
         match update_group {
             UpdateGroup::Startup => self.startup_schedule.add_system_first(system),
             UpdateGroup::Update => self.update_schedule.add_system_first(system),
+            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system_first(system),
             UpdateGroup::LateUpdate => self.late_update_schedule.add_system_first(system),
+            UpdateGroup::LateFixedUpdate => {
+                self.late_fixed_update_schedule.add_system_first(system)
+            }
             UpdateGroup::Render => self.render_schedule.add_system_first(system),
             UpdateGroup::LateRender => self.late_render_schedule.add_system_first(system),
         };
@@ -127,6 +143,24 @@ impl App {
     }
 
     pub fn update(&mut self) {
+        {
+            let time = self
+                .get_resource::<Time>()
+                .expect("Time resource not found");
+
+            let delta_time = time.delta();
+            print!("Delta time: {:.3} seconds\n", delta_time);
+            self.accumulated_fixed_time += delta_time;
+            while self.accumulated_fixed_time >= Time::fixed_delta_time() {
+                print!(
+                    "Running fixed update with accumulated time: {:.3} seconds\n",
+                    self.accumulated_fixed_time
+                );
+                self.fixed_update_schedule.run(&mut self.world);
+                self.accumulated_fixed_time -= Time::fixed_delta_time();
+                self.late_fixed_update_schedule.run(&mut self.world);
+            }
+        }
         self.update_schedule.run(&mut self.world);
         self.late_update_schedule.run(&mut self.world);
         self.render_schedule.run(&mut self.world);

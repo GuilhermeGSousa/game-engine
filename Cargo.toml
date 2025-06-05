@@ -23,6 +23,7 @@ render = { path = "crates/render" }
 ui = { path = "crates/ui" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
+physics = { path = "crates/physics" }
 cfg-if = "1.0.0"
 env_logger = "0.11.8"
 log = "0.4.27"

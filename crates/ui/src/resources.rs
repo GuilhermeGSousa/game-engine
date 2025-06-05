@@ -9,8 +9,8 @@ use egui_winit::{winit::window::Window, State};
 
 #[derive(Resource)]
 pub struct UIRenderer {
-    pub renderer: Renderer,
-    pub state: State,
+    pub(crate) renderer: Renderer,
+    pub(crate) state: State,
 }
 
 impl UIRenderer {
@@ -42,6 +42,10 @@ impl UIRenderer {
         );
 
         UIRenderer { renderer, state }
+    }
+
+    pub fn context(&self) -> &Context {
+        self.state.egui_ctx()
     }
 }
 

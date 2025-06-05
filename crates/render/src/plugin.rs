@@ -202,23 +202,22 @@ impl Plugin for RenderPlugin {
 
         app.insert_resource(mesh_layouts);
 
-        app.add_system(
-            app::update_group::UpdateGroup::Render,
-            update_window::update_window,
-        );
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new());
         app.register_plugin(RenderAssetPlugin::<RenderTexture>::new());
         app.register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
-
-        app.add_system(
-            app::update_group::UpdateGroup::Render,
-            update_camera::update_camera,
-        );
 
         app.register_asset::<Mesh>();
         app.register_asset::<Texture>();
         app.register_asset::<Material>();
 
+        app.add_system(
+            app::update_group::UpdateGroup::Render,
+            update_window::update_window,
+        );
+        app.add_system(
+            app::update_group::UpdateGroup::Render,
+            update_camera::update_camera,
+        );
         app.add_system(app::update_group::UpdateGroup::Render, render::render);
 
         app.add_system(app::update_group::UpdateGroup::LateRender, present_window);

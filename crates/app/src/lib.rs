@@ -94,6 +94,21 @@ impl App {
         self
     }
 
+    pub fn add_system_first<M>(
+        &mut self,
+        update_group: UpdateGroup,
+        system: impl IntoSystem<M> + 'static,
+    ) -> &mut Self {
+        match update_group {
+            UpdateGroup::Startup => self.startup_schedule.add_system_first(system),
+            UpdateGroup::Update => self.update_schedule.add_system_first(system),
+            UpdateGroup::LateUpdate => self.late_update_schedule.add_system_first(system),
+            UpdateGroup::Render => self.render_schedule.add_system_first(system),
+            UpdateGroup::LateRender => self.late_render_schedule.add_system_first(system),
+        };
+        self
+    }
+
     pub fn insert_resource<R: Resource>(&mut self, value: R) -> &mut Self {
         self.world.insert_resource(value);
         self

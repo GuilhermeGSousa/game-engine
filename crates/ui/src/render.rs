@@ -8,39 +8,24 @@ use window::plugin::Window;
 
 use crate::resources::UIRenderer;
 
-pub(crate) fn render_ui(
+pub(crate) fn begin_ui_frame(
+    mut ui_renderer: ResMut<UIRenderer>,
+    window: Res<Window>,
+    render_window: Res<RenderWindow>,
+) {
+    if let Some(_) = render_window.get_view() {
+        let raw_input = ui_renderer.state.take_egui_input(&window.window_handle);
+        ui_renderer.state.egui_ctx().begin_pass(raw_input);
+    }
+}
+
+pub(crate) fn end_ui_frame(
     mut ui_renderer: ResMut<UIRenderer>,
     render_context: Res<RenderContext>,
     window: Res<Window>,
     render_window: Res<RenderWindow>,
 ) {
     if let Some(surface_view) = render_window.get_view() {
-        // BEGIN FRAME
-        let raw_input = ui_renderer.state.take_egui_input(&window.window_handle);
-        ui_renderer.state.egui_ctx().begin_pass(raw_input);
-
-        // Render UI
-        egui::Window::new("winit + egui + wgpu says hello!")
-            .resizable(true)
-            .vscroll(true)
-            .default_open(false)
-            .show(ui_renderer.state.egui_ctx(), |ui| {
-                ui.label("Label!");
-
-                if ui.button("Button!").clicked() {
-                    println!("boom!")
-                }
-
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(format!(
-                        "Pixels per point: {}",
-                        ui_renderer.state.egui_ctx().pixels_per_point()
-                    ));
-                });
-            });
-
-        // END FRAME
         let full_output = ui_renderer.state.egui_ctx().end_pass();
 
         ui_renderer

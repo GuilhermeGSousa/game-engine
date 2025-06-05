@@ -1,7 +1,11 @@
 use app::plugins::Plugin;
 use render::resources::RenderContext;
 
-use crate::{input::handle_window_events, render::render_ui, resources::UIRenderer};
+use crate::{
+    input::handle_window_events,
+    render::{begin_ui_frame, end_ui_frame},
+    resources::UIRenderer,
+};
 
 pub struct UIPlugin;
 
@@ -25,6 +29,7 @@ impl Plugin for UIPlugin {
         ));
 
         app.add_system(app::update_group::UpdateGroup::Update, handle_window_events);
-        app.add_system(app::update_group::UpdateGroup::Render, render_ui);
+        app.add_system(app::update_group::UpdateGroup::Render, begin_ui_frame);
+        app.add_system_first(app::update_group::UpdateGroup::LateRender, end_ui_frame);
     }
 }

@@ -1,4 +1,4 @@
-#[derive(Eq, Hash, PartialEq, Clone)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub struct Entity(pub usize);
 
 #[derive(Eq, Hash, PartialEq, Clone)]

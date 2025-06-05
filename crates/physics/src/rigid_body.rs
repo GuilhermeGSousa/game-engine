@@ -2,13 +2,13 @@ use ecs::component::Component;
 use glam::Vec3;
 
 #[derive(Component)]
-pub struct PhysicsBody {
+pub struct RigidBody {
     pub mass: f32,
     velocity: Vec3,
     acceleration: Vec3,
 }
 
-impl PhysicsBody {
+impl RigidBody {
     pub fn new(mass: f32) -> Self {
         Self {
             mass,

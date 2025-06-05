@@ -1,9 +1,9 @@
 use ecs::query::Query;
 use essential::{time::Time, transform::Transform};
 
-use crate::physics_body::PhysicsBody;
+use crate::rigid_body::RigidBody;
 
-pub(crate) fn simulate_gravity(physics_bodies: Query<(&mut PhysicsBody, &mut Transform)>) {
+pub(crate) fn simulate_gravity(physics_bodies: Query<(&mut RigidBody, &mut Transform)>) {
     for (body, _) in physics_bodies.iter() {
         // Apply a constant downward force to simulate gravity
         let gravity_force = -9.81; // Gravity in m/s^2
@@ -11,7 +11,7 @@ pub(crate) fn simulate_gravity(physics_bodies: Query<(&mut PhysicsBody, &mut Tra
     }
 }
 
-pub(crate) fn update_physics_bodies(physics_bodies: Query<(&mut PhysicsBody, &mut Transform)>) {
+pub(crate) fn update_physics_bodies(physics_bodies: Query<(&mut RigidBody, &mut Transform)>) {
     for (body, transform) in physics_bodies.iter() {
         let delta_time = Time::fixed_delta_time();
 

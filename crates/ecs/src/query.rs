@@ -4,6 +4,7 @@ use typle::typle;
 
 use crate::{
     component::{Component, ComponentId},
+    entity::Entity,
     system::system_input::SystemInput,
     world::UnsafeWorldCell,
 };
@@ -45,6 +46,10 @@ impl<'world, T: QueryData> Query<'world, T> {
             current_entity_index: 0,
             _marker: PhantomData,
         }
+    }
+
+    pub fn get_entity(&self, entity: Entity) -> Option<T::Item<'world>> {
+        None
     }
 }
 

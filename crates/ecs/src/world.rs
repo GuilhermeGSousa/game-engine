@@ -16,10 +16,6 @@ pub struct World {
     archetypes: Vec<Archetype>,
     resources: AnyMap,
 
-    // We need
-    // map entity to archetype
-    // map set of components to archetype
-    entity_index: HashMap<Entity, EntityRecord>,
     archetype_index: HashMap<EntityType, usize>,
 }
 
@@ -28,7 +24,6 @@ impl World {
         Self {
             entity_count: 0,
             archetypes: Vec::new(),
-            entity_index: HashMap::new(),
             archetype_index: HashMap::new(),
             resources: AnyMap::new(),
         }
@@ -53,8 +48,6 @@ impl World {
         let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
         bundle.add_to_archetype(archetype);
 
-        let entity_record = EntityRecord::new(*archetype_index, archetype.get_row_count() - 1);
-        self.entity_index.insert(entity.clone(), entity_record);
         entity
     }
 

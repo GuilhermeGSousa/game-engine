@@ -6,7 +6,7 @@ use app::{
 };
 use ecs::{query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
-use physics::{physics_body::PhysicsBody, plugin::PhysicsPlugin};
+use physics::{plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::mesh::Mesh,
     components::{camera::Camera, mesh_component::MeshComponent},
@@ -71,7 +71,7 @@ fn spawn_stuff(app: &mut app::App) {
                     handle: handle.clone(),
                 },
                 Transform::from_translation_rotation(pos, Quat::IDENTITY),
-                PhysicsBody::new(1.0),
+                RigidBody::new(1.0),
             ));
         }
     }

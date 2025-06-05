@@ -1,5 +1,6 @@
-pub mod physics_body;
+pub mod collision;
 pub mod plugin;
+pub mod rigid_body;
 mod simulation;
 
 pub fn add(left: u64, right: u64) -> u64 {

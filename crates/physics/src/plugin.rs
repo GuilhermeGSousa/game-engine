@@ -1,6 +1,9 @@
 use app::plugins::Plugin;
 
-use crate::simulation::{simulate_gravity, update_physics_bodies};
+use crate::{
+    collision::contact::resolve_contacts,
+    simulation::{simulate_gravity, update_physics_bodies},
+};
 
 pub struct PhysicsPlugin;
 
@@ -9,10 +12,13 @@ impl Plugin for PhysicsPlugin {
         app.add_system(
             app::update_group::UpdateGroup::FixedUpdate,
             simulate_gravity,
-        );
-
-        app.add_system(
-            app::update_group::UpdateGroup::FixedUpdate,
+        )
+        .add_system(
+            app::update_group::UpdateGroup::LateFixedUpdate,
+            resolve_contacts,
+        )
+        .add_system(
+            app::update_group::UpdateGroup::LateFixedUpdate,
             update_physics_bodies,
         );
     }

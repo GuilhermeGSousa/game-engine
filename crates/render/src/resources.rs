@@ -6,7 +6,7 @@ use crate::{components::camera::CameraUniform, render_asset::render_texture::Ren
 #[derive(Resource)]
 pub struct RenderContext {
     pub(crate) surface: Arc<wgpu::Surface<'static>>,
-    pub(crate) surface_config: wgpu::SurfaceConfiguration,
+    pub surface_config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub pipeline: wgpu::RenderPipeline,

@@ -12,6 +12,7 @@ use render::{
     plugin::RenderPlugin,
 };
 
+use ui::plugin::UIPlugin;
 use window::{
     input::{Input, InputState},
     plugin::WindowPlugin,
@@ -23,6 +24,10 @@ const INSTANCE_DISPLACEMENT: Vec3 = Vec3::new(0 as f32 * 0.5, 0.0, 0 as f32 * 0.
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
 use winit::keyboard::{KeyCode, PhysicalKey};
+
+use crate::game_ui::render_ui;
+
+pub mod game_ui;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {
@@ -40,8 +45,10 @@ pub fn run_game() {
         .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
+        .register_plugin(UIPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
-        .add_system(app::update_group::UpdateGroup::Update, rotate_meshes);
+        .add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
+        .add_system(app::update_group::UpdateGroup::Render, render_ui);
 
     spawn_stuff(&mut app);
 

@@ -20,6 +20,7 @@ members = ["crates/*"]
 app = { path = "crates/app" }
 essential = { path = "crates/essential" }
 render = { path = "crates/render" }
+ui = { path = "crates/ui" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 cfg-if = "1.0.0"
@@ -27,6 +28,7 @@ env_logger = "0.11.8"
 log = "0.4.27"
 winit = { version = "0.30.9", default-features = false, features = ["rwh_06"] }
 glam = { version = "0.30.1" }
+egui = "0.31.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"

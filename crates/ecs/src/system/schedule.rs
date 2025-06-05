@@ -9,6 +9,7 @@ pub struct Schedule {
 }
 
 impl Schedule {
+    // TODO: Implement an actual scheduler with stages and conditions
     pub fn new() -> Schedule {
         Self {
             systems: Vec::new(),
@@ -18,6 +19,12 @@ impl Schedule {
     #[allow(unused)]
     pub fn add_system<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
         self.systems.push(system.into_system());
+        self
+    }
+
+    #[allow(unused)]
+    pub fn add_system_first<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
+        self.systems.insert(0, system.into_system());
         self
     }
 

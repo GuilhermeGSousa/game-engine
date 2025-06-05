@@ -1,7 +1,8 @@
 pub mod components;
+pub mod input;
 pub mod plugin;
+pub mod render;
 pub mod resources;
-pub mod systems;
 #[cfg(test)]
 mod tests {
     #[test]

@@ -4,4 +4,5 @@ pub enum UpdateGroup {
     Update,
     LateUpdate,
     Render,
+    LateRender,
 }

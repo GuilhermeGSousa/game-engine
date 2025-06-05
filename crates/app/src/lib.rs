@@ -24,6 +24,7 @@ pub struct App {
     update_schedule: Schedule,
     late_update_schedule: Schedule,
     render_schedule: Schedule,
+    late_render_schedule: Schedule,
 }
 
 impl App {
@@ -35,6 +36,7 @@ impl App {
             update_schedule: Schedule::default(),
             late_update_schedule: Schedule::default(),
             render_schedule: Schedule::default(),
+            late_render_schedule: Schedule::default(),
         }
     }
 
@@ -87,6 +89,22 @@ impl App {
             UpdateGroup::Update => self.update_schedule.add_system(system),
             UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
             UpdateGroup::Render => self.render_schedule.add_system(system),
+            UpdateGroup::LateRender => self.late_render_schedule.add_system(system),
+        };
+        self
+    }
+
+    pub fn add_system_first<M>(
+        &mut self,
+        update_group: UpdateGroup,
+        system: impl IntoSystem<M> + 'static,
+    ) -> &mut Self {
+        match update_group {
+            UpdateGroup::Startup => self.startup_schedule.add_system_first(system),
+            UpdateGroup::Update => self.update_schedule.add_system_first(system),
+            UpdateGroup::LateUpdate => self.late_update_schedule.add_system_first(system),
+            UpdateGroup::Render => self.render_schedule.add_system_first(system),
+            UpdateGroup::LateRender => self.late_render_schedule.add_system_first(system),
         };
         self
     }
@@ -112,5 +130,6 @@ impl App {
         self.update_schedule.run(&mut self.world);
         self.late_update_schedule.run(&mut self.world);
         self.render_schedule.run(&mut self.world);
+        self.late_render_schedule.run(&mut self.world);
     }
 }

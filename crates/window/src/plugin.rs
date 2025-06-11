@@ -1,7 +1,7 @@
 use ecs::resource::{ResMut, Resource};
 use std::sync::Arc;
 
-use crate::{input::Input, winit_events::WinitEvents, ApplicationWindowHandler};
+use crate::{input::Input, winit_events::WinitEvent, ApplicationWindowHandler};
 use app::{plugins::Plugin, runner::AppExit, update_group::UpdateGroup, App};
 
 #[cfg(target_arch = "wasm32")]
@@ -98,6 +98,8 @@ fn update_input(mut input: ResMut<Input>) {
 #[allow(deprecated)]
 impl Plugin for WindowPlugin {
     fn build(&self, app: &mut App) {
+        app.register_event::<WinitEvent>();
+
         let mut event_loop_builder = EventLoop::builder();
 
         let event_loop = event_loop_builder
@@ -131,7 +133,7 @@ impl Plugin for WindowPlugin {
         app.insert_resource(Input::new());
         app.insert_resource(Window::new(window));
         app.insert_resource(WindowEventLoop(event_loop));
-        app.insert_resource(WinitEvents::new());
+
         app.add_system(UpdateGroup::Render, update_input);
         app.set_runner(winit_runner);
     }

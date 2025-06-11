@@ -1,14 +1,26 @@
-use ecs::resource::Resource;
+use std::ops::{Deref, DerefMut};
 
-#[derive(Resource)]
-pub struct WinitEvents {
-    pub winit_events: Vec<winit::event::WindowEvent>,
+use ecs::events::Event;
+
+#[derive(Event)]
+pub struct WinitEvent(winit::event::WindowEvent);
+
+impl WinitEvent {
+    pub fn new(event: winit::event::WindowEvent) -> Self {
+        Self(event)
+    }
 }
 
-impl WinitEvents {
-    pub fn new() -> Self {
-        Self {
-            winit_events: Vec::new(),
-        }
+impl Deref for WinitEvent {
+    type Target = winit::event::WindowEvent;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for WinitEvent {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }

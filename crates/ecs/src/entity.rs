@@ -25,7 +25,7 @@ impl Entity {
 #[derive(Eq, Hash, PartialEq, Clone)]
 pub struct EntityType(pub u64);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct EntityLocation {
     pub(crate) archetype_index: u32,
     pub(crate) row: TableRow,

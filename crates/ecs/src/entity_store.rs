@@ -72,4 +72,19 @@ impl EntityStore {
             None
         }
     }
+
+    pub fn find_entity_at_location(&self, location: EntityLocation) -> Option<Entity> {
+        if let Some(index) = self
+            .metadata
+            .iter()
+            .position(|meta| meta.location == location)
+        {
+            Some(Entity::new(
+                index.try_into().unwrap(),
+                self.metadata[index].current_generation,
+            ))
+        } else {
+            None
+        }
+    }
 }

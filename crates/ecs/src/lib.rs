@@ -15,6 +15,7 @@ pub mod world;
 mod tests {
     use crate::{
         component::Component,
+        entity::Entity,
         query::Query,
         resource::{Res, Resource},
         system::{schedule::Schedule, system_input::StaticSystemInput},
@@ -41,14 +42,14 @@ mod tests {
         }
     }
 
-    fn system_query(query: Query<(&Position, &mut Health)>) {
-        for (position, hp) in query.iter() {
+    fn system_query(query: Query<(Entity, &Position, &mut Health)>) {
+        for (entity, position, hp) in query.iter() {
             print!("{}", position.x);
         }
     }
 
-    fn system_query_2(query: Query<(&Position)>) {
-        for (position) in query.iter() {
+    fn system_query_2(query: Query<(Entity, &Position)>) {
+        for (entity, position) in query.iter() {
             print!("{}", position.x);
         }
     }

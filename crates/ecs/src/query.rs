@@ -165,6 +165,24 @@ where
     }
 }
 
+impl QueryData for Entity {
+    type Item<'a> = Entity;
+
+    fn get_component_ids() -> Vec<ComponentId> {
+        vec![]
+    }
+
+    fn fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        entity_location: EntityLocation,
+    ) -> Option<Self::Item<'w>> {
+        world
+            .get_world()
+            .get_entity_store()
+            .find_entity_at_location(entity_location)
+    }
+}
+
 #[allow(unused_mut)]
 #[allow(unused_variables)]
 #[typle(Tuple for 0..=12)]

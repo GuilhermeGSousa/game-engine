@@ -80,7 +80,7 @@ impl Table {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct TableRow(u32);
 
 impl TableRow {

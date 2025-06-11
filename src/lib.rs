@@ -71,7 +71,7 @@ fn spawn_stuff(app: &mut app::App) {
                     handle: handle.clone(),
                 },
                 Transform::from_translation_rotation(pos, Quat::IDENTITY),
-                RigidBody::new(1.0),
+                //RigidBody::new(1.0),
             ));
         }
     }

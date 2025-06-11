@@ -1,4 +1,5 @@
 pub mod collision;
+pub mod physics_server;
 pub mod plugin;
 pub mod rigid_body;
 mod simulation;

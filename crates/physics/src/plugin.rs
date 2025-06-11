@@ -9,17 +9,18 @@ pub struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut app::App) {
-        app.add_system(
-            app::update_group::UpdateGroup::FixedUpdate,
-            simulate_gravity,
-        )
-        .add_system(
-            app::update_group::UpdateGroup::LateFixedUpdate,
-            resolve_contacts,
-        )
-        .add_system(
-            app::update_group::UpdateGroup::LateFixedUpdate,
-            update_physics_bodies,
-        );
+        app
+            // .add_system(
+            //     app::update_group::UpdateGroup::FixedUpdate,
+            //     simulate_gravity,
+            // )
+            .add_system(
+                app::update_group::UpdateGroup::LateFixedUpdate,
+                resolve_contacts,
+            )
+            .add_system(
+                app::update_group::UpdateGroup::LateFixedUpdate,
+                update_physics_bodies,
+            );
     }
 }

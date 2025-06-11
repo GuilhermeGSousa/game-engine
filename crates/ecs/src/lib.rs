@@ -3,6 +3,7 @@ pub mod bundle;
 pub mod common;
 pub mod component;
 pub mod entity;
+pub mod entity_store;
 pub mod events;
 pub mod query;
 pub mod resource;

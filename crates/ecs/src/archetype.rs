@@ -2,7 +2,7 @@ use any_vec::{any_value::AnyValueWrapper, mem::Heap, AnyVecMut, AnyVecRef};
 
 use crate::{
     component::{Component, ComponentId},
-    table::Table,
+    table::{Table, TableRow},
 };
 
 pub struct Archetype {
@@ -18,10 +18,6 @@ impl Archetype {
         if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
             column.push(raw_value);
         }
-    }
-
-    pub fn get_row_count(&self) -> usize {
-        self.data_table.get_row_count()
     }
 
     pub fn contains(&self, component_id: ComponentId) -> bool {
@@ -52,17 +48,17 @@ impl Archetype {
             .as_vec_mut_unchecked()
     }
 
-    pub unsafe fn get_component_unsafe<T: 'static>(&self, index: usize) -> &T {
+    pub unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRow) -> Option<&T> {
         self.data_table
             .get_column(ComponentId::of::<T>())
             .unwrap()
-            .get_unsafe(index)
+            .get_unsafe(row)
     }
 
-    pub unsafe fn get_component_mut_unsafe<T: 'static>(&mut self, index: usize) -> &mut T {
+    pub unsafe fn get_component_unsafe_mut<T: 'static>(&mut self, row: TableRow) -> Option<&mut T> {
         self.data_table
             .get_column_mut(ComponentId::of::<T>())
             .unwrap()
-            .get_mut_unsafe(index)
+            .get_mut_unsafe(row)
     }
 }

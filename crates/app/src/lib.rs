@@ -149,13 +149,8 @@ impl App {
                 .expect("Time resource not found");
 
             let delta_time = time.delta();
-            print!("Delta time: {:.3} seconds\n", delta_time);
             self.accumulated_fixed_time += delta_time;
             while self.accumulated_fixed_time >= Time::fixed_delta_time() {
-                print!(
-                    "Running fixed update with accumulated time: {:.3} seconds\n",
-                    self.accumulated_fixed_time
-                );
                 self.fixed_update_schedule.run(&mut self.world);
                 self.accumulated_fixed_time -= Time::fixed_delta_time();
                 self.late_fixed_update_schedule.run(&mut self.world);

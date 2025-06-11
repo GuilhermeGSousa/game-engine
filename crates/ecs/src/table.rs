@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 use any_vec::{any_value::AnyValueWrapper, mem::Heap, AnyVec, AnyVecMut, AnyVecRef};
 
@@ -31,12 +34,12 @@ impl Column {
         self.data.downcast_mut_unchecked::<T>()
     }
 
-    pub unsafe fn get_unsafe<T: 'static>(&self, index: usize) -> &T {
-        self.data.get_unchecked(index).downcast_ref().unwrap()
+    pub unsafe fn get_unsafe<T: 'static>(&self, row: TableRow) -> Option<&T> {
+        self.data.get_unchecked(*row as usize).downcast_ref()
     }
 
-    pub unsafe fn get_mut_unsafe<T: 'static>(&mut self, index: usize) -> &mut T {
-        self.data.get_unchecked_mut(index).downcast_mut().unwrap()
+    pub unsafe fn get_mut_unsafe<T: 'static>(&mut self, row: TableRow) -> Option<&mut T> {
+        self.data.get_unchecked_mut(*row as usize).downcast_mut()
     }
 }
 
@@ -74,5 +77,28 @@ impl Table {
 
     pub fn get_column_mut(&mut self, type_id: ComponentId) -> Option<&mut Column> {
         self.columns.get_mut(&type_id)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct TableRow(u32);
+
+impl TableRow {
+    pub const fn new(index: u32) -> TableRow {
+        TableRow(index)
+    }
+}
+
+impl Deref for TableRow {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TableRow {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }

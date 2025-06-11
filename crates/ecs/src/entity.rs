@@ -1,19 +1,39 @@
+use std::num::NonZero;
+
+use crate::table::TableRow;
+
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
-pub struct Entity(pub usize);
+pub struct Entity {
+    index: u32,
+    generation: NonZero<u32>,
+}
+
+impl Entity {
+    pub(crate) fn new(index: u32, generation: NonZero<u32>) -> Self {
+        Self { index, generation }
+    }
+
+    pub fn index(&self) -> u32 {
+        self.index
+    }
+
+    pub fn generation(&self) -> NonZero<u32> {
+        self.generation
+    }
+}
 
 #[derive(Eq, Hash, PartialEq, Clone)]
 pub struct EntityType(pub u64);
 
-pub struct EntityRecord {
-    pub archetype_index: usize,
-    pub row_index: usize,
+#[derive(Clone, Copy)]
+pub struct EntityLocation {
+    pub(crate) archetype_index: u32,
+    pub(crate) row: TableRow,
 }
 
-impl EntityRecord {
-    pub fn new(archetype_index: usize, row_index: usize) -> EntityRecord {
-        EntityRecord {
-            archetype_index: archetype_index,
-            row_index: row_index,
-        }
-    }
+impl EntityLocation {
+    pub(crate) const INVALID: EntityLocation = EntityLocation {
+        archetype_index: u32::MAX,
+        row: TableRow::new(u32::MAX),
+    };
 }

@@ -4,9 +4,10 @@ use typle::typle;
 
 use crate::{
     component::{Component, ComponentId},
-    entity::Entity,
+    entity::{Entity, EntityLocation},
     system::system_input::SystemInput,
-    world::UnsafeWorldCell,
+    table::TableRow,
+    world::{self, UnsafeWorldCell},
 };
 
 pub struct Query<'world, T: QueryData> {
@@ -19,11 +20,7 @@ pub trait QueryData {
 
     fn get_component_ids() -> Vec<ComponentId>;
 
-    fn fetch<'w>(
-        world: UnsafeWorldCell<'w>,
-        archetype_index: usize,
-        entity_index: usize,
-    ) -> Option<Self::Item<'w>>;
+    fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: EntityLocation) -> Option<Self::Item<'w>>;
 }
 
 enum ArchetypeIteratorState {
@@ -49,7 +46,13 @@ impl<'world, T: QueryData> Query<'world, T> {
     }
 
     pub fn get_entity(&self, entity: Entity) -> Option<T::Item<'world>> {
-        None
+        let entity_store = self.world.get_world().get_entity_store();
+
+        if let Some(entity_location) = entity_store.find_location(entity) {
+            T::fetch(self.world, entity_location)
+        } else {
+            None
+        }
     }
 }
 
@@ -87,7 +90,11 @@ where
         match self.archetype_iteration_state {
             ArchetypeIteratorState::Pending(_) => None,
             ArchetypeIteratorState::Iterating(index) => {
-                match T::fetch(self.world, index, self.current_entity_index) {
+                let location = EntityLocation {
+                    archetype_index: index.try_into().unwrap(),
+                    row: TableRow::new(self.current_entity_index.try_into().unwrap()),
+                };
+                match T::fetch(self.world, location) {
                     Some(value) => {
                         self.current_entity_index += 1;
                         if self.current_entity_index >= archetypes[index].len() {
@@ -129,13 +136,10 @@ where
         }
     }
 
-    fn fetch<'w>(
-        world: UnsafeWorldCell<'w>,
-        archetype_index: usize,
-        entity_index: usize,
-    ) -> Option<Self::Item<'w>> {
-        let archetype = &world.get_world().get_archetypes()[archetype_index];
-        unsafe { Some(archetype.get_component_unsafe(entity_index)) }
+    fn fetch<'w>(world: UnsafeWorldCell<'w>, location: EntityLocation) -> Option<Self::Item<'w>> {
+        world
+            .get_world()
+            .get_component_for_entity_location::<T>(location)
     }
 }
 
@@ -153,11 +157,11 @@ where
 
     fn fetch<'w>(
         world: UnsafeWorldCell<'w>,
-        archetype_index: usize,
-        entity_index: usize,
+        entity_location: EntityLocation,
     ) -> Option<Self::Item<'w>> {
-        let archetype = &mut world.get_world_mut().get_archetypes_mut()[archetype_index];
-        unsafe { Some(archetype.get_component_mut_unsafe(entity_index)) }
+        world
+            .get_world_mut()
+            .get_component_for_entity_location_mut(entity_location)
     }
 }
 
@@ -185,9 +189,8 @@ where
 
     fn fetch<'w>(
         world: UnsafeWorldCell<'w>,
-        archetype_index: usize,
-        entity_index: usize,
+        entity_location: EntityLocation,
     ) -> Option<Self::Item<'w>> {
-        Some(typle_for!(i in .. => <T<{i}>>::fetch(world, archetype_index, entity_index).unwrap()))
+        Some(typle_for!(i in .. => <T<{i}>>::fetch(world, entity_location).unwrap()))
     }
 }

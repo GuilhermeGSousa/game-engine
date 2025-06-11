@@ -1,7 +1,7 @@
 use crate::{
     archetype::Archetype,
     component::{Component, ComponentId},
-    table::Table,
+    table::{Table, TableRow},
 };
 use any_vec::any_value::AnyValueWrapper;
 use std::any::TypeId;
@@ -11,7 +11,7 @@ use typle::typle;
 pub trait ComponentBundle {
     fn get_component_ids() -> Vec<ComponentId>;
 
-    fn add_to_archetype(self, archetype: &mut Archetype);
+    fn add_to_archetype(self, archetype: &mut Archetype) -> TableRow;
 
     fn generate_empty_table() -> Table;
 }
@@ -41,9 +41,11 @@ where
         table
     }
 
-    fn add_to_archetype(self, archetype: &mut Archetype) {
+    fn add_to_archetype(self, archetype: &mut Archetype) -> TableRow {
+        let table_row = TableRow::new(archetype.len() as u32);
         for typle_index!(i) in 0..T::LEN {
             archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]));
         }
+        table_row
     }
 }

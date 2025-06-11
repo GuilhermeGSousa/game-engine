@@ -6,35 +6,36 @@ use crate::{
     archetype::Archetype,
     bundle::ComponentBundle,
     common::generate_type_id,
-    entity::{Entity, EntityRecord, EntityType},
+    component::Component,
+    entity::{Entity, EntityLocation, EntityType},
+    entity_store::EntityStore,
     resource::Resource,
     system::system_input::SystemInput,
 };
 
 pub struct World {
-    entity_count: usize,
     archetypes: Vec<Archetype>,
     resources: AnyMap,
 
+    entity_store: EntityStore,
     archetype_index: HashMap<EntityType, usize>,
 }
 
 impl World {
     pub fn new() -> World {
         Self {
-            entity_count: 0,
             archetypes: Vec::new(),
             archetype_index: HashMap::new(),
             resources: AnyMap::new(),
+            entity_store: EntityStore::new(),
         }
     }
 
     pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> Entity {
-        let entity = Entity(self.entity_count);
-        self.entity_count += 1;
-
         let type_ids = T::get_component_ids();
         let entity_type = generate_type_id(&type_ids);
+
+        let entity = self.entity_store.alloc();
 
         let archetype_index = self
             .archetype_index
@@ -46,7 +47,14 @@ impl World {
             });
 
         let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
-        bundle.add_to_archetype(archetype);
+        let table_row = bundle.add_to_archetype(archetype);
+
+        let location = EntityLocation {
+            archetype_index: *archetype_index as u32,
+            row: table_row,
+        };
+
+        self.entity_store.set_location(entity, location);
 
         entity
     }
@@ -57,6 +65,44 @@ impl World {
 
     pub fn get_archetypes_mut(&mut self) -> &mut Vec<Archetype> {
         &mut self.archetypes
+    }
+
+    pub fn get_entity_store(&self) -> &EntityStore {
+        &self.entity_store
+    }
+
+    pub fn get_component_for_entity<T: Component>(&self, entity: Entity) -> Option<&T> {
+        self.entity_store
+            .find_location(entity)
+            .map(|location| self.get_component_for_entity_location(location))
+            .flatten()
+    }
+
+    pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        self.entity_store
+            .find_location(entity)
+            .map(|location| self.get_component_for_entity_location_mut(location))
+            .flatten()
+    }
+
+    pub(crate) fn get_component_for_entity_location<T: Component>(
+        &self,
+        entity_location: EntityLocation,
+    ) -> Option<&T> {
+        self.archetypes
+            .get(entity_location.archetype_index as usize)
+            .map(|archetype| unsafe { archetype.get_component_unsafe(entity_location.row) })
+            .flatten()
+    }
+
+    pub(crate) fn get_component_for_entity_location_mut<T: Component>(
+        &mut self,
+        entity_location: EntityLocation,
+    ) -> Option<&mut T> {
+        self.archetypes
+            .get_mut(entity_location.archetype_index as usize)
+            .map(|archetype| unsafe { archetype.get_component_unsafe_mut(entity_location.row) })
+            .flatten()
     }
 
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {

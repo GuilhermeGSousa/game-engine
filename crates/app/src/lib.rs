@@ -1,5 +1,6 @@
 use ecs::{
     bundle::ComponentBundle,
+    events::{event_channel::update_event_channel, event_channel::EventChannel, Event},
     resource::{ResMut, Resource},
     system::{schedule::Schedule, IntoSystem},
     world::World,
@@ -122,6 +123,14 @@ impl App {
             UpdateGroup::Render => self.render_schedule.add_system_first(system),
             UpdateGroup::LateRender => self.late_render_schedule.add_system_first(system),
         };
+        self
+    }
+
+    pub fn register_event<T: Event + 'static>(&mut self) -> &mut Self {
+        let event_channel = EventChannel::<T>::new();
+
+        self.insert_resource(event_channel);
+        self.add_system(UpdateGroup::LateUpdate, update_event_channel::<T>);
         self
     }
 

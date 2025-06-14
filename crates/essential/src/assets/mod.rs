@@ -36,11 +36,6 @@ impl<'a> AssetPath<'a> {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub fn to_request_path(&self) -> String {
-        self.normalized_path.clone()
-    }
-
     pub fn to_path(&self) -> &Path {
         &self.normalized_path
     }
@@ -49,6 +44,11 @@ impl<'a> AssetPath<'a> {
         AssetPath {
             normalized_path: Cow::Owned(self.normalized_path.into_owned()),
         }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn to_string(&self) -> &str {
+        self.normalized_path.to_str().unwrap()
     }
 }
 

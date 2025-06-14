@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 build = "build.rs"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 ecs = { path = "../ecs" }
 bytemuck = { version = "1.22.0", features = ["derive"] }

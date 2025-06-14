@@ -3,7 +3,7 @@ use cfg_if::cfg_if;
 use super::AssetPath;
 
 #[cfg(target_arch = "wasm32")]
-fn format_url(file_name: &str) -> reqwest::Url {
+fn format_url<'a>(path: AssetPath<'a>) -> reqwest::Url {
     let window = web_sys::window().unwrap();
     let location = window.location();
     let mut origin = location.origin().unwrap();
@@ -11,7 +11,7 @@ fn format_url(file_name: &str) -> reqwest::Url {
         origin = format!("{}/learn-wgpu", origin);
     }
     let base = reqwest::Url::parse(&format!("{}/", origin,)).unwrap();
-    base.join(file_name).unwrap()
+    base.join(path.to_string()).unwrap()
 }
 
 pub async fn load_to_string<'a>(path: AssetPath<'a>) -> Result<String, ()> {
@@ -19,9 +19,11 @@ pub async fn load_to_string<'a>(path: AssetPath<'a>) -> Result<String, ()> {
         if #[cfg(target_arch = "wasm32")] {
             let url = format_url(path);
             let txt = reqwest::get(url)
-                .await?
+                .await
+                .map_err(|_| ())?
                 .text()
-                .await?;
+                .await
+                .map_err(|_| ())?;
         } else {
             let path = std::env::current_exe().unwrap().parent().unwrap()
                 .join(path.normalized_path);
@@ -41,9 +43,11 @@ pub async fn load_binary<'a>(path: AssetPath<'a>) -> Result<Vec<u8>, ()> {
         if #[cfg(target_arch = "wasm32")] {
             let url = format_url(path);
             let data = reqwest::get(url)
-                .await?
+                .await
+                .map_err(|_| ())?
                 .bytes()
-                .await?
+                .await
+                .map_err(|_| ())?
                 .to_vec();
         } else {
             let path = std::env::current_exe().unwrap().parent().unwrap()

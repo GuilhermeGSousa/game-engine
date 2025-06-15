@@ -10,6 +10,10 @@ impl CollisionShape {
             _ => Aabb {},
         }
     }
+
+    pub fn make_sphere(radius: f32) -> Self {
+        Self::Sphere(Sphere { radius })
+    }
 }
 
 pub struct Sphere {

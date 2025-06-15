@@ -1,7 +1,7 @@
 use app::plugins::Plugin;
 
 use crate::{
-    collision::contact::resolve_contacts,
+    collision::{collider::register_colliders, contact::resolve_contacts},
     physics_server::PhysicsServer,
     simulation::{simulate_gravity, update_physics_bodies},
 };
@@ -22,6 +22,7 @@ impl Plugin for PhysicsPlugin {
         .add_system(
             app::update_group::UpdateGroup::LateFixedUpdate,
             update_physics_bodies,
-        );
+        )
+        .add_system_first(app::update_group::UpdateGroup::Update, register_colliders);
     }
 }

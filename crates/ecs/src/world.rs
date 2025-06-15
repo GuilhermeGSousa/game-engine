@@ -6,7 +6,7 @@ use crate::{
     archetype::Archetype,
     bundle::ComponentBundle,
     common::generate_type_id,
-    component::Component,
+    component::{Component, ComponentId},
     entity::{Entity, EntityLocation, EntityType},
     entity_store::EntityStore,
     resource::Resource,
@@ -19,6 +19,7 @@ pub struct World {
 
     entity_store: EntityStore,
     archetype_index: HashMap<EntityType, usize>,
+    current_tick: u32,
 }
 
 impl World {
@@ -28,6 +29,7 @@ impl World {
             archetype_index: HashMap::new(),
             resources: AnyMap::new(),
             entity_store: EntityStore::new(),
+            current_tick: 0,
         }
     }
 
@@ -47,14 +49,33 @@ impl World {
             });
 
         let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
-        let table_row = bundle.add_to_archetype(archetype);
 
-        let location = EntityLocation {
-            archetype_index: *archetype_index as u32,
-            row: table_row,
+        let new_location = match self.entity_store.find_location(entity) {
+            Some(location) => {
+                if location.archetype_index == *archetype_index as u32 {
+                    bundle.insert_to_archetype(archetype, self.current_tick, entity, location.row);
+                    location
+                } else {
+                    let table_row =
+                        bundle.add_row_to_archetype(archetype, entity, self.current_tick);
+
+                    EntityLocation {
+                        archetype_index: *archetype_index as u32,
+                        row: table_row,
+                    }
+                }
+            }
+            None => {
+                let table_row = bundle.add_row_to_archetype(archetype, entity, self.current_tick);
+
+                EntityLocation {
+                    archetype_index: *archetype_index as u32,
+                    row: table_row,
+                }
+            }
         };
 
-        self.entity_store.set_location(entity, location);
+        self.entity_store.set_location(entity, new_location);
 
         entity
     }
@@ -67,7 +88,7 @@ impl World {
         &mut self.archetypes
     }
 
-    pub fn get_entity_store(&self) -> &EntityStore {
+    pub(crate) fn get_entity_store(&self) -> &EntityStore {
         &self.entity_store
     }
 
@@ -101,7 +122,9 @@ impl World {
     ) -> Option<&mut T> {
         self.archetypes
             .get_mut(entity_location.archetype_index as usize)
-            .map(|archetype| unsafe { archetype.get_component_unsafe_mut(entity_location.row) })
+            .map(|archetype| unsafe {
+                archetype.get_component_unsafe_mut(entity_location.row, self.current_tick)
+            })
             .flatten()
     }
 
@@ -127,6 +150,22 @@ impl World {
 
     pub fn as_unsafe_world_cell_ref(&self) -> UnsafeWorldCell<'_> {
         UnsafeWorldCell::new_ref(self)
+    }
+
+    pub fn tick(&mut self) {
+        self.current_tick += 1;
+    }
+
+    pub fn was_component_added(&self, entity: Entity, component_id: ComponentId) -> bool {
+        if let Some(location) = self.entity_store.find_location(entity) {
+            self.archetypes[location.archetype_index as usize].was_entity_added(
+                component_id,
+                location.row,
+                self.current_tick,
+            )
+        } else {
+            false
+        }
     }
 }
 

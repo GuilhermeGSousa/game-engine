@@ -6,6 +6,7 @@ pub mod entity;
 pub mod entity_store;
 pub mod events;
 pub mod query;
+pub mod query_filter;
 pub mod resource;
 pub mod system;
 pub mod table;
@@ -17,6 +18,7 @@ mod tests {
         component::Component,
         entity::Entity,
         query::Query,
+        query_filter::Added,
         resource::{Res, Resource},
         system::{schedule::Schedule, system_input::StaticSystemInput},
         world::World,
@@ -56,6 +58,12 @@ mod tests {
 
     fn system_query_3(res: StaticSystemInput<Res<'static, Time>>) {}
 
+    fn system_query_added(query: Query<(&Position,), Added<(Position,)>>) {
+        for _ in query.iter() {
+            print!("Found Added");
+        }
+    }
+
     #[test]
     fn test_query() {
         let mut world = World::new();
@@ -68,6 +76,25 @@ mod tests {
         world.spawn((Health, Position { x: 10.0, y: 20.0 }));
         world.spawn((Position { x: 20.0, y: 20.0 },));
 
+        schedule.run(&mut world);
+    }
+
+    #[test]
+    fn test_added() {
+        let mut world = World::new();
+        let mut schedule = Schedule::new();
+
+        schedule.add_system(system_query_added);
+
+        world.spawn((Position { x: 0.0, y: 0.0 },));
+        schedule.run(&mut world);
+
+        world.tick();
+
+        world.spawn((Position { x: 0.0, y: 0.0 },));
+        schedule.run(&mut world);
+
+        world.tick();
         schedule.run(&mut world);
     }
 }

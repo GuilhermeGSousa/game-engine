@@ -169,5 +169,6 @@ impl App {
         self.late_update_schedule.run(&mut self.world);
         self.render_schedule.run(&mut self.world);
         self.late_render_schedule.run(&mut self.world);
+        self.world.tick();
     }
 }

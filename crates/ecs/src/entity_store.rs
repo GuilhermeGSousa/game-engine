@@ -64,6 +64,10 @@ impl EntityStore {
 
     pub fn find_location(&self, entity: Entity) -> Option<EntityLocation> {
         if let Some(data) = self.metadata.get(entity.index() as usize) {
+            if data.location == EntityLocation::INVALID {
+                return None;
+            }
+
             if entity.generation() == data.current_generation {
                 return Some(data.location);
             }

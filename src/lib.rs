@@ -6,14 +6,7 @@ use app::{
 };
 use ecs::{entity::Entity, query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
-use physics::{
-    collision::{
-        collider::Collider,
-        collider_shape::{CollisionShape, Sphere},
-    },
-    plugin::PhysicsPlugin,
-    rigid_body::RigidBody,
-};
+use physics::plugin::PhysicsPlugin;
 use render::{
     assets::mesh::Mesh,
     components::{camera::Camera, mesh_component::MeshComponent},
@@ -78,10 +71,6 @@ fn spawn_stuff(app: &mut app::App) {
                     handle: handle.clone(),
                 },
                 Transform::from_translation_rotation(pos, Quat::IDENTITY),
-                //RigidBody::new(1.0),
-                Collider {
-                    shape: CollisionShape::make_sphere(1.0),
-                },
             ));
         }
     }

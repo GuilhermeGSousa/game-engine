@@ -20,7 +20,7 @@ pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
 pub trait QueryData {
     type Item<'a>;
 
-    fn get_component_ids() -> Vec<ComponentId>;
+    fn component_ids() -> Vec<ComponentId>;
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>>;
 }
@@ -33,7 +33,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
             .iter()
             .enumerate()
             .filter_map(|(index, archetype)| {
-                if archetype.contains_all(T::get_component_ids()) {
+                if archetype.contains_all(T::component_ids()) {
                     Some(index)
                 } else {
                     None
@@ -125,7 +125,7 @@ where
 {
     type Item<'w> = &'w T;
 
-    fn get_component_ids() -> Vec<ComponentId> {
+    fn component_ids() -> Vec<ComponentId> {
         {
             vec![TypeId::of::<T>()]
         }
@@ -148,7 +148,7 @@ where
 {
     type Item<'w> = &'w mut T;
 
-    fn get_component_ids() -> Vec<ComponentId> {
+    fn component_ids() -> Vec<ComponentId> {
         {
             vec![TypeId::of::<T>()]
         }
@@ -167,7 +167,7 @@ where
 impl QueryData for Entity {
     type Item<'a> = Entity;
 
-    fn get_component_ids() -> Vec<ComponentId> {
+    fn component_ids() -> Vec<ComponentId> {
         vec![]
     }
 
@@ -186,12 +186,12 @@ where
 {
     type Item<'w> = typle_for!(i in .. => T<{i}>::Item<'w>);
 
-    fn get_component_ids() -> Vec<ComponentId> {
+    fn component_ids() -> Vec<ComponentId> {
         {
             let mut res = Vec::new();
 
             for typle_index!(i) in 0..T::LEN {
-                res.extend(T::<{ i }>::get_component_ids());
+                res.extend(T::<{ i }>::component_ids());
             }
 
             res

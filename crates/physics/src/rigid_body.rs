@@ -1,36 +1,38 @@
+use std::ops::{Deref, DerefMut};
+
 use ecs::component::Component;
-use glam::Vec3;
+use essential::transform::Transform;
+use rapier3d::{
+    math::Vector,
+    prelude::{RigidBodyBuilder, RigidBodyHandle},
+};
+
+use crate::physics_state::PhysicsState;
 
 #[derive(Component)]
-pub struct RigidBody {
-    pub mass: f32,
-    velocity: Vec3,
-    acceleration: Vec3,
-}
+pub struct RigidBody(RigidBodyHandle);
 
 impl RigidBody {
-    pub fn new(mass: f32) -> Self {
-        Self {
-            mass,
-            velocity: Vec3::ZERO,
-            acceleration: Vec3::ZERO,
-        }
+    pub fn new(transform: &Transform, state: &mut PhysicsState) -> Self {
+        let pos = transform.translation;
+        let rb = RigidBodyBuilder::dynamic()
+            .translation(Vector::new(pos.x, pos.y, pos.z))
+            .enabled(true)
+            .build();
+        Self(state.rigid_body_set.insert(rb))
     }
+}
 
-    pub fn apply_force(&mut self, force: Vec3) {
-        self.acceleration += force / self.mass;
+impl Deref for RigidBody {
+    type Target = RigidBodyHandle;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
+}
 
-    pub fn apply_impulse(&mut self, impulse: Vec3) {
-        self.velocity += impulse / self.mass;
-    }
-
-    pub fn update(&mut self, delta_time: f32) {
-        self.velocity += self.acceleration * delta_time;
-        self.acceleration = Vec3::ZERO; // Reset acceleration after applying
-    }
-
-    pub fn get_velocity(&self) -> Vec3 {
-        self.velocity
+impl DerefMut for RigidBody {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }

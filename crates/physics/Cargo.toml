@@ -8,3 +8,4 @@ app = { path = "../app" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 glam = { version = "0.30.1" }
+rapier3d = { version = "0.26.1", features = [ "simd-stable" ] }

@@ -1,7 +1,8 @@
 use crate::{
     archetype::Archetype,
     component::{Component, ComponentId},
-    table::Table,
+    entity::Entity,
+    table::{Table, TableRow},
 };
 use any_vec::any_value::AnyValueWrapper;
 use std::any::TypeId;
@@ -11,7 +12,20 @@ use typle::typle;
 pub trait ComponentBundle {
     fn get_component_ids() -> Vec<ComponentId>;
 
-    fn add_to_archetype(self, archetype: &mut Archetype);
+    fn add_row_to_archetype(
+        self,
+        archetype: &mut Archetype,
+        entity: Entity,
+        current_tick: u32,
+    ) -> TableRow;
+
+    fn insert_to_archetype(
+        self,
+        archetype: &mut Archetype,
+        current_tick: u32,
+        entity: Entity,
+        row: TableRow,
+    );
 
     fn generate_empty_table() -> Table;
 }
@@ -41,9 +55,34 @@ where
         table
     }
 
-    fn add_to_archetype(self, archetype: &mut Archetype) {
+    fn add_row_to_archetype(
+        self,
+        archetype: &mut Archetype,
+        entity: Entity,
+        current_tick: u32,
+    ) -> TableRow {
+        let table_row = TableRow::new(archetype.len() as u32);
+        archetype.add_entity(entity);
         for typle_index!(i) in 0..T::LEN {
-            archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]));
+            archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]), current_tick);
+        }
+        table_row
+    }
+
+    fn insert_to_archetype(
+        self,
+        archetype: &mut Archetype,
+        current_tick: u32,
+        entity: Entity,
+        row: TableRow,
+    ) {
+        archetype.insert_entity(entity, row);
+        for typle_index!(i) in 0..T::LEN {
+            archetype.insert_component(
+                AnyValueWrapper::<T<{ i }>>::new(self[[i]]),
+                current_tick,
+                row,
+            );
         }
     }
 }

@@ -1,8 +1,9 @@
-use any_vec::{any_value::AnyValueWrapper, mem::Heap, AnyVecMut, AnyVecRef};
+use any_vec::any_value::AnyValueWrapper;
 
 use crate::{
     component::{Component, ComponentId},
-    table::Table,
+    entity::Entity,
+    table::{Table, TableRow},
 };
 
 pub struct Archetype {
@@ -14,14 +15,33 @@ impl Archetype {
         Archetype { data_table }
     }
 
-    pub fn add_component<T: Component>(&mut self, raw_value: AnyValueWrapper<T>) {
+    pub fn add_component<T: Component>(
+        &mut self,
+        raw_value: AnyValueWrapper<T>,
+        current_tick: u32,
+    ) {
         if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
-            column.push(raw_value);
+            column.push(raw_value, current_tick);
         }
     }
 
-    pub fn get_row_count(&self) -> usize {
-        self.data_table.get_row_count()
+    pub fn insert_component<T: Component>(
+        &mut self,
+        raw_value: AnyValueWrapper<T>,
+        current_tick: u32,
+        row: TableRow,
+    ) {
+        if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
+            column.insert(raw_value, current_tick, row);
+        }
+    }
+
+    pub fn add_entity(&mut self, entity: Entity) {
+        self.data_table.add_entity(entity);
+    }
+
+    pub fn insert_entity(&mut self, entity: Entity, row: TableRow) {
+        self.data_table.insert_entity(row, entity);
     }
 
     pub fn contains(&self, component_id: ComponentId) -> bool {
@@ -36,33 +56,36 @@ impl Archetype {
         self.data_table.get_row_count()
     }
 
-    pub unsafe fn get_component_vector_unsafe<T: Component + 'static>(&self) -> AnyVecRef<T, Heap> {
+    pub unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRow) -> Option<&T> {
         self.data_table
             .get_column(ComponentId::of::<T>())
             .unwrap()
-            .as_vec_unchecked()
+            .get_unsafe(row)
     }
 
-    pub unsafe fn get_component_vector_mut_unsafe<T: Component + 'static>(
+    pub fn was_entity_added(
+        &self,
+        component_id: ComponentId,
+        row: TableRow,
+        current_tick: u32,
+    ) -> bool {
+        self.data_table.was_added(row, component_id, current_tick)
+    }
+
+    pub unsafe fn get_component_unsafe_mut<T: 'static>(
         &mut self,
-    ) -> AnyVecMut<T, Heap> {
-        self.data_table
+        row: TableRow,
+        current_tick: u32,
+    ) -> Option<&mut T> {
+        let column = self
+            .data_table
             .get_column_mut(ComponentId::of::<T>())
-            .unwrap()
-            .as_vec_mut_unchecked()
+            .unwrap();
+        column.set_changed(row, current_tick);
+        column.get_mut_unsafe(row)
     }
 
-    pub unsafe fn get_component_unsafe<T: 'static>(&self, index: usize) -> &T {
-        self.data_table
-            .get_column(ComponentId::of::<T>())
-            .unwrap()
-            .get_unsafe(index)
-    }
-
-    pub unsafe fn get_component_mut_unsafe<T: 'static>(&mut self, index: usize) -> &mut T {
-        self.data_table
-            .get_column_mut(ComponentId::of::<T>())
-            .unwrap()
-            .get_mut_unsafe(index)
+    pub fn entities(&self) -> &[Entity] {
+        self.data_table.entities()
     }
 }

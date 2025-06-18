@@ -4,8 +4,9 @@ use app::{
     plugins::{AssetManagerPlugin, TimePlugin},
     App,
 };
-use ecs::{query::Query, resource::Res};
+use ecs::{entity::Entity, query::Query, resource::Res};
 use glam::{Quat, Vec2, Vec3};
+use physics::plugin::PhysicsPlugin;
 use render::{
     assets::mesh::Mesh,
     components::{camera::Camera, mesh_component::MeshComponent},
@@ -46,6 +47,7 @@ pub fn run_game() {
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
         .register_plugin(UIPlugin)
+        .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
         .add_system(app::update_group::UpdateGroup::Render, render_ui);
@@ -113,8 +115,8 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
     }
 }
 
-fn rotate_meshes(meshes: Query<(&MeshComponent, &mut Transform)>, time: Res<Time>) {
-    for (_, transform) in meshes.iter() {
+fn rotate_meshes(meshes: Query<(Entity, &MeshComponent, &mut Transform)>, time: Res<Time>) {
+    for (_, _, transform) in meshes.iter() {
         transform.rotation *= Quat::from_axis_angle(Vec3::Y, time.delta() * 100.0);
     }
 }

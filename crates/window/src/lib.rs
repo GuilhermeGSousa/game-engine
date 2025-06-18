@@ -1,4 +1,5 @@
 use app::App;
+use ecs::events::event_channel::EventChannel;
 use input::Input;
 use plugin::Window;
 use winit::{
@@ -7,7 +8,7 @@ use winit::{
     keyboard::PhysicalKey,
 };
 
-use crate::winit_events::WinitEvents;
+use crate::winit_events::WinitEvent;
 
 pub mod input;
 pub mod plugin;
@@ -49,11 +50,15 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                let winit_events = self.winit_events.drain(..).collect::<Vec<_>>();
-                self.app
-                    .get_mut_resource::<WinitEvents>()
-                    .unwrap()
-                    .winit_events = winit_events;
+                let event_channel = self
+                    .app
+                    .get_mut_resource::<EventChannel<WinitEvent>>()
+                    .unwrap();
+
+                self.winit_events
+                    .drain(..)
+                    .for_each(|e| event_channel.push_event(WinitEvent::new(e.clone())));
+
                 self.app.update();
                 let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();

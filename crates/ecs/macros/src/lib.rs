@@ -44,3 +44,20 @@ fn impl_resource(ast: &syn::DeriveInput) -> TokenStream {
     };
     gen.into()
 }
+
+#[proc_macro_derive(Event)]
+pub fn event(input: TokenStream) -> TokenStream {
+    let ast = syn::parse(input).unwrap();
+    impl_event(&ast)
+}
+
+fn impl_event(ast: &syn::DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
+    let gen = quote! {
+        impl #impl_generics Event for #name #type_generics #where_clause  {
+        }
+
+    };
+    gen.into()
+}

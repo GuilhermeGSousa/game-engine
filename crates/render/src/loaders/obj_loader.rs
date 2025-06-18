@@ -13,7 +13,8 @@ use crate::assets::{
 
 pub(crate) struct ObjLoader;
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[allow(deprecated)]
 impl AssetLoader for ObjLoader {
     type Asset = Mesh;

@@ -1,9 +1,11 @@
 [target.wasm32-unknown-unknown]
 runner = "wasm-server-runner"
+rustflags = ["-C", "target-feature=+atomics,+bulk-memory"]
 
 [env]
 WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML = "index.html"
 RUST_BACKTRACE = "1"
+runner = "wasm-server-runner"
 
-# [build]
-# target = "wasm32-unknown-unknown"
+[unstable]
+build-std = ["panic_abort", "std"]

@@ -1,9 +1,17 @@
-use std::marker::PhantomData;
+use futures_channel::oneshot;
 
-pub struct Task<T>(PhantomData<T>);
+use std::future::Future;
+use std::future::IntoFuture;
 
-impl<T> Task<T> {
-    pub fn new() -> Self {
-        Task(PhantomData)
+pub struct Task<T>(oneshot::Receiver<T>);
+
+impl<T: 'static> Task<T> {
+    pub fn new(future: impl Future<Output = T> + 'static) -> Self {
+        let (sender, receiver) = oneshot::channel();
+        wasm_bindgen_futures::spawn_local(async move {
+            let value = future.await;
+            let _ = sender.send(value);
+        });
+        Self(receiver.into_future())
     }
 }

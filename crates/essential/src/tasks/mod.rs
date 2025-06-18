@@ -8,7 +8,7 @@ pub mod task_pool;
 
 #[cfg(test)]
 mod tests {
-    use super::{task_pool::TaskPool, *};
+    use super::task_pool::TaskPool;
 
     #[test]
     fn test_task() {

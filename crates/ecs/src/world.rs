@@ -50,34 +50,28 @@ impl World {
 
         let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
 
-        let new_location = match self.entity_store.find_location(entity) {
-            Some(location) => {
-                if location.archetype_index == *archetype_index as u32 {
-                    bundle.insert_to_archetype(archetype, self.current_tick, entity, location.row);
-                    location
-                } else {
-                    let table_row =
-                        bundle.add_row_to_archetype(archetype, entity, self.current_tick);
+        let table_row = bundle.add_row_to_archetype(archetype, entity, self.current_tick);
 
-                    EntityLocation {
-                        archetype_index: *archetype_index as u32,
-                        row: table_row,
-                    }
-                }
-            }
-            None => {
-                let table_row = bundle.add_row_to_archetype(archetype, entity, self.current_tick);
-
-                EntityLocation {
-                    archetype_index: *archetype_index as u32,
-                    row: table_row,
-                }
-            }
+        let new_location = EntityLocation {
+            archetype_index: *archetype_index as u32,
+            row: table_row,
         };
 
         self.entity_store.set_location(entity, new_location);
 
         entity
+    }
+
+    pub fn despawn(&mut self, entity: Entity) {
+        match self.entity_store.find_location(entity) {
+            Some(location) => {
+                let archetype = &mut self.archetypes[location.archetype_index as usize];
+                let swapped_entity = archetype.remove_swap(location.row);
+                self.entity_store.set_location(swapped_entity, location);
+                self.entity_store.free(entity);
+            }
+            None => panic!("Entity should exist in the world"),
+        }
     }
 
     pub fn get_archetypes(&self) -> &Vec<Archetype> {

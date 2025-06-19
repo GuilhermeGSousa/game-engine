@@ -1,5 +1,6 @@
 pub mod archetype;
 pub mod bundle;
+pub mod commands;
 pub mod common;
 pub mod component;
 pub mod entity;
@@ -14,7 +15,10 @@ pub mod world;
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use crate::{
+        commands::Commands,
         component::Component,
         entity::Entity,
         query::Query,
@@ -64,6 +68,8 @@ mod tests {
         }
     }
 
+    fn spawn(cmd: Commands) {}
+
     #[test]
     fn test_query() {
         let mut world = World::new();
@@ -96,5 +102,21 @@ mod tests {
 
         world.tick();
         schedule.run(&mut world);
+    }
+
+    #[test]
+    fn spawn_despawn() {
+        let mut world = World::new();
+
+        let e1 = world.spawn((Position { x: 0.0, y: 0.0 },));
+        let e2 = world.spawn((Position { x: 0.0, y: 0.0 },));
+        let e3 = world.spawn((Position { x: 0.0, y: 0.0 },));
+
+        world.despawn(e2);
+
+        let e4 = world.spawn((Position { x: 0.0, y: 0.0 },));
+
+        assert!(e4.generation().get() == e2.generation().get() + 1);
+        assert!(e4.index() == e2.index());
     }
 }

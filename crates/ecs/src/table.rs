@@ -14,6 +14,7 @@ pub struct Column {
     data: AnyVec,
     added_ticks: Vec<Tick>,
     changed_ticks: Vec<Tick>,
+    removed_ticks: Vec<Tick>,
 }
 
 impl Column {
@@ -22,6 +23,7 @@ impl Column {
             data: AnyVec::new::<T>(),
             added_ticks: Vec::new(),
             changed_ticks: Vec::new(),
+            removed_ticks: Vec::new(),
         }
     }
 
@@ -119,6 +121,14 @@ impl Table {
         } else {
             false
         }
+    }
+
+    pub fn remove_swap(&mut self, row: TableRow) -> Entity {
+        self.columns.iter_mut().for_each(|(_, col)| {
+            col.data.swap_remove(*row as usize);
+        });
+
+        self.entities.swap_remove(*row as usize)
     }
 }
 

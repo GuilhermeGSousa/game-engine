@@ -88,4 +88,8 @@ impl Archetype {
     pub fn entities(&self) -> &[Entity] {
         self.data_table.entities()
     }
+
+    pub fn remove_swap(&mut self, row: TableRow) -> Entity {
+        self.data_table.remove_swap(row)
+    }
 }

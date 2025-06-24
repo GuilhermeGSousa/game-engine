@@ -1,6 +1,6 @@
 pub mod archetype;
 pub mod bundle;
-pub mod commands;
+pub mod command;
 pub mod common;
 pub mod component;
 pub mod entity;
@@ -18,7 +18,7 @@ mod tests {
     use std::num::NonZero;
 
     use crate::{
-        commands::Commands,
+        command::CommandQueue,
         component::Component,
         entity::Entity,
         query::Query,
@@ -68,7 +68,7 @@ mod tests {
         }
     }
 
-    fn spawn(cmd: Commands) {}
+    fn spawn(cmd: CommandQueue) {}
 
     #[test]
     fn test_query() {

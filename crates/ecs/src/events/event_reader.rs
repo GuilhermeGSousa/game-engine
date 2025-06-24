@@ -27,7 +27,12 @@ unsafe impl<'w, T> SystemInput for EventReader<'w, T>
 where
     T: Event,
 {
+    type State = ();
     type Data<'world> = EventReader<'world, T>;
+
+    fn init_state() -> Self::State {
+        ()
+    }
 
     unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
         EventReader::new(world)

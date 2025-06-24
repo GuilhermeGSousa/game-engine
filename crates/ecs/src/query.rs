@@ -112,7 +112,12 @@ where
     T: QueryData,
     F: QueryFilter,
 {
+    type State = ();
     type Data<'world> = Query<'world, T, F>;
+
+    fn init_state() -> Self::State {
+        ()
+    }
 
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
         Query::new(world)

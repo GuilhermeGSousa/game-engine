@@ -4,7 +4,11 @@ use crate::world::UnsafeWorldCell;
 use typle::typle;
 
 pub unsafe trait SystemInput {
+    type State: 'static;
     type Data<'world>;
+
+    fn init_state() -> Self::State;
+
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world>;
 }
 
@@ -15,7 +19,12 @@ where
     T: Tuple,
     T<_>: SystemInput + 'static,
 {
+    type State = typle_for!(i in .. => T<{i}>::State);
     type Data<'world> = typle_for!(i in .. => T<{i}>::Data<'world>);
+
+    fn init_state() -> Self::State {
+        typle_for!(i in .. => <T<{i}>>::init_state())
+    }
 
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
         typle_for!(i in .. => <T<{i}>>::get_data(world))
@@ -47,7 +56,12 @@ impl<'w, P: SystemInput> StaticSystemInput<'w, P> {
 }
 
 unsafe impl<'w, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, P> {
+    type State = P::State;
     type Data<'world> = StaticSystemInput<'world, P>;
+
+    fn init_state() -> Self::State {
+        P::init_state()
+    }
 
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
         StaticSystemInput(unsafe { P::get_data(world) })

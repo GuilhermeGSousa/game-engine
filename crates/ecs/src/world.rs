@@ -183,7 +183,12 @@ impl<'w> From<&'w World> for UnsafeWorldCell<'w> {
 }
 
 unsafe impl SystemInput for &World {
+    type State = ();
     type Data<'world> = &'world World;
+
+    fn init_state() -> Self::State {
+        ()
+    }
 
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
         world.get_world()
@@ -191,7 +196,12 @@ unsafe impl SystemInput for &World {
 }
 
 unsafe impl SystemInput for &mut World {
+    type State = ();
     type Data<'world> = &'world mut World;
+
+    fn init_state() -> Self::State {
+        ()
+    }
 
     unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
         world.get_world_mut()

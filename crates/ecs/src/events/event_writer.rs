@@ -24,7 +24,12 @@ unsafe impl<'w, T> SystemInput for EventWriter<'w, T>
 where
     T: Event,
 {
+    type State = ();
     type Data<'world> = EventWriter<'world, T>;
+
+    fn init_state() -> Self::State {
+        ()
+    }
 
     unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
         EventWriter::new(world)

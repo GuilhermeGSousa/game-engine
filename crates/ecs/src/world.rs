@@ -34,10 +34,16 @@ impl World {
     }
 
     pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> Entity {
+        let entity = self.entity_store.alloc();
+
+        self.spawn_allocated(entity, bundle);
+
+        entity
+    }
+
+    pub(crate) fn spawn_allocated<T: ComponentBundle>(&mut self, entity: Entity, bundle: T) {
         let type_ids = T::get_component_ids();
         let entity_type = generate_type_id(&type_ids);
-
-        let entity = self.entity_store.alloc();
 
         let archetype_index = self
             .archetype_index
@@ -58,8 +64,6 @@ impl World {
         };
 
         self.entity_store.set_location(entity, new_location);
-
-        entity
     }
 
     pub fn despawn(&mut self, entity: Entity) {

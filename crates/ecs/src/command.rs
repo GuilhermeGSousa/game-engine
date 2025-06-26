@@ -1,16 +1,26 @@
-use crate::{system::system_input::SystemInput, world::World};
+use crate::{
+    bundle::ComponentBundle, entity::Entity, system::system_input::SystemInput, world::World,
+};
 
 pub struct CommandQueue<'state> {
     queue_state: &'state mut CommandQueueState,
 }
 
 impl<'s> CommandQueue<'s> {
-    pub fn new(state: &'s mut CommandQueueState) -> Self {
+    pub(crate) fn new(state: &'s mut CommandQueueState) -> Self {
         Self { queue_state: state }
     }
 
-    pub fn execute(&mut self, world: &mut World) {
+    pub(crate) fn execute(&mut self, world: &mut World) {
         self.queue_state.execute_commands(world);
+    }
+
+    pub fn spawn<T: ComponentBundle>(&mut self, components: T) -> Entity {
+        todo!()
+    }
+
+    pub fn despawn(&mut self, entity: Entity) {
+        self.queue_state.add_command(DespawnCommand::new(entity));
     }
 }
 
@@ -51,5 +61,38 @@ unsafe impl SystemInput for CommandQueue<'_> {
 }
 
 pub trait Command {
-    fn execute(&self, world: &mut World);
+    fn execute(self: Box<Self>, world: &mut World);
+}
+
+pub(crate) struct SpawnCommand<T: ComponentBundle> {
+    components: T,
+    entity: Entity,
+}
+
+impl<T: ComponentBundle> SpawnCommand<T> {
+    pub fn new(components: T, entity: Entity) -> Self {
+        SpawnCommand { components, entity }
+    }
+}
+
+impl<T: ComponentBundle> Command for SpawnCommand<T> {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.spawn_allocated(self.entity, self.components);
+    }
+}
+
+pub(crate) struct DespawnCommand {
+    entity: Entity,
+}
+
+impl DespawnCommand {
+    pub fn new(entity: Entity) -> Self {
+        DespawnCommand { entity }
+    }
+}
+
+impl Command for DespawnCommand {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.despawn(self.entity);
+    }
 }

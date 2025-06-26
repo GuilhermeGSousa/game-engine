@@ -35,13 +35,16 @@ where
     T: Resource,
 {
     type State = ();
-    type Data<'world> = Res<'world, T>;
+    type Data<'world, 'state> = Res<'world, T>;
 
     fn init_state() -> Self::State {
         ()
     }
 
-    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: crate::world::UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         Res::new(world)
     }
 }
@@ -76,13 +79,16 @@ where
     T: Resource,
 {
     type State = ();
-    type Data<'world> = ResMut<'world, T>;
+    type Data<'world, 'state> = ResMut<'world, T>;
 
     fn init_state() -> Self::State {
         ()
     }
 
-    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: crate::world::UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         ResMut::new(world)
     }
 }

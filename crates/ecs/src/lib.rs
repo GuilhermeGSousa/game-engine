@@ -15,8 +15,6 @@ pub mod world;
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZero;
-
     use crate::{
         command::CommandQueue,
         component::Component,

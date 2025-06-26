@@ -113,13 +113,16 @@ where
     F: QueryFilter,
 {
     type State = ();
-    type Data<'world> = Query<'world, T, F>;
+    type Data<'world, 'state> = Query<'world, T, F>;
 
     fn init_state() -> Self::State {
         ()
     }
 
-    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         Query::new(world)
     }
 }

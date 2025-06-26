@@ -32,15 +32,20 @@ impl System for ScheduledSystem {
     }
 }
 
-pub struct FunctionSystem<F, Input> {
+pub struct FunctionSystem<F, Input: SystemInput> {
     pub func: F,
+    system_state: Input::State,
     _marker: PhantomData<Input>,
 }
 
-impl<F, Input> FunctionSystem<F, Input> {
+impl<F, Input> FunctionSystem<F, Input>
+where
+    Input: SystemInput + 'static,
+{
     pub fn new(func: F) -> Self {
         Self {
             func,
+            system_state: Input::init_state(),
             _marker: PhantomData,
         }
     }
@@ -52,12 +57,14 @@ impl<F, T> System for FunctionSystem<F, T>
 where
     T: Tuple,
     T<_>: SystemInput + 'static,
-    for<'a> F: FnMut(typle_args!(i in .. => T<{i}>))
-        + FnMut(typle_args!(i in .. => T<{i}>::Data<'a>))
+    for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
+        + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
         + 'static,
 {
     fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        (self.func)(typle_args!(i in .. => unsafe { <T<{i}>>::get_data(world) } ));
+        (self.func)(
+            typle_args!(i in .. => unsafe { <T<{i}>>::get_data(&mut self.system_state[[i]], world) } ),
+        );
     }
 }
 
@@ -70,8 +77,8 @@ impl<F, T> IntoSystem<T> for F
 where
     T: Tuple,
     T<_>: SystemInput + 'static,
-    for<'a> F: FnMut(typle_args!(i in .. => T<{i}>))
-        + FnMut(typle_args!(i in .. => T<{i}>::Data<'a>))
+    for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
+        + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
         + 'static,
 {
     fn into_system(self) -> ScheduledSystem {

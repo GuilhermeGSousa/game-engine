@@ -25,13 +25,16 @@ where
     T: Event,
 {
     type State = ();
-    type Data<'world> = EventWriter<'world, T>;
+    type Data<'world, 'state> = EventWriter<'world, T>;
 
     fn init_state() -> Self::State {
         ()
     }
 
-    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: crate::world::UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         EventWriter::new(world)
     }
 }

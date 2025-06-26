@@ -28,13 +28,16 @@ where
     T: Event,
 {
     type State = ();
-    type Data<'world> = EventReader<'world, T>;
+    type Data<'world, 'state> = EventReader<'world, T>;
 
     fn init_state() -> Self::State {
         ()
     }
 
-    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: crate::world::UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         EventReader::new(world)
     }
 }

@@ -62,6 +62,32 @@ impl World {
         entity
     }
 
+    pub(crate) fn spawn_allocated<T: ComponentBundle>(&mut self, entity: Entity, bundle: T)
+    {
+        let type_ids = T::get_component_ids();
+        let entity_type = generate_type_id(&type_ids);
+
+        let archetype_index = self
+            .archetype_index
+            .entry(entity_type.clone())
+            .or_insert_with(|| {
+                let archetype = Archetype::new(T::generate_empty_table());
+                self.archetypes.push(archetype);
+                self.archetypes.len() - 1
+            });
+
+        let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
+
+        let table_row = bundle.add_row_to_archetype(archetype, entity, self.current_tick);
+
+        let new_location = EntityLocation {
+            archetype_index: *archetype_index as u32,
+            row: table_row,
+        };
+
+        self.entity_store.set_location(entity, new_location);
+    }
+
     pub fn despawn(&mut self, entity: Entity) {
         match self.entity_store.find_location(entity) {
             Some(location) => {

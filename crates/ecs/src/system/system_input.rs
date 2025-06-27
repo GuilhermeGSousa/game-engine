@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::world::UnsafeWorldCell;
+use crate::world::{UnsafeWorldCell, World};
 use typle::typle;
 
 pub unsafe trait SystemInput {
@@ -13,6 +13,8 @@ pub unsafe trait SystemInput {
         state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state>;
+
+    fn apply(_state: &mut Self::State, _world: &mut World) {}
 }
 
 #[allow(unused_variables)]

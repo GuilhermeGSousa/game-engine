@@ -127,9 +127,11 @@ mod tests {
 
         schedule.run(&mut world);
 
-        let query = Query::<(&Position,)>::new(world.as_unsafe_world_cell_mut());
+        let query = Query::<(&Position, &Health,)>::new(world.as_unsafe_world_cell_mut());
 
-        for (position,) in query.iter() {
+        assert_eq!(query.iter().count(), 1);
+
+        for (position, hp,) in query.iter() {
             assert_eq!(position.x, 0.0);
             assert_eq!(position.y, 0.0);
         }

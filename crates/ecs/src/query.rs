@@ -96,6 +96,10 @@ where
                 self.current_entities = archetype.entities();
             }
 
+            if self.current_entities.is_empty() {
+                continue;
+            }
+
             let entity = self.current_entities[self.current_row];
             self.current_row += 1;
             if !F::filter(self.world, entity) {

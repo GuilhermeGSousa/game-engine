@@ -2,7 +2,7 @@ use bytemuck::Pod;
 use ecs::component::Component;
 use glam::{Mat4, Quat, Vec3};
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,

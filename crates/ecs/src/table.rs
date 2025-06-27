@@ -128,7 +128,10 @@ impl Table {
             col.data.swap_remove(*row as usize);
         });
 
-        self.entities.swap_remove(*row as usize)
+        let last_entity = *self.entities.last().expect("No entities in table");
+        self.entities.swap_remove(*row as usize);
+
+        last_entity
     }
 }
 

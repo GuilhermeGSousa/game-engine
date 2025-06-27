@@ -17,12 +17,10 @@ impl<'s> CommandQueue<'s> {
 
     pub fn spawn<T: ComponentBundle>(&mut self, components: T) -> Entity {
         todo!()
-        
-        self.queue_state.add_command(SpawnCommand::new(components, entity));
     }
 
-    pub fn despawn(&mut self, _entity: Entity) {
-        todo!()
+    pub fn despawn(&mut self, entity: Entity) {
+        self.queue_state.add_command(DespawnCommand::new(entity));
     }
 }
 
@@ -64,6 +62,39 @@ unsafe impl SystemInput for CommandQueue<'_> {
 
 pub trait Command {
     fn execute(self: Box<Self>, world: &mut World);
+}
+
+pub(crate) struct SpawnCommand<T: ComponentBundle> {
+    components: T,
+    entity: Entity,
+}
+
+impl<T: ComponentBundle> SpawnCommand<T> {
+    pub fn new(components: T, entity: Entity) -> Self {
+        SpawnCommand { components, entity }
+    }
+}
+
+impl<T: ComponentBundle> Command for SpawnCommand<T> {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.spawn_allocated(self.entity, self.components);
+    }
+}
+
+pub(crate) struct DespawnCommand {
+    entity: Entity,
+}
+
+impl DespawnCommand {
+    pub fn new(entity: Entity) -> Self {
+        DespawnCommand { entity }
+    }
+}
+
+impl Command for DespawnCommand {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.despawn(self.entity);
+    }
 }
 
 pub(crate) struct SpawnCommand<T: ComponentBundle> {

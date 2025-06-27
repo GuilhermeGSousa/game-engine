@@ -6,12 +6,20 @@ use std::marker::PhantomData;
 use system_input::SystemInput;
 use typle::typle;
 
-use crate::world::UnsafeWorldCell;
+use crate::world::{UnsafeWorldCell, World};
 
 pub type BoxedSystem = Box<dyn System>;
 
 pub trait System {
-    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>);
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>)
+    {
+        self.run_without_apply(world);
+        self.apply(world.get_world_mut());
+    }
+
+    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>);
+
+    fn apply(&mut self, world: &mut World);
 }
 
 pub struct ScheduledSystem {
@@ -27,20 +35,29 @@ impl ScheduledSystem {
 }
 
 impl System for ScheduledSystem {
-    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        self.system.run(world);
+    fn apply(&mut self, world: &mut World) {
+        self.system.apply(world);
+    }
+    
+    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        self.system.run_without_apply(world);
     }
 }
 
-pub struct FunctionSystem<F, Input> {
+pub struct FunctionSystem<F, Input: SystemInput> {
     pub func: F,
+    system_state: Input::State,
     _marker: PhantomData<Input>,
 }
 
-impl<F, Input> FunctionSystem<F, Input> {
+impl<F, Input> FunctionSystem<F, Input>
+where
+    Input: SystemInput + 'static,
+{
     pub fn new(func: F) -> Self {
         Self {
             func,
+            system_state: Input::init_state(),
             _marker: PhantomData,
         }
     }
@@ -52,12 +69,25 @@ impl<F, T> System for FunctionSystem<F, T>
 where
     T: Tuple,
     T<_>: SystemInput + 'static,
-    for<'a> F: FnMut(typle_args!(i in .. => T<{i}>))
-        + FnMut(typle_args!(i in .. => T<{i}>::Data<'a>))
+    for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
+        + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
         + 'static,
 {
     fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        (self.func)(typle_args!(i in .. => unsafe { <T<{i}>>::get_data(world) } ));
+        
+    }
+
+    fn apply(&mut self, world: &mut World) {
+        for typle_index!(i) in 0..T::LEN
+        {
+            <T<{i}>>::apply(&mut self.system_state[[i]], world);
+        }
+    }
+    
+    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        (self.func)(
+            typle_args!(i in .. => unsafe { <T<{i}>>::get_data(&mut self.system_state[[i]], world) } ),
+        );
     }
 }
 
@@ -70,8 +100,8 @@ impl<F, T> IntoSystem<T> for F
 where
     T: Tuple,
     T<_>: SystemInput + 'static,
-    for<'a> F: FnMut(typle_args!(i in .. => T<{i}>))
-        + FnMut(typle_args!(i in .. => T<{i}>::Data<'a>))
+    for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
+        + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
         + 'static,
 {
     fn into_system(self) -> ScheduledSystem {

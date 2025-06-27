@@ -1,0 +1,20 @@
+[package]
+name = "editor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+app = { path = "../app" }
+essential = { path = "../essential" }
+render = { path = "../render" }
+ui = { path = "../ui" }
+window = { path = "../window" }
+ecs = { path = "../ecs" }
+physics = { path = "../physics" }
+cfg-if = "1.0.0"
+env_logger = "0.11.8"
+log = "0.4.27"
+winit = { version = "0.30.9", default-features = false, features = ["rwh_06"] }
+glam = { version = "0.30.1" }
+egui = "0.31.1"
+egui_dock = "0.16"

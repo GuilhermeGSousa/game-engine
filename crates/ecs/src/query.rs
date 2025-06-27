@@ -96,6 +96,10 @@ where
                 self.current_entities = archetype.entities();
             }
 
+            if self.current_entities.is_empty() {
+                continue;
+            }
+
             let entity = self.current_entities[self.current_row];
             self.current_row += 1;
             if !F::filter(self.world, entity) {
@@ -112,9 +116,17 @@ where
     T: QueryData,
     F: QueryFilter,
 {
-    type Data<'world> = Query<'world, T, F>;
+    type State = ();
+    type Data<'world, 'state> = Query<'world, T, F>;
 
-    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    fn init_state() -> Self::State {
+        ()
+    }
+
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         Query::new(world)
     }
 }

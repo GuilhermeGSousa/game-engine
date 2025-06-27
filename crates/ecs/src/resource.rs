@@ -34,9 +34,17 @@ unsafe impl<'a, T> SystemInput for Res<'a, T>
 where
     T: Resource,
 {
-    type Data<'world> = Res<'world, T>;
+    type State = ();
+    type Data<'world, 'state> = Res<'world, T>;
 
-    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    fn init_state() -> Self::State {
+        ()
+    }
+
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: crate::world::UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         Res::new(world)
     }
 }
@@ -70,9 +78,17 @@ unsafe impl<T> SystemInput for ResMut<'_, T>
 where
     T: Resource,
 {
-    type Data<'world> = ResMut<'world, T>;
+    type State = ();
+    type Data<'world, 'state> = ResMut<'world, T>;
 
-    unsafe fn get_data<'world>(world: crate::world::UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    fn init_state() -> Self::State {
+        ()
+    }
+
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: crate::world::UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         ResMut::new(world)
     }
 }

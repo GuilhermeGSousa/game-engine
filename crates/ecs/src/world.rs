@@ -34,10 +34,16 @@ impl World {
     }
 
     pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> Entity {
+        let entity = self.entity_store.alloc();
+
+        self.spawn_allocated(entity, bundle);
+
+        entity
+    }
+
+    pub(crate) fn spawn_allocated<T: ComponentBundle>(&mut self, entity: Entity, bundle: T) {
         let type_ids = T::get_component_ids();
         let entity_type = generate_type_id(&type_ids);
-
-        let entity = self.entity_store.alloc();
 
         let archetype_index = self
             .archetype_index
@@ -50,34 +56,26 @@ impl World {
 
         let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
 
-        let new_location = match self.entity_store.find_location(entity) {
-            Some(location) => {
-                if location.archetype_index == *archetype_index as u32 {
-                    bundle.insert_to_archetype(archetype, self.current_tick, entity, location.row);
-                    location
-                } else {
-                    let table_row =
-                        bundle.add_row_to_archetype(archetype, entity, self.current_tick);
+        let table_row = bundle.add_row_to_archetype(archetype, entity, self.current_tick);
 
-                    EntityLocation {
-                        archetype_index: *archetype_index as u32,
-                        row: table_row,
-                    }
-                }
-            }
-            None => {
-                let table_row = bundle.add_row_to_archetype(archetype, entity, self.current_tick);
-
-                EntityLocation {
-                    archetype_index: *archetype_index as u32,
-                    row: table_row,
-                }
-            }
+        let new_location = EntityLocation {
+            archetype_index: *archetype_index as u32,
+            row: table_row,
         };
 
         self.entity_store.set_location(entity, new_location);
+    }
 
-        entity
+    pub fn despawn(&mut self, entity: Entity) {
+        match self.entity_store.find_location(entity) {
+            Some(location) => {
+                let archetype = &mut self.archetypes[location.archetype_index as usize];
+                let swapped_entity = archetype.remove_swap(location.row);
+                self.entity_store.set_location(swapped_entity, location);
+                self.entity_store.free(entity);
+            }
+            None => panic!("Entity should exist in the world"),
+        }
     }
 
     pub fn get_archetypes(&self) -> &Vec<Archetype> {
@@ -90,6 +88,10 @@ impl World {
 
     pub(crate) fn get_entity_store(&self) -> &EntityStore {
         &self.entity_store
+    }
+
+    pub(crate) fn get_entity_store_mut(&mut self) -> &mut EntityStore {
+        &mut self.entity_store
     }
 
     pub fn get_component_for_entity<T: Component>(&self, entity: Entity) -> Option<&T> {
@@ -189,17 +191,33 @@ impl<'w> From<&'w World> for UnsafeWorldCell<'w> {
 }
 
 unsafe impl SystemInput for &World {
-    type Data<'world> = &'world World;
+    type State = ();
+    type Data<'world, 'state> = &'world World;
 
-    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    fn init_state() -> Self::State {
+        ()
+    }
+
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         world.get_world()
     }
 }
 
 unsafe impl SystemInput for &mut World {
-    type Data<'world> = &'world mut World;
+    type State = ();
+    type Data<'world, 'state> = &'world mut World;
 
-    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
+    fn init_state() -> Self::State {
+        ()
+    }
+
+    unsafe fn get_data<'world, 'state>(
+        _state: &'state mut Self::State,
+        world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
         world.get_world_mut()
     }
 }

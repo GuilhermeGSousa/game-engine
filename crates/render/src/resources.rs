@@ -12,7 +12,6 @@ pub struct RenderContext {
     pub pipeline: wgpu::RenderPipeline,
 
     // Probably temp
-    // pub diffuse_bind_group: wgpu::BindGroup,
     pub camera_bind_group: wgpu::BindGroup,
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,

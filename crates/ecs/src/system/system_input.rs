@@ -1,11 +1,20 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::world::UnsafeWorldCell;
+use crate::world::{UnsafeWorldCell, World};
 use typle::typle;
 
 pub unsafe trait SystemInput {
-    type Data<'world>;
-    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world>;
+    type State: 'static;
+    type Data<'world, 'state>;
+
+    fn init_state() -> Self::State;
+
+    unsafe fn get_data<'world, 'state>(
+        state: &'state mut Self::State,
+        world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state>;
+
+    fn apply(_state: &mut Self::State, _world: &mut World) {}
 }
 
 #[allow(unused_variables)]
@@ -15,41 +24,57 @@ where
     T: Tuple,
     T<_>: SystemInput + 'static,
 {
-    type Data<'world> = typle_for!(i in .. => T<{i}>::Data<'world>);
+    type State = typle_for!(i in .. => T<{i}>::State);
+    type Data<'world, 'state> = typle_for!(i in .. => T<{i}>::Data<'world, 'state>);
 
-    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
-        typle_for!(i in .. => <T<{i}>>::get_data(world))
+    fn init_state() -> Self::State {
+        typle_for!(i in .. => <T<{i}>>::init_state())
+    }
+
+    unsafe fn get_data<'world, 'state>(
+        state: &'state mut Self::State,
+        world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
+        typle_for!(i in .. => <T<{i}>>::get_data(&mut state[[i]], world))
     }
 }
 
-pub type SystemInputData<'w, P> = <P as SystemInput>::Data<'w>;
+pub type SystemInputData<'w, 's, P> = <P as SystemInput>::Data<'w, 's>;
 
-pub struct StaticSystemInput<'w, P: SystemInput>(SystemInputData<'w, P>);
+pub struct StaticSystemInput<'w, 's, P: SystemInput>(SystemInputData<'w, 's, P>);
 
-impl<'w, P: SystemInput> Deref for StaticSystemInput<'w, P> {
-    type Target = SystemInputData<'w, P>;
+impl<'w, 's, P: SystemInput> Deref for StaticSystemInput<'w, 's, P> {
+    type Target = SystemInputData<'w, 's, P>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<'w, P: SystemInput> DerefMut for StaticSystemInput<'w, P> {
+impl<'w, 's, P: SystemInput> DerefMut for StaticSystemInput<'w, 's, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<'w, P: SystemInput> StaticSystemInput<'w, P> {
-    pub fn into_inner(self) -> SystemInputData<'w, P> {
+impl<'w, 's, P: SystemInput> StaticSystemInput<'w, 's, P> {
+    pub fn into_inner(self) -> SystemInputData<'w, 's, P> {
         self.0
     }
 }
 
-unsafe impl<'w, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, P> {
-    type Data<'world> = StaticSystemInput<'world, P>;
+unsafe impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, 's, P> {
+    type State = P::State;
+    type Data<'world, 'state> = StaticSystemInput<'world, 'state, P>;
 
-    unsafe fn get_data<'world>(world: UnsafeWorldCell<'world>) -> Self::Data<'world> {
-        StaticSystemInput(unsafe { P::get_data(world) })
+    fn init_state() -> Self::State {
+        P::init_state()
+    }
+
+    unsafe fn get_data<'world, 'state>(
+        state: &'state mut Self::State,
+        world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
+        StaticSystemInput(unsafe { P::get_data(state, world) })
     }
 }

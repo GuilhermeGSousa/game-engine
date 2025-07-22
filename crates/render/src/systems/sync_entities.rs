@@ -2,7 +2,7 @@ use ecs::{
     command::CommandQueue,
     query::Query,
     query_filter::{Added, Changed},
-    resource::{Res, ResMut},
+    resource::Res,
 };
 use essential::transform::Transform;
 use wgpu::util::DeviceExt;
@@ -70,7 +70,7 @@ pub(crate) fn camera_added(
 pub(crate) fn camera_moved(
     cameras: Query<(&Camera, &Transform, &RenderEntity), Changed<(Transform,)>>,
     render_cameras: Query<(&mut RenderCamera,)>,
-    mut context: ResMut<RenderContext>,
+    context: Res<RenderContext>,
 ) {
     for (camera, transform, render_entity) in cameras.iter() {
         match render_entity {

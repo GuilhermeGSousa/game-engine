@@ -44,3 +44,24 @@ where
         true
     }
 }
+
+pub struct Changed<T: ComponentBundle> {
+    _marker: PhantomData<T>,
+}
+
+impl<T> QueryFilter for Changed<T>
+where
+    T: ComponentBundle,
+{
+    fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
+        for component_id in T::get_component_ids() {
+            if !world
+                .get_world()
+                .was_component_changed(entity, component_id)
+            {
+                return false;
+            }
+        }
+        true
+    }
+}

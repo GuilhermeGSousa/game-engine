@@ -8,8 +8,7 @@ use crate::{
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
     },
-    components::camera::CameraUniform,
-    layouts::MeshLayouts,
+    layouts::{CameraLayouts, MeshLayouts},
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::RenderTexture,
         render_window::RenderWindow, RenderAssetPlugin,
@@ -17,11 +16,11 @@ use crate::{
     resources::RenderContext,
     systems::{
         render::{self, present_window},
-        update_camera, update_window,
+        sync_entities::{camera_added, camera_moved},
+        update_window,
     },
 };
 use app::plugins::Plugin;
-use wgpu::util::DeviceExt;
 use window::plugin::Window;
 
 pub struct RenderPlugin;
@@ -92,48 +91,15 @@ impl Plugin for RenderPlugin {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\mesh.wgsl"));
 
-        // Camera initialization
-        let camera_uniform = CameraUniform::new();
-
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
+        let camera_layouts = CameraLayouts::new(&device);
 
         let mesh_layouts = MeshLayouts::new(&device);
-
-        let depth_texture = RenderTexture::create_depth_texture(&device, &config, "depth_texture");
 
         // Setup render pipeline
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&mesh_layouts.mesh_layout, &camera_bind_group_layout],
+                bind_group_layouts: &[&mesh_layouts.mesh_layout, &camera_layouts.camera_layout],
                 push_constant_ranges: &[],
             });
 
@@ -192,15 +158,12 @@ impl Plugin for RenderPlugin {
             surface_config: config,
             queue: queue,
             pipeline: render_pipeline,
-            camera_bind_group: camera_bind_group,
-            camera_buffer: camera_buffer,
-            camera_uniform: camera_uniform,
-            depth_texture: depth_texture,
         });
 
         app.insert_resource(RenderWindow::new());
 
         app.insert_resource(mesh_layouts);
+        app.insert_resource(camera_layouts);
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new());
         app.register_plugin(RenderAssetPlugin::<RenderTexture>::new());
@@ -210,13 +173,11 @@ impl Plugin for RenderPlugin {
         app.register_asset::<Texture>();
         app.register_asset::<Material>();
 
+        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added);
+        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_moved);
         app.add_system(
             app::update_group::UpdateGroup::Render,
             update_window::update_window,
-        );
-        app.add_system(
-            app::update_group::UpdateGroup::Render,
-            update_camera::update_camera,
         );
         app.add_system(app::update_group::UpdateGroup::Render, render::render);
 

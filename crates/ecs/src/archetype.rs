@@ -72,6 +72,15 @@ impl Archetype {
         self.data_table.was_added(row, component_id, current_tick)
     }
 
+    pub fn was_entity_changed(
+        &self,
+        component_id: ComponentId,
+        row: TableRow,
+        current_tick: u32,
+    ) -> bool {
+        self.data_table.was_changed(row, component_id, current_tick)
+    }
+
     pub unsafe fn get_component_unsafe_mut<T: 'static>(
         &mut self,
         row: TableRow,

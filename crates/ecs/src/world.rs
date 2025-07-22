@@ -169,6 +169,18 @@ impl World {
             false
         }
     }
+
+    pub fn was_component_changed(&self, entity: Entity, component_id: ComponentId) -> bool {
+        if let Some(location) = self.entity_store.find_location(entity) {
+            self.archetypes[location.archetype_index as usize].was_entity_changed(
+                component_id,
+                location.row,
+                self.current_tick,
+            )
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Copy, Clone)]

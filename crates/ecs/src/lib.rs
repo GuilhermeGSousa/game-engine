@@ -11,6 +11,7 @@ pub mod query_filter;
 pub mod resource;
 pub mod system;
 pub mod table;
+pub mod utilities;
 pub mod world;
 
 #[cfg(test)]
@@ -127,11 +128,11 @@ mod tests {
 
         schedule.run(&mut world);
 
-        let query = Query::<(&Position, &Health,)>::new(world.as_unsafe_world_cell_mut());
+        let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
 
         assert_eq!(query.iter().count(), 1);
 
-        for (position, hp,) in query.iter() {
+        for (position, hp) in query.iter() {
             assert_eq!(position.x, 0.0);
             assert_eq!(position.y, 0.0);
         }

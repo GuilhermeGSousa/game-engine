@@ -1,6 +1,10 @@
 use ecs::{
     bundle::ComponentBundle,
-    events::{event_channel::update_event_channel, event_channel::EventChannel, Event},
+    component::Component,
+    events::{
+        event_channel::{update_event_channel, EventChannel},
+        Event,
+    },
     resource::{ResMut, Resource},
     system::{schedule::Schedule, IntoSystem},
     world::World,
@@ -170,5 +174,10 @@ impl App {
         self.render_schedule.run(&mut self.world);
         self.late_render_schedule.run(&mut self.world);
         self.world.tick();
+    }
+
+    pub fn register_component_lifecycle<T: Component>(&mut self) -> &mut Self {
+        self.world.register_component_lifetimes::<T>();
+        self
     }
 }

@@ -8,6 +8,7 @@ use crate::{
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
     },
+    components::render_entity::RenderEntity,
     layouts::{CameraLayouts, MeshLayouts},
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::RenderTexture,
@@ -151,6 +152,8 @@ impl Plugin for RenderPlugin {
             multiview: None,
             cache: None,
         });
+
+        app.register_component_lifecycle::<RenderEntity>();
 
         app.insert_resource(RenderContext {
             device: device,

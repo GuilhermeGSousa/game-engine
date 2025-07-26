@@ -37,7 +37,7 @@ where
 {
     fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
         for component_id in T::get_component_ids() {
-            if !world.get_world().was_component_added(entity, component_id) {
+            if !world.world().was_component_added(entity, component_id) {
                 return false;
             }
         }
@@ -55,10 +55,7 @@ where
 {
     fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
         for component_id in T::get_component_ids() {
-            if !world
-                .get_world()
-                .was_component_changed(entity, component_id)
-            {
+            if !world.world().was_component_changed(entity, component_id) {
                 return false;
             }
         }

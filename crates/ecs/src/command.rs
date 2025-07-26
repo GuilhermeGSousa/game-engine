@@ -60,7 +60,7 @@ unsafe impl SystemInput for CommandQueue<'_, '_> {
         state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        CommandQueue::new(state, world.get_world_mut().get_entity_store_mut())
+        CommandQueue::new(state, world.world_mut().get_entity_store_mut())
     }
 
     fn apply(state: &mut Self::State, world: &mut World) {

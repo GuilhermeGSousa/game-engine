@@ -5,10 +5,40 @@ use std::{
 
 pub use ecs_macros::Component;
 
+use crate::{entity::Entity, world::RestrictedWorld};
+
 pub type ComponentId = TypeId;
+
+pub type ComponentLifecycleCallback = for<'w> fn(RestrictedWorld<'w>, ComponentLifecycleContext);
+
+pub struct ComponentLifecycleContext {
+    pub entity: Entity,
+}
 
 pub trait Component: 'static + Sized {
     fn name() -> String;
+
+    fn on_add() -> Option<ComponentLifecycleCallback> {
+        None
+    }
+
+    fn on_remove() -> Option<ComponentLifecycleCallback> {
+        None
+    }
+}
+
+pub(crate) struct ComponentLifecycleCallbacks {
+    pub(crate) on_add: Option<ComponentLifecycleCallback>,
+    pub(crate) on_remove: Option<ComponentLifecycleCallback>,
+}
+
+impl ComponentLifecycleCallbacks {
+    pub(crate) fn from_component<T: Component>() -> Self {
+        Self {
+            on_add: T::on_add(),
+            on_remove: T::on_remove(),
+        }
+    }
 }
 
 pub(crate) struct Tick(u32);

@@ -8,11 +8,15 @@ use crate::{
 
 pub struct Archetype {
     data_table: Table,
+    component_ids: Vec<ComponentId>,
 }
 
 impl Archetype {
-    pub fn new(data_table: Table) -> Archetype {
-        Archetype { data_table }
+    pub fn new(data_table: Table, component_ids: Vec<ComponentId>) -> Archetype {
+        Archetype {
+            data_table,
+            component_ids,
+        }
     }
 
     pub fn add_component<T: Component>(
@@ -100,5 +104,9 @@ impl Archetype {
 
     pub fn remove_swap(&mut self, row: TableRow) -> Entity {
         self.data_table.remove_swap(row)
+    }
+
+    pub fn component_ids(&self) -> &[ComponentId] {
+        &self.component_ids
     }
 }

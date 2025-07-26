@@ -1,4 +1,4 @@
-use std::{cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
+use std::{cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr};
 
 use anymap::AnyMap;
 
@@ -6,19 +6,20 @@ use crate::{
     archetype::Archetype,
     bundle::ComponentBundle,
     common::generate_type_id,
-    component::{Component, ComponentId},
+    component::{Component, ComponentId, ComponentLifecycleCallbacks, ComponentLifecycleContext},
     entity::{Entity, EntityLocation, EntityType},
     entity_store::EntityStore,
     resource::Resource,
     system::system_input::SystemInput,
+    utilities::TypeIdMap,
 };
 
 pub struct World {
     archetypes: Vec<Archetype>,
     resources: AnyMap,
-
     entity_store: EntityStore,
     archetype_index: HashMap<EntityType, usize>,
+    component_lifetimes: TypeIdMap<ComponentLifecycleCallbacks>,
     current_tick: u32,
 }
 
@@ -28,6 +29,7 @@ impl World {
             archetypes: Vec::new(),
             archetype_index: HashMap::new(),
             resources: AnyMap::new(),
+            component_lifetimes: Default::default(),
             entity_store: EntityStore::new(),
             current_tick: 0,
         }
@@ -49,7 +51,7 @@ impl World {
             .archetype_index
             .entry(entity_type.clone())
             .or_insert_with(|| {
-                let archetype = Archetype::new(T::generate_empty_table());
+                let archetype = Archetype::new(T::generate_empty_table(), type_ids);
                 self.archetypes.push(archetype);
                 self.archetypes.len() - 1
             });
@@ -69,7 +71,24 @@ impl World {
     pub fn despawn(&mut self, entity: Entity) {
         match self.entity_store.find_location(entity) {
             Some(location) => {
+                {
+                    let archetype = &self.archetypes[location.archetype_index as usize];
+                    let cell = self.as_unsafe_world_cell();
+                    // Run lifetimes before we do anything else
+                    for id in archetype.component_ids() {
+                        if let Some(lifetimes) = self.component_lifetimes.get(id) {
+                            if let Some(remove) = lifetimes.on_remove {
+                                remove(
+                                    cell.into_restricted(),
+                                    ComponentLifecycleContext { entity },
+                                );
+                            }
+                        }
+                    }
+                }
+
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
+
                 let swapped_entity = archetype.remove_swap(location.row);
                 self.entity_store.set_location(swapped_entity, location);
                 self.entity_store.free(entity);
@@ -150,7 +169,7 @@ impl World {
         UnsafeWorldCell::new_mutable(self)
     }
 
-    pub fn as_unsafe_world_cell_ref(&self) -> UnsafeWorldCell<'_> {
+    pub fn as_unsafe_world_cell(&self) -> UnsafeWorldCell<'_> {
         UnsafeWorldCell::new_ref(self)
     }
 
@@ -181,6 +200,12 @@ impl World {
             false
         }
     }
+
+    pub fn register_component_lifetimes<T: Component>(&mut self) {
+        self.component_lifetimes
+            .entry(ComponentId::of::<T>())
+            .or_insert(ComponentLifecycleCallbacks::from_component::<T>());
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -198,7 +223,7 @@ impl<'w> From<&'w mut World> for UnsafeWorldCell<'w> {
 
 impl<'w> From<&'w World> for UnsafeWorldCell<'w> {
     fn from(value: &'w World) -> Self {
-        value.as_unsafe_world_cell_ref()
+        value.as_unsafe_world_cell()
     }
 }
 
@@ -214,7 +239,7 @@ unsafe impl SystemInput for &World {
         _state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        world.get_world()
+        world.world()
     }
 }
 
@@ -230,7 +255,7 @@ unsafe impl SystemInput for &mut World {
         _state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        world.get_world_mut()
+        world.world_mut()
     }
 }
 
@@ -255,12 +280,43 @@ impl<'w> UnsafeWorldCell<'w> {
         }
     }
 
-    pub fn get_world(&self) -> &'w World {
+    pub fn world(&self) -> &'w World {
         unsafe { &*self.ptr }
     }
 
-    pub fn get_world_mut(&self) -> &'w mut World {
+    pub fn world_mut(&self) -> &'w mut World {
         self.assert_mutable();
         unsafe { &mut *self.ptr }
+    }
+
+    pub fn into_restricted(self) -> RestrictedWorld<'w> {
+        RestrictedWorld { world_cell: self }
+    }
+}
+
+pub struct RestrictedWorld<'w> {
+    world_cell: UnsafeWorldCell<'w>,
+}
+
+impl<'w> RestrictedWorld<'w> {
+    pub fn despawn(&mut self, entity: Entity) {
+        // TODO: Use commands instead
+        self.world_cell.world_mut().despawn(entity);
+    }
+}
+
+impl<'w> From<&'w mut World> for RestrictedWorld<'w> {
+    fn from(world: &'w mut World) -> RestrictedWorld<'w> {
+        RestrictedWorld {
+            world_cell: world.as_unsafe_world_cell(),
+        }
+    }
+}
+
+impl<'w> Deref for RestrictedWorld<'w> {
+    type Target = World;
+
+    fn deref(&self) -> &Self::Target {
+        self.world_cell.world()
     }
 }

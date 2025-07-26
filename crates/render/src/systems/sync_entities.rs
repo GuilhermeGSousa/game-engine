@@ -10,10 +10,14 @@ use wgpu::util::DeviceExt;
 use crate::{
     components::{
         camera::{Camera, CameraUniform, RenderCamera},
+        mesh_component::MeshComponent,
         render_entity::RenderEntity,
     },
     layouts::CameraLayouts,
-    render_asset::render_texture::RenderTexture,
+    render_asset::{
+        render_mesh::{self, RenderMeshInstance},
+        render_texture::RenderTexture,
+    },
     resources::RenderContext,
 };
 
@@ -84,6 +88,52 @@ pub(crate) fn camera_moved(
                         &render_camera.camera_buffer,
                         0,
                         bytemuck::cast_slice(&[render_camera.camera_uniform]),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+pub(crate) fn mesh_added(
+    meshes: Query<(&MeshComponent, &Transform, &mut RenderEntity), Added<(MeshComponent,)>>,
+    mut cmd: CommandQueue,
+    context: Res<RenderContext>,
+) {
+    for (mesh, transform, render_entity) in meshes.iter() {
+        let instance_buffer =
+            context
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Instance Buffer"),
+                    contents: bytemuck::cast_slice(&[transform.to_raw()]),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let instance = RenderMeshInstance {
+            render_asset_id: mesh.handle.id(),
+            buffer: instance_buffer,
+        };
+
+        let mesh_instance_entity = cmd.spawn((instance,));
+        render_entity.set_entity(mesh_instance_entity);
+    }
+}
+
+pub(crate) fn mesh_moved(
+    meshes: Query<(&MeshComponent, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    render_meshes: Query<(&mut RenderMeshInstance,)>,
+    context: Res<RenderContext>,
+) {
+    for (_, transform, render_entity) in meshes.iter() {
+        match render_entity {
+            RenderEntity::Initialized(entity) => {
+                if let Some((render_mesh,)) = render_meshes.get_entity(*entity) {
+                    context.queue.write_buffer(
+                        &render_mesh.buffer,
+                        0,
+                        bytemuck::cast_slice(&[transform.to_raw()]),
                     );
                 }
             }

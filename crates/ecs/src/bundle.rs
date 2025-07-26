@@ -30,6 +30,46 @@ pub trait ComponentBundle {
     fn generate_empty_table() -> Table;
 }
 
+impl<T> ComponentBundle for T
+where
+    T: Component,
+{
+    fn get_component_ids() -> Vec<ComponentId> {
+        let mut type_ids = Vec::new();
+        type_ids.push(TypeId::of::<T>());
+        type_ids
+    }
+
+    fn add_row_to_archetype(
+        self,
+        archetype: &mut Archetype,
+        entity: Entity,
+        current_tick: u32,
+    ) -> TableRow {
+        let table_row = TableRow::new(archetype.len() as u32);
+        archetype.add_entity(entity);
+        archetype.add_component(AnyValueWrapper::<T>::new(self), current_tick);
+        table_row
+    }
+
+    fn insert_to_archetype(
+        self,
+        archetype: &mut Archetype,
+        current_tick: u32,
+        entity: Entity,
+        row: TableRow,
+    ) {
+        archetype.insert_entity(entity, row);
+        archetype.insert_component(AnyValueWrapper::<T>::new(self), current_tick, row);
+    }
+
+    fn generate_empty_table() -> Table {
+        let mut table: Table = Table::new();
+        table.add_column::<T>();
+        table
+    }
+}
+
 #[allow(unused_mut)]
 #[allow(unused_variables)]
 #[typle(Tuple for 0..=12)]

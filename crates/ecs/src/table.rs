@@ -131,7 +131,10 @@ impl Table {
 
     pub fn remove_swap(&mut self, row: TableRow) -> Entity {
         self.columns.iter_mut().for_each(|(_, col)| {
-            col.data.swap_remove(*row as usize);
+            let index = *row as usize;
+            col.data.swap_remove(index);
+            col.added_ticks.swap_remove(index);
+            col.changed_ticks.swap_remove(index);
         });
 
         let last_entity = *self.entities.last().expect("No entities in table");

@@ -2,13 +2,13 @@ use ecs::{
     query::Query,
     resource::{Res, ResMut},
 };
-use essential::transform::Transform;
-use wgpu::util::DeviceExt;
 
 use crate::{
-    components::{camera::RenderCamera, mesh_component::MeshComponent},
+    components::camera::RenderCamera,
     render_asset::{
-        render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
+        render_material::RenderMaterial,
+        render_mesh::{RenderMesh, RenderMeshInstance},
+        render_window::RenderWindow,
         RenderAssets,
     },
     resources::RenderContext,
@@ -16,7 +16,7 @@ use crate::{
 
 pub(crate) fn render(
     context: Res<RenderContext>,
-    mesh_query: Query<(&MeshComponent, &Transform)>,
+    render_mesh_query: Query<(&RenderMeshInstance,)>,
     render_cameras: Query<&RenderCamera>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_window: Res<RenderWindow>,
@@ -61,8 +61,8 @@ pub(crate) fn render(
 
                 render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
 
-                for (mesh, transform) in mesh_query.iter() {
-                    if let Some(mesh) = render_meshes.get(&mesh.handle.id()) {
+                for (mesh_instance,) in render_mesh_query.iter() {
+                    if let Some(mesh) = render_meshes.get(&mesh_instance.render_asset_id) {
                         for submesh in &mesh.sub_meshes {
                             if submesh.material.is_none() {
                                 continue;
@@ -88,15 +88,7 @@ pub(crate) fn render(
                                 wgpu::IndexFormat::Uint32,
                             );
 
-                            let instance_buffer = context.device.create_buffer_init(
-                                &wgpu::util::BufferInitDescriptor {
-                                    label: Some("Instance Buffer"),
-                                    contents: bytemuck::cast_slice(&[transform.to_raw()]),
-                                    usage: wgpu::BufferUsages::VERTEX,
-                                },
-                            );
-                            render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-
+                            render_pass.set_vertex_buffer(1, mesh_instance.buffer.slice(..));
                             render_pass.draw_indexed(0..submesh.index_count, 0, 0..1);
                         }
                     }

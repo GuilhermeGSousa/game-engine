@@ -1,4 +1,4 @@
-use ecs::resource::Res;
+use ecs::{component::Component, resource::Res};
 use essential::assets::AssetId;
 use wgpu::util::DeviceExt;
 
@@ -67,4 +67,10 @@ impl RenderAsset for RenderMesh {
 
         Ok(RenderMesh { sub_meshes })
     }
+}
+
+#[derive(Component)]
+pub(crate) struct RenderMeshInstance {
+    pub(crate) render_asset_id: AssetId,
+    pub(crate) buffer: wgpu::Buffer,
 }

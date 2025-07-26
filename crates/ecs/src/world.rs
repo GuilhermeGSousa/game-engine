@@ -12,6 +12,7 @@ use crate::{
     resource::Resource,
     system::system_input::SystemInput,
     utilities::TypeIdMap,
+    world,
 };
 
 pub struct World {
@@ -72,19 +73,8 @@ impl World {
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 {
-                    let archetype = &self.archetypes[location.archetype_index as usize];
-                    let cell = self.as_unsafe_world_cell();
-                    // Run lifetimes before we do anything else
-                    for id in archetype.component_ids() {
-                        if let Some(lifetimes) = self.component_lifetimes.get(id) {
-                            if let Some(remove) = lifetimes.on_remove {
-                                remove(
-                                    cell.into_restricted(),
-                                    ComponentLifecycleContext { entity },
-                                );
-                            }
-                        }
-                    }
+                    let cell = self.as_unsafe_world_cell_mut();
+                    cell.trigger_on_remove(entity, location);
                 }
 
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
@@ -291,6 +281,19 @@ impl<'w> UnsafeWorldCell<'w> {
 
     pub fn into_restricted(self) -> RestrictedWorld<'w> {
         RestrictedWorld { world_cell: self }
+    }
+
+    pub fn trigger_on_remove(&self, entity: Entity, location: EntityLocation) {
+        let world = self.world();
+        let archetype = &world.archetypes[location.archetype_index as usize];
+
+        for id in archetype.component_ids() {
+            if let Some(lifetimes) = world.component_lifetimes.get(id) {
+                if let Some(remove) = lifetimes.on_remove {
+                    remove(self.into_restricted(), ComponentLifecycleContext { entity });
+                }
+            }
+        }
     }
 }
 

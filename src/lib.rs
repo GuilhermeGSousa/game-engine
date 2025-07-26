@@ -122,7 +122,7 @@ fn spawn_on_button_press(
 
     if key_p == InputState::Pressed {
         let handle = asset_server.load::<Mesh>("res/cube.obj");
-        cmd.spawn((MeshComponent { handle }, pos.clone()));
+        cmd.spawn((MeshComponent { handle }, pos.clone(), RenderEntity::new()));
     }
 }
 

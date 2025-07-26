@@ -17,7 +17,7 @@ use crate::{
     resources::RenderContext,
     systems::{
         render::{self, present_window},
-        sync_entities::{camera_added, camera_moved},
+        sync_entities::{camera_added, camera_moved, mesh_added, mesh_moved},
         update_window,
     },
 };
@@ -178,6 +178,8 @@ impl Plugin for RenderPlugin {
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added);
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_moved);
+        app.add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added);
+        app.add_system(app::update_group::UpdateGroup::LateUpdate, mesh_moved);
         app.add_system(
             app::update_group::UpdateGroup::Render,
             update_window::update_window,

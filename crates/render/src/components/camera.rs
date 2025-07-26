@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use ecs::{component::Component, entity::Entity};
 use glam::Mat4;
 
-use crate::assets::texture::Texture;
+use crate::{assets::texture::Texture, render_asset::render_texture::RenderTexture};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(
@@ -88,3 +88,11 @@ impl CameraUniform {
 
 unsafe impl Pod for CameraUniform {}
 unsafe impl Zeroable for CameraUniform {}
+
+#[derive(Component)]
+pub struct RenderCamera {
+    pub camera_bind_group: wgpu::BindGroup,
+    pub camera_uniform: CameraUniform,
+    pub camera_buffer: wgpu::Buffer,
+    pub(crate) depth_texture: RenderTexture,
+}

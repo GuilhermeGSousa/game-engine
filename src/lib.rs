@@ -4,12 +4,17 @@ use app::{
     plugins::{AssetManagerPlugin, TimePlugin},
     App,
 };
-use ecs::{command::CommandQueue, entity::Entity, query::Query, resource::{Res, ResMut}};
+use ecs::{
+    command::CommandQueue,
+    entity::Entity,
+    query::Query,
+    resource::{Res, ResMut},
+};
 use glam::{Quat, Vec2, Vec3};
 use physics::plugin::PhysicsPlugin;
 use render::{
     assets::mesh::Mesh,
-    components::{camera::Camera, mesh_component::MeshComponent},
+    components::{camera::Camera, mesh_component::MeshComponent, render_entity::RenderEntity},
     plugin::RenderPlugin,
 };
 
@@ -49,8 +54,14 @@ pub fn run_game() {
         .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
-        .add_system(app::update_group::UpdateGroup::Update, spawn_on_button_press)
-        .add_system(app::update_group::UpdateGroup::Update, despawn_on_button_press)
+        .add_system(
+            app::update_group::UpdateGroup::Update,
+            spawn_on_button_press,
+        )
+        .add_system(
+            app::update_group::UpdateGroup::Update,
+            despawn_on_button_press,
+        )
         .add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
         .add_system(app::update_group::UpdateGroup::Render, render_ui);
 
@@ -60,13 +71,12 @@ pub fn run_game() {
 }
 
 fn spawn_player(app: &mut app::App) {
-
     let camera = Camera::new(1.0, 45.0, 0.1, 100.0);
     let cam_pos = Vec3::new(0.0, 0.0, 2.0);
     let cam_rot = Quat::look_at_rh(cam_pos, Vec3::ZERO, Vec3::Y);
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
-    app.spawn((camera, camera_transform));
+    app.spawn((camera, camera_transform, RenderEntity::new()));
 }
 
 fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
@@ -101,25 +111,26 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
     }
 }
 
-fn spawn_on_button_press(cameras: Query<(&Camera, &mut Transform)>, mut cmd: CommandQueue, input: Res<Input>, asset_server: ResMut<AssetServer>)
-{
+fn spawn_on_button_press(
+    cameras: Query<(&Camera, &mut Transform)>,
+    mut cmd: CommandQueue,
+    input: Res<Input>,
+    asset_server: ResMut<AssetServer>,
+) {
     let (_, pos) = cameras.iter().next().expect("No camera found");
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
 
     if key_p == InputState::Pressed {
         let handle = asset_server.load::<Mesh>("res/cube.obj");
-        cmd.spawn((
-            MeshComponent {
-                handle,
-            },
-            pos.clone(),
-        ));
-        
+        cmd.spawn((MeshComponent { handle }, pos.clone(), RenderEntity::new()));
     }
 }
 
-fn despawn_on_button_press(meshes: Query<(Entity, &MeshComponent, &mut Transform)>, mut cmd: CommandQueue, input: Res<Input>)
-{
+fn despawn_on_button_press(
+    meshes: Query<(Entity, &MeshComponent, &mut Transform)>,
+    mut cmd: CommandQueue,
+    input: Res<Input>,
+) {
     let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyL));
 
     if key_d == InputState::Pressed {

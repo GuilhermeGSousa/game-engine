@@ -1,5 +1,6 @@
 use crate::{
-    bundle::ComponentBundle, entity::{self, Entity}, entity_store::EntityStore, system::system_input::SystemInput, world::World
+    bundle::ComponentBundle, entity::Entity, entity_store::EntityStore,
+    system::system_input::SystemInput, world::World,
 };
 
 pub struct CommandQueue<'world, 'state> {
@@ -9,16 +10,16 @@ pub struct CommandQueue<'world, 'state> {
 
 impl<'w, 's> CommandQueue<'w, 's> {
     pub(crate) fn new(state: &'s mut CommandQueueState, entities: &'w mut EntityStore) -> Self {
-        Self { queue_state: state, entities }
-    }
-
-    pub(crate) fn execute(&mut self, world: &mut World) {
-        self.queue_state.execute_commands(world);
+        Self {
+            queue_state: state,
+            entities,
+        }
     }
 
     pub fn spawn<T: ComponentBundle + 'static>(&mut self, components: T) -> Entity {
         let entity = self.entities.alloc();
-        self.queue_state.add_command(SpawnCommand::new(components, entity));
+        self.queue_state
+            .add_command(SpawnCommand::new(components, entity));
         entity
     }
 
@@ -59,7 +60,7 @@ unsafe impl SystemInput for CommandQueue<'_, '_> {
         state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        CommandQueue::new(state, world.get_world_mut().get_entity_store_mut())
+        CommandQueue::new(state, world.world_mut().get_entity_store_mut())
     }
 
     fn apply(state: &mut Self::State, world: &mut World) {

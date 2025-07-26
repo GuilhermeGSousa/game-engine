@@ -14,7 +14,6 @@ pub struct Column {
     data: AnyVec,
     added_ticks: Vec<Tick>,
     changed_ticks: Vec<Tick>,
-    removed_ticks: Vec<Tick>,
 }
 
 impl Column {
@@ -23,7 +22,6 @@ impl Column {
             data: AnyVec::new::<T>(),
             added_ticks: Vec::new(),
             changed_ticks: Vec::new(),
-            removed_ticks: Vec::new(),
         }
     }
 
@@ -123,9 +121,20 @@ impl Table {
         }
     }
 
+    pub fn was_changed(&self, row: TableRow, component_id: ComponentId, current_tick: u32) -> bool {
+        if let Some(column) = self.columns.get(&component_id) {
+            *column.changed_ticks[*row as usize] == current_tick
+        } else {
+            false
+        }
+    }
+
     pub fn remove_swap(&mut self, row: TableRow) -> Entity {
         self.columns.iter_mut().for_each(|(_, col)| {
-            col.data.swap_remove(*row as usize);
+            let index = *row as usize;
+            col.data.swap_remove(index);
+            col.added_ticks.swap_remove(index);
+            col.changed_ticks.swap_remove(index);
         });
 
         let last_entity = *self.entities.last().expect("No entities in table");

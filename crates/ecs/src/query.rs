@@ -28,7 +28,7 @@ pub trait QueryData {
 impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         let matched_indices: Vec<usize> = world
-            .get_world()
+            .world()
             .get_archetypes()
             .iter()
             .enumerate()
@@ -84,7 +84,7 @@ where
     type Item = T::Item<'world>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let archetypes = self.world.get_world().get_archetypes();
+        let archetypes = self.world.world().get_archetypes();
         loop {
             if self.current_row == self.current_len {
                 let archetype_index = self.matched_archetypes.next()?;
@@ -144,7 +144,7 @@ where
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
-        let world = world.get_world();
+        let world = world.world();
 
         if let Some(location) = world.get_entity_store().find_location(entity) {
             world.get_component_for_entity_location::<T>(location)
@@ -167,7 +167,7 @@ where
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
-        let world = world.get_world_mut();
+        let world = world.world_mut();
         if let Some(location) = world.get_entity_store().find_location(entity) {
             world.get_component_for_entity_location_mut(location)
         } else {

@@ -24,7 +24,7 @@ pub struct Res<'world, T: Resource> {
 impl<'world, T: Resource> Res<'world, T> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         Self {
-            value: world.get_world().get_resource::<T>().unwrap(),
+            value: world.world().get_resource::<T>().unwrap(),
             _marker: PhantomData,
         }
     }
@@ -68,7 +68,7 @@ pub struct ResMut<'world, T: Resource> {
 impl<'world, T: Resource> ResMut<'world, T> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         Self {
-            value: world.get_world_mut().get_resource_mut::<T>().unwrap(),
+            value: world.world_mut().get_resource_mut::<T>().unwrap(),
             _marker: PhantomData,
         }
     }

@@ -1,3 +1,3 @@
 pub mod render;
-pub mod update_camera;
+pub mod sync_entities;
 pub mod update_window;

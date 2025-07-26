@@ -1,5 +1,5 @@
 use crate::{
-    assets::texture::Texture,
+    assets::texture::{self, Texture},
     render_asset::{AssetPreparationError, RenderAsset},
     resources::RenderContext,
 };

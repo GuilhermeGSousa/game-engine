@@ -11,7 +11,7 @@ use ecs::{
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec2, Vec3};
-use physics::plugin::PhysicsPlugin;
+use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::mesh::Mesh,
     components::{camera::Camera, mesh_component::MeshComponent, render_entity::RenderEntity},
@@ -23,9 +23,6 @@ use window::{
     input::{Input, InputState},
     plugin::WindowPlugin,
 };
-
-const NUM_INSTANCES_PER_ROW: u32 = 10;
-const INSTANCE_DISPLACEMENT: Vec3 = Vec3::new(0 as f32 * 0.5, 0.0, 0 as f32 * 0.5);
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -62,8 +59,10 @@ pub fn run_game() {
             app::update_group::UpdateGroup::Update,
             despawn_on_button_press,
         )
-        .add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
-        .add_system(app::update_group::UpdateGroup::Render, render_ui);
+        //.add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
+        .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
+        .add_system(app::update_group::UpdateGroup::Render, render_ui)
+        .add_system(app::update_group::UpdateGroup::Startup, spawn_floor);
 
     spawn_player(&mut app);
 
@@ -77,6 +76,13 @@ fn spawn_player(app: &mut app::App) {
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
     app.spawn((camera, camera_transform, RenderEntity::new()));
+}
+
+fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
+    let ground_colider = physics_state.make_cuboid(100.0, 2.0, 100.0, None);
+    let ground_transform = Transform::from_translation_rotation(Vec3::Z * -2.0, Quat::IDENTITY);
+
+    cmd.spawn((ground_colider, ground_transform));
 }
 
 fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
@@ -112,10 +118,10 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
 }
 
 fn spawn_on_button_press(
-    cameras: Query<(&Camera, &mut Transform)>,
+    cameras: Query<(&Camera, &Transform)>,
     mut cmd: CommandQueue,
     input: Res<Input>,
-    asset_server: ResMut<AssetServer>,
+    asset_server: Res<AssetServer>,
 ) {
     let (_, pos) = cameras.iter().next().expect("No camera found");
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
@@ -123,6 +129,35 @@ fn spawn_on_button_press(
     if key_p == InputState::Pressed {
         let handle = asset_server.load::<Mesh>("res/cube.obj");
         cmd.spawn((MeshComponent { handle }, pos.clone(), RenderEntity::new()));
+    }
+}
+
+fn spawn_with_collider(
+    cameras: Query<(&Camera, &Transform)>,
+    mut cmd: CommandQueue,
+    input: Res<Input>,
+    asset_server: Res<AssetServer>,
+    mut physics_state: ResMut<PhysicsState>,
+) {
+    let (_, pos) = cameras.iter().next().expect("No camera found");
+
+    let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
+
+    if key_r == InputState::Pressed {
+        let handle = asset_server.load::<Mesh>("res/cube.obj");
+        let spawn_point = pos.up() * 10.0 + pos.forward() * 5.0;
+        let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
+        let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
+
+        let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
+
+        cmd.spawn((
+            MeshComponent { handle },
+            rigid_body,
+            collider,
+            cube_transform,
+            RenderEntity::new(),
+        ));
     }
 }
 

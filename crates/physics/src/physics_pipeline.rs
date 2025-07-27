@@ -1,4 +1,5 @@
 use ecs::resource::Resource;
+use essential::time::Time;
 
 use crate::physics_state::PhysicsState;
 use rapier3d::prelude::*;
@@ -17,6 +18,8 @@ impl PhysicsPipeline {
 
     pub fn step(&mut self, state: &mut PhysicsState) {
         let gravity = vector![0.0, -9.81, 0.0];
+
+        state.integration_parameters.dt = Time::fixed_delta_time();
 
         self.pipeline.step(
             &gravity,

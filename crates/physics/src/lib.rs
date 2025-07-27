@@ -1,6 +1,5 @@
 pub mod collider;
 pub mod physics_pipeline;
-pub mod physics_server;
 pub mod physics_state;
 pub mod plugin;
 pub mod rigid_body;

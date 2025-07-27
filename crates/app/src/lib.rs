@@ -18,7 +18,7 @@ use essential::{
     time::Time,
 };
 use plugins::Plugin;
-use std::mem::replace;
+use std::{mem::replace, time::Instant};
 use update_group::UpdateGroup;
 
 pub mod plugins;
@@ -35,7 +35,6 @@ pub struct App {
     late_fixed_update_schedule: Schedule,
     render_schedule: Schedule,
     late_render_schedule: Schedule,
-
     accumulated_fixed_time: f32,
 }
 
@@ -163,6 +162,7 @@ impl App {
 
             let delta_time = time.delta();
             self.accumulated_fixed_time += delta_time;
+
             while self.accumulated_fixed_time >= Time::fixed_delta_time() {
                 self.fixed_update_schedule.run(&mut self.world);
                 self.accumulated_fixed_time -= Time::fixed_delta_time();

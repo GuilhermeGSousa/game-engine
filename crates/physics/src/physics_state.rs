@@ -4,7 +4,7 @@ use glam::{Quat, Vec3};
 use rapier3d::prelude::{
     CCDSolver, ColliderBuilder, ColliderSet, DefaultBroadPhase, ImpulseJointSet,
     IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, QueryPipeline,
-    RigidBodyHandle, RigidBodySet,
+    RigidBodySet,
 };
 
 use crate::{collider::Collider, rigid_body::RigidBody};

@@ -62,8 +62,7 @@ impl Archetype {
 
     pub unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRow) -> Option<&T> {
         self.data_table
-            .get_column(ComponentId::of::<T>())
-            .unwrap()
+            .get_column(ComponentId::of::<T>())?
             .get_unsafe(row)
     }
 
@@ -90,10 +89,7 @@ impl Archetype {
         row: TableRow,
         current_tick: u32,
     ) -> Option<&mut T> {
-        let column = self
-            .data_table
-            .get_column_mut(ComponentId::of::<T>())
-            .unwrap();
+        let column = self.data_table.get_column_mut(ComponentId::of::<T>())?;
         column.set_changed(row, current_tick);
         column.get_mut_unsafe(row)
     }

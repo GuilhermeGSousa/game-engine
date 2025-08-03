@@ -211,6 +211,13 @@ where
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
-        Some(typle_for!(i in .. => <T<{i}>>::fetch(world, entity).unwrap()))
+        Some(typle_for!(i in .. => {
+                match <T<{i}>>::fetch(world, entity)
+                {
+                    Some(fetched_value) => { fetched_value },
+                    None => return None,
+                }
+            }
+        ))
     }
 }

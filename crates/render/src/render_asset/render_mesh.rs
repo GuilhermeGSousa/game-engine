@@ -68,9 +68,3 @@ impl RenderAsset for RenderMesh {
         Ok(RenderMesh { sub_meshes })
     }
 }
-
-#[derive(Component)]
-pub(crate) struct RenderMeshInstance {
-    pub(crate) render_asset_id: AssetId,
-    pub(crate) buffer: wgpu::Buffer,
-}

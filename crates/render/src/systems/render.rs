@@ -4,11 +4,9 @@ use ecs::{
 };
 
 use crate::{
-    components::camera::RenderCamera,
+    components::{camera::RenderCamera, light::RenderLights, mesh_component::RenderMeshInstance},
     render_asset::{
-        render_material::RenderMaterial,
-        render_mesh::{RenderMesh, RenderMeshInstance},
-        render_window::RenderWindow,
+        render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
         RenderAssets,
     },
     resources::RenderContext,
@@ -21,6 +19,7 @@ pub(crate) fn render(
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_window: Res<RenderWindow>,
     render_materials: Res<RenderAssets<RenderMaterial>>,
+    render_lights: Res<RenderLights>,
 ) {
     if let Some(view) = render_window.get_view() {
         let mut encoder = context
@@ -60,6 +59,7 @@ pub(crate) fn render(
                 render_pass.set_pipeline(&context.pipeline);
 
                 render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
+                render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
 
                 for (mesh_instance,) in render_mesh_query.iter() {
                     if let Some(mesh) = render_meshes.get(&mesh_instance.render_asset_id) {

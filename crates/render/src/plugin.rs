@@ -8,8 +8,11 @@ use crate::{
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
     },
-    components::render_entity::RenderEntity,
-    layouts::{CameraLayouts, MeshLayouts},
+    components::{
+        light::{update_lights_buffer, RenderLights},
+        render_entity::RenderEntity,
+    },
+    layouts::{CameraLayouts, LightLayouts, MeshLayouts},
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::RenderTexture,
         render_window::RenderWindow, RenderAssetPlugin,
@@ -17,7 +20,9 @@ use crate::{
     resources::RenderContext,
     systems::{
         render::{self, present_window},
-        sync_entities::{camera_added, camera_moved, mesh_added, mesh_moved},
+        sync_entities::{
+            camera_added, camera_moved, light_added, light_changed, mesh_added, mesh_moved,
+        },
         update_window,
     },
 };
@@ -96,11 +101,17 @@ impl Plugin for RenderPlugin {
 
         let mesh_layouts = MeshLayouts::new(&device);
 
+        let light_layouts = LightLayouts::new(&device);
+
         // Setup render pipeline
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&mesh_layouts.mesh_layout, &camera_layouts.camera_layout],
+                bind_group_layouts: &[
+                    &mesh_layouts.mesh_layout,
+                    &camera_layouts.camera_layout,
+                    &light_layouts.lights_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -155,37 +166,41 @@ impl Plugin for RenderPlugin {
 
         app.register_component_lifecycle::<RenderEntity>();
 
+        let render_lights = RenderLights::new(&device, &light_layouts);
+
         app.insert_resource(RenderContext {
             device: device,
             surface: surface,
             surface_config: config,
             queue: queue,
             pipeline: render_pipeline,
-        });
+        })
+        .insert_resource(RenderWindow::new())
+        .insert_resource(mesh_layouts)
+        .insert_resource(camera_layouts)
+        .insert_resource(light_layouts)
+        .insert_resource(render_lights);
 
-        app.insert_resource(RenderWindow::new());
+        app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
+            .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
+            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
 
-        app.insert_resource(mesh_layouts);
-        app.insert_resource(camera_layouts);
+        app.register_asset::<Mesh>()
+            .register_asset::<Texture>()
+            .register_asset::<Material>();
 
-        app.register_plugin(RenderAssetPlugin::<RenderMesh>::new());
-        app.register_plugin(RenderAssetPlugin::<RenderTexture>::new());
-        app.register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
-
-        app.register_asset::<Mesh>();
-        app.register_asset::<Texture>();
-        app.register_asset::<Material>();
-
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added);
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_moved);
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added);
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, mesh_moved);
-        app.add_system(
-            app::update_group::UpdateGroup::Render,
-            update_window::update_window,
-        );
-        app.add_system(app::update_group::UpdateGroup::Render, render::render);
-
-        app.add_system(app::update_group::UpdateGroup::LateRender, present_window);
+        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, camera_moved)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_moved)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                update_window::update_window,
+            )
+            .add_system(app::update_group::UpdateGroup::Render, update_lights_buffer)
+            .add_system(app::update_group::UpdateGroup::Render, render::render)
+            .add_system(app::update_group::UpdateGroup::LateRender, present_window);
     }
 }

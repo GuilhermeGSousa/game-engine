@@ -1,4 +1,5 @@
 use ecs::resource::Resource;
+use wgpu::BindGroupLayoutDescriptor;
 
 #[derive(Resource)]
 pub(crate) struct MeshLayouts {
@@ -60,5 +61,30 @@ impl CameraLayouts {
         Self {
             camera_layout: camera_bind_group_layout,
         }
+    }
+}
+
+#[derive(Resource)]
+pub(crate) struct LightLayouts {
+    pub lights_layout: wgpu::BindGroupLayout,
+}
+
+impl LightLayouts {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let lights_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("lights_bind_group_layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        Self { lights_layout }
     }
 }

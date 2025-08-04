@@ -10,14 +10,12 @@ use wgpu::util::DeviceExt;
 use crate::{
     components::{
         camera::{Camera, CameraUniform, RenderCamera},
-        mesh_component::MeshComponent,
+        light::{Light, RenderLight, RenderLights},
+        mesh_component::{MeshComponent, RenderMeshInstance},
         render_entity::RenderEntity,
     },
     layouts::CameraLayouts,
-    render_asset::{
-        render_mesh::{self, RenderMeshInstance},
-        render_texture::RenderTexture,
-    },
+    render_asset::render_texture::RenderTexture,
     resources::RenderContext,
 };
 
@@ -140,4 +138,21 @@ pub(crate) fn mesh_moved(
             _ => {}
         }
     }
+}
+
+pub(crate) fn light_added(
+    lights: Query<(&Light, &Transform, &mut RenderEntity), Added<(Light,)>>,
+    mut cmd: CommandQueue,
+    context: Res<RenderContext>,
+) {
+    for (light, transform, render_entity) in lights.iter() {
+        render_entity.set_entity(cmd.spawn(RenderLight {}));
+    }
+}
+
+pub(crate) fn light_changed(
+    meshes: Query<(&Light, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    context: Res<RenderContext>,
+) {
+    // TODO
 }

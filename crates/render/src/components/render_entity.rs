@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use ecs::{
     component::{Component, ComponentLifecycleCallback},
     entity::Entity,

@@ -1,4 +1,12 @@
-// Vertex Shader
+struct Light {
+    color: vec4<f32>,
+};
+
+const MAX_LIGHT_COUNT : i32 = 256;
+
+struct Lights {
+    lights: array<Light, MAX_LIGHT_COUNT>,
+};
 
 struct CameraUniform {
     view_proj: mat4x4<f32>,
@@ -49,7 +57,11 @@ var t_diffuse: texture_2d<f32>;
 @group(0) @binding(1)
 var s_diffuse: sampler;
 
+@group(2) @binding(0)
+var<uniform> lights: Lights;
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    return lights.lights[0].color;
+    // return textureSample(t_diffuse, s_diffuse, in.tex_coords);
 }

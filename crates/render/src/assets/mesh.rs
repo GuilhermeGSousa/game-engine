@@ -20,3 +20,9 @@ impl Asset for Mesh {
         Box::new(ObjLoader)
     }
 }
+
+impl Drop for Mesh {
+    fn drop(&mut self) {
+        println!("Mesh was dropped!")
+    }
+}

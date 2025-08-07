@@ -6,6 +6,7 @@ const MAX_LIGHT_COUNT : i32 = 256;
 
 struct Lights {
     lights: array<Light, MAX_LIGHT_COUNT>,
+    light_count: i32,
 };
 
 struct CameraUniform {

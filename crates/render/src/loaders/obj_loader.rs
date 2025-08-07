@@ -88,7 +88,8 @@ impl AssetLoader for ObjLoader {
                 }
             })
             .collect::<Vec<_>>();
-
+        
+        println!("Mesh loaded");
         Ok(Mesh {
             meshes,
             materials: mat_handles,

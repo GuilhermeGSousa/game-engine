@@ -1,10 +1,13 @@
 use ecs::resource::Resource;
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
-use rapier3d::prelude::{
-    CCDSolver, ColliderBuilder, ColliderSet, DefaultBroadPhase, ImpulseJointSet,
-    IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, QueryPipeline,
-    RigidBodySet,
+use rapier3d::{
+    math::Vector,
+    prelude::{
+        CCDSolver, ColliderBuilder, ColliderSet, DefaultBroadPhase, ImpulseJointSet,
+        IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, QueryPipeline,
+        RigidBodySet,
+    },
 };
 
 use crate::{collider::Collider, rigid_body::RigidBody};
@@ -53,9 +56,13 @@ impl PhysicsState {
         width: f32,
         height: f32,
         length: f32,
+        transform: &Transform,
         parent: Option<&RigidBody>,
     ) -> Collider {
-        let col = ColliderBuilder::cuboid(width, height, length).build();
+        let pos = transform.translation;
+        let col = ColliderBuilder::cuboid(width, height, length)
+            .translation(Vector::new(pos.x, pos.y, pos.z))
+            .build();
 
         match parent {
             Some(rb) => Collider(self.collider_set.insert_with_parent(

@@ -1,5 +1,5 @@
 use bytemuck::Pod;
-use ecs::{component::Component, resource::Resource};
+use ecs::{component::Component, query::Query, resource::{Res, Resource}};
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
 use crate::layouts::LightLayouts;
@@ -15,17 +15,30 @@ pub enum Light {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Zeroable)]
-pub struct LightUniform {
+pub(crate) struct LightUniform {
     color: [f32; 4],
 }
 
 impl LightUniform {
     pub fn zeroed() -> Self {
-        Self { color: [0.0; 4] }
+        Self {
+            color: [0.0, 0.0, 1.0, 1.0],
+        }
     }
 }
 
 unsafe impl Pod for LightUniform {}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Zeroable)]
+pub(crate) struct LightsUniform {
+    pub(crate) lights: [LightUniform; MAX_LIGHTS],
+    pub(crate) light_count: i32,
+    pub(crate) _pad_light_count: [i32; 3],
+}
+
+unsafe impl Pod for LightsUniform {}
+
 
 #[derive(Component)]
 pub struct RenderLight {}
@@ -38,11 +51,15 @@ pub(crate) struct RenderLights {
 
 impl RenderLights {
     pub fn new(device: &wgpu::Device, layouts: &LightLayouts) -> Self {
-        let lights = [LightUniform::zeroed(); MAX_LIGHTS];
+        let lights = LightsUniform {
+            lights: [LightUniform::zeroed(); MAX_LIGHTS],
+            light_count: 0,
+            _pad_light_count: [0; 3],
+        };
 
         let lights_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("lights_buffer"),
-            contents: bytemuck::cast_slice(&lights),
+            contents: bytemuck::cast_slice(&[lights]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -62,4 +79,7 @@ impl RenderLights {
     }
 }
 
-pub(crate) fn update_lights_buffer() {}
+pub(crate) fn update_lights_buffer(
+    lights: Query<&RenderLight>,
+    lights_buffer: Res<RenderLights>,
+) {}

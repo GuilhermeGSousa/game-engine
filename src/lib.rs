@@ -1,4 +1,8 @@
-use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
+use essential::{
+    assets::{asset_server::AssetServer, asset_store::AssetStore},
+    time::Time,
+    transform::Transform,
+};
 
 use app::{
     plugins::{AssetManagerPlugin, TimePlugin},
@@ -71,16 +75,18 @@ pub fn run_game() {
 
 fn spawn_player(app: &mut app::App) {
     let camera = Camera::new(1.0, 45.0, 0.1, 100.0);
-    let cam_pos = Vec3::new(0.0, 0.0, 2.0);
-    let cam_rot = Quat::look_at_rh(cam_pos, Vec3::ZERO, Vec3::Y);
+    let cam_pos = Vec3::new(0.0, 2.0, 0.0);
+    let cam_rot = Quat::look_at_rh(Vec3::X, Vec3::ZERO, Vec3::Y);
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
     app.spawn((camera, camera_transform, RenderEntity::new()));
 }
 
 fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
-    let ground_colider = physics_state.make_cuboid(100.0, 2.0, 100.0, None);
-    let ground_transform = Transform::from_translation_rotation(Vec3::Z * -2.0, Quat::IDENTITY);
+    let height = 1.0;
+    let ground_transform =
+        Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
+    let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
 
     cmd.spawn((ground_colider, ground_transform));
 }
@@ -144,17 +150,26 @@ fn spawn_with_collider(
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>("res/cube.obj");
-        let spawn_point = pos.up() * 10.0 + pos.forward() * 5.0;
+        let spawn_point = pos.translation + pos.forward() * 10.0 + pos.up() * 5.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
         let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
         let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
 
         cmd.spawn((
-            MeshComponent { handle },
+            MeshComponent {
+                handle: asset_server.load::<Mesh>("res/cube.obj"),
+            },
             rigid_body,
             collider,
+            cube_transform.clone(),
+            RenderEntity::new(),
+        ));
+
+        cmd.spawn((
+            MeshComponent {
+                handle: asset_server.load::<Mesh>("res/cube.obj").clone(),
+            },
             cube_transform,
             RenderEntity::new(),
         ));
@@ -172,11 +187,5 @@ fn despawn_on_button_press(
         for (entity, _, _) in meshes.iter() {
             cmd.despawn(entity);
         }
-    }
-}
-
-fn rotate_meshes(meshes: Query<(Entity, &MeshComponent, &mut Transform)>, time: Res<Time>) {
-    for (_, _, transform) in meshes.iter() {
-        transform.rotation *= Quat::from_axis_angle(Vec3::Y, time.delta() * 100.0);
     }
 }

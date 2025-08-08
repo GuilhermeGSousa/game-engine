@@ -13,6 +13,13 @@ impl RenderEntity {
         RenderEntity::Uninitialized
     }
 
+    pub fn is_set(&self) -> bool {
+        match self {
+            RenderEntity::Uninitialized => false,
+            RenderEntity::Initialized(_) => true,
+        }
+    }
+
     pub fn set_entity(&mut self, entity: Entity) {
         match self {
             RenderEntity::Uninitialized => *self = RenderEntity::Initialized(entity),

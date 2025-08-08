@@ -70,6 +70,16 @@ impl AssetLoader for ObjLoader {
                             ],
                         };
 
+                        let normal = match m.mesh.normals.len() {
+                            // TODO: Consider computing your own normals if not provided
+                            0 => [0.0; 3],
+                            _ => [
+                                m.mesh.normals[vertex_index * 3],
+                                m.mesh.normals[vertex_index * 3 + 1],
+                                m.mesh.normals[vertex_index * 3 + 2],
+                            ],
+                        };
+
                         Vertex {
                             pos_coords: [
                                 m.mesh.positions[vertex_index * 3],
@@ -77,6 +87,7 @@ impl AssetLoader for ObjLoader {
                                 m.mesh.positions[vertex_index * 3 + 2],
                             ],
                             uv_coords: uv_coords,
+                            normal: normal,
                         }
                     })
                     .collect::<Vec<_>>();
@@ -88,7 +99,7 @@ impl AssetLoader for ObjLoader {
                 }
             })
             .collect::<Vec<_>>();
-        
+
         println!("Mesh loaded");
         Ok(Mesh {
             meshes,

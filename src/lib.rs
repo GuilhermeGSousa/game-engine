@@ -18,7 +18,9 @@ use glam::{Quat, Vec2, Vec3};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::mesh::Mesh,
-    components::{camera::Camera, mesh_component::MeshComponent, render_entity::RenderEntity},
+    components::{
+        camera::Camera, light::Light, mesh_component::MeshComponent, render_entity::RenderEntity,
+    },
     plugin::RenderPlugin,
 };
 
@@ -55,6 +57,7 @@ pub fn run_game() {
         .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
+        .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
         .add_system(
             app::update_group::UpdateGroup::Update,
             spawn_on_button_press,
@@ -79,7 +82,10 @@ fn spawn_player(app: &mut app::App) {
     let cam_rot = Quat::look_at_rh(Vec3::X, Vec3::ZERO, Vec3::Y);
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
-    app.spawn((camera, camera_transform, RenderEntity::new()));
+    let light = Light::Point;
+    // TODO: Fix this bug so we can have an entity that is both a camera and a light
+    app.spawn((camera, camera_transform.clone(), RenderEntity::new()));
+    app.spawn((light, camera_transform.clone(), RenderEntity::new()));
 }
 
 fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
@@ -89,6 +95,16 @@ fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
     let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
 
     cmd.spawn((ground_colider, ground_transform));
+}
+
+fn move_light_to_player(
+    cameras: Query<(&Camera, &Transform)>,
+    light: Query<(&Light, &mut Transform)>,
+) {
+    let (_, transform_cam) = cameras.iter().next().unwrap();
+    let (_, transform_light) = light.iter().next().unwrap();
+
+    transform_light.translation = transform_cam.translation + transform_cam.forward() * 5.0;
 }
 
 fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
@@ -163,14 +179,6 @@ fn spawn_with_collider(
             rigid_body,
             collider,
             cube_transform.clone(),
-            RenderEntity::new(),
-        ));
-
-        cmd.spawn((
-            MeshComponent {
-                handle: asset_server.load::<Mesh>("res/cube.obj").clone(),
-            },
-            cube_transform,
             RenderEntity::new(),
         ));
     }

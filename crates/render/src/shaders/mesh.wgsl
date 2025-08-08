@@ -1,5 +1,6 @@
 struct Light {
     color: vec4<f32>,
+    position: vec3<f32>,
 };
 
 const MAX_LIGHT_COUNT : i32 = 256;
@@ -20,6 +21,7 @@ var<uniform> camera: CameraUniform;
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) tex_coords: vec2<f32>,
+    @location(2) normal: vec3<f32>,
 }
 
 struct TransformInput {
@@ -32,6 +34,9 @@ struct TransformInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
+    // TODO: Do this in view space instead!
+    @location(1) world_normal: vec3<f32>,
+    @location(2) world_position: vec3<f32>,
 }
 
 @vertex
@@ -47,6 +52,9 @@ fn vs_main(
     );
     var out: VertexOutput;
     out.tex_coords = model.tex_coords;
+    out.world_normal = model.normal;
+    var world_position: vec4<f32> = model_matrix * vec4<f32>(model.position, 1.0);
+    out.world_position = world_position.xyz;
     out.clip_position = camera.view_proj * model_matrix * vec4<f32>(model.position, 1.0);
     return out;
 }
@@ -63,6 +71,17 @@ var<uniform> lights: Lights;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return lights.lights[0].color;
-    // return textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let ambient_strength = 0.1;
+
+    let light_dir = normalize(lights.lights[0].position - in.world_position);
+
+    let diffuse_strength = max(dot(in.world_normal, light_dir), 0.0);
+    let diffuse_color = lights.lights[0].color * diffuse_strength;
+
+    let ambient_color = lights.lights[0].color * ambient_strength;
+
+    let result = (ambient_color.xyz + diffuse_color.xyz) * object_color.xyz;
+
+    return vec4<f32>(result, object_color.a);
 }

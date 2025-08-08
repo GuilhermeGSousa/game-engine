@@ -4,13 +4,13 @@ use ecs::{
     query_filter::{Added, Changed},
     resource::Res,
 };
-use essential::transform::Transform;
+use essential::transform::{self, Transform};
 use wgpu::util::DeviceExt;
 
 use crate::{
     components::{
         camera::{Camera, CameraUniform, RenderCamera},
-        light::{Light, RenderLight, RenderLights},
+        light::{self, Light, RenderLight, RenderLights},
         mesh_component::{MeshComponent, RenderMeshInstance},
         render_entity::RenderEntity,
     },
@@ -115,7 +115,10 @@ pub(crate) fn mesh_added(
         };
 
         let mesh_instance_entity = cmd.spawn((instance,));
-        render_entity.set_entity(mesh_instance_entity);
+
+        if !render_entity.is_set() {
+            render_entity.set_entity(mesh_instance_entity);
+        }
     }
 }
 
@@ -141,18 +144,31 @@ pub(crate) fn mesh_moved(
 }
 
 pub(crate) fn light_added(
-    lights: Query<(&Light, &Transform, &mut RenderEntity), Added<(Light,)>>,
+    lights: Query<(&Transform, &mut RenderEntity), Added<Light>>,
     mut cmd: CommandQueue,
-    context: Res<RenderContext>,
 ) {
-    for (light, transform, render_entity) in lights.iter() {
-        render_entity.set_entity(cmd.spawn(RenderLight {}));
+    for (light_transform, render_entity) in lights.iter() {
+        let entity = cmd.spawn(RenderLight {
+            translation: light_transform.translation,
+        });
+        if !render_entity.is_set() {
+            render_entity.set_entity(entity);
+        }
     }
 }
 
 pub(crate) fn light_changed(
-    meshes: Query<(&Light, &Transform, &RenderEntity), Changed<(Transform,)>>,
-    context: Res<RenderContext>,
+    lights: Query<(&Light, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    render_lights: Query<&mut RenderLight>,
 ) {
-    // TODO
+    for (light, transform, render_entity) in lights.iter() {
+        match render_entity {
+            RenderEntity::Uninitialized => {}
+            RenderEntity::Initialized(entity) => {
+                if let Some(render_light) = render_lights.get_entity(*entity) {
+                    render_light.translation = transform.translation;
+                }
+            }
+        }
+    }
 }

@@ -1,6 +1,6 @@
 use std::num::NonZero;
 
-use crate::table::TableRow;
+use crate::table::TableRowIndex;
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub struct Entity {
@@ -28,12 +28,12 @@ pub struct EntityType(pub u64);
 #[derive(Clone, Copy, PartialEq)]
 pub struct EntityLocation {
     pub(crate) archetype_index: u32,
-    pub(crate) row: TableRow,
+    pub(crate) row: TableRowIndex,
 }
 
 impl EntityLocation {
     pub(crate) const INVALID: EntityLocation = EntityLocation {
         archetype_index: u32::MAX,
-        row: TableRow::new(u32::MAX),
+        row: TableRowIndex::new(u32::MAX),
     };
 }

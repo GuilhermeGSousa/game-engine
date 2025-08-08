@@ -2,7 +2,7 @@ use crate::{
     archetype::Archetype,
     component::{Component, ComponentId},
     entity::Entity,
-    table::{Table, TableRow},
+    table::{Table, TableRowIndex},
 };
 use any_vec::any_value::AnyValueWrapper;
 use std::any::TypeId;
@@ -17,14 +17,14 @@ pub trait ComponentBundle {
         archetype: &mut Archetype,
         entity: Entity,
         current_tick: u32,
-    ) -> TableRow;
+    ) -> TableRowIndex;
 
     fn insert_to_archetype(
         self,
         archetype: &mut Archetype,
         current_tick: u32,
         entity: Entity,
-        row: TableRow,
+        row: TableRowIndex,
     );
 
     fn generate_empty_table() -> Table;
@@ -45,8 +45,8 @@ where
         archetype: &mut Archetype,
         entity: Entity,
         current_tick: u32,
-    ) -> TableRow {
-        let table_row = TableRow::new(archetype.len() as u32);
+    ) -> TableRowIndex {
+        let table_row = TableRowIndex::new(archetype.len() as u32);
         archetype.add_entity(entity);
         archetype.add_component(AnyValueWrapper::<T>::new(self), current_tick);
         table_row
@@ -57,7 +57,7 @@ where
         archetype: &mut Archetype,
         current_tick: u32,
         entity: Entity,
-        row: TableRow,
+        row: TableRowIndex,
     ) {
         archetype.insert_entity(entity, row);
         archetype.insert_component(AnyValueWrapper::<T>::new(self), current_tick, row);
@@ -100,8 +100,8 @@ where
         archetype: &mut Archetype,
         entity: Entity,
         current_tick: u32,
-    ) -> TableRow {
-        let table_row = TableRow::new(archetype.len() as u32);
+    ) -> TableRowIndex {
+        let table_row = TableRowIndex::new(archetype.len() as u32);
         archetype.add_entity(entity);
         for typle_index!(i) in 0..T::LEN {
             archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]), current_tick);
@@ -114,7 +114,7 @@ where
         archetype: &mut Archetype,
         current_tick: u32,
         entity: Entity,
-        row: TableRow,
+        row: TableRowIndex,
     ) {
         archetype.insert_entity(entity, row);
         for typle_index!(i) in 0..T::LEN {

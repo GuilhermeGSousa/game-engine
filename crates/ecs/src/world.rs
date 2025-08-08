@@ -79,8 +79,12 @@ impl World {
 
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
 
-                let swapped_entity = archetype.remove_swap(location.row);
-                self.entity_store.set_location(swapped_entity, location);
+                if let Some(swapped_entity) = archetype.entities().last() {
+                    self.entity_store.set_location(*swapped_entity, location);
+                }
+
+                archetype.remove_swap(location.row);
+
                 self.entity_store.free(entity);
             }
             None => panic!("Entity should exist in the world"),

@@ -3,7 +3,7 @@ use any_vec::any_value::AnyValueWrapper;
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
-    table::{RemovedRow, Table, TableRowIndex},
+    table::{Table, TableRow, TableRowIndex},
 };
 
 pub struct Archetype {
@@ -98,11 +98,15 @@ impl Archetype {
         self.data_table.entities()
     }
 
-    pub fn remove_swap(&mut self, row: TableRowIndex) -> RemovedRow {
+    pub fn remove_swap(&mut self, row: TableRowIndex) -> TableRow {
         self.data_table.remove_swap(row)
     }
 
     pub fn component_ids(&self) -> &[ComponentId] {
         &self.component_ids
+    }
+
+    pub fn add_row(&mut self, row: TableRow, current_tick: u32) {
+        self.data_table.add_row(row, current_tick);
     }
 }

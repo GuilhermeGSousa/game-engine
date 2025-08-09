@@ -34,6 +34,6 @@ pub struct EntityLocation {
 impl EntityLocation {
     pub(crate) const INVALID: EntityLocation = EntityLocation {
         archetype_index: u32::MAX,
-        row: TableRowIndex::new(u32::MAX),
+        row: TableRowIndex::new(usize::MAX),
     };
 }

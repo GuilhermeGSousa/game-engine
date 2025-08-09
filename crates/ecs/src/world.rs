@@ -1,6 +1,9 @@
-use std::{cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr};
-
+use any_vec::any_value::AnyValueWrapper;
 use anymap::AnyMap;
+use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::{
+    any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
+};
 
 use crate::{
     archetype::Archetype,
@@ -11,8 +14,8 @@ use crate::{
     entity_store::EntityStore,
     resource::Resource,
     system::system_input::SystemInput,
+    table::{Table, TableRowIndex},
     utilities::TypeIdMap,
-    world,
 };
 
 pub struct World {
@@ -97,6 +100,56 @@ impl World {
 
     pub fn get_archetypes_mut(&mut self) -> &mut Vec<Archetype> {
         &mut self.archetypes
+    }
+
+    pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
+        match self.entity_store.find_location(entity) {
+            Some(location) => {
+                let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
+
+                let inserted_id = TypeId::of::<T>();
+                let mut component_ids = previous_archetype.component_ids().to_vec();
+                component_ids.push(inserted_id);
+
+                let entity_type = generate_type_id(&component_ids);
+
+                // Remove row from previous archetype
+                let mut removed_row = previous_archetype.remove_swap(location.row);
+
+                // Add new component to the removed row
+                removed_row.insert(inserted_id, AnyValueWrapper::<T>::new(component));
+
+                // Add row to new archetype
+                let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
+                    Occupied(occupied_entry) => {
+                        let new_archetype_index = *occupied_entry.get();
+                        let new_archetype = &mut self.archetypes[*occupied_entry.get() as usize];
+                        new_archetype.add_row(removed_row, self.current_tick);
+                        new_archetype_index
+                    }
+                    Vacant(vacant_entry) => {
+                        let new_archetype_index = self.archetypes.len();
+                        let archetype = Archetype::new(
+                            Table::from_row(removed_row, self.current_tick),
+                            component_ids,
+                        );
+                        self.archetypes.push(archetype);
+                        vacant_entry.insert(new_archetype_index);
+                        new_archetype_index
+                    }
+                };
+
+                // Store in entity store
+                self.entity_store.set_location(
+                    entity,
+                    EntityLocation {
+                        archetype_index: archetype_index as u32,
+                        row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
+                    },
+                );
+            }
+            None => panic!("Entity should exist in the world"),
+        }
     }
 
     pub(crate) fn get_entity_store(&self) -> &EntityStore {

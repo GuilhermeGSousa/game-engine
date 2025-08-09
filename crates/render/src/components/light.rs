@@ -57,7 +57,7 @@ pub struct RenderLight {
 impl RenderLight {
     pub(crate) fn to_uniform(&self) -> LightUniform {
         LightUniform {
-            color: [1.0, 0.0, 1.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
             position: self.translation.into(),
             _padding_position: 0.0,
         }

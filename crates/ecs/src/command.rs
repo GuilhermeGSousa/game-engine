@@ -1,5 +1,5 @@
 use crate::{
-    bundle::ComponentBundle, entity::Entity, entity_store::EntityStore,
+    bundle::ComponentBundle, component::Component, entity::Entity, entity_store::EntityStore,
     system::system_input::SystemInput, world::World,
 };
 
@@ -25,6 +25,11 @@ impl<'w, 's> CommandQueue<'w, 's> {
 
     pub fn despawn(&mut self, entity: Entity) {
         self.queue_state.add_command(DespawnCommand::new(entity));
+    }
+
+    pub fn insert<T: Component>(&mut self, component: T, entity: Entity) {
+        self.queue_state
+            .add_command(InsertCommand::new(component, entity));
     }
 }
 
@@ -102,5 +107,22 @@ impl DespawnCommand {
 impl Command for DespawnCommand {
     fn execute(self: Box<Self>, world: &mut World) {
         world.despawn(self.entity);
+    }
+}
+
+pub(crate) struct InsertCommand<T: Component> {
+    component: T,
+    entity: Entity,
+}
+
+impl<T: Component> InsertCommand<T> {
+    pub fn new(component: T, entity: Entity) -> Self {
+        InsertCommand { component, entity }
+    }
+}
+
+impl<T: Component> Command for InsertCommand<T> {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.insert_component(self.component, self.entity);
     }
 }

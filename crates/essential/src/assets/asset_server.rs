@@ -8,10 +8,7 @@ use crossbeam_channel::{Receiver, Sender};
 use ecs::{resource::Resource, world};
 
 use crate::{
-    assets::{
-        handle::{self, StrongAssetHandle},
-        AssetPath,
-    },
+    assets::{handle::StrongAssetHandle, AssetPath},
     tasks::{task_pool::TaskPool, Task},
 };
 
@@ -160,7 +157,7 @@ impl AssetServer {
         let asset_loader = A::loader();
 
         let sender = self.data.asset_load_event_sender.clone();
-        
+
         let server = self.clone();
         let task = LoadTaskPool::get_or_init(TaskPool::new).spawn(async move {
             let asset = asset_loader

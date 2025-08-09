@@ -1,8 +1,4 @@
-use essential::{
-    assets::{asset_server::AssetServer, asset_store::AssetStore},
-    time::Time,
-    transform::Transform,
-};
+use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 
 use app::{
     plugins::{AssetManagerPlugin, TimePlugin},
@@ -57,7 +53,6 @@ pub fn run_game() {
         .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
-        .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
         .add_system(
             app::update_group::UpdateGroup::Update,
             spawn_on_button_press,
@@ -66,8 +61,8 @@ pub fn run_game() {
             app::update_group::UpdateGroup::Update,
             despawn_on_button_press,
         )
-        //.add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
+        .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
         .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor);
 
@@ -83,7 +78,6 @@ fn spawn_player(app: &mut app::App) {
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
     let light = Light::Point;
-    // TODO: Fix this bug so we can have an entity that is both a camera and a light
     app.spawn((camera, camera_transform.clone(), RenderEntity::new()));
     app.spawn((light, camera_transform.clone(), RenderEntity::new()));
 }
@@ -97,18 +91,10 @@ fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
     cmd.spawn((ground_colider, ground_transform));
 }
 
-fn move_light_to_player(
-    cameras: Query<(&Camera, &Transform)>,
-    light: Query<(&Light, &mut Transform)>,
-) {
-    let (_, transform_cam) = cameras.iter().next().unwrap();
-    let (_, transform_light) = light.iter().next().unwrap();
-
-    transform_light.translation = transform_cam.translation + transform_cam.forward() * 5.0;
-}
-
-fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
+fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
     let (_, transform) = cameras.iter().next().unwrap();
+
+    let displacement = 50.0 * time.delta();
 
     let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyD));
     let key_a = input.get_key_state(PhysicalKey::Code(KeyCode::KeyA));
@@ -116,26 +102,27 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
     let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
 
     if key_d == InputState::Pressed || key_d == InputState::Down {
-        transform.translation += transform.right() * 0.1;
+        transform.translation += transform.right() * displacement;
     }
 
     if key_a == InputState::Pressed || key_a == InputState::Down {
-        transform.translation += transform.left() * 0.1;
+        transform.translation += transform.left() * displacement;
     }
 
     if key_w == InputState::Pressed || key_w == InputState::Down {
-        transform.translation += transform.forward() * 0.1;
+        transform.translation += transform.forward() * displacement;
     }
 
     if key_s == InputState::Pressed || key_s == InputState::Down {
-        transform.translation += transform.backward() * 0.1;
+        transform.translation += transform.backward() * displacement;
     }
 
     transform.translation.y = 0.0; // Keep the camera on the ground
 
     let mouse_delta = input.get_mouse_delta();
+    let rotation_delta = mouse_delta.x * 10.0 * time.delta();
     if mouse_delta != Vec2::ZERO {
-        transform.rotation *= Quat::from_axis_angle(Vec3::Y, mouse_delta.x * 0.01);
+        transform.rotation *= Quat::from_axis_angle(Vec3::Y, rotation_delta);
     }
 }
 
@@ -196,4 +183,14 @@ fn despawn_on_button_press(
             cmd.despawn(entity);
         }
     }
+}
+
+fn move_light_to_player(
+    cameras: Query<(&Camera, &Transform)>,
+    light: Query<(&Light, &mut Transform)>,
+) {
+    let (_, transform_cam) = cameras.iter().next().unwrap();
+    let (_, transform_light) = light.iter().next().unwrap();
+
+    transform_light.translation = transform_cam.translation + transform_cam.forward() * 5.0;
 }

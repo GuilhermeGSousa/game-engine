@@ -4,13 +4,13 @@ use ecs::{
     query_filter::{Added, Changed},
     resource::Res,
 };
-use essential::transform::{self, Transform};
+use essential::transform::Transform;
 use wgpu::util::DeviceExt;
 
 use crate::{
     components::{
         camera::{Camera, CameraUniform, RenderCamera},
-        light::{self, Light, RenderLight, RenderLights},
+        light::{Light, RenderLight},
         mesh_component::{MeshComponent, RenderMeshInstance},
         render_entity::RenderEntity,
     },
@@ -25,7 +25,7 @@ pub(crate) fn camera_added(
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayouts>,
 ) {
-    for (camera, transform, render_entity_component) in cameras.iter() {
+    for (camera, transform, render_entity) in cameras.iter() {
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(camera, transform);
 
@@ -58,14 +58,22 @@ pub(crate) fn camera_added(
             .queue
             .write_buffer(&camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
 
-        let render_entity = cmd.spawn((RenderCamera {
+        let render_cam = RenderCamera {
             camera_bind_group: camera_bind_group,
             camera_uniform: camera_uniform,
             camera_buffer: camera_buffer,
             depth_texture: depth_texture,
-        },));
+        };
 
-        render_entity_component.set_entity(render_entity);
+        match render_entity {
+            RenderEntity::Uninitialized => {
+                let new_entity = cmd.spawn(render_cam);
+                render_entity.set_entity(new_entity);
+            }
+            RenderEntity::Initialized(entity) => {
+                cmd.insert(render_cam, *entity);
+            }
+        }
     }
 }
 
@@ -114,10 +122,14 @@ pub(crate) fn mesh_added(
             buffer: instance_buffer,
         };
 
-        let mesh_instance_entity = cmd.spawn((instance,));
-
-        if !render_entity.is_set() {
-            render_entity.set_entity(mesh_instance_entity);
+        match render_entity {
+            RenderEntity::Uninitialized => {
+                let new_entity = cmd.spawn(instance);
+                render_entity.set_entity(new_entity);
+            }
+            RenderEntity::Initialized(entity) => {
+                cmd.insert(instance, *entity);
+            }
         }
     }
 }
@@ -148,11 +160,17 @@ pub(crate) fn light_added(
     mut cmd: CommandQueue,
 ) {
     for (light_transform, render_entity) in lights.iter() {
-        let entity = cmd.spawn(RenderLight {
+        let render_light = RenderLight {
             translation: light_transform.translation,
-        });
-        if !render_entity.is_set() {
-            render_entity.set_entity(entity);
+        };
+        match render_entity {
+            RenderEntity::Uninitialized => {
+                let new_entity = cmd.spawn(render_light);
+                render_entity.set_entity(new_entity);
+            }
+            RenderEntity::Initialized(entity) => {
+                cmd.insert(render_light, *entity);
+            }
         }
     }
 }
@@ -161,7 +179,7 @@ pub(crate) fn light_changed(
     lights: Query<(&Light, &Transform, &RenderEntity), Changed<(Transform,)>>,
     render_lights: Query<&mut RenderLight>,
 ) {
-    for (light, transform, render_entity) in lights.iter() {
+    for (_light, transform, render_entity) in lights.iter() {
         match render_entity {
             RenderEntity::Uninitialized => {}
             RenderEntity::Initialized(entity) => {

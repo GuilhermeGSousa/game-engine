@@ -13,14 +13,14 @@ mod tests {
     #[test]
     fn test_task() {
         let task_pool = TaskPool::new();
-        let task_1 = task_pool.spawn(async {
+        let _ = task_pool.spawn(async {
             for i in 0..1000 {
                 println!("Task 1 {}", i);
                 std::thread::sleep(std::time::Duration::from_millis(1));
             }
         });
 
-        let task_2 = task_pool.spawn(async {
+        let _ = task_pool.spawn(async {
             for i in 0..1000 {
                 println!("Task 2 {}", i);
                 std::thread::sleep(std::time::Duration::from_millis(1));

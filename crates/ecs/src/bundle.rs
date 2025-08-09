@@ -46,7 +46,7 @@ where
         entity: Entity,
         current_tick: u32,
     ) -> TableRowIndex {
-        let table_row = TableRowIndex::new(archetype.len() as u32);
+        let table_row = TableRowIndex::new(archetype.len());
         archetype.add_entity(entity);
         archetype.add_component(AnyValueWrapper::<T>::new(self), current_tick);
         table_row
@@ -101,7 +101,7 @@ where
         entity: Entity,
         current_tick: u32,
     ) -> TableRowIndex {
-        let table_row = TableRowIndex::new(archetype.len() as u32);
+        let table_row = TableRowIndex::new(archetype.len());
         archetype.add_entity(entity);
         for typle_index!(i) in 0..T::LEN {
             archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]), current_tick);

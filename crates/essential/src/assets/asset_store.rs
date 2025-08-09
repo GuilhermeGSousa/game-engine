@@ -40,20 +40,18 @@ impl<A: Asset + 'static> AssetStore<A> {
     where
         A: 'static,
     {
-        let entry = AssetStoreEntry {
-            asset,
-        };
+        let entry = AssetStoreEntry { asset };
         self.assets.insert(id, entry);
     }
 
     pub fn track_assets(&mut self, mut asset_server: ResMut<AssetServer>) {
         for event in self.drop_receiver.try_iter() {
-            if let Some(entry) = self.assets.get_mut(&event.id()) {
+            if let Some(_) = self.assets.get_mut(&event.id()) {
                 match event {
                     AssetLifetimeEvent::Dropped(id) => {
                         self.assets.remove(&id);
                         asset_server.process_handle_drop(&id);
-                    },
+                    }
                 }
             }
         }

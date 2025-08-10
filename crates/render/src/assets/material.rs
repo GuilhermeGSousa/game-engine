@@ -6,12 +6,14 @@ use super::texture::Texture;
 
 pub struct Material {
     diffuse_texture: Option<AssetHandle<Texture>>,
+    normal_texture: Option<AssetHandle<Texture>>,
 }
 
 impl Material {
     pub fn new() -> Self {
         Self {
             diffuse_texture: None,
+            normal_texture: None,
         }
     }
 
@@ -21,6 +23,14 @@ impl Material {
 
     pub fn diffuse_texture(&self) -> Option<&AssetHandle<Texture>> {
         self.diffuse_texture.as_ref()
+    }
+
+    pub fn set_normal_texture(&mut self, texture: AssetHandle<Texture>) {
+        self.normal_texture = Some(texture);
+    }
+
+    pub fn normal_texture(&self) -> Option<&AssetHandle<Texture>> {
+        self.normal_texture.as_ref()
     }
 }
 

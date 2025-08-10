@@ -10,7 +10,7 @@ use crate::{
 use super::render_texture::RenderTexture;
 
 pub(crate) struct RenderMaterial {
-    pub(crate) diffuse_bind_group: wgpu::BindGroup,
+    pub(crate) bind_group: wgpu::BindGroup,
 }
 
 impl RenderAsset for RenderMaterial {
@@ -28,36 +28,55 @@ impl RenderAsset for RenderMaterial {
     ) -> Result<Self, AssetPreparationError> {
         let (render_context, render_textures, mesh_layouts) = params;
 
-        let diffuse_texture = source_asset.diffuse_texture();
-
-        let mut entries = Vec::new();
-
-        if let Some(diffuse_texture) = diffuse_texture {
-            if let Some(render_texture) = render_textures.get(&diffuse_texture.id()) {
-                entries.push(wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&render_texture.view),
-                });
-                entries.push(wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&render_texture.sampler),
-                });
-
-                let diffuse_bind_group =
-                    render_context
-                        .device
-                        .create_bind_group(&wgpu::BindGroupDescriptor {
-                            layout: &mesh_layouts.mesh_layout,
-                            entries: &entries,
-                            label: Some("diffuse_bind_group"),
-                        });
-
-                Ok(RenderMaterial { diffuse_bind_group })
-            } else {
-                Err(AssetPreparationError::NotReady)
+        match (
+            source_asset.diffuse_texture(),
+            source_asset.normal_texture(),
+        ) {
+            (Some(diffuse_tex_handle), Some(normal_tex_handle)) => {
+                match (
+                    render_textures.get(&diffuse_tex_handle.id()),
+                    render_textures.get(&normal_tex_handle.id()),
+                ) {
+                    (Some(diffuse_tex), Some(normal_tex)) => {
+                        let bind_group =
+                            render_context
+                                .device
+                                .create_bind_group(&wgpu::BindGroupDescriptor {
+                                    layout: &mesh_layouts.mesh_layout,
+                                    entries: &[
+                                        wgpu::BindGroupEntry {
+                                            binding: 0,
+                                            resource: wgpu::BindingResource::TextureView(
+                                                &diffuse_tex.view,
+                                            ),
+                                        },
+                                        wgpu::BindGroupEntry {
+                                            binding: 1,
+                                            resource: wgpu::BindingResource::Sampler(
+                                                &diffuse_tex.sampler,
+                                            ),
+                                        },
+                                        wgpu::BindGroupEntry {
+                                            binding: 2,
+                                            resource: wgpu::BindingResource::TextureView(
+                                                &normal_tex.view,
+                                            ),
+                                        },
+                                        wgpu::BindGroupEntry {
+                                            binding: 3,
+                                            resource: wgpu::BindingResource::Sampler(
+                                                &normal_tex.sampler,
+                                            ),
+                                        },
+                                    ],
+                                    label: Some("material_bind_group"),
+                                });
+                        Ok(RenderMaterial { bind_group })
+                    }
+                    _ => Err(AssetPreparationError::NotReady),
+                }
             }
-        } else {
-            Err(AssetPreparationError::NotReady)
+            _ => Err(AssetPreparationError::NotReady),
         }
     }
 }

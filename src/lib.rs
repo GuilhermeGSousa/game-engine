@@ -78,7 +78,11 @@ fn spawn_player(app: &mut app::App) {
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
     let light = Light::Point;
-    app.spawn((camera, camera_transform.clone(), RenderEntity::new()));
+    app.spawn((
+        camera,
+        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+        RenderEntity::new(),
+    ));
     app.spawn((light, camera_transform.clone(), RenderEntity::new()));
 }
 
@@ -94,7 +98,7 @@ fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
 fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
     let (_, transform) = cameras.iter().next().unwrap();
 
-    let displacement = 50.0 * time.delta();
+    let displacement = 100.0 * time.delta();
 
     let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyD));
     let key_a = input.get_key_state(PhysicalKey::Code(KeyCode::KeyA));
@@ -136,7 +140,7 @@ fn spawn_on_button_press(
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
 
     if key_p == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>("res/cube.obj");
+        let handle = asset_server.load::<Mesh>("res/sphere.obj");
         cmd.spawn((MeshComponent { handle }, pos.clone(), RenderEntity::new()));
     }
 }
@@ -153,18 +157,18 @@ fn spawn_with_collider(
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
-        let spawn_point = pos.translation + pos.forward() * 10.0 + pos.up() * 5.0;
+        let spawn_point = pos.translation + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
-        let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
+        // let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
-        let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
+        // let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
 
         cmd.spawn((
             MeshComponent {
-                handle: asset_server.load::<Mesh>("res/cube.obj"),
+                handle: asset_server.load::<Mesh>("res/sphere.obj"),
             },
-            rigid_body,
-            collider,
+            // rigid_body,
+            // collider,
             cube_transform.clone(),
             RenderEntity::new(),
         ));
@@ -192,5 +196,6 @@ fn move_light_to_player(
     let (_, transform_cam) = cameras.iter().next().unwrap();
     let (_, transform_light) = light.iter().next().unwrap();
 
-    transform_light.translation = transform_cam.translation + transform_cam.forward() * 5.0;
+    transform_light.translation =
+        transform_cam.translation + transform_cam.forward() * 2.0 + transform_cam.up();
 }

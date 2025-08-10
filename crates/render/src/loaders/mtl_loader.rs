@@ -32,6 +32,12 @@ impl AssetLoader for MTLLoader {
                             load_context.asset_server().load::<Texture>(diffuse_texture);
                         material.set_diffuse_texture(texture_handle);
                     }
+
+                    if let Some(normal_texture) = m.normal_texture {
+                        let texture_handle =
+                            load_context.asset_server().load::<Texture>(normal_texture);
+                        material.set_normal_texture(texture_handle);
+                    }
                 }
                 return Ok(material);
             }

@@ -77,7 +77,7 @@ pub(crate) fn render(
                             if let Some(render_mat) =
                                 render_materials.get(&submesh.material.unwrap())
                             {
-                                render_pass.set_bind_group(0, &render_mat.diffuse_bind_group, &[]);
+                                render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
                             } else {
                                 continue;
                             }

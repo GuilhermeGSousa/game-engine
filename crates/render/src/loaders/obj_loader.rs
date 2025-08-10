@@ -4,6 +4,8 @@ use async_trait::async_trait;
 use essential::assets::{
     asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
 };
+use glam::{Vec2, Vec3};
+use tobj::Model;
 
 use crate::assets::{
     material::Material,
@@ -60,7 +62,7 @@ impl AssetLoader for ObjLoader {
         let meshes = models
             .into_iter()
             .map(|m| {
-                let vertices = (0..m.mesh.positions.len() / 3)
+                let mut vertices = (0..m.mesh.positions.len() / 3)
                     .map(|vertex_index| {
                         let uv_coords = match m.mesh.texcoords.len() {
                             0 => [0.0, 0.0],
@@ -88,9 +90,14 @@ impl AssetLoader for ObjLoader {
                             ],
                             uv_coords: uv_coords,
                             normal: normal,
+                            // We'll calculate these later
+                            tangent: [0.0; 3],
+                            bitangent: [0.0; 3],
                         }
                     })
                     .collect::<Vec<_>>();
+
+                ObjLoader::compute_tangents(&m, &mut vertices);
 
                 SubMesh {
                     vertices,
@@ -105,5 +112,60 @@ impl AssetLoader for ObjLoader {
             meshes,
             materials: mat_handles,
         })
+    }
+}
+
+impl ObjLoader {
+    fn compute_tangents(model: &Model, vertices: &mut Vec<Vertex>) {
+        let mut triangles_included = vec![0; vertices.len()];
+
+        model.mesh.indices.chunks(3).for_each(|index_chunk| {
+            let v0 = vertices[index_chunk[0] as usize];
+            let v1 = vertices[index_chunk[1] as usize];
+            let v2 = vertices[index_chunk[2] as usize];
+
+            let pos0: Vec3 = v0.pos_coords.into();
+            let pos1: Vec3 = v1.pos_coords.into();
+            let pos2: Vec3 = v2.pos_coords.into();
+
+            let uv0: Vec2 = v0.uv_coords.into();
+            let uv1: Vec2 = v1.uv_coords.into();
+            let uv2: Vec2 = v2.uv_coords.into();
+
+            let delta_pos1 = pos1 - pos0;
+            let delta_pos2 = pos2 - pos0;
+
+            let delta_uv1 = uv1 - uv0;
+            let delta_uv2 = uv2 - uv0;
+
+            let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
+            let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
+            let bitangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
+
+            vertices[index_chunk[0] as usize].tangent =
+                (tangent + Vec3::from(vertices[index_chunk[0] as usize].tangent)).into();
+            vertices[index_chunk[1] as usize].tangent =
+                (tangent + Vec3::from(vertices[index_chunk[1] as usize].tangent)).into();
+            vertices[index_chunk[2] as usize].tangent =
+                (tangent + Vec3::from(vertices[index_chunk[2] as usize].tangent)).into();
+
+            vertices[index_chunk[0] as usize].bitangent =
+                (bitangent + Vec3::from(vertices[index_chunk[0] as usize].bitangent)).into();
+            vertices[index_chunk[1] as usize].bitangent =
+                (bitangent + Vec3::from(vertices[index_chunk[1] as usize].bitangent)).into();
+            vertices[index_chunk[2] as usize].bitangent =
+                (bitangent + Vec3::from(vertices[index_chunk[2] as usize].bitangent)).into();
+
+            triangles_included[index_chunk[0] as usize] += 1;
+            triangles_included[index_chunk[1] as usize] += 1;
+            triangles_included[index_chunk[2] as usize] += 1;
+        });
+
+        for (i, n) in triangles_included.into_iter().enumerate() {
+            let denom = 1.0 / n as f32;
+            let v = &mut vertices[i];
+            v.tangent = (Vec3::from(v.tangent) * denom).into();
+            v.bitangent = (Vec3::from(v.bitangent) * denom).into();
+        }
     }
 }

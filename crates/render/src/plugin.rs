@@ -95,7 +95,7 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\mesh.wgsl"));
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
 
         let camera_layouts = CameraLayouts::new(&device);
 

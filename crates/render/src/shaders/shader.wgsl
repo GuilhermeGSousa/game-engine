@@ -1,10 +1,5 @@
 const TOON_LEVELS = 3u; // Number of color bands
 
-struct Light {
-    color: vec4<f32>,
-    position: vec3<f32>,
-};
-
 const MAX_LIGHT_COUNT : i32 = 256;
 
 struct Lights {
@@ -17,6 +12,17 @@ struct CameraUniform {
     view_proj: mat4x4<f32>,
 };
 
+struct Light {
+    color: vec4<f32>,
+    position: vec3<f32>,
+};
+
+struct MaterialFlags{
+    flags: u32,
+}
+
+const HAS_DIFFUSE_TEXTURE = 1u << 0u;
+const HAS_NORMAL_TEXTURE = 1u << 1u;
 
 @group(1) @binding(0)
 var<uniform> camera: CameraUniform;
@@ -90,6 +96,8 @@ var s_diffuse: sampler;
 var t_normal: texture_2d<f32>;
 @group(0) @binding(3)
 var s_normal: sampler;
+@group(0) @binding(4)
+var<uniform> material_flags: MaterialFlags;
 
 @group(2) @binding(0)
 var<uniform> lights: Lights;
@@ -100,7 +108,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 
 fn phong_fs(in: VertexOutput) -> vec4<f32> {
-    let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let object_color: vec4<f32> = sample_diffuse(in.tex_coords);
     let object_normal: vec4<f32> = textureSample(t_normal, s_normal, in.tex_coords);
 
      // Normal mapping calculations
@@ -172,4 +180,20 @@ fn cell_fs(in: VertexOutput, light_index: i32) -> vec4<f32> {
 fn cel_shade(amount: f32, levels: u32) -> f32 {
     let stepped = floor(amount * f32(levels)) / f32(levels);
     return smoothstep(0.0, 0.1, stepped);
+}
+
+fn sample_diffuse(tex_coords: vec2<f32>) -> vec4<f32> {
+    if ((material_flags.flags & HAS_DIFFUSE_TEXTURE) != 0u) {
+        return textureSample(t_diffuse, s_diffuse, tex_coords);
+    } else {
+        return vec4<f32>(1.0, 0.0, 1.0, 1.0); // Default Magenta
+    }
+}
+
+fn sample_normal(tex_coords: vec2<f32>) -> vec4<f32> {
+    if ((material_flags.flags & HAS_NORMAL_TEXTURE) != 0u) {
+        return textureSample(t_normal, s_normal, tex_coords);
+    } else {
+        return vec4<f32>(0.5, 0.5, 1.0, 1.0); // Default flat normal
+    }
 }

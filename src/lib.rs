@@ -140,7 +140,7 @@ fn spawn_on_button_press(
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
 
     if key_p == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>("res/sphere.obj");
+        let handle = asset_server.load::<Mesh>("res/cube.obj");
         cmd.spawn((MeshComponent { handle }, pos.clone(), RenderEntity::new()));
     }
 }
@@ -165,7 +165,7 @@ fn spawn_with_collider(
 
         cmd.spawn((
             MeshComponent {
-                handle: asset_server.load::<Mesh>("res/sphere.obj"),
+                handle: asset_server.load::<Mesh>("res/cube.obj"),
             },
             // rigid_body,
             // collider,

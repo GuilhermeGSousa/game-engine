@@ -1,4 +1,4 @@
-use ecs::{component::Component, resource::Res};
+use ecs::{resource::Res};
 use essential::assets::AssetId;
 use wgpu::util::DeviceExt;
 

@@ -1,7 +1,8 @@
 use ecs::resource::Res;
+use wgpu::{util::{BufferInitDescriptor, DeviceExt}, BufferDescriptor, BufferUsages};
 
 use crate::{
-    assets::material::Material,
+    assets::material::{Material, MaterialFlags},
     layouts::MeshLayouts,
     render_asset::{
         render_texture::DummyRenderTexture, AssetPreparationError, RenderAsset, RenderAssets,
@@ -80,6 +81,19 @@ impl RenderAsset for RenderMaterial {
                 resource: wgpu::BindingResource::Sampler(&dummy_texture.sampler),
             });
         }
+
+        let material_flags_buffer = render_context.device.create_buffer_init(
+            &BufferInitDescriptor {
+                label: Some("material_flags"),
+                contents: bytemuck::cast_slice(&[MaterialFlags::from_material(source_asset)]),
+                usage: BufferUsages::UNIFORM,
+            }
+            );
+        
+        entries.push(wgpu::BindGroupEntry {
+            binding: 4,
+            resource: wgpu::BindingResource::Buffer(material_flags_buffer.as_entire_buffer_binding())
+        });
 
         let bind_group = render_context
             .device

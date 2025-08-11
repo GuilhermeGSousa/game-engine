@@ -14,8 +14,11 @@ use crate::{
     },
     layouts::{CameraLayouts, LightLayouts, MeshLayouts},
     render_asset::{
-        render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::RenderTexture,
-        render_window::RenderWindow, RenderAssetPlugin,
+        render_material::RenderMaterial,
+        render_mesh::RenderMesh,
+        render_texture::{DummyRenderTexture, RenderTexture},
+        render_window::RenderWindow,
+        RenderAssetPlugin,
     },
     resources::RenderContext,
     systems::{
@@ -168,18 +171,19 @@ impl Plugin for RenderPlugin {
 
         let render_lights = RenderLights::new(&device, &light_layouts);
 
-        app.insert_resource(RenderContext {
-            device: device,
-            surface: surface,
-            surface_config: config,
-            queue: queue,
-            pipeline: render_pipeline,
-        })
-        .insert_resource(RenderWindow::new())
-        .insert_resource(mesh_layouts)
-        .insert_resource(camera_layouts)
-        .insert_resource(light_layouts)
-        .insert_resource(render_lights);
+        app.insert_resource(DummyRenderTexture::new(&device))
+            .insert_resource(RenderContext {
+                device: device,
+                surface: surface,
+                surface_config: config,
+                queue: queue,
+                pipeline: render_pipeline,
+            })
+            .insert_resource(RenderWindow::new())
+            .insert_resource(mesh_layouts)
+            .insert_resource(camera_layouts)
+            .insert_resource(light_layouts)
+            .insert_resource(render_lights);
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
             .register_plugin(RenderAssetPlugin::<RenderTexture>::new())

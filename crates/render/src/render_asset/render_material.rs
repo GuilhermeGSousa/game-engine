@@ -3,7 +3,9 @@ use ecs::resource::Res;
 use crate::{
     assets::material::Material,
     layouts::MeshLayouts,
-    render_asset::{AssetPreparationError, RenderAsset, RenderAssets},
+    render_asset::{
+        render_texture::DummyRenderTexture, AssetPreparationError, RenderAsset, RenderAssets,
+    },
     resources::RenderContext,
 };
 
@@ -19,6 +21,7 @@ impl RenderAsset for RenderMaterial {
     type PreparationParams = (
         Res<'static, RenderContext>,
         Res<'static, RenderAssets<RenderTexture>>,
+        Res<'static, DummyRenderTexture>,
         Res<'static, MeshLayouts>,
     );
 
@@ -26,57 +29,68 @@ impl RenderAsset for RenderMaterial {
         source_asset: &Self::SourceAsset,
         params: &mut ecs::system::system_input::SystemInputData<Self::PreparationParams>,
     ) -> Result<Self, AssetPreparationError> {
-        let (render_context, render_textures, mesh_layouts) = params;
+        let (render_context, render_textures, dummy_texture, mesh_layouts) = params;
 
-        match (
-            source_asset.diffuse_texture(),
-            source_asset.normal_texture(),
-        ) {
-            (Some(diffuse_tex_handle), Some(normal_tex_handle)) => {
-                match (
-                    render_textures.get(&diffuse_tex_handle.id()),
-                    render_textures.get(&normal_tex_handle.id()),
-                ) {
-                    (Some(diffuse_tex), Some(normal_tex)) => {
-                        let bind_group =
-                            render_context
-                                .device
-                                .create_bind_group(&wgpu::BindGroupDescriptor {
-                                    layout: &mesh_layouts.mesh_layout,
-                                    entries: &[
-                                        wgpu::BindGroupEntry {
-                                            binding: 0,
-                                            resource: wgpu::BindingResource::TextureView(
-                                                &diffuse_tex.view,
-                                            ),
-                                        },
-                                        wgpu::BindGroupEntry {
-                                            binding: 1,
-                                            resource: wgpu::BindingResource::Sampler(
-                                                &diffuse_tex.sampler,
-                                            ),
-                                        },
-                                        wgpu::BindGroupEntry {
-                                            binding: 2,
-                                            resource: wgpu::BindingResource::TextureView(
-                                                &normal_tex.view,
-                                            ),
-                                        },
-                                        wgpu::BindGroupEntry {
-                                            binding: 3,
-                                            resource: wgpu::BindingResource::Sampler(
-                                                &normal_tex.sampler,
-                                            ),
-                                        },
-                                    ],
-                                    label: Some("material_bind_group"),
-                                });
-                        Ok(RenderMaterial { bind_group })
-                    }
-                    _ => Err(AssetPreparationError::NotReady),
-                }
+        let mut entries = Vec::new();
+
+        if let Some(diffuse_tex_handle) = source_asset.diffuse_texture() {
+            if let Some(diffuse_tex) = render_textures.get(&diffuse_tex_handle.id()) {
+                entries.push(wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_tex.view),
+                });
+                entries.push(wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_tex.sampler),
+                });
+            } else {
+                return Err(AssetPreparationError::NotReady);
             }
-            _ => Err(AssetPreparationError::NotReady),
+        } else {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&dummy_texture.view),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&dummy_texture.sampler),
+            });
         }
+
+        if let Some(normal_tex_handle) = source_asset.normal_texture() {
+            if let Some(normal_tex) = render_textures.get(&normal_tex_handle.id()) {
+                entries.push(wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&normal_tex.view),
+                });
+                entries.push(wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Sampler(&normal_tex.sampler),
+                });
+            } else {
+                return Err(AssetPreparationError::NotReady);
+            }
+        } else {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(&dummy_texture.view),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::Sampler(&dummy_texture.sampler),
+            });
+        }
+
+        let bind_group = render_context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &mesh_layouts.mesh_layout,
+                entries: &entries,
+                label: Some("material_bind_group"),
+            });
+
+        Ok(RenderMaterial { bind_group })
     }
 }
+
+impl RenderMaterial {}

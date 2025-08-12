@@ -74,7 +74,7 @@ impl AssetLoader for ObjLoader {
 
                         let normal = match m.mesh.normals.len() {
                             // TODO: Consider computing your own normals if not provided
-                            0 => [0.0; 3],
+                            0 => [0.0, 0.0, 1.0],
                             _ => [
                                 m.mesh.normals[vertex_index * 3],
                                 m.mesh.normals[vertex_index * 3 + 1],

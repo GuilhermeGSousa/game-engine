@@ -34,6 +34,8 @@ use crate::game_ui::render_ui;
 
 pub mod game_ui;
 
+const MESH_ASSET: &str = "res/dragon.obj";
+
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {
     cfg_if::cfg_if! {
@@ -98,7 +100,7 @@ fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
 fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
     let (_, transform) = cameras.iter().next().unwrap();
 
-    let displacement = 100.0 * time.delta();
+    let displacement = 500.0 * time.delta();
 
     let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyD));
     let key_a = input.get_key_state(PhysicalKey::Code(KeyCode::KeyA));
@@ -139,9 +141,15 @@ fn spawn_on_button_press(
     let (_, pos) = cameras.iter().next().expect("No camera found");
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
 
+    let mut mesh_transform = pos.clone();
+    mesh_transform.translation = pos.translation + pos.forward() * 50.0;
     if key_p == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>("res/cube.obj");
-        cmd.spawn((MeshComponent { handle }, pos.clone(), RenderEntity::new()));
+        let handle = asset_server.load::<Mesh>(MESH_ASSET);
+        cmd.spawn((
+            MeshComponent { handle },
+            mesh_transform,
+            RenderEntity::new(),
+        ));
     }
 }
 
@@ -159,16 +167,16 @@ fn spawn_with_collider(
     if key_r == InputState::Pressed {
         let spawn_point = pos.translation + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
-        // let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
+        let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
-        // let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
+        let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
 
         cmd.spawn((
             MeshComponent {
-                handle: asset_server.load::<Mesh>("res/cube.obj"),
+                handle: asset_server.load::<Mesh>(MESH_ASSET),
             },
-            // rigid_body,
-            // collider,
+            rigid_body,
+            collider,
             cube_transform.clone(),
             RenderEntity::new(),
         ));

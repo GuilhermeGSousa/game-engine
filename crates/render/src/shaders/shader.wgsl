@@ -2,6 +2,21 @@ const TOON_LEVELS = 3.0; // Number of color bands
 
 const MAX_LIGHT_COUNT : i32 = 256;
 
+const HAS_DIFFUSE_TEXTURE = 1u << 0u;
+const HAS_NORMAL_TEXTURE = 1u << 1u;
+
+struct MaterialFlags{
+    flags: u32,
+}
+
+struct Light {
+    color: vec4<f32>,
+    intensity: f32,
+    position: vec3<f32>,
+    direction: vec3<f32>,
+    light_type: u32,
+};
+
 struct Lights {
     lights: array<Light, MAX_LIGHT_COUNT>,
     light_count: i32,
@@ -11,18 +26,6 @@ struct CameraUniform {
     view_pos: vec3<f32>,
     view_proj: mat4x4<f32>,
 };
-
-struct Light {
-    color: vec4<f32>,
-    position: vec3<f32>,
-};
-
-struct MaterialFlags {
-    flags: u32,
-}
-
-const HAS_DIFFUSE_TEXTURE = 1u << 0u;
-const HAS_NORMAL_TEXTURE = 1u << 1u;
 
 @group(1) @binding(0)
 var<uniform> camera: CameraUniform;
@@ -130,7 +133,7 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         // Simple Lambertian diffuse
         let intensity = 1000.0;
         let NdotL = max(dot(mapped_normal, light_dir), 0.0);
-        let diffuse = object_color * light.color * light.color.a * NdotL * intensity;
+        let diffuse = object_color * light.color * light.color.a * NdotL * light.intensity;
 
         // Simple Blinn-Phong specular
         let halfway_dir = normalize(light_dir + view_dir);

@@ -1,5 +1,5 @@
 use ecs::resource::Res;
-use wgpu::{util::{BufferInitDescriptor, DeviceExt}, BufferDescriptor, BufferUsages};
+use wgpu::{util::{BufferInitDescriptor, DeviceExt}, BufferUsages};
 
 use crate::{
     assets::material::{Material, MaterialFlags},

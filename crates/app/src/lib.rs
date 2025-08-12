@@ -18,7 +18,7 @@ use essential::{
     time::Time,
 };
 use plugins::Plugin;
-use std::{mem::replace, time::Instant};
+use std::{mem::replace};
 use update_group::UpdateGroup;
 
 pub mod plugins;

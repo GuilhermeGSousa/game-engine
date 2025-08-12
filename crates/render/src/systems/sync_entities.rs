@@ -156,12 +156,16 @@ pub(crate) fn mesh_moved(
 }
 
 pub(crate) fn light_added(
-    lights: Query<(&Transform, &mut RenderEntity), Added<Light>>,
+    lights: Query<(&Light, &Transform, &mut RenderEntity), Added<Light>>,
     mut cmd: CommandQueue,
 ) {
-    for (light_transform, render_entity) in lights.iter() {
+    for (light, light_transform, render_entity) in lights.iter() {
         let render_light = RenderLight {
             translation: light_transform.translation,
+            color: light.color,
+            intensity: light.intensity,
+            direction: light_transform.forward(),
+            light_type: light.light_type as u32,
         };
         match render_entity {
             RenderEntity::Uninitialized => {

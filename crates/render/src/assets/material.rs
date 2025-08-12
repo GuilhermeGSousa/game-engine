@@ -55,7 +55,7 @@ bitflags! {
 impl MaterialFlags {
     pub(crate) fn from_material(material: &Material) -> Self
     {
-        let mut flags: MaterialFlags = MaterialFlags(0);;
+        let mut flags: MaterialFlags = MaterialFlags(0);
         if material.diffuse_texture.is_some()
         {
             flags |= MaterialFlags::HAS_DIFFUSE_TEXTURE;

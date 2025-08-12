@@ -4,8 +4,8 @@ use ecs::{
     query::Query,
     resource::{Res, Resource},
 };
-use essential::transform::Transform;
-use glam::Vec3;
+
+use glam::{Vec3, Vec4};
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
 use crate::{layouts::LightLayouts, resources::RenderContext};
@@ -13,31 +13,43 @@ use crate::{layouts::LightLayouts, resources::RenderContext};
 const MAX_LIGHTS: usize = 256;
 
 #[derive(Component)]
-pub enum Light {
-    Point,
-    Spot,
-    Directional,
+pub struct Light {
+    pub color: Vec4,
+    pub intensity: f32,
+    pub light_type: LighType,
+}
+
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum LighType {
+    Point = 1,
+    Spot = 2,
+    Directional = 3,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, bytemuck::Zeroable)]
+#[derive(Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
 pub(crate) struct LightUniform {
     color: [f32; 4],
+    intensity: f32,
     position: [f32; 3],
-    _padding_position: f32,
+    direction: [f32; 3],
+    light_type: u32,
+    _padding: [u32; 4],
 }
 
 impl LightUniform {
     pub fn zeroed() -> Self {
         Self {
             color: [0.0, 0.0, 1.0, 1.0],
+            intensity: 0.0,
             position: [0.0; 3],
-            _padding_position: 0.0,
+            direction: [0.0; 3],
+            light_type: 0,
+            _padding: [0; 4],
         }
     }
 }
-
-unsafe impl Pod for LightUniform {}
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Zeroable)]
@@ -51,15 +63,22 @@ unsafe impl Pod for LightsUniform {}
 
 #[derive(Component)]
 pub struct RenderLight {
+    pub(crate) color: Vec4,
+    pub(crate) intensity: f32,
     pub(crate) translation: Vec3,
+    pub(crate) direction: Vec3,
+    pub(crate) light_type: u32,
 }
 
 impl RenderLight {
     pub(crate) fn to_uniform(&self) -> LightUniform {
         LightUniform {
-            color: [1.0, 1.0, 1.0, 1.0],
+            color: self.color.into(),
+            intensity: self.intensity,
             position: self.translation.into(),
-            _padding_position: 0.0,
+            direction: self.direction.into(),
+            light_type: self.light_type,
+            _padding: [0; 4],
         }
     }
 }

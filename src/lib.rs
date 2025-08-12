@@ -10,12 +10,12 @@ use ecs::{
     query::Query,
     resource::{Res, ResMut},
 };
-use glam::{Quat, Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::mesh::Mesh,
     components::{
-        camera::Camera, light::Light, mesh_component::MeshComponent, render_entity::RenderEntity,
+        camera::Camera, light::{LighType, Light}, mesh_component::MeshComponent, render_entity::RenderEntity,
     },
     plugin::RenderPlugin,
 };
@@ -79,7 +79,11 @@ fn spawn_player(app: &mut app::App) {
     let cam_rot = Quat::look_at_rh(Vec3::X, Vec3::ZERO, Vec3::Y);
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
-    let light = Light::Point;
+    let light = Light{
+        color: Vec4::ONE,
+        intensity: 100.0,
+        light_type: LighType::Point,
+    };
     app.spawn((
         camera,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),

@@ -1,13 +1,16 @@
 use ecs::resource::Res;
-use wgpu::{util::{BufferInitDescriptor, DeviceExt}, BufferUsages};
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    BufferUsages,
+};
 
 use crate::{
     assets::material::{Material, MaterialFlags},
+    device::RenderDevice,
     layouts::MeshLayouts,
     render_asset::{
         render_texture::DummyRenderTexture, AssetPreparationError, RenderAsset, RenderAssets,
     },
-    resources::RenderContext,
 };
 
 use super::render_texture::RenderTexture;
@@ -20,7 +23,7 @@ impl RenderAsset for RenderMaterial {
     type SourceAsset = Material;
 
     type PreparationParams = (
-        Res<'static, RenderContext>,
+        Res<'static, RenderDevice>,
         Res<'static, RenderAssets<RenderTexture>>,
         Res<'static, DummyRenderTexture>,
         Res<'static, MeshLayouts>,
@@ -30,7 +33,7 @@ impl RenderAsset for RenderMaterial {
         source_asset: &Self::SourceAsset,
         params: &mut ecs::system::system_input::SystemInputData<Self::PreparationParams>,
     ) -> Result<Self, AssetPreparationError> {
-        let (render_context, render_textures, dummy_texture, mesh_layouts) = params;
+        let (device, render_textures, dummy_texture, mesh_layouts) = params;
 
         let mut entries = Vec::new();
 
@@ -82,26 +85,24 @@ impl RenderAsset for RenderMaterial {
             });
         }
 
-        let material_flags_buffer = render_context.device.create_buffer_init(
-            &BufferInitDescriptor {
-                label: Some("material_flags"),
-                contents: bytemuck::cast_slice(&[MaterialFlags::from_material(source_asset)]),
-                usage: BufferUsages::UNIFORM,
-            }
-            );
-        
-        entries.push(wgpu::BindGroupEntry {
-            binding: 4,
-            resource: wgpu::BindingResource::Buffer(material_flags_buffer.as_entire_buffer_binding())
+        let material_flags_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("material_flags"),
+            contents: bytemuck::cast_slice(&[MaterialFlags::from_material(source_asset)]),
+            usage: BufferUsages::UNIFORM,
         });
 
-        let bind_group = render_context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &mesh_layouts.mesh_layout,
-                entries: &entries,
-                label: Some("material_bind_group"),
-            });
+        entries.push(wgpu::BindGroupEntry {
+            binding: 4,
+            resource: wgpu::BindingResource::Buffer(
+                material_flags_buffer.as_entire_buffer_binding(),
+            ),
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &mesh_layouts.mesh_layout,
+            entries: &entries,
+            label: Some("material_bind_group"),
+        });
 
         Ok(RenderMaterial { bind_group })
     }

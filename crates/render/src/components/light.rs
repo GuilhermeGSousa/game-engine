@@ -8,7 +8,7 @@ use encase::{ShaderType, UniformBuffer};
 use glam::{Vec3, Vec4};
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
-use crate::{layouts::LightLayouts, resources::RenderContext};
+use crate::{layouts::LightLayouts, queue::RenderQueue};
 
 const MAX_LIGHTS: usize = 256;
 
@@ -117,7 +117,7 @@ impl RenderLights {
 pub(crate) fn update_lights_buffer(
     lights: Query<&RenderLight>,
     lights_buffer: Res<RenderLights>,
-    context: Res<RenderContext>,
+    context: Res<RenderQueue>,
 ) {
     let mut light_array = [RenderLight::zeroed(); MAX_LIGHTS];
     let mut current_index = 0;

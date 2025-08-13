@@ -14,7 +14,9 @@ use crate::{
         render_entity::RenderEntity,
         world_environment::WorldEnvironment,
     },
+    device::RenderDevice,
     layouts::{CameraLayouts, LightLayouts, MeshLayouts},
+    queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial,
         render_mesh::RenderMesh,
@@ -175,12 +177,12 @@ impl Plugin for RenderPlugin {
 
         app.insert_resource(DummyRenderTexture::new(&device))
             .insert_resource(RenderContext {
-                device: device,
                 surface: surface,
                 surface_config: config,
-                queue: queue,
                 pipeline: render_pipeline,
             })
+            .insert_resource(RenderDevice { device })
+            .insert_resource(RenderQueue { queue })
             .insert_resource(RenderWindow::new())
             .insert_resource(mesh_layouts)
             .insert_resource(camera_layouts)

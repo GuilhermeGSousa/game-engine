@@ -5,6 +5,8 @@ use ecs::{
 
 use crate::{
     components::{camera::RenderCamera, light::RenderLights, mesh_component::RenderMeshInstance},
+    device::RenderDevice,
+    queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
         RenderAssets,
@@ -14,6 +16,8 @@ use crate::{
 
 pub(crate) fn render(
     context: Res<RenderContext>,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
     render_mesh_query: Query<(&RenderMeshInstance,)>,
     render_cameras: Query<&RenderCamera>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
@@ -22,11 +26,9 @@ pub(crate) fn render(
     render_lights: Res<RenderLights>,
 ) {
     if let Some(view) = render_window.get_view() {
-        let mut encoder = context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
 
         {
             for render_camera in render_cameras.iter() {
@@ -95,7 +97,7 @@ pub(crate) fn render(
                 }
             }
         }
-        context.queue.submit(std::iter::once(encoder.finish()));
+        queue.submit(std::iter::once(encoder.finish()));
     }
 }
 

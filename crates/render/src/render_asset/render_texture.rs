@@ -2,6 +2,8 @@ use std::ops::Deref;
 
 use crate::{
     assets::texture::Texture,
+    device::RenderDevice,
+    queue::RenderQueue,
     render_asset::{AssetPreparationError, RenderAsset},
     resources::RenderContext,
 };
@@ -120,18 +122,14 @@ impl RenderTexture {
 impl RenderAsset for RenderTexture {
     type SourceAsset = Texture;
 
-    type PreparationParams = (Res<'static, RenderContext>,);
+    type PreparationParams = (Res<'static, RenderDevice>, Res<'static, RenderQueue>);
 
     fn prepare_asset(
         source_asset: &Self::SourceAsset,
         params: &mut SystemInputData<Self::PreparationParams>,
     ) -> Result<Self, AssetPreparationError> {
-        let (render_context,) = params;
-        Ok(RenderTexture::from_texture(
-            &source_asset,
-            &render_context.device,
-            &render_context.queue,
-        ))
+        let (device, queue) = params;
+        Ok(RenderTexture::from_texture(&source_asset, &device, &queue))
     }
 }
 

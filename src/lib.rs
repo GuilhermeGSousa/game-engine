@@ -15,7 +15,10 @@ use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::Ri
 use render::{
     assets::mesh::Mesh,
     components::{
-        camera::Camera, light::{LighType, Light}, mesh_component::MeshComponent, render_entity::RenderEntity,
+        camera::Camera,
+        light::{LighType, Light},
+        mesh_component::MeshComponent,
+        render_entity::RenderEntity,
     },
     plugin::RenderPlugin,
 };
@@ -34,7 +37,7 @@ use crate::game_ui::render_ui;
 
 pub mod game_ui;
 
-const MESH_ASSET: &str = "res/dragon.obj";
+const MESH_ASSET: &str = "res/sphere.obj";
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {
@@ -79,9 +82,9 @@ fn spawn_player(app: &mut app::App) {
     let cam_rot = Quat::look_at_rh(Vec3::X, Vec3::ZERO, Vec3::Y);
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
-    let light = Light{
-        color: Vec4::ONE,
-        intensity: 100.0,
+    let light = Light {
+        color: Vec4::new(1.0, 0.0, 1.0, 1.0),
+        intensity: 1000.0,
         light_type: LighType::Point,
     };
     app.spawn((

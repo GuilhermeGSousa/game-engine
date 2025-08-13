@@ -183,12 +183,16 @@ pub(crate) fn light_changed(
     lights: Query<(&Light, &Transform, &RenderEntity), Changed<(Transform,)>>,
     render_lights: Query<&mut RenderLight>,
 ) {
-    for (_light, transform, render_entity) in lights.iter() {
+    for (light, transform, render_entity) in lights.iter() {
         match render_entity {
             RenderEntity::Uninitialized => {}
             RenderEntity::Initialized(entity) => {
                 if let Some(render_light) = render_lights.get_entity(*entity) {
+                    render_light.direction = transform.forward();
+                    render_light.color = light.color;
                     render_light.translation = transform.translation;
+                    render_light.intensity = light.intensity;
+                    render_light.light_type = light.light_type as u32;
                 }
             }
         }

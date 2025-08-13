@@ -30,23 +30,31 @@ pub enum LighType {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
 pub(crate) struct LightUniform {
+    position: [f32; 3],
+    _position_padding: f32,
     color: [f32; 4],
     intensity: f32,
-    position: [f32; 3],
     direction: [f32; 3],
-    light_type: u32,
-    _padding: [u32; 4],
+    // _intensity_padding: [f32; 3],
+    // direction: [f32; 3],
+    // _direction_padding: f32,
+    // light_type: u32,
+    // _light_type_padding: [u32; 3],
 }
 
 impl LightUniform {
     pub fn zeroed() -> Self {
         Self {
-            color: [0.0, 0.0, 1.0, 1.0],
-            intensity: 0.0,
             position: [0.0; 3],
-            direction: [0.0; 3],
-            light_type: 0,
-            _padding: [0; 4],
+            _position_padding: 0.0,
+            // color: [0.0, 0.0, 1.0, 1.0],
+            // intensity: 0.0,
+            // _intensity_padding: [0.0; 3],
+            // direction: [0.0; 3],
+            // light_type: 0,
+            // _light_type_padding: [0; 3],
+
+            // _direction_padding: 0.0,
         }
     }
 }
@@ -63,23 +71,23 @@ unsafe impl Pod for LightsUniform {}
 
 #[derive(Component)]
 pub struct RenderLight {
-    pub(crate) color: Vec4,
-    pub(crate) intensity: f32,
     pub(crate) translation: Vec3,
+    pub(crate) intensity: f32,
+    pub(crate) color: Vec4,
     pub(crate) direction: Vec3,
     pub(crate) light_type: u32,
 }
 
 impl RenderLight {
     pub(crate) fn to_uniform(&self) -> LightUniform {
-        LightUniform {
-            color: self.color.into(),
-            intensity: self.intensity,
-            position: self.translation.into(),
-            direction: self.direction.into(),
-            light_type: self.light_type,
-            _padding: [0; 4],
-        }
+        let mut uniform = LightUniform::zeroed();
+        // uniform.direction = self.direction.into();
+        uniform.position = self.translation.into();
+        // uniform.color = self.color.into();
+        // uniform.intensity = self.intensity;
+        // uniform.light_type = self.light_type;
+
+        uniform
     }
 }
 

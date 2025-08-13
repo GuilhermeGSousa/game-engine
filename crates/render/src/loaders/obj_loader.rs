@@ -62,6 +62,7 @@ impl AssetLoader for ObjLoader {
         let meshes = models
             .into_iter()
             .map(|m| {
+                let mut requires_normal_computation = false;
                 let mut vertices = (0..m.mesh.positions.len() / 3)
                     .map(|vertex_index| {
                         let uv_coords = match m.mesh.texcoords.len() {
@@ -73,8 +74,10 @@ impl AssetLoader for ObjLoader {
                         };
 
                         let normal = match m.mesh.normals.len() {
-                            // TODO: Consider computing your own normals if not provided
-                            0 => [0.0, 0.0, 1.0],
+                            0 => {
+                                requires_normal_computation = true;
+                                [0.0, 0.0, 1.0]
+                            }
                             _ => [
                                 m.mesh.normals[vertex_index * 3],
                                 m.mesh.normals[vertex_index * 3 + 1],
@@ -97,6 +100,10 @@ impl AssetLoader for ObjLoader {
                     })
                     .collect::<Vec<_>>();
 
+                if requires_normal_computation {
+                    ObjLoader::compute_normals(&m, &mut vertices);
+                }
+
                 ObjLoader::compute_tangents(&m, &mut vertices);
 
                 SubMesh {
@@ -115,7 +122,49 @@ impl AssetLoader for ObjLoader {
 }
 
 impl ObjLoader {
+    fn compute_normals(model: &Model, vertices: &mut Vec<Vertex>) {
+        let mut triangles_included = vec![0; vertices.len()];
+
+        model.mesh.indices.chunks(3).for_each(|index_chunk| {
+            let pos0: Vec3 = vertices[index_chunk[0] as usize].pos_coords.into();
+            let pos1: Vec3 = vertices[index_chunk[1] as usize].pos_coords.into();
+            let pos2: Vec3 = vertices[index_chunk[2] as usize].pos_coords.into();
+
+            let normal = (pos1 - pos0).cross(pos2 - pos0).normalize();
+
+            vertices[index_chunk[0] as usize].normal =
+                (normal + Vec3::from(vertices[index_chunk[0] as usize].normal)).into();
+            vertices[index_chunk[1] as usize].normal =
+                (normal + Vec3::from(vertices[index_chunk[1] as usize].normal)).into();
+            vertices[index_chunk[2] as usize].normal =
+                (normal + Vec3::from(vertices[index_chunk[2] as usize].normal)).into();
+
+            triangles_included[index_chunk[0] as usize] += 1;
+            triangles_included[index_chunk[1] as usize] += 1;
+            triangles_included[index_chunk[2] as usize] += 1;
+        });
+
+        for (i, n) in triangles_included.into_iter().enumerate() {
+            let denom = 1.0 / n as f32;
+            vertices[i].normal = (Vec3::from(vertices[i].normal) * denom).normalize().into();
+        }
+    }
+
     fn compute_tangents(model: &Model, vertices: &mut Vec<Vertex>) {
+        if model.mesh.texcoords.is_empty() {
+            for v in vertices.iter_mut() {
+                let normal = Vec3::from(v.normal);
+                let t = if normal.x.abs() > normal.y.abs() {
+                    Vec3::new(normal.z, 0.0, -normal.x).normalize()
+                } else {
+                    Vec3::new(0.0, -normal.z, normal.y).normalize()
+                };
+                v.tangent = t.into();
+                v.bitangent = normal.cross(t).into();
+            }
+            return;
+        }
+
         let mut triangles_included = vec![0; vertices.len()];
 
         model.mesh.indices.chunks(3).for_each(|index_chunk| {

@@ -199,7 +199,7 @@ pub(crate) fn light_changed(
                     render_light.light_type = match light.light_type {
                         crate::components::light::LighType::Point => 0,
                         crate::components::light::LighType::Spot => 1,
-                        crate::components::light::LighType::Directional => 1,
+                        crate::components::light::LighType::Directional => 2,
                     };
                 }
             }

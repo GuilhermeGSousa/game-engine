@@ -90,7 +90,7 @@ fn spawn_player(app: &mut app::App) {
     };
 
     let mut light_transform = camera_transform.clone();
-    light_transform.look_to(light_transform.down(), light_transform.up());
+    light_transform.look_to(light_transform.down(), Vec3::Y);
 
     app.spawn((
         camera,

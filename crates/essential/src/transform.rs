@@ -34,7 +34,7 @@ impl Transform {
     }
 
     pub fn look_to(&mut self, direction: Vec3, up: Vec3) {
-        self.rotation = Quat::look_to_lh(direction, up);
+        self.rotation = Quat::look_to_rh(direction, up);
     }
 
     pub fn local_x(&self) -> Vec3 {

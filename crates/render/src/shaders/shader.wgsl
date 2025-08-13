@@ -15,9 +15,9 @@ struct MaterialFlags {
 
 struct Light {
     position: vec3<f32>,
+    intensity: f32,
     color: vec4<f32>,
     direction: vec3<f32>,
-    intensity: f32,
     light_type: u32,
 };
 
@@ -135,7 +135,7 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         var light_dir = -light.direction;
 
         // TODO
-        let light_type = POINT_LIGHT;
+        let light_type = light.light_type;
 
         if light_type != DIRECTIONAL_LIGHT {
             light_dir = normalize(light_delta);
@@ -154,18 +154,25 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
             let light_distance = length(light_delta);
             attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
         } else if light_type == SPOT_LIGHT {
+
+            
             let cone_angle_cos = 0.99;
-            let cone_dir = normalize(-light.direction.xyz);
-            let angle_cos = dot(light_dir, cone_dir);
+            
+            let cone_dir = normalize(light.direction.xyz);
+            
+            
+            let angle_cos = dot(-light_dir, cone_dir);
 
             let light_distance = length(light_delta);
-            attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
-            attenuation *= step(
-                cone_angle_cos,
-                angle_cos
-            );
+
+            let a = dot(cone_dir, vec3<f32>(0.0, 1.0, 0.0));
+            //attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+            attenuation =  1.0;
+            total_light = vec4<f32>(cone_dir, 1.0);
         }
-        total_light += (diffuse + specular);
+
+        // total_light += vec4<f32>(1.0,1.0,1.0,1.0) * attenuation;
+        
     }
 
     return vec4<f32>(total_light.rgb, object_color.a);

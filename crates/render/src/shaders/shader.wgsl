@@ -5,6 +5,10 @@ const MAX_LIGHT_COUNT : i32 = 256;
 const HAS_DIFFUSE_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
 
+const POINT_LIGHT = 1u;
+const SPOT_LIGHT = 2u;
+const DIRECTIONAL_LIGHT = 3u;
+
 struct MaterialFlags {
     flags: u32,
 }
@@ -127,8 +131,13 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         let light = lights.lights[i];
 
         let light_delta = light.position.xyz - in.world_position;
-        let light_distance = length(light_delta);
-        let light_dir = normalize(light_delta);
+        
+
+        var light_dir = -light.direction;
+        if (light.light_type != DIRECTIONAL_LIGHT)
+        {
+            light_dir = normalize(light_delta);
+        }
 
         // Simple Lambertian diffuse
         let NdotL = max(dot(mapped_normal, light_dir), 0.0);
@@ -138,7 +147,18 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         let halfway_dir = normalize(light_dir + view_dir);
         let specular = pow(max(dot(mapped_normal, halfway_dir), 0.0), 32.0);
 
-        let attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+        var attenuation = 1.0;
+        if light.light_type == POINT_LIGHT
+        {
+            let light_distance = length(light_delta);
+            attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+        }
+        else if light.light_type == SPOT_LIGHT
+        {
+            // TODO
+            let light_distance = length(light_delta);
+            attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+        }
         
         total_light += (diffuse + specular) * attenuation;
     }

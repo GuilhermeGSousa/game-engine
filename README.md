@@ -8,6 +8,8 @@ This is a small game engine I am using as a way to learn more about, game engine
 
 ### Features
 - An archetype based ECS system, and my attempt at implementing an API as ergonomic as Bevy's.
-- A very basic renderer
-- Some barebone functionality, (transform, camera, mesh components)
+- A very basic renderer, that currently supports:
+    - Static meshes
+    - Point/Directinal/Spot lights
+- Physics (Rapier engine)
 - WASM support.

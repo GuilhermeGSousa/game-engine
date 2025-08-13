@@ -10,7 +10,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     components::{
         camera::{Camera, CameraUniform, RenderCamera},
-        light::{Light, RenderLight},
+        light::{LighType, Light, RenderLight},
         mesh_component::{MeshComponent, RenderMeshInstance},
         render_entity::RenderEntity,
     },
@@ -165,10 +165,10 @@ pub(crate) fn light_added(
             color: light.color,
             intensity: light.intensity,
             direction: light_transform.forward(),
-            light_type: match light.light_type {
-                crate::components::light::LighType::Point => 0,
-                crate::components::light::LighType::Spot => 1,
-                crate::components::light::LighType::Directional => 2,
+            light_type: light.light_type.index(),
+            cos_cone_angle: match &light.light_type {
+                LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                _ => 0.0,
             },
         };
         match render_entity {
@@ -196,10 +196,10 @@ pub(crate) fn light_changed(
                     render_light.color = light.color;
                     render_light.translation = transform.translation;
                     render_light.intensity = light.intensity;
-                    render_light.light_type = match light.light_type {
-                        crate::components::light::LighType::Point => 0,
-                        crate::components::light::LighType::Spot => 1,
-                        crate::components::light::LighType::Directional => 2,
+                    render_light.light_type = light.light_type.index();
+                    render_light.cos_cone_angle = match &light.light_type {
+                        LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                        _ => 0.0,
                     };
                 }
             }

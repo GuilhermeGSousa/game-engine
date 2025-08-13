@@ -19,6 +19,7 @@ struct Light {
     color: vec4<f32>,
     direction: vec3<f32>,
     light_type: u32,
+    cos_cone_angle: f32,
 };
 
 struct Lights {
@@ -154,25 +155,14 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
             let light_distance = length(light_delta);
             attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
         } else if light_type == SPOT_LIGHT {
-
-            
-            let cone_angle_cos = 0.99;
-            
             let cone_dir = normalize(light.direction.xyz);
-            
-            
-            let angle_cos = dot(-light_dir, cone_dir);
-
+            let angle_cos = dot(light_dir, cone_dir);
             let light_distance = length(light_delta);
-
-            let a = dot(cone_dir, vec3<f32>(0.0, 1.0, 0.0));
-            //attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
-            attenuation =  1.0;
-            total_light = vec4<f32>(cone_dir, 1.0);
+            attenuation = clamp(10.0 / light_distance * light_distance, 0.0, 1.0);
+            attenuation *= step(light.cos_cone_angle, angle_cos);
         }
 
-        // total_light += vec4<f32>(1.0,1.0,1.0,1.0) * attenuation;
-        
+        total_light += (diffuse + specular) * attenuation;
     }
 
     return vec4<f32>(total_light.rgb, object_color.a);

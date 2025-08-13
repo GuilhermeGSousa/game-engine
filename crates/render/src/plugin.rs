@@ -1,4 +1,5 @@
 use essential::transform::TransformRaw;
+use glam::Vec4;
 use std::sync::Arc;
 
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
     components::{
         light::{update_lights_buffer, RenderLights},
         render_entity::RenderEntity,
+        world_environment::WorldEnvironment,
     },
     layouts::{CameraLayouts, LightLayouts, MeshLayouts},
     render_asset::{
@@ -183,7 +185,8 @@ impl Plugin for RenderPlugin {
             .insert_resource(mesh_layouts)
             .insert_resource(camera_layouts)
             .insert_resource(light_layouts)
-            .insert_resource(render_lights);
+            .insert_resource(render_lights)
+            .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
             .register_plugin(RenderAssetPlugin::<RenderTexture>::new())

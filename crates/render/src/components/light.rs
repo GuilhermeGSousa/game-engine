@@ -19,11 +19,24 @@ pub struct Light {
     pub light_type: LighType,
 }
 
-#[derive(Clone, Copy)]
+pub struct SpotLight {
+    pub cone_angle: f32,
+}
+
 pub enum LighType {
-    Point = 1,
-    Spot = 2,
-    Directional = 3,
+    Point,
+    Spot(SpotLight),
+    Directional,
+}
+
+impl LighType {
+    pub fn index(&self) -> u32 {
+        match *self {
+            LighType::Point => 0,
+            LighType::Spot(_) => 1,
+            LighType::Directional => 1,
+        }
+    }
 }
 
 #[derive(ShaderType)]
@@ -39,17 +52,20 @@ pub struct RenderLight {
     pub(crate) color: Vec4,
     pub(crate) direction: Vec3,
     pub(crate) light_type: u32,
+
+    // Spotlight
+    pub(crate) cos_cone_angle: f32,
 }
 
 impl RenderLight {
-    pub(crate) fn zeroed() -> Self
-    {
-        Self { 
-            translation: Vec3::ZERO, 
-            intensity: 0.0, 
-            color: Vec4::ZERO, 
-            direction: Vec3::ZERO, 
-            light_type: 0 
+    pub(crate) fn zeroed() -> Self {
+        Self {
+            translation: Vec3::ZERO,
+            intensity: 0.0,
+            color: Vec4::ZERO,
+            direction: Vec3::ZERO,
+            light_type: 0,
+            cos_cone_angle: 0.0,
         }
     }
 }
@@ -62,7 +78,6 @@ pub(crate) struct RenderLights {
 
 impl RenderLights {
     pub fn new(device: &wgpu::Device, layouts: &LightLayouts) -> Self {
-
         let lights = LightsUniform {
             lights: [RenderLight::zeroed(); MAX_LIGHTS],
             light_count: 0,

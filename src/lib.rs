@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 
 use app::{
@@ -16,7 +18,7 @@ use render::{
     assets::mesh::Mesh,
     components::{
         camera::Camera,
-        light::{LighType, Light},
+        light::{LighType, Light, SpotLight},
         mesh_component::MeshComponent,
         render_entity::RenderEntity,
     },
@@ -86,11 +88,13 @@ fn spawn_player(app: &mut app::App) {
     let light = Light {
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
         intensity: 10.0,
-        light_type: LighType::Spot,
+        light_type: LighType::Spot(SpotLight {
+            cone_angle: 50.0 * PI / 180.0,
+        }),
     };
 
     let mut light_transform = camera_transform.clone();
-    light_transform.look_to(light_transform.down(), Vec3::Y);
+    light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
 
     app.spawn((
         camera,

@@ -38,6 +38,7 @@ use crate::game_ui::render_ui;
 pub mod game_ui;
 
 const MESH_ASSET: &str = "res/sphere.obj";
+const GROUND_ASSET: &str = "res/ground.obj";
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {
@@ -67,7 +68,7 @@ pub fn run_game() {
             despawn_on_button_press,
         )
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
-        .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
+        // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
         .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor);
 
@@ -84,24 +85,40 @@ fn spawn_player(app: &mut app::App) {
 
     let light = Light {
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
-        intensity: 1.0,
-        light_type: LighType::Point,
+        intensity: 10.0,
+        light_type: LighType::Spot,
     };
+
+    let mut light_transform = camera_transform.clone();
+    light_transform.look_to(light_transform.down(), light_transform.up());
+
     app.spawn((
         camera,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
         RenderEntity::new(),
     ));
-    app.spawn((light, camera_transform.clone(), RenderEntity::new()));
+    app.spawn((light, light_transform, RenderEntity::new()));
 }
 
-fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
+fn spawn_floor(
+    mut cmd: CommandQueue,
+    mut physics_state: ResMut<PhysicsState>,
+    asset_server: Res<AssetServer>,
+) {
     let height = 1.0;
+    let ground_mesh = asset_server.load::<Mesh>(GROUND_ASSET);
     let ground_transform =
         Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
     let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
 
-    cmd.spawn((ground_colider, ground_transform));
+    cmd.spawn((
+        MeshComponent {
+            handle: ground_mesh,
+        },
+        RenderEntity::Uninitialized,
+        ground_colider,
+        ground_transform,
+    ));
 }
 
 fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {

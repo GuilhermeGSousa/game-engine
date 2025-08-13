@@ -19,12 +19,15 @@ pub struct Light {
     pub light_type: LighType,
 }
 
-#[repr(u32)]
 #[derive(Clone, Copy)]
 pub enum LighType {
     Point = 1,
     Spot = 2,
     Directional = 3,
+}
+
+pub struct SpotLight {
+    pub cone_angle: f32,
 }
 
 #[repr(C)]
@@ -79,8 +82,10 @@ impl RenderLight {
         uniform.position = self.translation.into();
         uniform.color = self.color.into();
         uniform.intensity = self.intensity;
-        uniform.light_type = self.light_type;
+        // uniform.light_type = self.light_type;
 
+        let bytes: &[u8] = bytemuck::bytes_of(&uniform);
+        println!("Byte representation: {:?}", bytes);
         uniform
     }
 }

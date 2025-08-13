@@ -165,7 +165,11 @@ pub(crate) fn light_added(
             color: light.color,
             intensity: light.intensity,
             direction: light_transform.forward(),
-            light_type: light.light_type as u32,
+            light_type: match light.light_type {
+                crate::components::light::LighType::Point => 0,
+                crate::components::light::LighType::Spot => 1,
+                crate::components::light::LighType::Directional => 2,
+            },
         };
         match render_entity {
             RenderEntity::Uninitialized => {
@@ -192,7 +196,11 @@ pub(crate) fn light_changed(
                     render_light.color = light.color;
                     render_light.translation = transform.translation;
                     render_light.intensity = light.intensity;
-                    render_light.light_type = light.light_type as u32;
+                    render_light.light_type = match light.light_type {
+                        crate::components::light::LighType::Point => 0,
+                        crate::components::light::LighType::Spot => 1,
+                        crate::components::light::LighType::Directional => 1,
+                    };
                 }
             }
         }

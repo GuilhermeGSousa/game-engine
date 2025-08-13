@@ -5,9 +5,9 @@ const MAX_LIGHT_COUNT : i32 = 256;
 const HAS_DIFFUSE_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
 
-const POINT_LIGHT = 1u;
-const SPOT_LIGHT = 2u;
-const DIRECTIONAL_LIGHT = 3u;
+const POINT_LIGHT = 0u;
+const SPOT_LIGHT = 1u;
+const DIRECTIONAL_LIGHT = 2u;
 
 struct MaterialFlags {
     flags: u32,
@@ -16,8 +16,8 @@ struct MaterialFlags {
 struct Light {
     position: vec3<f32>,
     color: vec4<f32>,
-    intensity: f32,
     direction: vec3<f32>,
+    intensity: f32,
     light_type: u32,
 };
 
@@ -131,36 +131,41 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         let light = lights.lights[i];
 
         let light_delta = light.position.xyz - in.world_position;
-        
 
         var light_dir = -light.direction;
-        if (light.light_type != DIRECTIONAL_LIGHT)
-        {
+
+        // TODO
+        let light_type = POINT_LIGHT;
+
+        if light_type != DIRECTIONAL_LIGHT {
             light_dir = normalize(light_delta);
         }
 
         // Simple Lambertian diffuse
         let NdotL = max(dot(mapped_normal, light_dir), 0.0);
-        let diffuse = object_color * NdotL * light.intensity;
+        let diffuse = object_color * NdotL;
 
         // Simple Blinn-Phong specular
         let halfway_dir = normalize(light_dir + view_dir);
         let specular = pow(max(dot(mapped_normal, halfway_dir), 0.0), 32.0);
 
         var attenuation = 1.0;
-        if light.light_type == POINT_LIGHT
-        {
+        if light_type == POINT_LIGHT {
             let light_distance = length(light_delta);
             attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
-        }
-        else if light.light_type == SPOT_LIGHT
-        {
-            // TODO
+        } else if light_type == SPOT_LIGHT {
+            let cone_angle_cos = 0.99;
+            let cone_dir = normalize(-light.direction.xyz);
+            let angle_cos = dot(light_dir, cone_dir);
+
             let light_distance = length(light_delta);
             attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+            attenuation *= step(
+                cone_angle_cos,
+                angle_cos
+            );
         }
-        
-        total_light += (diffuse + specular) * attenuation;
+        total_light += (diffuse + specular);
     }
 
     return vec4<f32>(total_light.rgb, object_color.a);

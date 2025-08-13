@@ -84,7 +84,7 @@ fn spawn_player(app: &mut app::App) {
 
     let light = Light {
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
-        intensity: 1000.0,
+        intensity: 1.0,
         light_type: LighType::Point,
     };
     app.spawn((

@@ -11,10 +11,10 @@ struct MaterialFlags {
 
 struct Light {
     position: vec3<f32>,
-    // color: vec4<f32>,
-    // intensity: f32,
-    // direction: vec3<f32>,
-    // light_type: u32,
+    color: vec4<f32>,
+    intensity: f32,
+    direction: vec3<f32>,
+    light_type: u32,
 };
 
 struct Lights {
@@ -127,19 +127,20 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         let light = lights.lights[i];
 
         let light_delta = light.position.xyz - in.world_position;
-        let distance = length(light_delta);
+        let light_distance = length(light_delta);
         let light_dir = normalize(light_delta);
 
         // Simple Lambertian diffuse
         let NdotL = max(dot(mapped_normal, light_dir), 0.0);
-        let diffuse = object_color * NdotL;
+        let diffuse = object_color * NdotL * light.intensity;
 
         // Simple Blinn-Phong specular
         let halfway_dir = normalize(light_dir + view_dir);
         let specular = pow(max(dot(mapped_normal, halfway_dir), 0.0), 32.0);
 
-        total_light += (diffuse);
-        // total_light += vec4<f32>(light.position, 1.0);
+        let attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+        
+        total_light += (diffuse + specular) * attenuation;
     }
 
     return vec4<f32>(total_light.rgb, object_color.a);

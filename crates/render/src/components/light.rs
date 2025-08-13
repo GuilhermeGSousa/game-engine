@@ -35,11 +35,8 @@ pub(crate) struct LightUniform {
     color: [f32; 4],
     intensity: f32,
     direction: [f32; 3],
-    // _intensity_padding: [f32; 3],
-    // direction: [f32; 3],
-    // _direction_padding: f32,
-    // light_type: u32,
-    // _light_type_padding: [u32; 3],
+    light_type: u32,
+    _padding: [u32; 3],
 }
 
 impl LightUniform {
@@ -47,14 +44,11 @@ impl LightUniform {
         Self {
             position: [0.0; 3],
             _position_padding: 0.0,
-            // color: [0.0, 0.0, 1.0, 1.0],
-            // intensity: 0.0,
-            // _intensity_padding: [0.0; 3],
-            // direction: [0.0; 3],
-            // light_type: 0,
-            // _light_type_padding: [0; 3],
-
-            // _direction_padding: 0.0,
+            color: [0.0, 0.0, 1.0, 1.0],
+            intensity: 0.0,
+            direction: [0.0; 3],
+            light_type: 0,
+            _padding: [0; 3],
         }
     }
 }
@@ -81,11 +75,11 @@ pub struct RenderLight {
 impl RenderLight {
     pub(crate) fn to_uniform(&self) -> LightUniform {
         let mut uniform = LightUniform::zeroed();
-        // uniform.direction = self.direction.into();
+        uniform.direction = self.direction.into();
         uniform.position = self.translation.into();
-        // uniform.color = self.color.into();
-        // uniform.intensity = self.intensity;
-        // uniform.light_type = self.light_type;
+        uniform.color = self.color.into();
+        uniform.intensity = self.intensity;
+        uniform.light_type = self.light_type;
 
         uniform
     }

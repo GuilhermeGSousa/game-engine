@@ -31,8 +31,8 @@ impl Column {
         self.changed_ticks.push(Tick::new(0));
     }
 
-    pub fn insert<T>(&mut self, raw_value: AnyValueWrapper<T>, tick: u32, row: TableRow) {
-        let index = *row as usize;
+    pub fn insert<T>(&mut self, raw_value: AnyValueWrapper<T>, tick: u32, row: TableRowIndex) {
+        let index = *row;
         self.data.insert(index, raw_value);
         self.added_ticks.insert(index, Tick::new(tick));
         self.changed_ticks.insert(index, Tick::new(0));
@@ -50,16 +50,20 @@ impl Column {
         self.data.downcast_mut_unchecked::<T>()
     }
 
-    pub unsafe fn get_unsafe<T: 'static>(&self, row: TableRow) -> Option<&T> {
-        self.data.get_unchecked(*row as usize).downcast_ref()
+    pub unsafe fn get_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
+        self.data.get_unchecked(*row).downcast_ref()
     }
 
-    pub unsafe fn get_mut_unsafe<T: 'static>(&mut self, row: TableRow) -> Option<&mut T> {
-        self.data.get_unchecked_mut(*row as usize).downcast_mut()
+    pub unsafe fn get_mut_unsafe<T: 'static>(&mut self, row: TableRowIndex) -> Option<&mut T> {
+        self.data.get_unchecked_mut(*row).downcast_mut()
     }
 
-    pub fn set_changed(&mut self, row: TableRow, current_tick: u32) {
-        self.changed_ticks[*row as usize].set(current_tick);
+    pub fn set_changed(&mut self, row: TableRowIndex, current_tick: u32) {
+        self.changed_ticks[*row].set(current_tick);
+    }
+
+    pub fn clone_empty_data(&self) -> AnyVec {
+        self.data.clone_empty()
     }
 }
 
@@ -76,17 +80,50 @@ impl Table {
         }
     }
 
+    pub(crate) fn from_row(mut removed_row: TableRow, tick: u32) -> Self {
+        let mut columns = HashMap::new();
+
+        removed_row.data.drain().for_each(|(key, value)| {
+            columns.insert(
+                key,
+                Column {
+                    data: value,
+                    added_ticks: vec![Tick::new(tick)],
+                    changed_ticks: vec![Tick::new(0)],
+                },
+            );
+        });
+
+        Self {
+            columns: columns,
+            entities: vec![removed_row.entity],
+        }
+    }
+
     pub fn add_column<T: Component>(&mut self) {
         self.columns
             .insert(ComponentId::of::<T>(), Column::new::<T>());
+    }
+
+    pub fn add_row(&mut self, mut row: TableRow, current_tick: u32) {
+        self.columns.iter_mut().for_each(|(key, value)| {
+            value.added_ticks.push(Tick::new(current_tick));
+            value.changed_ticks.push(Tick::new(0));
+
+            if let Some(added_col) = row.data.get_mut(key) {
+                value.data.push(added_col.pop().unwrap());
+            }
+        });
+
+        self.entities.push(row.entity);
     }
 
     pub fn add_entity(&mut self, entity: Entity) {
         self.entities.push(entity);
     }
 
-    pub fn insert_entity(&mut self, row: TableRow, entity: Entity) {
-        self.entities.insert(*row as usize, entity);
+    pub fn insert_entity(&mut self, row: TableRowIndex, entity: Entity) {
+        self.entities.insert(*row, entity);
     }
 
     pub fn get_row_count(&self) -> usize {
@@ -113,55 +150,86 @@ impl Table {
         &self.entities
     }
 
-    pub fn was_added(&self, row: TableRow, component_id: ComponentId, current_tick: u32) -> bool {
+    pub fn was_added(
+        &self,
+        row: TableRowIndex,
+        component_id: ComponentId,
+        current_tick: u32,
+    ) -> bool {
         if let Some(column) = self.columns.get(&component_id) {
-            *column.added_ticks[*row as usize] == current_tick
+            *column.added_ticks[*row] == current_tick
         } else {
             false
         }
     }
 
-    pub fn was_changed(&self, row: TableRow, component_id: ComponentId, current_tick: u32) -> bool {
+    pub fn was_changed(
+        &self,
+        row: TableRowIndex,
+        component_id: ComponentId,
+        current_tick: u32,
+    ) -> bool {
         if let Some(column) = self.columns.get(&component_id) {
-            *column.changed_ticks[*row as usize] == current_tick
+            *column.changed_ticks[*row] == current_tick
         } else {
             false
         }
     }
 
-    pub fn remove_swap(&mut self, row: TableRow) -> Entity {
-        self.columns.iter_mut().for_each(|(_, col)| {
-            let index = *row as usize;
-            col.data.swap_remove(index);
-            col.added_ticks.swap_remove(index);
-            col.changed_ticks.swap_remove(index);
-        });
+    pub fn remove_swap(&mut self, row: TableRowIndex) -> TableRow {
+        let removed_row_data = self
+            .columns
+            .iter_mut()
+            .map(|(id, col)| {
+                let index = *row;
+                col.added_ticks.swap_remove(index);
+                col.changed_ticks.swap_remove(index);
 
-        let last_entity = *self.entities.last().expect("No entities in table");
-        self.entities.swap_remove(*row as usize);
+                let mut new_col_vec = col.clone_empty_data();
+                new_col_vec.push(col.data.swap_remove(index));
+                (*id, new_col_vec)
+            })
+            .collect();
 
-        last_entity
+        TableRow {
+            data: removed_row_data,
+            entity: self.entities.swap_remove(*row),
+        }
+    }
+}
+
+pub struct TableRow {
+    pub(crate) data: HashMap<ComponentId, AnyVec>,
+    pub(crate) entity: Entity,
+}
+
+impl TableRow {
+    pub fn insert<T: Component>(&mut self, id: ComponentId, raw_value: AnyValueWrapper<T>) {
+        self.data
+            .entry(id)
+            .or_insert(AnyVec::new::<T>())
+            .push(raw_value);
     }
 }
 
 #[derive(Clone, Copy, PartialEq)]
-pub struct TableRow(u32);
+pub struct TableRowIndex(usize);
 
-impl TableRow {
-    pub const fn new(index: u32) -> TableRow {
-        TableRow(index)
+impl TableRowIndex {
+    pub const fn new(index: usize) -> TableRowIndex {
+        TableRowIndex(index)
     }
 }
 
-impl Deref for TableRow {
-    type Target = u32;
+impl Deref for TableRowIndex {
+    type Target = usize;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for TableRow {
+impl DerefMut for TableRowIndex {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

@@ -1,61 +1,26 @@
+use std::{marker::PhantomData, sync::Arc};
+
 use super::{Asset, AssetId};
 use crossbeam_channel::Sender;
 
 pub enum AssetLifetimeEvent {
-    Cloned(AssetId),
     Dropped(AssetId),
 }
 
 impl AssetLifetimeEvent {
     pub fn id(&self) -> AssetId {
         match self {
-            AssetLifetimeEvent::Cloned(id) => *id,
             AssetLifetimeEvent::Dropped(id) => *id,
         }
     }
 }
 
-pub struct AssetHandle<A: Asset> {
-    id: AssetId,
-    lifetime_sender: Sender<AssetLifetimeEvent>,
-    marker: std::marker::PhantomData<A>,
+pub struct StrongAssetHandle {
+    pub(crate) id: AssetId,
+    pub(crate) lifetime_sender: Sender<AssetLifetimeEvent>,
 }
 
-impl<A: Asset> AssetHandle<A> {
-    pub fn new(id: AssetId, lifetime_sender: Sender<AssetLifetimeEvent>) -> Self {
-        AssetHandle {
-            id,
-            lifetime_sender,
-            marker: std::marker::PhantomData,
-        }
-    }
-
-    pub fn id(&self) -> AssetId {
-        self.id
-    }
-
-    pub fn to_untyped(&self) -> AssetHandleUntyped {
-        AssetHandleUntyped {
-            id: self.id,
-            lifetime_sender: self.lifetime_sender.clone(),
-        }
-    }
-}
-
-impl<A: Asset> Clone for AssetHandle<A> {
-    fn clone(&self) -> Self {
-        let _ = self
-            .lifetime_sender
-            .send(AssetLifetimeEvent::Cloned(self.id));
-        AssetHandle {
-            id: self.id,
-            lifetime_sender: self.lifetime_sender.clone(),
-            marker: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<A: Asset> Drop for AssetHandle<A> {
+impl Drop for StrongAssetHandle {
     fn drop(&mut self) {
         let _ = self
             .lifetime_sender
@@ -63,30 +28,29 @@ impl<A: Asset> Drop for AssetHandle<A> {
     }
 }
 
-pub struct AssetHandleUntyped {
-    id: AssetId,
-    lifetime_sender: Sender<AssetLifetimeEvent>,
+pub struct AssetHandle<A: Asset> {
+    handle: Arc<StrongAssetHandle>,
+    _marker: PhantomData<A>,
 }
 
-impl AssetHandleUntyped {
-    pub fn id(&self) -> AssetId {
-        self.id
-    }
-
-    pub fn to_typed<A: Asset>(&self) -> AssetHandle<A> {
-        AssetHandle {
-            id: self.id,
-            lifetime_sender: self.lifetime_sender.clone(),
-            marker: std::marker::PhantomData,
+impl<A: Asset> AssetHandle<A> {
+    pub(crate) fn new(handle: Arc<StrongAssetHandle>) -> Self {
+        Self {
+            handle: handle,
+            _marker: PhantomData,
         }
     }
+
+    pub fn id(&self) -> AssetId {
+        self.handle.id
+    }
 }
 
-impl Clone for AssetHandleUntyped {
+impl<A: Asset> Clone for AssetHandle<A> {
     fn clone(&self) -> Self {
-        AssetHandleUntyped {
-            id: self.id,
-            lifetime_sender: self.lifetime_sender.clone(),
+        Self {
+            handle: self.handle.clone(),
+            _marker: PhantomData,
         }
     }
 }

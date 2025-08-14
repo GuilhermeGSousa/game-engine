@@ -3,7 +3,10 @@ use egui_wgpu::{
     wgpu::{self, StoreOp},
     ScreenDescriptor,
 };
-use render::{render_asset::render_window::RenderWindow, resources::RenderContext};
+use render::{
+    device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow,
+    resources::RenderContext,
+};
 use window::plugin::Window;
 
 use crate::resources::UIRenderer;
@@ -22,6 +25,8 @@ pub(crate) fn begin_ui_frame(
 pub(crate) fn end_ui_frame(
     mut ui_renderer: ResMut<UIRenderer>,
     render_context: Res<RenderContext>,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
     window: Res<Window>,
     render_window: Res<RenderWindow>,
 ) {
@@ -38,20 +43,14 @@ pub(crate) fn end_ui_frame(
         );
 
         for (id, image_delta) in &full_output.textures_delta.set {
-            ui_renderer.renderer.update_texture(
-                &render_context.device,
-                &render_context.queue,
-                *id,
-                image_delta,
-            );
+            ui_renderer
+                .renderer
+                .update_texture(&device, &queue, *id, image_delta);
         }
 
-        let mut encoder =
-            render_context
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("UI Render Encoder"),
-                });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("UI Render Encoder"),
+        });
 
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [
@@ -62,8 +61,8 @@ pub(crate) fn end_ui_frame(
         };
 
         ui_renderer.renderer.update_buffers(
-            &render_context.device,
-            &render_context.queue,
+            &device,
+            &queue,
             &mut encoder,
             &tris,
             &screen_descriptor,
@@ -92,6 +91,6 @@ pub(crate) fn end_ui_frame(
             ui_renderer.renderer.free_texture(x)
         }
 
-        render_context.queue.submit(Some(encoder.finish()));
+        queue.submit(Some(encoder.finish()));
     }
 }

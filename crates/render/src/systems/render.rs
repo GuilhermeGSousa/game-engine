@@ -4,11 +4,11 @@ use ecs::{
 };
 
 use crate::{
-    components::camera::RenderCamera,
+    components::{camera::RenderCamera, light::RenderLights, mesh_component::RenderMeshInstance},
+    device::RenderDevice,
+    queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial,
-        render_mesh::{RenderMesh, RenderMeshInstance},
-        render_window::RenderWindow,
+        render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
         RenderAssets,
     },
     resources::RenderContext,
@@ -16,18 +16,19 @@ use crate::{
 
 pub(crate) fn render(
     context: Res<RenderContext>,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
     render_mesh_query: Query<(&RenderMeshInstance,)>,
     render_cameras: Query<&RenderCamera>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_window: Res<RenderWindow>,
     render_materials: Res<RenderAssets<RenderMaterial>>,
+    render_lights: Res<RenderLights>,
 ) {
     if let Some(view) = render_window.get_view() {
-        let mut encoder = context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
 
         {
             for render_camera in render_cameras.iter() {
@@ -60,6 +61,7 @@ pub(crate) fn render(
                 render_pass.set_pipeline(&context.pipeline);
 
                 render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
+                render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
 
                 for (mesh_instance,) in render_mesh_query.iter() {
                     if let Some(mesh) = render_meshes.get(&mesh_instance.render_asset_id) {
@@ -77,7 +79,7 @@ pub(crate) fn render(
                             if let Some(render_mat) =
                                 render_materials.get(&submesh.material.unwrap())
                             {
-                                render_pass.set_bind_group(0, &render_mat.diffuse_bind_group, &[]);
+                                render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
                             } else {
                                 continue;
                             }
@@ -95,7 +97,7 @@ pub(crate) fn render(
                 }
             }
         }
-        context.queue.submit(std::iter::once(encoder.finish()));
+        queue.submit(std::iter::once(encoder.finish()));
     }
 }
 

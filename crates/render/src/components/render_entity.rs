@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use ecs::{
     component::{Component, ComponentLifecycleCallback},
     entity::Entity,
@@ -13,6 +11,13 @@ pub enum RenderEntity {
 impl RenderEntity {
     pub fn new() -> Self {
         RenderEntity::Uninitialized
+    }
+
+    pub fn is_set(&self) -> bool {
+        match self {
+            RenderEntity::Uninitialized => false,
+            RenderEntity::Initialized(_) => true,
+        }
     }
 
     pub fn set_entity(&mut self, entity: Entity) {

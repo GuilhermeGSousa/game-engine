@@ -1,6 +1,6 @@
 use bytemuck::Pod;
 use ecs::component::Component;
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3};
 
 #[derive(Component, Clone)]
 pub struct Transform {
@@ -14,9 +14,14 @@ impl Transform {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
     }
 
+    pub fn compute_rotation_matrix(&self) -> Mat3 {
+        Mat3::from_quat(self.rotation)
+    }
+
     pub fn to_raw(&self) -> TransformRaw {
         TransformRaw {
             matrix: self.compute_matrix().to_cols_array_2d(),
+            rotation_matrix: self.compute_rotation_matrix().to_cols_array_2d(),
         }
     }
 
@@ -29,7 +34,7 @@ impl Transform {
     }
 
     pub fn look_to(&mut self, direction: Vec3, up: Vec3) {
-        self.rotation = Quat::look_to_lh(direction, up);
+        self.rotation = Quat::look_to_rh(direction, up);
     }
 
     pub fn local_x(&self) -> Vec3 {
@@ -73,6 +78,7 @@ impl Transform {
 #[derive(Copy, Clone, bytemuck::Zeroable)]
 pub struct TransformRaw {
     matrix: [[f32; 4]; 4],
+    rotation_matrix: [[f32; 3]; 3],
 }
 
 unsafe impl Pod for TransformRaw {}

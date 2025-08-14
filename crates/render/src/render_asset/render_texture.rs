@@ -1,9 +1,16 @@
+use std::ops::Deref;
+
 use crate::{
-    assets::texture::{self, Texture},
+    assets::texture::Texture,
+    device::RenderDevice,
+    queue::RenderQueue,
     render_asset::{AssetPreparationError, RenderAsset},
     resources::RenderContext,
 };
-use ecs::{resource::Res, system::system_input::SystemInputData};
+use ecs::{
+    resource::{Res, Resource},
+    system::system_input::SystemInputData,
+};
 
 #[allow(dead_code)]
 pub(crate) struct RenderTexture {
@@ -115,17 +122,62 @@ impl RenderTexture {
 impl RenderAsset for RenderTexture {
     type SourceAsset = Texture;
 
-    type PreparationParams = (Res<'static, RenderContext>,);
+    type PreparationParams = (Res<'static, RenderDevice>, Res<'static, RenderQueue>);
 
     fn prepare_asset(
         source_asset: &Self::SourceAsset,
         params: &mut SystemInputData<Self::PreparationParams>,
     ) -> Result<Self, AssetPreparationError> {
-        let (render_context,) = params;
-        Ok(RenderTexture::from_texture(
-            &source_asset,
-            &render_context.device,
-            &render_context.queue,
-        ))
+        let (device, queue) = params;
+        Ok(RenderTexture::from_texture(&source_asset, &device, &queue))
+    }
+}
+
+#[derive(Resource)]
+pub(crate) struct DummyRenderTexture(pub(crate) RenderTexture);
+
+impl DummyRenderTexture {
+    pub(crate) fn new(device: &wgpu::Device) -> Self {
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("RenderTexture Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let size = wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+
+        let wgpu_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        Self(RenderTexture {
+            texture: wgpu_texture,
+            view: view,
+            sampler: sampler,
+        })
+    }
+}
+
+impl Deref for DummyRenderTexture {
+    type Target = RenderTexture;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

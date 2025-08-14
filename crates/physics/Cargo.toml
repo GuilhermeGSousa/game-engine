@@ -9,6 +9,7 @@ essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 glam = { version = "0.30.1" }
 rapier3d = { version = "0.26.1", features = ["simd-stable"] }
+nalgebra = { version = "0.34", features = ["convert-glam030"] }
 
 [profile.dev.package.rapier3d]
 opt-level = 3

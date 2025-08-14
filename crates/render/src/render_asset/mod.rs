@@ -32,6 +32,11 @@ pub(crate) fn prepare_render_asset<A: RenderAsset>(
     mut render_assets: ResMut<RenderAssets<A>>,
 ) {
     for (asset_id, asset) in asset_store.into_iter() {
+        // TODO: Do something more performant than this
+        if render_assets.contains(&asset_id) {
+            continue;
+        }
+
         let prepared_asset = A::prepare_asset(asset, &mut params);
 
         match prepared_asset {
@@ -55,6 +60,10 @@ impl<A: RenderAsset + 'static> RenderAssets<A> {
 
     pub fn get(&self, id: &AssetId) -> Option<&A> {
         self.0.get(id)
+    }
+
+    pub fn contains(&self, id: &AssetId) -> bool {
+        self.0.contains_key(id)
     }
 }
 

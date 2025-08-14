@@ -1,14 +1,14 @@
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet},
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, Weak},
 };
 
 use crossbeam_channel::{Receiver, Sender};
 use ecs::{resource::Resource, world};
 
 use crate::{
-    assets::AssetPath,
+    assets::{handle::StrongAssetHandle, AssetPath},
     tasks::{task_pool::TaskPool, Task},
 };
 
@@ -38,7 +38,6 @@ impl LoadedAsset {
 }
 
 enum AssetLoadEvent {
-    LoadStarted((AssetId, Task<()>)),
     Loaded(LoadedAsset),
     LoadFailed(AssetId),
 }
@@ -59,9 +58,14 @@ impl AssetLoadContext {
     }
 }
 
+pub(crate) struct AssetInfo {
+    handle: Weak<StrongAssetHandle>,
+}
+
 pub(crate) struct AssetServerData {
     pending_tasks: RwLock<HashMap<AssetId, Task<()>>>,
     loaded_assets: RwLock<HashSet<AssetId>>,
+    asset_handles: RwLock<HashMap<AssetId, AssetInfo>>,
     asset_lifetime_send_map: RwLock<HashMap<TypeId, Sender<AssetLifetimeEvent>>>,
     asset_load_event_sender: Sender<AssetLoadEvent>,
     asset_load_event_receiver: Receiver<AssetLoadEvent>,
@@ -78,6 +82,7 @@ impl AssetServer {
         let server_data = AssetServerData {
             pending_tasks: RwLock::new(HashMap::new()),
             loaded_assets: RwLock::new(HashSet::new()),
+            asset_handles: RwLock::new(HashMap::new()),
             asset_lifetime_send_map: RwLock::new(HashMap::new()),
             asset_load_event_sender,
             asset_load_event_receiver,
@@ -116,7 +121,23 @@ impl AssetServer {
             .expect("Asset lifetime sender not found, make sure to register it")
             .clone();
 
-        let handle = AssetHandle::new(id, lifetime_sender);
+        let mut binding = self.data.asset_handles.write().unwrap();
+        let info = binding.entry(id.clone()).or_insert_with(|| AssetInfo {
+            handle: Weak::new(),
+        });
+
+        let handle = if let Some(strong_handle) = info.handle.upgrade() {
+            AssetHandle::new(strong_handle)
+        } else {
+            let handle = Arc::new(StrongAssetHandle {
+                id,
+                lifetime_sender,
+            });
+
+            info.handle = Arc::downgrade(&handle);
+
+            AssetHandle::new(handle)
+        };
 
         if !self.data.pending_tasks.read().unwrap().contains_key(&id)
             && !self.data.loaded_assets.read().unwrap().contains(&id)
@@ -156,10 +177,7 @@ impl AssetServer {
             }
         });
 
-        self.data
-            .asset_load_event_sender
-            .send(AssetLoadEvent::LoadStarted((id, task)))
-            .unwrap();
+        self.data.pending_tasks.write().unwrap().insert(id, task);
     }
 }
 
@@ -171,9 +189,6 @@ pub fn handle_asset_load_events(world: &mut world::World) {
         .asset_load_event_receiver
         .try_iter()
         .for_each(|event| match event {
-            AssetLoadEvent::LoadStarted((id, task)) => {
-                server.data.pending_tasks.write().unwrap().insert(id, task);
-            }
             AssetLoadEvent::Loaded(loaded_asset) => {
                 server
                     .data

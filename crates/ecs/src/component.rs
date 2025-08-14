@@ -41,6 +41,7 @@ impl ComponentLifecycleCallbacks {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct Tick(u32);
 
 impl Tick {

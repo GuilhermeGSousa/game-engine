@@ -3,7 +3,7 @@ use any_vec::any_value::AnyValueWrapper;
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
-    table::{Table, TableRow},
+    table::{Table, TableRow, TableRowIndex},
 };
 
 pub struct Archetype {
@@ -33,7 +33,7 @@ impl Archetype {
         &mut self,
         raw_value: AnyValueWrapper<T>,
         current_tick: u32,
-        row: TableRow,
+        row: TableRowIndex,
     ) {
         if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
             column.insert(raw_value, current_tick, row);
@@ -44,7 +44,7 @@ impl Archetype {
         self.data_table.add_entity(entity);
     }
 
-    pub fn insert_entity(&mut self, entity: Entity, row: TableRow) {
+    pub fn insert_entity(&mut self, entity: Entity, row: TableRowIndex) {
         self.data_table.insert_entity(row, entity);
     }
 
@@ -60,17 +60,16 @@ impl Archetype {
         self.data_table.get_row_count()
     }
 
-    pub unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRow) -> Option<&T> {
+    pub unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
         self.data_table
-            .get_column(ComponentId::of::<T>())
-            .unwrap()
+            .get_column(ComponentId::of::<T>())?
             .get_unsafe(row)
     }
 
     pub fn was_entity_added(
         &self,
         component_id: ComponentId,
-        row: TableRow,
+        row: TableRowIndex,
         current_tick: u32,
     ) -> bool {
         self.data_table.was_added(row, component_id, current_tick)
@@ -79,7 +78,7 @@ impl Archetype {
     pub fn was_entity_changed(
         &self,
         component_id: ComponentId,
-        row: TableRow,
+        row: TableRowIndex,
         current_tick: u32,
     ) -> bool {
         self.data_table.was_changed(row, component_id, current_tick)
@@ -87,13 +86,10 @@ impl Archetype {
 
     pub unsafe fn get_component_unsafe_mut<T: 'static>(
         &mut self,
-        row: TableRow,
+        row: TableRowIndex,
         current_tick: u32,
     ) -> Option<&mut T> {
-        let column = self
-            .data_table
-            .get_column_mut(ComponentId::of::<T>())
-            .unwrap();
+        let column = self.data_table.get_column_mut(ComponentId::of::<T>())?;
         column.set_changed(row, current_tick);
         column.get_mut_unsafe(row)
     }
@@ -102,11 +98,15 @@ impl Archetype {
         self.data_table.entities()
     }
 
-    pub fn remove_swap(&mut self, row: TableRow) -> Entity {
+    pub fn remove_swap(&mut self, row: TableRowIndex) -> TableRow {
         self.data_table.remove_swap(row)
     }
 
     pub fn component_ids(&self) -> &[ComponentId] {
         &self.component_ids
+    }
+
+    pub fn add_row(&mut self, row: TableRow, current_tick: u32) {
+        self.data_table.add_row(row, current_tick);
     }
 }

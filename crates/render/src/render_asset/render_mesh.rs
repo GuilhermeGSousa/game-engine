@@ -1,11 +1,11 @@
-use ecs::{component::Component, resource::Res};
+use ecs::resource::Res;
 use essential::assets::AssetId;
 use wgpu::util::DeviceExt;
 
 use crate::{
     assets::mesh::Mesh,
+    device::RenderDevice,
     render_asset::{AssetPreparationError, RenderAsset},
-    resources::RenderContext,
 };
 
 pub(crate) struct RenderSubMesh {
@@ -22,7 +22,7 @@ pub(crate) struct RenderMesh {
 impl RenderAsset for RenderMesh {
     type SourceAsset = Mesh;
 
-    type PreparationParams = (Res<'static, RenderContext>,);
+    type PreparationParams = (Res<'static, RenderDevice>,);
 
     fn prepare_asset(
         source_asset: &Self::SourceAsset,
@@ -67,10 +67,4 @@ impl RenderAsset for RenderMesh {
 
         Ok(RenderMesh { sub_meshes })
     }
-}
-
-#[derive(Component)]
-pub(crate) struct RenderMeshInstance {
-    pub(crate) render_asset_id: AssetId,
-    pub(crate) buffer: wgpu::Buffer,
 }

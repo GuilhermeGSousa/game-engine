@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 
 use app::{
@@ -10,11 +12,16 @@ use ecs::{
     query::Query,
     resource::{Res, ResMut},
 };
-use glam::{Quat, Vec2, Vec3};
+use glam::{Quat, Vec2, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::mesh::Mesh,
-    components::{camera::Camera, mesh_component::MeshComponent, render_entity::RenderEntity},
+    components::{
+        camera::Camera,
+        light::{LighType, Light, SpotLight},
+        mesh_component::MeshComponent,
+        render_entity::RenderEntity,
+    },
     plugin::RenderPlugin,
 };
 
@@ -31,6 +38,9 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use crate::game_ui::render_ui;
 
 pub mod game_ui;
+
+const MESH_ASSET: &str = "res/sphere.obj";
+const GROUND_ASSET: &str = "res/ground.obj";
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {
@@ -59,8 +69,8 @@ pub fn run_game() {
             app::update_group::UpdateGroup::Update,
             despawn_on_button_press,
         )
-        //.add_system(app::update_group::UpdateGroup::Update, rotate_meshes)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
+        // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
         .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor);
 
@@ -71,22 +81,54 @@ pub fn run_game() {
 
 fn spawn_player(app: &mut app::App) {
     let camera = Camera::new(1.0, 45.0, 0.1, 100.0);
-    let cam_pos = Vec3::new(0.0, 0.0, 2.0);
-    let cam_rot = Quat::look_at_rh(cam_pos, Vec3::ZERO, Vec3::Y);
+    let cam_pos = Vec3::new(0.0, 2.0, 0.0);
+    let cam_rot = Quat::look_at_rh(Vec3::X, Vec3::ZERO, Vec3::Y);
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
 
-    app.spawn((camera, camera_transform, RenderEntity::new()));
+    let light = Light {
+        color: Vec4::new(1.0, 0.0, 1.0, 1.0),
+        intensity: 10.0,
+        light_type: LighType::Spot(SpotLight {
+            cone_angle: 50.0 * PI / 180.0,
+        }),
+    };
+
+    let mut light_transform = camera_transform.clone();
+    light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
+
+    app.spawn((
+        camera,
+        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+        RenderEntity::new(),
+    ));
+    app.spawn((light, light_transform, RenderEntity::new()));
 }
 
-fn spawn_floor(mut cmd: CommandQueue, mut physics_state: ResMut<PhysicsState>) {
-    let ground_colider = physics_state.make_cuboid(100.0, 2.0, 100.0, None);
-    let ground_transform = Transform::from_translation_rotation(Vec3::Z * -2.0, Quat::IDENTITY);
+fn spawn_floor(
+    mut cmd: CommandQueue,
+    mut physics_state: ResMut<PhysicsState>,
+    asset_server: Res<AssetServer>,
+) {
+    let height = 1.0;
+    let ground_mesh = asset_server.load::<Mesh>(GROUND_ASSET);
+    let ground_transform =
+        Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
+    let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
 
-    cmd.spawn((ground_colider, ground_transform));
+    cmd.spawn((
+        MeshComponent {
+            handle: ground_mesh,
+        },
+        RenderEntity::Uninitialized,
+        ground_colider,
+        ground_transform,
+    ));
 }
 
-fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
+fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
     let (_, transform) = cameras.iter().next().unwrap();
+
+    let displacement = 500.0 * time.delta();
 
     let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyD));
     let key_a = input.get_key_state(PhysicalKey::Code(KeyCode::KeyA));
@@ -94,26 +136,27 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>) {
     let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
 
     if key_d == InputState::Pressed || key_d == InputState::Down {
-        transform.translation += transform.right() * 0.1;
+        transform.translation += transform.right() * displacement;
     }
 
     if key_a == InputState::Pressed || key_a == InputState::Down {
-        transform.translation += transform.left() * 0.1;
+        transform.translation += transform.left() * displacement;
     }
 
     if key_w == InputState::Pressed || key_w == InputState::Down {
-        transform.translation += transform.forward() * 0.1;
+        transform.translation += transform.forward() * displacement;
     }
 
     if key_s == InputState::Pressed || key_s == InputState::Down {
-        transform.translation += transform.backward() * 0.1;
+        transform.translation += transform.backward() * displacement;
     }
 
     transform.translation.y = 0.0; // Keep the camera on the ground
 
     let mouse_delta = input.get_mouse_delta();
+    let rotation_delta = mouse_delta.x * 10.0 * time.delta();
     if mouse_delta != Vec2::ZERO {
-        transform.rotation *= Quat::from_axis_angle(Vec3::Y, mouse_delta.x * 0.01);
+        transform.rotation *= Quat::from_axis_angle(Vec3::Y, rotation_delta);
     }
 }
 
@@ -126,9 +169,15 @@ fn spawn_on_button_press(
     let (_, pos) = cameras.iter().next().expect("No camera found");
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
 
+    let mut mesh_transform = pos.clone();
+    mesh_transform.translation = pos.translation + pos.forward() * 50.0;
     if key_p == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>("res/cube.obj");
-        cmd.spawn((MeshComponent { handle }, pos.clone(), RenderEntity::new()));
+        let handle = asset_server.load::<Mesh>(MESH_ASSET);
+        cmd.spawn((
+            MeshComponent { handle },
+            mesh_transform,
+            RenderEntity::new(),
+        ));
     }
 }
 
@@ -144,18 +193,19 @@ fn spawn_with_collider(
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>("res/cube.obj");
-        let spawn_point = pos.up() * 10.0 + pos.forward() * 5.0;
+        let spawn_point = pos.translation + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
         let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
         let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
 
         cmd.spawn((
-            MeshComponent { handle },
+            MeshComponent {
+                handle: asset_server.load::<Mesh>(MESH_ASSET),
+            },
             rigid_body,
             collider,
-            cube_transform,
+            cube_transform.clone(),
             RenderEntity::new(),
         ));
     }
@@ -175,8 +225,13 @@ fn despawn_on_button_press(
     }
 }
 
-fn rotate_meshes(meshes: Query<(Entity, &MeshComponent, &mut Transform)>, time: Res<Time>) {
-    for (_, _, transform) in meshes.iter() {
-        transform.rotation *= Quat::from_axis_angle(Vec3::Y, time.delta() * 100.0);
-    }
+fn move_light_to_player(
+    cameras: Query<(&Camera, &Transform)>,
+    light: Query<(&Light, &mut Transform)>,
+) {
+    let (_, transform_cam) = cameras.iter().next().unwrap();
+    let (_, transform_light) = light.iter().next().unwrap();
+
+    transform_light.translation =
+        transform_cam.translation + transform_cam.forward() * 2.0 + transform_cam.up();
 }

@@ -68,17 +68,22 @@ impl Camera {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct CameraUniform {
+    view_pos: [f32; 3],
+    _padding_view_pos: f32,
     view_proj: [[f32; 4]; 4],
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
+            view_pos: [0.0; 3],
+            _padding_view_pos: 0.0,
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera, transform: &Transform) {
+        self.view_pos = transform.translation.into();
         self.view_proj = (OPENGL_TO_WGPU_MATRIX
             * camera.build_projection_matrix()
             * transform.compute_matrix().inverse())

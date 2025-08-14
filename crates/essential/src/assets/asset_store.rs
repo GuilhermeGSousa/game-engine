@@ -11,7 +11,6 @@ use super::{
 
 pub struct AssetStoreEntry<A: Asset> {
     pub(crate) asset: A,
-    pub(crate) ref_count: i32,
 }
 
 #[derive(Resource)]
@@ -41,24 +40,18 @@ impl<A: Asset + 'static> AssetStore<A> {
     where
         A: 'static,
     {
-        let entry = AssetStoreEntry {
-            asset,
-            ref_count: 1,
-        };
+        let entry = AssetStoreEntry { asset };
         self.assets.insert(id, entry);
     }
 
     pub fn track_assets(&mut self, mut asset_server: ResMut<AssetServer>) {
         for event in self.drop_receiver.try_iter() {
-            if let Some(entry) = self.assets.get_mut(&event.id()) {
+            if let Some(_) = self.assets.get_mut(&event.id()) {
                 match event {
-                    AssetLifetimeEvent::Cloned(_) => entry.ref_count += 1,
-                    AssetLifetimeEvent::Dropped(_) => entry.ref_count -= 1,
-                }
-
-                if entry.ref_count <= 0 {
-                    self.assets.remove(&event.id());
-                    asset_server.process_handle_drop(&event.id());
+                    AssetLifetimeEvent::Dropped(id) => {
+                        self.assets.remove(&id);
+                        asset_server.process_handle_drop(&id);
+                    }
                 }
             }
         }

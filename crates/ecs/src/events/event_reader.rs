@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, slice::Iter};
+use std::{slice::Iter};
 
 use crate::{
     events::{event_channel::EventChannel, Event},

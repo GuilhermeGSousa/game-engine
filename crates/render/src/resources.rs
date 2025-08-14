@@ -5,5 +5,6 @@ use std::sync::Arc;
 pub struct RenderContext {
     pub(crate) surface: Arc<wgpu::Surface<'static>>,
     pub surface_config: wgpu::SurfaceConfiguration,
-    pub pipeline: wgpu::RenderPipeline,
+    pub main_pipeline: wgpu::RenderPipeline,
+    pub skybox_pipeline: wgpu::RenderPipeline,
 }

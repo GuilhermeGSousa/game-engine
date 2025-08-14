@@ -114,3 +114,39 @@ impl LightLayouts {
         Self { lights_layout }
     }
 }
+
+#[derive(Resource)]
+pub(crate) struct SkyboxLayout {
+    pub layout: wgpu::BindGroupLayout,
+}
+impl SkyboxLayout {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let skybox_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::Cube,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    // This should match the filterable field of the
+                    // corresponding Texture entry above.
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("mesh_bind_group_layout"),
+        });
+
+        Self {
+            layout: skybox_layout,
+        }
+    }
+}

@@ -1,6 +1,7 @@
 use essential::transform::TransformRaw;
 use glam::Vec4;
 use std::sync::Arc;
+use wgpu::{FragmentState, MultisampleState, RenderPipelineDescriptor};
 
 use crate::{
     assets::{
@@ -12,10 +13,11 @@ use crate::{
     components::{
         light::{update_lights_buffer, RenderLights},
         render_entity::RenderEntity,
+        skybox::SkyboxVertex,
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
-    layouts::{CameraLayouts, LightLayouts, MeshLayouts},
+    layouts::{CameraLayouts, LightLayouts, MeshLayouts, SkyboxLayout},
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial,
@@ -102,7 +104,9 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
+        let main_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
+        let skybox_shader =
+            device.create_shader_module(wgpu::include_wgsl!("shaders\\skybox.wgsl"));
 
         let camera_layouts = CameraLayouts::new(&device);
 
@@ -110,8 +114,10 @@ impl Plugin for RenderPlugin {
 
         let light_layouts = LightLayouts::new(&device);
 
+        let skybox_layout = SkyboxLayout::new(&device);
+
         // Setup render pipeline
-        let render_pipeline_layout =
+        let main_render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
@@ -122,18 +128,18 @@ impl Plugin for RenderPlugin {
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let main_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
+            layout: Some(&main_render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &main_shader,
                 entry_point: Some("vs_main"),
                 buffers: &[Vertex::describe(), TransformRaw::describe()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 // 3.
-                module: &shader,
+                module: &main_shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     // 4.
@@ -171,6 +177,43 @@ impl Plugin for RenderPlugin {
             cache: None,
         });
 
+        let skybox_render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[&camera_layouts.camera_layout, &skybox_layout.layout],
+                push_constant_ranges: &[],
+            });
+
+        let skybox_render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: Some("Skybox Pipeline"),
+            layout: Some(&skybox_render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &skybox_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[SkyboxVertex::describe()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: Some(wgpu::Face::Front),
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(FragmentState {
+                module: &skybox_shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            multiview: None,
+            cache: None,
+        });
+
         app.register_component_lifecycle::<RenderEntity>();
 
         let render_lights = RenderLights::new(&device, &light_layouts);
@@ -179,7 +222,8 @@ impl Plugin for RenderPlugin {
             .insert_resource(RenderContext {
                 surface: surface,
                 surface_config: config,
-                pipeline: render_pipeline,
+                main_pipeline: main_render_pipeline,
+                skybox_pipeline: skybox_render_pipeline,
             })
             .insert_resource(RenderDevice { device })
             .insert_resource(RenderQueue { queue })

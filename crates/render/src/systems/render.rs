@@ -58,7 +58,7 @@ pub(crate) fn render(
                     occlusion_query_set: None,
                     timestamp_writes: None,
                 });
-                render_pass.set_pipeline(&context.pipeline);
+                render_pass.set_pipeline(&context.main_pipeline);
 
                 render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
                 render_pass.set_bind_group(2, &render_lights.bind_group, &[]);

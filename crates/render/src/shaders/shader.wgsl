@@ -125,7 +125,7 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
 
     let view_dir = normalize(camera.view_pos - in.world_position);
 
-    var total_light = object_color * 0.0;
+    var total_light = object_color * 0.1;
 
     for (var i: i32 = 0; i < min(lights.light_count, MAX_LIGHT_COUNT); i = i + 1) {
 
@@ -135,7 +135,6 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
 
         var light_dir = -light.direction;
 
-        // TODO
         let light_type = light.light_type;
 
         if light_type != DIRECTIONAL_LIGHT {

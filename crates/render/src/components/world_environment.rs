@@ -2,6 +2,7 @@ use ecs::resource::Resource;
 use encase::ShaderType;
 use glam::Vec4;
 
+// TODO: Actually use this
 #[derive(Resource, ShaderType)]
 pub struct WorldEnvironment {
     ambient_color: Vec4,

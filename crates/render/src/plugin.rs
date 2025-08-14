@@ -1,7 +1,7 @@
 use essential::transform::TransformRaw;
 use glam::Vec4;
 use std::sync::Arc;
-use wgpu::{FragmentState, MultisampleState, RenderPipelineDescriptor};
+use wgpu::{FragmentState, RenderPipelineDescriptor};
 
 use crate::{
     assets::{
@@ -13,11 +13,11 @@ use crate::{
     components::{
         light::{update_lights_buffer, RenderLights},
         render_entity::RenderEntity,
-        skybox::SkyboxVertex,
+        skybox::{RenderSkyboxCube, SkyboxVertex},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
-    layouts::{CameraLayouts, LightLayouts, MeshLayouts, SkyboxLayout},
+    layouts::{CameraLayouts, LightLayouts, MaterialLayouts},
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial,
@@ -110,18 +110,18 @@ impl Plugin for RenderPlugin {
 
         let camera_layouts = CameraLayouts::new(&device);
 
-        let mesh_layouts = MeshLayouts::new(&device);
+        let material_layouts = MaterialLayouts::new(&device);
 
         let light_layouts = LightLayouts::new(&device);
 
-        let skybox_layout = SkyboxLayout::new(&device);
+        let skybox_cube = RenderSkyboxCube::new(&device);
 
         // Setup render pipeline
         let main_render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
-                    &mesh_layouts.mesh_layout,
+                    &material_layouts.main_material_layout,
                     &camera_layouts.camera_layout,
                     &light_layouts.lights_layout,
                 ],
@@ -180,7 +180,10 @@ impl Plugin for RenderPlugin {
         let skybox_render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_layouts.camera_layout, &skybox_layout.layout],
+                bind_group_layouts: &[
+                    &camera_layouts.camera_layout,
+                    &material_layouts.skybox_material_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -228,10 +231,11 @@ impl Plugin for RenderPlugin {
             .insert_resource(RenderDevice { device })
             .insert_resource(RenderQueue { queue })
             .insert_resource(RenderWindow::new())
-            .insert_resource(mesh_layouts)
+            .insert_resource(material_layouts)
             .insert_resource(camera_layouts)
             .insert_resource(light_layouts)
             .insert_resource(render_lights)
+            .insert_resource(skybox_cube)
             .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
@@ -253,6 +257,10 @@ impl Plugin for RenderPlugin {
                 update_window::update_window,
             )
             .add_system(app::update_group::UpdateGroup::Render, update_lights_buffer)
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                render::render_skybox,
+            )
             .add_system(app::update_group::UpdateGroup::Render, render::render)
             .add_system(app::update_group::UpdateGroup::LateRender, present_window);
     }

@@ -4,7 +4,7 @@ use ecs::{
     query_filter::{Added, Changed},
     resource::Res,
 };
-use essential::transform::Transform;
+use essential::{assets::asset_server::AssetServer, transform::Transform};
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -58,6 +58,8 @@ pub(crate) fn camera_added(
             camera_uniform: camera_uniform,
             camera_buffer: camera_buffer,
             depth_texture: depth_texture,
+            skybox_texture: camera.skybox_texture.as_ref().map(|handle| handle.id()),
+            clear_color: camera.clear_color,
         };
 
         match render_entity {

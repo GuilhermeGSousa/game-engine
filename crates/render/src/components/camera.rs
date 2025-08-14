@@ -1,8 +1,11 @@
-use essential::{assets::handle::AssetHandle, transform::Transform};
+use essential::{
+    assets::{handle::AssetHandle, AssetId},
+    transform::Transform,
+};
 
 use bytemuck::{Pod, Zeroable};
 use ecs::{component::Component, entity::Entity};
-use glam::Mat4;
+use glam::{Mat4, Vec4};
 
 use crate::{assets::texture::Texture, render_asset::render_texture::RenderTexture};
 
@@ -42,10 +45,12 @@ impl RenderTarget {
 
 #[derive(Component)]
 pub struct Camera {
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
+    pub aspect: f32,
+    pub fovy: f32,
+    pub znear: f32,
+    pub zfar: f32,
+    pub clear_color: wgpu::Color,
+    pub skybox_texture: Option<AssetHandle<Texture>>,
     render_target: RenderTarget,
 }
 
@@ -56,6 +61,13 @@ impl Camera {
             fovy: fovy,
             znear: znear,
             zfar: zfar,
+            clear_color: wgpu::Color {
+                r: 0.118,
+                g: 0.831,
+                b: 0.922,
+                a: 1.0,
+            },
+            skybox_texture: None,
             render_target: RenderTarget::main_window(),
         }
     }
@@ -96,8 +108,10 @@ unsafe impl Zeroable for CameraUniform {}
 
 #[derive(Component)]
 pub struct RenderCamera {
+    pub(crate) clear_color: wgpu::Color,
     pub camera_bind_group: wgpu::BindGroup,
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,
     pub(crate) depth_texture: RenderTexture,
+    pub(crate) skybox_texture: Option<AssetId>,
 }

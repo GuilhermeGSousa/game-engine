@@ -179,7 +179,7 @@ impl Plugin for RenderPlugin {
 
         let skybox_render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
+                label: Some("Skybox Pipeline Layout"),
                 bind_group_layouts: &[
                     &camera_layouts.camera_layout,
                     &material_layouts.skybox_material_layout,
@@ -228,7 +228,10 @@ impl Plugin for RenderPlugin {
                 main_pipeline: main_render_pipeline,
                 skybox_pipeline: skybox_render_pipeline,
             })
-            .insert_resource(RenderDevice { device })
+            .insert_resource(RenderDevice {
+                device,
+                encoder: None,
+            })
             .insert_resource(RenderQueue { queue })
             .insert_resource(RenderWindow::new())
             .insert_resource(material_layouts)
@@ -265,7 +268,11 @@ impl Plugin for RenderPlugin {
                 app::update_group::UpdateGroup::Render,
                 render::render_skybox,
             )
-            // .add_system(app::update_group::UpdateGroup::Render, render::render)
+            .add_system(app::update_group::UpdateGroup::Render, render::render)
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                render::finish_render,
+            )
             .add_system(app::update_group::UpdateGroup::LateRender, present_window);
     }
 }

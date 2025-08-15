@@ -1,3 +1,4 @@
+use encase::ShaderType;
 use essential::{
     assets::{handle::AssetHandle, AssetId},
     transform::Transform,
@@ -5,7 +6,7 @@ use essential::{
 
 use bytemuck::{Pod, Zeroable};
 use ecs::{component::Component, entity::Entity};
-use glam::{Mat4, Vec4};
+use glam::{Mat4, Vec3, Vec4};
 
 use crate::{assets::texture::Texture, render_asset::render_texture::RenderTexture};
 
@@ -78,33 +79,27 @@ impl Default for Camera {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, ShaderType)]
 pub struct CameraUniform {
-    view_pos: [f32; 3],
-    _padding_view_pos: f32,
-    view_proj: [[f32; 4]; 4],
+    view_pos: Vec3,
+    view_proj: Mat4,
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
-            view_pos: [0.0; 3],
-            _padding_view_pos: 0.0,
-            view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            view_pos: Vec3::ZERO,
+            view_proj: Mat4::IDENTITY,
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera, transform: &Transform) {
-        self.view_pos = transform.translation.into();
-        self.view_proj = (OPENGL_TO_WGPU_MATRIX
+        self.view_pos = transform.translation;
+        self.view_proj = OPENGL_TO_WGPU_MATRIX
             * camera.build_projection_matrix()
-            * transform.compute_matrix().inverse())
-        .to_cols_array_2d();
+            * transform.compute_matrix().inverse();
     }
 }
-
-unsafe impl Pod for CameraUniform {}
-unsafe impl Zeroable for CameraUniform {}
 
 #[derive(Component)]
 pub struct RenderCamera {

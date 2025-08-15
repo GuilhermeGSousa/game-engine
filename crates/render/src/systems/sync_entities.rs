@@ -4,6 +4,7 @@ use ecs::{
     query_filter::{Added, Changed},
     resource::Res,
 };
+use encase::UniformBuffer;
 use essential::transform::Transform;
 use wgpu::util::DeviceExt;
 
@@ -25,7 +26,6 @@ pub(crate) fn camera_added(
     cameras: Query<(&Camera, &Transform, &mut RenderEntity), Added<(Camera,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
-    queue: Res<RenderQueue>,
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayouts>,
 ) {
@@ -33,9 +33,11 @@ pub(crate) fn camera_added(
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(camera, transform);
 
+        let mut buffer = UniformBuffer::new(Vec::new());
+        buffer.write(&camera_uniform).unwrap();
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
+            contents: &buffer.into_inner(),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -51,13 +53,12 @@ pub(crate) fn camera_added(
         let depth_texture =
             RenderTexture::create_depth_texture(&device, &context.surface_config, "depth_texture");
 
-        queue.write_buffer(&camera_buffer, 0, bytemuck::cast_slice(&[camera_uniform]));
-
         let render_cam = RenderCamera {
             camera_bind_group: camera_bind_group,
             camera_uniform: camera_uniform,
             camera_buffer: camera_buffer,
             depth_texture: depth_texture,
+            clear_color: camera.clear_color,
         };
 
         match render_entity {
@@ -72,7 +73,7 @@ pub(crate) fn camera_added(
     }
 }
 
-pub(crate) fn camera_moved(
+pub(crate) fn camera_changed(
     cameras: Query<(&Camera, &Transform, &RenderEntity), Changed<(Transform,)>>,
     render_cameras: Query<(&mut RenderCamera,)>,
     queue: Res<RenderQueue>,
@@ -85,11 +86,10 @@ pub(crate) fn camera_moved(
                         .camera_uniform
                         .update_view_proj(camera, transform);
 
-                    queue.write_buffer(
-                        &render_camera.camera_buffer,
-                        0,
-                        bytemuck::cast_slice(&[render_camera.camera_uniform]),
-                    );
+                    let mut buffer = UniformBuffer::new(Vec::new());
+                    buffer.write(&render_camera.camera_uniform).unwrap();
+
+                    queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
                 }
             }
             _ => {}
@@ -109,7 +109,7 @@ pub(crate) fn mesh_added(
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
-        let instance = RenderMeshInstance {
+        let instance: RenderMeshInstance = RenderMeshInstance {
             render_asset_id: mesh.handle.id(),
             buffer: instance_buffer,
         };
@@ -126,7 +126,7 @@ pub(crate) fn mesh_added(
     }
 }
 
-pub(crate) fn mesh_moved(
+pub(crate) fn mesh_changed(
     meshes: Query<(&MeshComponent, &Transform, &RenderEntity), Changed<(Transform,)>>,
     render_meshes: Query<(&mut RenderMeshInstance,)>,
     queue: Res<RenderQueue>,

@@ -5,7 +5,6 @@ use crate::{
     device::RenderDevice,
     queue::RenderQueue,
     render_asset::{AssetPreparationError, RenderAsset},
-    resources::RenderContext,
 };
 use ecs::{
     resource::{Res, Resource},
@@ -31,25 +30,10 @@ impl RenderTexture {
             ..Default::default()
         });
 
-        let dimensions = texture.dimensions();
-
-        let size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
-            depth_or_array_layers: 1,
-        };
-
-        let wgpu_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let dimensions = texture.size();
+        let usage_settings = texture.usage_settings();
+        let wgpu_texture = device.create_texture(&usage_settings.texture_descriptor);
+        let view = wgpu_texture.create_view(&usage_settings.texture_view_descriptor);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 aspect: wgpu::TextureAspect::All,
@@ -60,10 +44,10 @@ impl RenderTexture {
             &texture.data(),
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * dimensions.0),
-                rows_per_image: Some(dimensions.1),
+                bytes_per_row: Some(4 * dimensions.width),
+                rows_per_image: Some(dimensions.height),
             },
-            size,
+            *dimensions,
         );
 
         Self {

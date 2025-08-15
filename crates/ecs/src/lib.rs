@@ -159,4 +159,25 @@ mod tests {
 
         assert_eq!(count, 2);
     }
+
+    #[test]
+    fn insert_twice() {
+        let mut world = World::new();
+
+        let entity = world.spawn(Health);
+
+        world.insert_component(Position { x: 0.0, y: 0.0 }, entity);
+        world.insert_component(Position { x: 10.0, y: 11.0 }, entity);
+
+        let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
+
+        let mut count = 0;
+        for (pos, _) in query.iter() {
+            assert_eq!(pos.x, 10.0);
+            assert_eq!(pos.y, 11.0);
+            count += 1;
+        }
+
+        assert_eq!(count, 1);
+    }
 }

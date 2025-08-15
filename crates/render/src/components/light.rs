@@ -114,7 +114,7 @@ impl RenderLights {
     }
 }
 
-pub(crate) fn update_lights_buffer(
+pub(crate) fn prepare_lights_buffer(
     lights: Query<&RenderLight>,
     lights_buffer: Res<RenderLights>,
     context: Res<RenderQueue>,

@@ -15,17 +15,22 @@ use ecs::{
 use glam::{Quat, Vec2, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
-    assets::mesh::Mesh,
+    assets::{mesh::Mesh, texture::TextureUsageSettings},
     components::{
         camera::Camera,
         light::{LighType, Light, SpotLight},
         mesh_component::MeshComponent,
         render_entity::RenderEntity,
+        skybox::Skybox,
     },
     plugin::RenderPlugin,
 };
 
 use ui::plugin::UIPlugin;
+use wgpu_types::{
+    Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+    TextureViewDescriptor, TextureViewDimension,
+};
 use window::{
     input::{Input, InputState},
     plugin::WindowPlugin,
@@ -41,6 +46,7 @@ pub mod game_ui;
 
 const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
+const SKYBOX_TEXTURE: &str = "res/Ryfjallet_cubemap.png";
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {
@@ -80,7 +86,37 @@ pub fn run_game() {
 }
 
 fn spawn_player(app: &mut app::App) {
-    let camera = Camera::new(1.0, 45.0, 0.1, 100.0);
+    let camera = Camera::default();
+    let skybox = Skybox {
+        texture: app
+            .get_resource::<AssetServer>()
+            .unwrap()
+            .load_with_usage_settings(
+                SKYBOX_TEXTURE,
+                TextureUsageSettings {
+                    texture_descriptor: TextureDescriptor {
+                        label: Some("cubemap_texture"),
+                        size: Extent3d {
+                            width: 256,
+                            height: 256,
+                            depth_or_array_layers: 6,
+                        },
+
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: TextureDimension::D2,
+                        format: TextureFormat::Rgba8UnormSrgb,
+                        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                        view_formats: &[],
+                    },
+                    texture_view_descriptor: TextureViewDescriptor {
+                        dimension: Some(TextureViewDimension::Cube),
+                        ..Default::default()
+                    },
+                },
+            ),
+    };
+
     let cam_pos = Vec3::new(0.0, 2.0, 0.0);
     let cam_rot = Quat::look_at_rh(Vec3::X, Vec3::ZERO, Vec3::Y);
     let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
@@ -98,6 +134,7 @@ fn spawn_player(app: &mut app::App) {
 
     app.spawn((
         camera,
+        skybox,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
         RenderEntity::new(),
     ));

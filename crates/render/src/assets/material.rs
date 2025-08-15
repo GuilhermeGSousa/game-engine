@@ -1,9 +1,9 @@
 use bytemuck::{Pod, Zeroable};
 use essential::assets::{handle::AssetHandle, Asset};
 
+use super::texture::Texture;
 use crate::loaders::mtl_loader::MTLLoader;
 use bitflags::bitflags;
-use super::texture::Texture;
 
 pub struct Material {
     diffuse_texture: Option<AssetHandle<Texture>>,
@@ -36,8 +36,13 @@ impl Material {
 }
 
 impl Asset for Material {
+    type UsageSettings = ();
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
         Box::new(MTLLoader)
+    }
+
+    fn default_usage_settings() -> Self::UsageSettings {
+        ()
     }
 }
 
@@ -53,18 +58,14 @@ bitflags! {
 }
 
 impl MaterialFlags {
-    pub(crate) fn from_material(material: &Material) -> Self
-    {
+    pub(crate) fn from_material(material: &Material) -> Self {
         let mut flags: MaterialFlags = MaterialFlags(0);
-        if material.diffuse_texture.is_some()
-        {
+        if material.diffuse_texture.is_some() {
             flags |= MaterialFlags::HAS_DIFFUSE_TEXTURE;
         }
-        if material.normal_texture.is_some()
-        {
+        if material.normal_texture.is_some() {
             flags |= MaterialFlags::HAS_NORMAL_TEXTURE;
         }
         flags
     }
 }
-

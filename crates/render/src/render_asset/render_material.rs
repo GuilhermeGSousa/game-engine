@@ -7,7 +7,7 @@ use wgpu::{
 use crate::{
     assets::material::{Material, MaterialFlags},
     device::RenderDevice,
-    layouts::MeshLayouts,
+    layouts::MaterialLayouts,
     render_asset::{
         render_texture::DummyRenderTexture, AssetPreparationError, RenderAsset, RenderAssets,
     },
@@ -26,7 +26,7 @@ impl RenderAsset for RenderMaterial {
         Res<'static, RenderDevice>,
         Res<'static, RenderAssets<RenderTexture>>,
         Res<'static, DummyRenderTexture>,
-        Res<'static, MeshLayouts>,
+        Res<'static, MaterialLayouts>,
     );
 
     fn prepare_asset(
@@ -99,7 +99,7 @@ impl RenderAsset for RenderMaterial {
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &mesh_layouts.mesh_layout,
+            layout: &mesh_layouts.main_material_layout,
             entries: &entries,
             label: Some("material_bind_group"),
         });

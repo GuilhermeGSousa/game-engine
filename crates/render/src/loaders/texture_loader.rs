@@ -1,5 +1,5 @@
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, AssetPath,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, Asset, AssetPath,
 };
 
 use async_trait::async_trait;
@@ -17,11 +17,12 @@ impl AssetLoader for TextureLoader {
         &self,
         path: AssetPath<'static>,
         _load_context: &mut AssetLoadContext,
+        usage_settings: <Self::Asset as Asset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let data = load_binary(path).await;
         match data {
             Ok(data) => {
-                let texture = Texture::from_bytes(&data);
+                let texture = Texture::from_bytes(&data, usage_settings);
                 match texture {
                     Ok(texture) => return Ok(texture),
                     Err(_) => {

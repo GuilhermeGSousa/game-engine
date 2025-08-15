@@ -106,10 +106,25 @@ impl AssetServer {
     where
         A: 'static,
     {
-        self.load_internal::<A>(path)
+        self.load_internal::<A>(path, A::default_usage_settings())
     }
 
-    pub fn load_internal<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A> {
+    pub fn load_with_usage_settings<'a, A: Asset>(
+        &self,
+        path: impl Into<AssetPath<'a>>,
+        usage_settings: A::UsageSettings,
+    ) -> AssetHandle<A>
+    where
+        A: 'static,
+    {
+        self.load_internal::<A>(path, usage_settings)
+    }
+
+    pub fn load_internal<'a, A: Asset>(
+        &self,
+        path: impl Into<AssetPath<'a>>,
+        usage_settings: A::UsageSettings,
+    ) -> AssetHandle<A> {
         let path = path.into().into_owned();
         let id = AssetId::new::<A>(&path);
         let lifetime_sender = self
@@ -142,7 +157,7 @@ impl AssetServer {
         if !self.data.pending_tasks.read().unwrap().contains_key(&id)
             && !self.data.loaded_assets.read().unwrap().contains(&id)
         {
-            self.request_load::<A>(path.clone());
+            self.request_load::<A>(path.clone(), usage_settings);
         }
 
         handle
@@ -152,7 +167,7 @@ impl AssetServer {
         self.data.loaded_assets.write().unwrap().remove(id);
     }
 
-    fn request_load<A: Asset>(&self, path: AssetPath<'static>) {
+    fn request_load<A: Asset>(&self, path: AssetPath<'static>, usage_settings: A::UsageSettings) {
         let id = AssetId::new::<A>(&path);
         let asset_loader = A::loader();
 
@@ -161,7 +176,7 @@ impl AssetServer {
         let server = self.clone();
         let task = LoadTaskPool::get_or_init(TaskPool::new).spawn(async move {
             let asset = asset_loader
-                .load(path, &mut AssetLoadContext::new(server))
+                .load(path, &mut AssetLoadContext::new(server), usage_settings)
                 .await;
             match asset {
                 Ok(asset) => {

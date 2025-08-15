@@ -84,5 +84,8 @@ impl AssetId {
 }
 
 pub trait Asset: Send + Sync + 'static {
+    type UsageSettings: Send + Sync;
     fn loader() -> Box<dyn asset_loader::AssetLoader<Asset = Self>>;
+
+    fn default_usage_settings() -> Self::UsageSettings;
 }

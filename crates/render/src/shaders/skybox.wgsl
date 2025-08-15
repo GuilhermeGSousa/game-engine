@@ -21,11 +21,18 @@ struct VertexInput {
 }
 
 @vertex
-fn vs_main(model: VertexInput) -> VertexOutput {
+fn vs_main(in: VertexInput) -> VertexOutput {
+
+    let rot = mat3x3<f32>(
+        camera.view_proj[0].xyz,
+        camera.view_proj[1].xyz,
+        camera.view_proj[2].xyz
+    );
     var output: VertexOutput;
     // // Use position as direction, discard translation from view matrix
     // output.position = (view_proj * vec4f(position, 1.0)).xyww;
-    // output.tex_coords = position;
+    output.position = vec4f(rot * in.position, 1.0);
+    output.tex_coords = in.position;
     return output;
 }
 

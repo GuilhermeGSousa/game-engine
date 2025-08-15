@@ -2,7 +2,8 @@ use std::io::{BufRead, BufReader, Cursor};
 
 use async_trait::async_trait;
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
+    AssetPath,
 };
 use glam::{Vec2, Vec3};
 use tobj::Model;
@@ -25,6 +26,7 @@ impl AssetLoader for ObjLoader {
         &self,
         path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
+        usage_setting: <Self::Asset as Asset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);

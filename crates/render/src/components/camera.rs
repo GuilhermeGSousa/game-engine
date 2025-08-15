@@ -50,30 +50,30 @@ pub struct Camera {
     pub znear: f32,
     pub zfar: f32,
     pub clear_color: wgpu::Color,
-    pub skybox_texture: Option<AssetHandle<Texture>>,
-    render_target: RenderTarget,
+    pub render_target: RenderTarget,
 }
 
 impl Camera {
-    pub fn new(aspect: f32, fovy: f32, znear: f32, zfar: f32) -> Self {
+    pub fn build_projection_matrix(&self) -> Mat4 {
+        Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar)
+    }
+}
+
+impl Default for Camera {
+    fn default() -> Self {
         Self {
-            aspect: aspect,
-            fovy: fovy,
-            znear: znear,
-            zfar: zfar,
+            aspect: 1.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
             clear_color: wgpu::Color {
                 r: 0.118,
                 g: 0.831,
                 b: 0.922,
                 a: 1.0,
             },
-            skybox_texture: None,
             render_target: RenderTarget::main_window(),
         }
-    }
-
-    pub fn build_projection_matrix(&self) -> Mat4 {
-        Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar)
     }
 }
 
@@ -113,5 +113,4 @@ pub struct RenderCamera {
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,
     pub(crate) depth_texture: RenderTexture,
-    pub(crate) skybox_texture: Option<AssetId>,
 }

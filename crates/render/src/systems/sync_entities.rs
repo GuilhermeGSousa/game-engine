@@ -4,7 +4,7 @@ use ecs::{
     query_filter::{Added, Changed},
     resource::Res,
 };
-use essential::{assets::asset_server::AssetServer, transform::Transform};
+use essential::transform::Transform;
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -58,7 +58,6 @@ pub(crate) fn camera_added(
             camera_uniform: camera_uniform,
             camera_buffer: camera_buffer,
             depth_texture: depth_texture,
-            skybox_texture: camera.skybox_texture.as_ref().map(|handle| handle.id()),
             clear_color: camera.clear_color,
         };
 
@@ -74,7 +73,7 @@ pub(crate) fn camera_added(
     }
 }
 
-pub(crate) fn camera_moved(
+pub(crate) fn camera_changed(
     cameras: Query<(&Camera, &Transform, &RenderEntity), Changed<(Transform,)>>,
     render_cameras: Query<(&mut RenderCamera,)>,
     queue: Res<RenderQueue>,
@@ -111,7 +110,7 @@ pub(crate) fn mesh_added(
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
-        let instance = RenderMeshInstance {
+        let instance: RenderMeshInstance = RenderMeshInstance {
             render_asset_id: mesh.handle.id(),
             buffer: instance_buffer,
         };
@@ -128,7 +127,7 @@ pub(crate) fn mesh_added(
     }
 }
 
-pub(crate) fn mesh_moved(
+pub(crate) fn mesh_changed(
     meshes: Query<(&MeshComponent, &Transform, &RenderEntity), Changed<(Transform,)>>,
     render_meshes: Query<(&mut RenderMeshInstance,)>,
     queue: Res<RenderQueue>,

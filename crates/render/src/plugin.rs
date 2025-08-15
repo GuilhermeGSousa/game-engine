@@ -11,9 +11,9 @@ use crate::{
         vertex::{Vertex, VertexBufferLayout},
     },
     components::{
-        light::{update_lights_buffer, RenderLights},
+        light::{prepare_lights_buffer, RenderLights},
         render_entity::RenderEntity,
-        skybox::{RenderSkyboxCube, SkyboxVertex},
+        skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
@@ -30,7 +30,7 @@ use crate::{
     systems::{
         render::{self, present_window},
         sync_entities::{
-            camera_added, camera_moved, light_added, light_changed, mesh_added, mesh_moved,
+            camera_added, camera_changed, light_added, light_changed, mesh_added, mesh_changed,
         },
         update_window,
     },
@@ -247,21 +247,25 @@ impl Plugin for RenderPlugin {
             .register_asset::<Material>();
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, camera_moved)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)
             .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_moved)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_changed)
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 update_window::update_window,
             )
-            .add_system(app::update_group::UpdateGroup::Render, update_lights_buffer)
+            .add_system(app::update_group::UpdateGroup::Render, prepare_skybox)
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                prepare_lights_buffer,
+            )
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 render::render_skybox,
             )
-            .add_system(app::update_group::UpdateGroup::Render, render::render)
+            // .add_system(app::update_group::UpdateGroup::Render, render::render)
             .add_system(app::update_group::UpdateGroup::LateRender, present_window);
     }
 }

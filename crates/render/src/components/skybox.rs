@@ -1,14 +1,26 @@
 use std::mem;
 
-use ecs::resource::Resource;
+use ecs::{
+    command::CommandQueue,
+    component::Component,
+    query::Query,
+    resource::{Res, Resource},
+};
+use essential::assets::handle::AssetHandle;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    BufferUsages, Device, VertexAttribute,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BufferUsages, Device, VertexAttribute,
 };
 
-use crate::assets::vertex::VertexBufferLayout;
+use crate::{
+    assets::{texture::Texture, vertex::VertexBufferLayout},
+    components::{camera::Camera, render_entity::RenderEntity},
+    device::RenderDevice,
+    layouts::MaterialLayouts,
+    render_asset::{render_texture::RenderTexture, RenderAssets},
+};
 
-pub const SKYBOX_VERTICES: [SkyboxVertex; 8] = [
+pub(crate) const SKYBOX_VERTICES: [SkyboxVertex; 8] = [
     // Front
     SkyboxVertex {
         position: [-1.0, -1.0, 1.0],
@@ -67,6 +79,16 @@ impl VertexBufferLayout for SkyboxVertex {
     }
 }
 
+#[derive(Component)]
+pub struct Skybox {
+    pub texture: AssetHandle<Texture>,
+}
+
+#[derive(Component)]
+pub struct RenderSkyboxBindGroup {
+    pub(crate) bind_group: BindGroup,
+}
+
 #[derive(Resource)]
 pub(crate) struct RenderSkyboxCube {
     pub(crate) vertices: wgpu::Buffer,
@@ -88,5 +110,37 @@ impl RenderSkyboxCube {
         });
 
         Self { vertices, indices }
+    }
+}
+
+pub(crate) fn prepare_skybox(
+    cameras: Query<(&Camera, &Skybox, &RenderEntity)>,
+    mut cmd: CommandQueue,
+    render_textures: Res<RenderAssets<RenderTexture>>,
+    device: Res<RenderDevice>,
+    skybox_layout: Res<MaterialLayouts>,
+) {
+    for (_, skybox, render_entity) in cameras.iter() {
+        if let Some(render_texture) = render_textures.get(&skybox.texture.id()) {
+            if let RenderEntity::Initialized(e) = render_entity {
+                let bind_group = device.create_bind_group(&BindGroupDescriptor {
+                    label: Some("skybox_bind_group"),
+                    layout: &skybox_layout.skybox_material_layout,
+                    entries: &[
+                        BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&render_texture.view),
+                        },
+                        BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&render_texture.sampler),
+                        },
+                    ],
+                });
+                let skybox_bind_group = RenderSkyboxBindGroup { bind_group };
+
+                cmd.insert(skybox_bind_group, *e);
+            }
+        }
     }
 }

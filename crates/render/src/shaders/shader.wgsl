@@ -1,6 +1,6 @@
 const TOON_LEVELS = 3.0; // Number of color bands
 
-const MAX_LIGHT_COUNT : i32 = 256;
+const MAX_LIGHT_COUNT : i32 = 128;
 
 const HAS_DIFFUSE_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
@@ -11,6 +11,7 @@ const DIRECTIONAL_LIGHT = 2u;
 
 struct MaterialFlags {
     flags: u32,
+    _padding: vec3<u32>, // Adds 12 bytes padding to reach 16 bytes
 }
 
 struct Light {
@@ -31,9 +32,6 @@ struct CameraUniform {
     view_pos: vec3<f32>,
     view_proj: mat4x4<f32>,
 };
-
-@group(1) @binding(0)
-var<uniform> camera: CameraUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -106,6 +104,9 @@ var t_normal: texture_2d<f32>;
 var s_normal: sampler;
 @group(0) @binding(4)
 var<uniform> material_flags: MaterialFlags;
+
+@group(1) @binding(0)
+var<uniform> camera: CameraUniform;
 
 @group(2) @binding(0)
 var<uniform> lights: Lights;

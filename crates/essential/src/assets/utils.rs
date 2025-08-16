@@ -6,10 +6,8 @@ use super::AssetPath;
 fn format_url<'a>(path: AssetPath<'a>) -> reqwest::Url {
     let window = web_sys::window().unwrap();
     let location = window.location();
-    let mut origin = location.origin().unwrap();
-    if !origin.ends_with("learn-wgpu") {
-        origin = format!("{}/learn-wgpu", origin);
-    }
+    let origin = location.origin().unwrap();
+
     let base = reqwest::Url::parse(&format!("{}/", origin,)).unwrap();
     base.join(path.to_string()).unwrap()
 }

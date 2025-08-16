@@ -5,7 +5,7 @@ use wgpu::{
 };
 
 use crate::{
-    assets::material::{Material, MaterialFlags},
+    assets::material::{Material, MaterialFlags, MaterialUniform},
     device::RenderDevice,
     layouts::MaterialLayouts,
     render_asset::{
@@ -87,7 +87,11 @@ impl RenderAsset for RenderMaterial {
 
         let material_flags_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("material_flags"),
-            contents: bytemuck::cast_slice(&[MaterialFlags::from_material(source_asset)]),
+            contents: bytemuck::cast_slice(&[MaterialUniform {
+                flags: MaterialFlags::from_material(source_asset),
+                _padding: [0; 3],
+                _padding2: [0; 4],
+            }]),
             usage: BufferUsages::UNIFORM,
         });
 

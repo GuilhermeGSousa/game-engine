@@ -10,7 +10,7 @@ use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
 use crate::{layouts::LightLayouts, queue::RenderQueue};
 
-const MAX_LIGHTS: usize = 256;
+const MAX_LIGHTS: usize = 128;
 
 #[derive(Component)]
 pub struct Light {

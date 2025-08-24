@@ -13,7 +13,6 @@ use app::{
 use winit::platform::web::EventLoopExtWebSys;
 
 use winit::{
-    dpi::LogicalPosition,
     event_loop::{ControlFlow, EventLoop},
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::Window as WinitWindow,

@@ -46,7 +46,7 @@ impl Asset for Material {
     }
 }
 
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct MaterialFlags(u32);
 
@@ -55,6 +55,14 @@ bitflags! {
         const HAS_DIFFUSE_TEXTURE = 1 << 0;
         const HAS_NORMAL_TEXTURE = 1 << 1;
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub(crate) struct MaterialUniform {
+    pub(crate) flags: MaterialFlags,
+    pub(crate) _padding: [u32; 3],
+    pub(crate) _padding2: [u32; 4],
 }
 
 impl MaterialFlags {

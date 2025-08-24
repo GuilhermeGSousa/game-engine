@@ -5,23 +5,24 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Learn WGPU</title>
-    <style>
-        canvas {
-            background-color: black;
-            width: 450px;
-            height: 400px;
-        }
-    </style>
+    <base data-trunk-public-url/>
+    <title>WGPU-template</title>
+    <style type="text/css">
+            body {
+                margin: 0;
+            }
+            canvas {
+                width: 100vw;
+                height: 100vh;
+            }
+            canvas:focus {
+                outline: none
+            }
+        </style>
 </head>
-
-<body id="wasm-example">
-  <script type="module">
-      import init from "./pkg/game_engine.js";
-      init().then(() => {
-          console.log("WASM Loaded");
-      });
-  </script>
+<body>
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-bin="game-engine-bin" data-target-path="res"/>
+    <link data-trunk rel="copy-dir" href="res" data-target-path="res"/>
 </body>
 
 </html>

@@ -2,7 +2,12 @@ use ecs::resource::{ResMut, Resource};
 use std::sync::Arc;
 
 use crate::{input::Input, winit_events::WinitEvent, ApplicationWindowHandler};
-use app::{plugins::Plugin, runner::AppExit, update_group::UpdateGroup, App};
+use app::{
+    plugins::{Plugin, PluginsState},
+    runner::AppExit,
+    update_group::UpdateGroup,
+    App,
+};
 
 #[cfg(target_arch = "wasm32")]
 use winit::platform::web::EventLoopExtWebSys;
@@ -76,14 +81,19 @@ impl HasWindowHandle for Window {
 pub struct WindowPlugin;
 
 fn winit_runner(mut app: App) -> AppExit {
+    if app.plugin_state() == PluginsState::Ready {
+        app.finish_plugin_build();
+    }
+
     let event_loop = app.remove_resource::<WindowEventLoop>().unwrap();
 
-    let mut state = ApplicationWindowHandler::new(app);
+    let state = ApplicationWindowHandler::new(app);
 
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             event_loop.0.spawn_app(state);
         } else {
+            let mut state = state;
             let _ = event_loop.0.run_app(&mut state);
         }
     }
@@ -106,30 +116,20 @@ impl Plugin for WindowPlugin {
             .build()
             .expect("Failed to build event loop");
         event_loop.set_control_flow(ControlFlow::Poll);
-        let win_attr = WinitWindow::default_attributes().with_title("winit example");
+
+        let mut win_attr = WinitWindow::default_attributes().with_title("winit example");
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::WindowAttributesExtWebSys;
+            win_attr = win_attr.with_append(true);
+        }
+
         let window = event_loop
             .create_window(win_attr)
             .expect("create window err.");
 
-        #[cfg(target_arch = "wasm32")]
-        {
-            // Winit prevents sizing with CSS, so we have to set
-            // the size manually when on web.
-            use winit::dpi::PhysicalSize;
-            let _ = window.request_inner_size(PhysicalSize::new(450, 400));
-
-            use winit::platform::web::WindowExtWebSys;
-            web_sys::window()
-                .and_then(|win| win.document())
-                .and_then(|doc| {
-                    let dst = doc.get_element_by_id("wasm-example")?;
-                    let canvas = web_sys::Element::from(window.canvas()?);
-                    dst.append_child(&canvas).ok()?;
-                    Some(())
-                })
-                .expect("Couldn't append canvas to document body.");
-        }
-
+        window.set_cursor_visible(true);
         app.insert_resource(Input::new());
         app.insert_resource(Window::new(window));
         app.insert_resource(WindowEventLoop(event_loop));

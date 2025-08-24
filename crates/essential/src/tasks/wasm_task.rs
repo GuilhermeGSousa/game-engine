@@ -3,6 +3,7 @@ use futures_channel::oneshot;
 use std::future::Future;
 use std::future::IntoFuture;
 
+#[allow(dead_code)]
 pub struct Task<T>(oneshot::Receiver<T>);
 
 impl<T: 'static> Task<T> {

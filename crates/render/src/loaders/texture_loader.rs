@@ -20,11 +20,14 @@ impl AssetLoader for TextureLoader {
         usage_settings: <Self::Asset as Asset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let data = load_binary(path).await;
+
         match data {
             Ok(data) => {
                 let texture = Texture::from_bytes(&data, usage_settings);
                 match texture {
-                    Ok(texture) => return Ok(texture),
+                    Ok(texture) => {
+                        return Ok(texture);
+                    }
                     Err(_) => {
                         return Err(());
                     }

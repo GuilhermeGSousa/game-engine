@@ -1,4 +1,4 @@
-use app::App;
+use app::{plugins::PluginsState, App};
 use ecs::events::event_channel::EventChannel;
 use input::Input;
 use plugin::Window;
@@ -59,14 +59,14 @@ impl ApplicationHandler for ApplicationWindowHandler {
                     .drain(..)
                     .for_each(|e| event_channel.push_event(WinitEvent::new(e.clone())));
 
-                self.app.update();
+                if self.app.plugin_state() == PluginsState::Finished {
+                    self.app.update();
+                }
+
                 let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();
             }
-            WindowEvent::Resized(size) => {
-                let window = self.app.get_mut_resource::<Window>().unwrap();
-                window.request_resize((size.width, size.height));
-            }
+            WindowEvent::Resized(_size) => {}
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
@@ -89,6 +89,10 @@ impl ApplicationHandler for ApplicationWindowHandler {
         cause: winit::event::StartCause,
     ) {
         let _ = (event_loop, cause);
+
+        if self.app.plugin_state() == PluginsState::Ready {
+            self.app.finish_plugin_build();
+        }
     }
 
     fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: ()) {

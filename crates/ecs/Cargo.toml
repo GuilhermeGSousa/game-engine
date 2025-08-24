@@ -8,6 +8,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 any_vec = "0.14.0"
-anymap = "0.12.1"
+anymap3 = "1.0.1"
 typle = "0.10.6"
 ecs-macros = { path = "macros" }

@@ -1,12 +1,8 @@
 use encase::ShaderType;
-use essential::{
-    assets::{handle::AssetHandle, AssetId},
-    transform::Transform,
-};
+use essential::{assets::handle::AssetHandle, transform::Transform};
 
-use bytemuck::{Pod, Zeroable};
 use ecs::{component::Component, entity::Entity};
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec3};
 
 use crate::{assets::texture::Texture, render_asset::render_texture::RenderTexture};
 
@@ -25,11 +21,13 @@ pub enum WindowRef {
     CustomWindow(Entity),
 }
 
-pub(crate) enum RenderTarget {
+#[allow(dead_code)]
+pub enum RenderTarget {
     Window(WindowRef),
     Texture(AssetHandle<Texture>),
 }
 
+#[allow(dead_code)]
 impl RenderTarget {
     pub fn main_window() -> Self {
         RenderTarget::Window(WindowRef::MainWindow)

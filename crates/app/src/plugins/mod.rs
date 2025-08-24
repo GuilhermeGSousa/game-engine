@@ -6,8 +6,21 @@ use ecs::resource::ResMut;
 use crate::update_group::UpdateGroup;
 use crate::App;
 
+#[derive(PartialEq, Eq, Debug, Clone, Copy, PartialOrd, Ord)]
+pub enum PluginsState {
+    Building,
+    Ready,
+    Finished,
+}
+
 pub trait Plugin {
     fn build(&self, app: &mut App);
+
+    fn ready(&self, _app: &App) -> bool {
+        true
+    }
+
+    fn finish(&self, _app: &mut App) {}
 }
 
 pub struct TimePlugin;

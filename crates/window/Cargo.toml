@@ -10,10 +10,9 @@ crate-type = ["cdylib", "rlib"]
 app = { path = "../app" }
 ecs = { path = "../ecs" }
 cfg-if = "1"
-winit = { version = "0.30.9", default-features = false, features = ["rwh_06"] }
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
 glam = { version = "0.30.1" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Document", "Window", "Element"] }
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4.50"
+wasm-bindgen-futures = "0.4"

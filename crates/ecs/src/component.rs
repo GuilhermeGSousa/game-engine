@@ -27,6 +27,8 @@ pub trait Component: 'static + Sized {
     }
 }
 
+// TODO: Implement add lifecycle
+#[allow(dead_code)]
 pub(crate) struct ComponentLifecycleCallbacks {
     pub(crate) on_add: Option<ComponentLifecycleCallback>,
     pub(crate) on_remove: Option<ComponentLifecycleCallback>,

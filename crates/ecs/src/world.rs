@@ -1,5 +1,5 @@
 use any_vec::any_value::AnyValueWrapper;
-use anymap::AnyMap;
+use anymap3::AnyMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{
     any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,

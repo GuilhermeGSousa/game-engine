@@ -26,7 +26,7 @@ impl AssetLoader for ObjLoader {
         &self,
         path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
-        usage_setting: <Self::Asset as Asset>::UsageSettings,
+        _usage_setting: <Self::Asset as Asset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);

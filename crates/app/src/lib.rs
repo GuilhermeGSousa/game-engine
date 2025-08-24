@@ -1,5 +1,4 @@
 use ecs::{
-    bundle::ComponentBundle,
     component::Component,
     events::{
         event_channel::{update_event_channel, EventChannel},
@@ -10,20 +9,25 @@ use ecs::{
     world::World,
 };
 use runner::{run_once, AppExit};
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 use essential::{
     assets::{asset_server::AssetServer, asset_store::AssetStore, Asset},
     time::Time,
 };
 use plugins::Plugin;
-use std::{mem::replace};
+use std::mem::replace;
 use update_group::UpdateGroup;
+
+use crate::plugins::PluginsState;
 
 pub mod plugins;
 pub mod runner;
 pub mod update_group;
+
+pub(crate) struct HokeyPokeyPlugin;
+impl Plugin for HokeyPokeyPlugin {
+    fn build(&self, _: &mut App) {}
+}
 
 pub struct App {
     runner: runner::RunnerFn,
@@ -36,6 +40,8 @@ pub struct App {
     render_schedule: Schedule,
     late_render_schedule: Schedule,
     accumulated_fixed_time: f32,
+    plugins: Vec<Box<dyn Plugin>>,
+    plugin_state: PluginsState,
 }
 
 impl App {
@@ -51,13 +57,17 @@ impl App {
             render_schedule: Schedule::default(),
             late_render_schedule: Schedule::default(),
             accumulated_fixed_time: 0.0,
+            plugins: Vec::new(),
+            plugin_state: PluginsState::Building,
         }
     }
 
-    pub fn register_plugin(&mut self, plugin: impl Plugin) -> &mut Self {
+    pub fn register_plugin(&mut self, plugin: impl Plugin + 'static) -> &mut Self {
         plugin.build(self);
+        self.plugins.push(Box::new(plugin));
         self
     }
+
     pub fn register_asset<A: Asset>(&mut self) -> &mut Self {
         let asset_store = AssetStore::<A>::new();
         let asset_server = self
@@ -77,7 +87,6 @@ impl App {
     }
 
     pub fn run(&mut self) {
-        self.startup_schedule.run(&mut self.world);
         let runner = replace(&mut self.runner, Box::new(run_once));
         let app = replace(self, App::empty());
         (runner)(app);
@@ -85,11 +94,6 @@ impl App {
 
     pub fn set_runner(&mut self, f: impl FnOnce(App) -> AppExit + 'static) -> &mut Self {
         self.runner = Box::new(f);
-        self
-    }
-
-    pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> &mut Self {
-        self.world.spawn(bundle);
         self
     }
 
@@ -161,7 +165,7 @@ impl App {
                 .expect("Time resource not found");
 
             let delta_time = time.delta();
-            self.accumulated_fixed_time += delta_time;
+            self.accumulated_fixed_time += delta_time.as_secs_f32();
 
             while self.accumulated_fixed_time >= Time::fixed_delta_time() {
                 self.fixed_update_schedule.run(&mut self.world);
@@ -179,5 +183,34 @@ impl App {
     pub fn register_component_lifecycle<T: Component>(&mut self) -> &mut Self {
         self.world.register_component_lifetimes::<T>();
         self
+    }
+
+    pub fn plugin_state(&mut self) -> PluginsState {
+        let next_state = match self.plugin_state {
+            PluginsState::Building => {
+                if self.plugins.iter().all(|plugin| plugin.ready(&self)) {
+                    PluginsState::Ready
+                } else {
+                    PluginsState::Building
+                }
+            }
+            state => state,
+        };
+
+        self.plugin_state = next_state;
+
+        next_state
+    }
+
+    pub fn finish_plugin_build(&mut self) {
+        let mut hokeypokey: Box<dyn Plugin> = Box::new(HokeyPokeyPlugin);
+        for i in 0..self.plugins.len() {
+            core::mem::swap(&mut self.plugins[i], &mut hokeypokey);
+            hokeypokey.finish(self);
+            core::mem::swap(&mut self.plugins[i], &mut hokeypokey);
+        }
+
+        self.plugin_state = PluginsState::Finished;
+        self.startup_schedule.run(&mut self.world);
     }
 }

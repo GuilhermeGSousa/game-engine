@@ -1,8 +1,3 @@
-use essential::transform::TransformRaw;
-use glam::Vec4;
-use std::sync::Arc;
-use wgpu::{FragmentState, RenderPipelineDescriptor};
-
 use crate::{
     assets::{
         material::Material,
@@ -36,54 +31,112 @@ use crate::{
     },
 };
 use app::plugins::Plugin;
+use ecs::resource::Resource;
+use essential::transform::TransformRaw;
+use glam::Vec4;
+use std::sync::{Arc, Mutex};
+use wgpu::{
+    Adapter, Device, FragmentState, Instance, Limits, MemoryHints, Queue, RenderPipelineDescriptor,
+};
 use window::plugin::Window;
+use winit::window::Window as WinitWindow;
+
+pub struct RenderResources(
+    pub Device,
+    pub Queue,
+    pub Adapter,
+    pub Instance,
+    Arc<wgpu::Surface<'static>>,
+);
+
+#[derive(Resource)]
+struct FutureRenderResources(Arc<Mutex<Option<RenderResources>>>);
 
 pub struct RenderPlugin;
 
-impl RenderPlugin {}
+impl RenderPlugin {
+    async fn initialize_renderer(window_handle: Arc<WinitWindow>) -> RenderResources {
+        let instance: Instance = wgpu::Instance::default();
 
-impl Plugin for RenderPlugin {
-    fn build(&self, app: &mut app::App) {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            #[cfg(not(target_arch = "wasm32"))]
-            backends: wgpu::Backends::PRIMARY,
-            #[cfg(target_arch = "wasm32")]
-            backends: wgpu::Backends::GL,
-            ..Default::default()
-        });
-
-        let window = app.get_resource::<Window>().unwrap();
-        let size = window.size();
-
-        let surface = Arc::new(
+        let surface: Arc<wgpu::Surface<'_>> = Arc::new(
             instance
-                .create_surface(Arc::clone(&window.window_handle))
+                .create_surface(Arc::clone(&window_handle))
                 .expect("Error creating surface."),
         );
 
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        }))
-        .unwrap();
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .unwrap();
 
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
-                // WebGL doesn't support all of wgpu's features, so if
-                // we're building for the web, we'll have to disable some.
-                required_limits: if cfg!(target_arch = "wasm32") {
-                    wgpu::Limits::downlevel_webgl2_defaults()
-                } else {
-                    wgpu::Limits::default()
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    required_features: wgpu::Features::empty(),
+                    // WebGL doesn't support all of wgpu's features, so if
+                    // we're building for the web, we'll have to disable some.
+                    required_limits: if cfg!(target_arch = "wasm32") {
+                        Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits())
+                    } else {
+                        wgpu::Limits::default()
+                    },
+                    label: None,
+                    memory_hints: MemoryHints::Performance,
                 },
-                label: None,
-                memory_hints: Default::default(),
-            },
-            None, // Trace path
-        ))
-        .unwrap();
+                None, // Trace path
+            )
+            .await
+            .unwrap();
+        RenderResources(device, queue, adapter, instance, surface)
+    }
+}
+
+impl Plugin for RenderPlugin {
+    fn build(&self, app: &mut app::App) {
+        let future_render_resources_wrapper = Arc::new(Mutex::new(None));
+        app.insert_resource(FutureRenderResources(
+            future_render_resources_wrapper.clone(),
+        ));
+
+        let window = app.get_resource::<Window>().unwrap();
+        let window_handle = Arc::clone(&window.window_handle);
+        let async_renderer_initialization = async move {
+            let resources = RenderPlugin::initialize_renderer(window_handle).await;
+            *future_render_resources_wrapper.lock().unwrap() = Some(resources);
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async_renderer_initialization);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        pollster::block_on(async_renderer_initialization);
+    }
+
+    fn ready(&self, app: &app::App) -> bool {
+        app.get_resource::<FutureRenderResources>()
+            .and_then(|future_render_resources| {
+                future_render_resources
+                    .0
+                    .try_lock()
+                    .map(|mutex| mutex.is_some())
+                    .ok()
+            })
+            .unwrap_or(true)
+    }
+
+    fn finish(&self, app: &mut app::App) {
+        let RenderResources(device, queue, adapter, _instance, surface) = app
+            .remove_resource::<FutureRenderResources>()
+            .unwrap()
+            .0
+            .lock()
+            .unwrap()
+            .take()
+            .unwrap();
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -92,6 +145,9 @@ impl Plugin for RenderPlugin {
             .find(|f| f.is_srgb())
             .copied()
             .unwrap_or(surface_caps.formats[0]);
+
+        let window = app.get_resource::<Window>().unwrap();
+        let size = window.size();
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,

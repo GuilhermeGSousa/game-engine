@@ -33,11 +33,9 @@ use wgpu_types::{
 };
 use window::{
     input::{Input, InputState},
-    plugin::WindowPlugin,
+    plugin::{Window, WindowPlugin},
 };
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::wasm_bindgen;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use crate::game_ui::render_ui;
@@ -46,9 +44,8 @@ pub mod game_ui;
 
 const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
-const SKYBOX_TEXTURE: &str = "res/Ryfjallet_cubemap.png";
+const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run_game() {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
@@ -64,7 +61,7 @@ pub fn run_game() {
         .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
-        .register_plugin(UIPlugin)
+        // .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
@@ -77,44 +74,40 @@ pub fn run_game() {
         )
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
         // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
-        .add_system(app::update_group::UpdateGroup::Render, render_ui)
-        .add_system(app::update_group::UpdateGroup::Startup, spawn_floor);
-
-    spawn_player(&mut app);
+        // .add_system(app::update_group::UpdateGroup::Render, render_ui)
+        .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
+        .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
 
     app.run();
 }
 
-fn spawn_player(app: &mut app::App) {
+fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     let camera = Camera::default();
     let skybox = Skybox {
-        texture: app
-            .get_resource::<AssetServer>()
-            .unwrap()
-            .load_with_usage_settings(
-                SKYBOX_TEXTURE,
-                TextureUsageSettings {
-                    texture_descriptor: TextureDescriptor {
-                        label: Some("cubemap_texture"),
-                        size: Extent3d {
-                            width: 256,
-                            height: 256,
-                            depth_or_array_layers: 6,
-                        },
+        texture: asset_server.load_with_usage_settings(
+            SKYBOX_TEXTURE,
+            TextureUsageSettings {
+                texture_descriptor: TextureDescriptor {
+                    label: Some("cubemap_texture"),
+                    size: Extent3d {
+                        width: 256,
+                        height: 256,
+                        depth_or_array_layers: 6,
+                    },
 
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: TextureDimension::D2,
-                        format: TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-                        view_formats: &[],
-                    },
-                    texture_view_descriptor: TextureViewDescriptor {
-                        dimension: Some(TextureViewDimension::Cube),
-                        ..Default::default()
-                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: TextureDimension::D2,
+                    format: TextureFormat::Rgba8UnormSrgb,
+                    usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                    view_formats: &[],
                 },
-            ),
+                texture_view_descriptor: TextureViewDescriptor {
+                    dimension: Some(TextureViewDimension::Cube),
+                    ..Default::default()
+                },
+            },
+        ),
     };
 
     let cam_pos = Vec3::new(0.0, 2.0, 0.0);
@@ -132,13 +125,13 @@ fn spawn_player(app: &mut app::App) {
     let mut light_transform = camera_transform.clone();
     light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
 
-    app.spawn((
+    cmd.spawn((
         camera,
         skybox,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
         RenderEntity::new(),
     ));
-    app.spawn((light, light_transform, RenderEntity::new()));
+    cmd.spawn((light, light_transform, RenderEntity::new()));
 }
 
 fn spawn_floor(
@@ -162,10 +155,15 @@ fn spawn_floor(
     ));
 }
 
-fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
+fn move_around(
+    cameras: Query<(&Camera, &mut Transform)>,
+    input: Res<Input>,
+    time: Res<Time>,
+    window: Res<Window>,
+) {
     let (_, transform) = cameras.iter().next().unwrap();
 
-    let displacement = 500.0 * time.delta();
+    let displacement = 10.0 * time.delta().as_secs_f32();
 
     let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyD));
     let key_a = input.get_key_state(PhysicalKey::Code(KeyCode::KeyA));
@@ -190,8 +188,8 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, tim
 
     transform.translation.y = 0.0; // Keep the camera on the ground
 
-    let mouse_delta = input.get_mouse_delta();
-    let rotation_delta = mouse_delta.x * 10.0 * time.delta();
+    let mouse_delta = input.mouse_delta();
+    let rotation_delta = mouse_delta.x * time.delta().as_secs_f32();
     if mouse_delta != Vec2::ZERO {
         transform.rotation *= Quat::from_axis_angle(Vec3::Y, rotation_delta);
     }

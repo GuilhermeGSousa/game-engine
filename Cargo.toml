@@ -27,7 +27,7 @@ physics = { path = "crates/physics" }
 cfg-if = "1.0.0"
 env_logger = "0.11.8"
 log = "0.4.27"
-winit = { version = "0.30.9", default-features = false, features = ["rwh_06"] }
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
 glam = { version = "0.30.1" }
 egui = "0.31.1"
 wgpu-types = { version = "24", default-features = false }
@@ -36,8 +36,8 @@ wgpu-types = { version = "24", default-features = false }
 console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
 wgpu = { version = "24.0.3", features = ["webgl"] }
-wasm-bindgen = "0.2.100"
-wasm-bindgen-futures = "0.4.50"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3.77", features = ["Document", "Window", "Element"] }
 
 [build-dependencies]

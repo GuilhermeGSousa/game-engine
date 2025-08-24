@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
+use cfg_if::cfg_if;
 use ecs::resource::Resource;
 use glam::Vec2;
+use std::collections::HashMap;
 use winit::{event::ElementState, keyboard::PhysicalKey};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -16,6 +16,8 @@ pub enum InputState {
 pub struct Input {
     input_map: HashMap<winit::keyboard::PhysicalKey, InputState>,
     mouse_delta: Vec2,
+    #[cfg(target_arch = "wasm32")]
+    previous_mouse_delta: Vec2,
 }
 
 impl Input {
@@ -23,6 +25,7 @@ impl Input {
         Self {
             input_map: HashMap::new(),
             mouse_delta: Vec2::ZERO,
+            previous_mouse_delta: Vec2::ZERO,
         }
     }
 
@@ -33,7 +36,7 @@ impl Input {
         }
     }
 
-    pub fn get_mouse_delta(&self) -> Vec2 {
+    pub fn mouse_delta(&self) -> Vec2 {
         self.mouse_delta
     }
 
@@ -73,6 +76,17 @@ impl Input {
     }
 
     pub fn update_mouse_delta(&mut self, delta: (f64, f64)) {
-        self.mouse_delta = Vec2::new(delta.0 as f32, delta.1 as f32);
+        let delta = Vec2::new(delta.0 as f32, delta.1 as f32);
+
+        cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                self.mouse_delta = delta - self.previous_mouse_delta;
+                self.previous_mouse_delta = delta;
+            }
+            else
+            {
+                self.mouse_delta = delta;
+            }
+        }
     }
 }

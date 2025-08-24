@@ -19,7 +19,7 @@ use crate::{
     resources::RenderContext,
 };
 
-pub(crate) fn render(
+pub(crate) fn main_renderpass(
     context: Res<RenderContext>,
     mut device: ResMut<RenderDevice>,
     render_mesh_query: Query<(&RenderMeshInstance,)>,
@@ -89,7 +89,7 @@ pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
     render_window.present();
 }
 
-pub(crate) fn render_skybox(
+pub(crate) fn skybox_renderpass(
     context: Res<RenderContext>,
     mut device: ResMut<RenderDevice>,
     render_cameras: Query<(&RenderCamera, &RenderSkyboxBindGroup)>,

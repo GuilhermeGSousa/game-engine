@@ -33,7 +33,7 @@ use wgpu_types::{
 };
 use window::{
     input::{Input, InputState},
-    plugin::{Window, WindowPlugin},
+    plugin::WindowPlugin,
 };
 
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -61,7 +61,7 @@ pub fn run_game() {
         .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
-        // .register_plugin(UIPlugin)
+        .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
@@ -74,7 +74,7 @@ pub fn run_game() {
         )
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
         // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
-        // .add_system(app::update_group::UpdateGroup::Render, render_ui)
+        .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
 
@@ -155,12 +155,7 @@ fn spawn_floor(
     ));
 }
 
-fn move_around(
-    cameras: Query<(&Camera, &mut Transform)>,
-    input: Res<Input>,
-    time: Res<Time>,
-    window: Res<Window>,
-) {
+fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
     let (_, transform) = cameras.iter().next().unwrap();
 
     let displacement = 10.0 * time.delta().as_secs_f32();
@@ -260,6 +255,7 @@ fn despawn_on_button_press(
     }
 }
 
+#[allow(dead_code)]
 fn move_light_to_player(
     cameras: Query<(&Camera, &Transform)>,
     light: Query<(&Light, &mut Transform)>,

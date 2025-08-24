@@ -25,6 +25,7 @@ impl Input {
         Self {
             input_map: HashMap::new(),
             mouse_delta: Vec2::ZERO,
+            #[cfg(target_arch = "wasm32")]
             previous_mouse_delta: Vec2::ZERO,
         }
     }

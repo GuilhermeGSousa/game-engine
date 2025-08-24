@@ -94,6 +94,7 @@ fn winit_runner(mut app: App) -> AppExit {
         if #[cfg(target_arch = "wasm32")] {
             event_loop.0.spawn_app(state);
         } else {
+            let mut state = state;
             let _ = event_loop.0.run_app(&mut state);
         }
     }

@@ -114,6 +114,43 @@ impl Plugin for RenderPlugin {
 
         #[cfg(not(target_arch = "wasm32"))]
         pollster::block_on(async_renderer_initialization);
+
+        app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
+            .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
+            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
+
+        app.register_asset::<Mesh>()
+            .register_asset::<Texture>()
+            .register_asset::<Material>();
+
+        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_changed)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                update_window::update_window,
+            )
+            .add_system(app::update_group::UpdateGroup::Render, prepare_skybox)
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                prepare_lights_buffer,
+            )
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                render::skybox_renderpass,
+            )
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                render::main_renderpass,
+            )
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                render::finish_render,
+            )
+            .add_system(app::update_group::UpdateGroup::LateRender, present_window);
     }
 
     fn ready(&self, app: &app::App) -> bool {
@@ -296,39 +333,5 @@ impl Plugin for RenderPlugin {
             .insert_resource(render_lights)
             .insert_resource(skybox_cube)
             .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
-
-        app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
-            .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
-            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
-
-        app.register_asset::<Mesh>()
-            .register_asset::<Texture>()
-            .register_asset::<Material>();
-
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_changed)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                update_window::update_window,
-            )
-            .add_system(app::update_group::UpdateGroup::Render, prepare_skybox)
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                prepare_lights_buffer,
-            )
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                render::render_skybox,
-            )
-            .add_system(app::update_group::UpdateGroup::Render, render::render)
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                render::finish_render,
-            )
-            .add_system(app::update_group::UpdateGroup::LateRender, present_window);
     }
 }

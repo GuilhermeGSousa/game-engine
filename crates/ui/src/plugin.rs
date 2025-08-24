@@ -11,6 +11,12 @@ pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut app::App) {
+        app.add_system(app::update_group::UpdateGroup::Update, handle_window_events);
+        app.add_system(app::update_group::UpdateGroup::Render, begin_ui_frame);
+        app.add_system_first(app::update_group::UpdateGroup::LateRender, end_ui_frame);
+    }
+
+    fn finish(&self, app: &mut app::App) {
         let device = app
             .get_resource::<RenderDevice>()
             .expect("RenderContext resource not found");
@@ -29,9 +35,5 @@ impl Plugin for UIPlugin {
             1,
             true,
         ));
-
-        app.add_system(app::update_group::UpdateGroup::Update, handle_window_events);
-        app.add_system(app::update_group::UpdateGroup::Render, begin_ui_frame);
-        app.add_system_first(app::update_group::UpdateGroup::LateRender, end_ui_frame);
     }
 }

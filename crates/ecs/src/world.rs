@@ -5,13 +5,14 @@ use std::{
     any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
 };
 
+use crate::component::bundle::ComponentBundle;
+use crate::entity::entity_store::EntityStore;
+use crate::entity::hierarchy::{ChildOf, Children};
 use crate::{
     archetype::Archetype,
-    bundle::ComponentBundle,
     common::generate_type_id,
     component::{Component, ComponentId, ComponentLifecycleCallbacks, ComponentLifecycleContext},
     entity::{Entity, EntityLocation, EntityType},
-    entity_store::EntityStore,
     resource::Resource,
     system::system_input::SystemInput,
     table::{Table, TableRowIndex},
@@ -252,6 +253,21 @@ impl World {
         self.component_lifetimes
             .entry(ComponentId::of::<T>())
             .or_insert(ComponentLifecycleCallbacks::from_component::<T>());
+    }
+
+    pub fn add_child(&mut self, parent: Entity, child: Entity)
+    {
+        self.insert_component(ChildOf::new(parent), child);
+
+        match self.get_component_for_entity_mut::<Children>(parent){
+            Some(children) => 
+            {        
+                children.add_child(child);
+            },
+            None => {
+                self.insert_component(Children::from_children(vec![child]), parent);   
+            },
+        }
     }
 }
 

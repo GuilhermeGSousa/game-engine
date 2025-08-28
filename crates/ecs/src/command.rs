@@ -1,5 +1,4 @@
-use crate::{
-    bundle::ComponentBundle, component::Component, entity::Entity, entity_store::EntityStore,
+use crate::{component::{bundle::ComponentBundle, Component}, entity::{entity_store::EntityStore, Entity},
     system::system_input::SystemInput, world::World,
 };
 

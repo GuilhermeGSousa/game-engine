@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{bundle::ComponentBundle, entity::Entity, world::UnsafeWorldCell};
+use crate::{component::bundle::ComponentBundle, entity::Entity, world::UnsafeWorldCell};
 use typle::typle;
 
 pub trait QueryFilter {

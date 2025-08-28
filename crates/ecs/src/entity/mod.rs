@@ -2,6 +2,9 @@ use std::num::NonZero;
 
 use crate::table::TableRowIndex;
 
+pub mod entity_store;
+pub mod hierarchy;
+
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub struct Entity {
     index: u32,

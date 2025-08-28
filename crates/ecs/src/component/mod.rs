@@ -3,6 +3,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+pub mod bundle;
+
 pub use ecs_macros::Component;
 
 use crate::{entity::Entity, world::RestrictedWorld};

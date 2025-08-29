@@ -3,11 +3,12 @@ use std::{any::TypeId, marker::PhantomData};
 use typle::typle;
 
 pub mod query_filter;
+pub mod change_detection;
 
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
-    query::query_filter::QueryFilter,
+    query::{change_detection::Mut, query_filter::QueryFilter},
     system::system_input::SystemInput,
     world::UnsafeWorldCell,
 };
@@ -160,7 +161,7 @@ impl<T> QueryData for &mut T
 where
     T: Component,
 {
-    type Item<'w> = &'w mut T;
+    type Item<'w> = Mut<'w, T>;
 
     fn component_ids() -> Vec<ComponentId> {
         {
@@ -171,7 +172,7 @@ where
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         let world = world.world_mut();
         if let Some(location) = world.get_entity_store().find_location(entity) {
-            world.get_component_for_entity_location_mut(location)
+            world.get_component_for_entity_location_mut(location).map(|component| Mut::new(component))
         } else {
             None
         }

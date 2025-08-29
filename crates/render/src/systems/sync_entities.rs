@@ -29,7 +29,7 @@ pub(crate) fn camera_added(
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayouts>,
 ) {
-    for (camera, transform, render_entity) in cameras.iter() {
+    for (camera, transform, mut render_entity) in cameras.iter() {
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(camera, transform);
 
@@ -61,13 +61,13 @@ pub(crate) fn camera_added(
             clear_color: camera.clear_color,
         };
 
-        match render_entity {
+        match **render_entity {
             RenderEntity::Uninitialized => {
                 let new_entity = cmd.spawn(render_cam);
                 render_entity.set_entity(new_entity);
             }
             RenderEntity::Initialized(entity) => {
-                cmd.insert(render_cam, *entity);
+                cmd.insert(render_cam, entity);
             }
         }
     }
@@ -81,7 +81,7 @@ pub(crate) fn camera_changed(
     for (camera, transform, render_entity) in cameras.iter() {
         match render_entity {
             RenderEntity::Initialized(entity) => {
-                if let Some((render_camera,)) = render_cameras.get_entity(*entity) {
+                if let Some((mut render_camera,)) = render_cameras.get_entity(*entity) {
                     render_camera
                         .camera_uniform
                         .update_view_proj(camera, transform);
@@ -102,7 +102,7 @@ pub(crate) fn mesh_added(
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
-    for (mesh, transform, render_entity) in meshes.iter() {
+    for (mesh, transform, mut render_entity) in meshes.iter() {
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&[transform.to_raw()]),
@@ -114,13 +114,13 @@ pub(crate) fn mesh_added(
             buffer: instance_buffer,
         };
 
-        match render_entity {
+        match **render_entity {
             RenderEntity::Uninitialized => {
                 let new_entity = cmd.spawn(instance);
                 render_entity.set_entity(new_entity);
             }
             RenderEntity::Initialized(entity) => {
-                cmd.insert(instance, *entity);
+                cmd.insert(instance, entity);
             }
         }
     }
@@ -151,7 +151,7 @@ pub(crate) fn light_added(
     lights: Query<(&Light, &Transform, &mut RenderEntity), Added<Light>>,
     mut cmd: CommandQueue,
 ) {
-    for (light, light_transform, render_entity) in lights.iter() {
+    for (light, light_transform, mut render_entity) in lights.iter() {
         let render_light = RenderLight {
             translation: light_transform.translation,
             color: light.color,
@@ -163,13 +163,13 @@ pub(crate) fn light_added(
                 _ => 0.0,
             },
         };
-        match render_entity {
+        match **render_entity {
             RenderEntity::Uninitialized => {
                 let new_entity = cmd.spawn(render_light);
                 render_entity.set_entity(new_entity);
             }
             RenderEntity::Initialized(entity) => {
-                cmd.insert(render_light, *entity);
+                cmd.insert(render_light, entity);
             }
         }
     }
@@ -183,7 +183,7 @@ pub(crate) fn light_changed(
         match render_entity {
             RenderEntity::Uninitialized => {}
             RenderEntity::Initialized(entity) => {
-                if let Some(render_light) = render_lights.get_entity(*entity) {
+                if let Some(mut render_light) = render_lights.get_entity(*entity) {
                     render_light.direction = transform.forward();
                     render_light.color = light.color;
                     render_light.translation = transform.translation;

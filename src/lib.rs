@@ -156,7 +156,7 @@ fn spawn_floor(
 }
 
 fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
-    let (_, transform) = cameras.iter().next().unwrap();
+    let (_, mut transform) = cameras.iter().next().unwrap();
 
     let displacement = 10.0 * time.delta().as_secs_f32();
 
@@ -166,19 +166,23 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, tim
     let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
 
     if key_d == InputState::Pressed || key_d == InputState::Down {
-        transform.translation += transform.right() * displacement;
+        let right = transform.right();
+        transform.translation += right * displacement;
     }
 
     if key_a == InputState::Pressed || key_a == InputState::Down {
-        transform.translation += transform.left() * displacement;
+        let left = transform.left();
+        transform.translation += left * displacement;
     }
 
     if key_w == InputState::Pressed || key_w == InputState::Down {
-        transform.translation += transform.forward() * displacement;
+        let forward = transform.forward();
+        transform.translation += forward * displacement;
     }
 
     if key_s == InputState::Pressed || key_s == InputState::Down {
-        transform.translation += transform.backward() * displacement;
+        let back = transform.backward();
+        transform.translation += back * displacement;
     }
 
     transform.translation.y = 0.0; // Keep the camera on the ground
@@ -261,7 +265,7 @@ fn move_light_to_player(
     light: Query<(&Light, &mut Transform)>,
 ) {
     let (_, transform_cam) = cameras.iter().next().unwrap();
-    let (_, transform_light) = light.iter().next().unwrap();
+    let (_, mut transform_light) = light.iter().next().unwrap();
 
     transform_light.translation =
         transform_cam.translation + transform_cam.forward() * 2.0 + transform_cam.up();

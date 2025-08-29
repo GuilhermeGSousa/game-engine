@@ -172,7 +172,8 @@ where
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         let world = world.world_mut();
         if let Some(location) = world.get_entity_store().find_location(entity) {
-            world.get_component_for_entity_location_mut(location).map(|component| Mut::new(component))
+            let current_tick = world.current_tick();
+            world.get_component_for_entity_location_mut(location).map(|table_cell| Mut::new(table_cell.data, table_cell.changed_tick, current_tick))
         } else {
             None
         }

@@ -6,8 +6,10 @@ use std::{
 };
 
 use crate::component::bundle::ComponentBundle;
+use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
+use crate::table::MutableCellAccessor;
 use crate::{
     archetype::Archetype,
     common::generate_type_id,
@@ -168,7 +170,7 @@ impl World {
             .flatten()
     }
 
-    pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+    pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<MutableCellAccessor<T>> {
         self.entity_store
             .find_location(entity)
             .map(|location| self.get_component_for_entity_location_mut(location))
@@ -188,11 +190,11 @@ impl World {
     pub(crate) fn get_component_for_entity_location_mut<T: Component>(
         &mut self,
         entity_location: EntityLocation,
-    ) -> Option<&mut T> {
+    ) -> Option<MutableCellAccessor<T>> {
         self.archetypes
             .get_mut(entity_location.archetype_index as usize)
             .map(|archetype| unsafe {
-                archetype.get_component_unsafe_mut(entity_location.row, self.current_tick)
+                archetype.get_component_unsafe_mut(entity_location.row)
             })
             .flatten()
     }
@@ -223,6 +225,11 @@ impl World {
 
     pub fn tick(&mut self) {
         self.current_tick += 1;
+    }
+
+    pub fn current_tick(&self) -> Tick
+    {
+        Tick::new(self.current_tick)
     }
 
     pub fn was_component_added(&self, entity: Entity, component_id: ComponentId) -> bool {
@@ -260,9 +267,9 @@ impl World {
         self.insert_component(ChildOf::new(parent), child);
 
         match self.get_component_for_entity_mut::<Children>(parent){
-            Some(children) => 
+            Some(table_cell) => 
             {        
-                children.add_child(child);
+                table_cell.data.add_child(child);
             },
             None => {
                 self.insert_component(Children::from_children(vec![child]), parent);   

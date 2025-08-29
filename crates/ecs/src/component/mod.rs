@@ -46,7 +46,7 @@ impl ComponentLifecycleCallbacks {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct Tick(u32);
+pub struct Tick(u32);
 
 impl Tick {
     pub fn new(tick: u32) -> Self {

@@ -2,10 +2,12 @@ use std::{any::TypeId, marker::PhantomData};
 
 use typle::typle;
 
+pub mod query_filter;
+
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
-    query_filter::QueryFilter,
+    query::query_filter::QueryFilter,
     system::system_input::SystemInput,
     world::UnsafeWorldCell,
 };

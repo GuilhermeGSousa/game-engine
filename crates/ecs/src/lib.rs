@@ -5,7 +5,6 @@ pub mod component;
 pub mod entity;
 pub mod events;
 pub mod query;
-pub mod query_filter;
 pub mod resource;
 pub mod system;
 pub mod table;
@@ -15,8 +14,13 @@ pub mod world;
 #[cfg(test)]
 mod tests {
     use crate::{
-        command::CommandQueue, component::Component, entity::Entity, query::Query,
-        query_filter::Added, system::schedule::Schedule, world::World,
+        command::CommandQueue,
+        component::Component,
+        entity::Entity,
+        query::query_filter::{Added, Changed},
+        query::Query,
+        system::schedule::Schedule,
+        world::World,
     };
 
     #[derive(Component)]
@@ -43,6 +47,16 @@ mod tests {
     fn system_query_added(query: Query<(&Position,), Added<(Position,)>>) {
         for _ in query.iter() {
             print!("Found Added");
+        }
+    }
+
+    fn system_query_add_hp(query: Query<(&mut Health,)>) {
+        for hp in query.iter() {}
+    }
+
+    fn system_query_hp_changed(query: Query<(&Health,), Changed<(Health)>>) {
+        for hp in query.iter() {
+            println!("Health change detected");
         }
     }
 
@@ -177,5 +191,21 @@ mod tests {
         }
 
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_change_detection() {
+        let mut world = World::new();
+
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+
+        world.tick();
+        let mut schedule = Schedule::new();
+        schedule.add_system(system_query_add_hp);
+        schedule.add_system(system_query_hp_changed);
+
+        schedule.run(&mut world);
     }
 }

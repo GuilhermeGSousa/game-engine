@@ -1,7 +1,7 @@
 use ecs::{
     command::CommandQueue,
+    query::query_filter::{Added, Changed},
     query::Query,
-    query_filter::{Added, Changed},
     resource::Res,
 };
 use encase::UniformBuffer;

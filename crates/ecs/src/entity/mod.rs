@@ -1,4 +1,4 @@
-use std::num::NonZero;
+use std::{fmt::Debug, num::NonZero};
 
 use crate::table::TableRowIndex;
 
@@ -22,6 +22,15 @@ impl Entity {
 
     pub fn generation(&self) -> NonZero<u32> {
         self.generation
+    }
+}
+
+impl Debug for Entity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Entity")
+            .field("index", &self.index)
+            .field("generation", &self.generation)
+            .finish()
     }
 }
 

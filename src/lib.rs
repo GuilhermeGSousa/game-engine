@@ -61,7 +61,7 @@ pub fn run_game() {
         .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
-        .register_plugin(UIPlugin)
+        // .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
@@ -74,7 +74,7 @@ pub fn run_game() {
         )
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
         // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
-        .add_system(app::update_group::UpdateGroup::Render, render_ui)
+        // .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
 

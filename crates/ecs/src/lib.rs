@@ -17,8 +17,10 @@ mod tests {
         command::CommandQueue,
         component::Component,
         entity::Entity,
-        query::query_filter::{Added, Changed},
-        query::Query,
+        query::{
+            query_filter::{Added, Changed, Or, With},
+            Query,
+        },
         system::schedule::Schedule,
         world::World,
     };
@@ -57,6 +59,12 @@ mod tests {
     fn system_query_hp_changed(query: Query<(&Health,), Changed<(Health)>>) {
         for hp in query.iter() {
             println!("Health change detected");
+        }
+    }
+
+    fn system_filter_or(query: Query<Entity, Or<(With<Health>, With<Position>)>>) {
+        for entity in query.iter() {
+            println!("Entity {:?}", entity);
         }
     }
 
@@ -205,6 +213,20 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(system_query_add_hp);
         schedule.add_system(system_query_hp_changed);
+
+        schedule.run(&mut world);
+    }
+
+    #[test]
+    fn test_or_query() {
+        let mut world = World::new();
+
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Position { x: 10.0, y: 20.0 }));
+
+        let mut schedule = Schedule::new();
+        schedule.add_system(system_filter_or);
 
         schedule.run(&mut world);
     }

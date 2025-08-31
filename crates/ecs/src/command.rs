@@ -1,5 +1,8 @@
-use crate::{component::{bundle::ComponentBundle, Component}, entity::{entity_store::EntityStore, Entity},
-    system::system_input::SystemInput, world::World,
+use crate::{
+    component::{bundle::ComponentBundle, Component},
+    entity::{entity_store::EntityStore, Entity},
+    system::system_input::SystemInput,
+    world::World,
 };
 
 pub struct CommandQueue<'world, 'state> {
@@ -64,7 +67,7 @@ unsafe impl SystemInput for CommandQueue<'_, '_> {
         state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        CommandQueue::new(state, world.world_mut().get_entity_store_mut())
+        CommandQueue::new(state, world.world_mut().entity_store_mut())
     }
 
     fn apply(state: &mut Self::State, world: &mut World) {

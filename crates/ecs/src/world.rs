@@ -11,6 +11,7 @@ use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
 use crate::resource::ResourceStorage;
 use crate::table::MutableCellAccessor;
+use crate::world;
 use crate::{
     archetype::Archetype,
     common::generate_type_id,
@@ -73,7 +74,10 @@ impl World {
             row: table_row,
         };
 
-        self.entity_store.set_location(entity, new_location);
+        self.entity_store.set_location(entity, new_location.clone());
+
+        let cell = self.as_unsafe_world_cell_mut();
+        cell.trigger_on_add(entity, new_location);
     }
 
     pub fn despawn(&mut self, entity: Entity) {
@@ -98,7 +102,7 @@ impl World {
         }
     }
 
-    pub fn get_archetypes(&self) -> &Vec<Archetype> {
+    pub fn archetypes(&self) -> &Vec<Archetype> {
         &self.archetypes
     }
 
@@ -143,24 +147,25 @@ impl World {
                     }
                 };
 
+                let location = EntityLocation {
+                    archetype_index: archetype_index as u32,
+                    row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
+                };
                 // Store in entity store
-                self.entity_store.set_location(
-                    entity,
-                    EntityLocation {
-                        archetype_index: archetype_index as u32,
-                        row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
-                    },
-                );
+                self.entity_store.set_location(entity, location.clone());
+
+                let cell = self.as_unsafe_world_cell_mut();
+                cell.trigger_on_add(entity, location);
             }
             None => panic!("Entity should exist in the world"),
         }
     }
 
-    pub(crate) fn get_entity_store(&self) -> &EntityStore {
+    pub(crate) fn entity_store(&self) -> &EntityStore {
         &self.entity_store
     }
 
-    pub(crate) fn get_entity_store_mut(&mut self) -> &mut EntityStore {
+    pub(crate) fn entity_store_mut(&mut self) -> &mut EntityStore {
         &mut self.entity_store
     }
 
@@ -395,6 +400,19 @@ impl<'w> UnsafeWorldCell<'w> {
         RestrictedWorld { world_cell: self }
     }
 
+    pub fn trigger_on_add(&self, entity: Entity, location: EntityLocation) {
+        let world = self.world();
+        let archetype = &world.archetypes[location.archetype_index as usize];
+
+        for id in archetype.component_ids() {
+            if let Some(lifetimes) = world.component_lifetimes.get(id) {
+                if let Some(add) = lifetimes.on_add {
+                    add(self.into_restricted(), ComponentLifecycleContext { entity });
+                }
+            }
+        }
+    }
+
     pub fn trigger_on_remove(&self, entity: Entity, location: EntityLocation) {
         let world = self.world();
         let archetype = &world.archetypes[location.archetype_index as usize];
@@ -417,6 +435,13 @@ impl<'w> RestrictedWorld<'w> {
     pub fn despawn(&mut self, entity: Entity) {
         // TODO: Use commands instead
         self.world_cell.world_mut().despawn(entity);
+    }
+
+    pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
+        // TODO: Use commands instead
+        self.world_cell
+            .world_mut()
+            .insert_component(component, entity);
     }
 }
 

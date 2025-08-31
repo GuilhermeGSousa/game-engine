@@ -2,8 +2,8 @@ use std::{any::TypeId, marker::PhantomData};
 
 use typle::typle;
 
-pub mod query_filter;
 pub mod change_detection;
+pub mod query_filter;
 
 use crate::{
     component::{Component, ComponentId},
@@ -32,7 +32,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         let matched_indices: Vec<usize> = world
             .world()
-            .get_archetypes()
+            .archetypes()
             .iter()
             .enumerate()
             .filter_map(|(index, archetype)| {
@@ -87,7 +87,7 @@ where
     type Item = T::Item<'world>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let archetypes = self.world.world().get_archetypes();
+        let archetypes = self.world.world().archetypes();
         loop {
             if self.current_row == self.current_len {
                 let archetype_index = self.matched_archetypes.next()?;
@@ -149,7 +149,7 @@ where
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         let world = world.world();
 
-        if let Some(location) = world.get_entity_store().find_location(entity) {
+        if let Some(location) = world.entity_store().find_location(entity) {
             world.get_component_for_entity_location::<T>(location)
         } else {
             None
@@ -171,9 +171,11 @@ where
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         let world = world.world_mut();
-        if let Some(location) = world.get_entity_store().find_location(entity) {
+        if let Some(location) = world.entity_store().find_location(entity) {
             let current_tick = world.current_tick();
-            world.get_component_for_entity_location_mut(location).map(|table_cell| Mut::new(table_cell.data, table_cell.changed_tick, current_tick))
+            world
+                .get_component_for_entity_location_mut(location)
+                .map(|table_cell| Mut::new(table_cell.data, table_cell.changed_tick, current_tick))
         } else {
             None
         }

@@ -1,12 +1,31 @@
 use bytemuck::Pod;
-use ecs::component::Component;
+use ecs::component::{Component, ComponentLifecycleCallback};
 use glam::{Mat3, Mat4, Quat, Vec3};
 
-#[derive(Component, Clone)]
+#[derive(Clone)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
     pub scale: Vec3,
+}
+
+impl Component for Transform {
+    fn name() -> String {
+        String::from("Transform")
+    }
+
+    fn on_add() -> Option<ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            let global_transform = GlobalTranform::new(
+                world
+                    .get_component_for_entity::<Transform>(context.entity)
+                    .unwrap()
+                    .compute_matrix(),
+            );
+
+            world.insert_component(global_transform, context.entity);
+        })
+    }
 }
 
 impl Transform {
@@ -82,3 +101,12 @@ pub struct TransformRaw {
 }
 
 unsafe impl Pod for TransformRaw {}
+
+#[derive(Component)]
+pub struct GlobalTranform(Mat4);
+
+impl GlobalTranform {
+    pub fn new(transform: Mat4) -> Self {
+        Self(transform)
+    }
+}

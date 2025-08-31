@@ -45,7 +45,7 @@ impl ComponentLifecycleCallbacks {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Tick(u32);
 
 impl Tick {

@@ -1,5 +1,5 @@
 use ecs::{
-    query::Query,
+    query::{change_detection::DetectChanges, Query},
     resource::{Res, ResMut},
 };
 
@@ -13,13 +13,13 @@ use crate::{
 };
 
 pub(crate) fn update_window(
-    mut window: ResMut<Window>,
+    window: Res<Window>,
     mut render_window: ResMut<RenderWindow>,
     mut context: ResMut<RenderContext>,
     device: Res<RenderDevice>,
     render_cameras: Query<(&mut RenderCamera,)>,
 ) {
-    if window.should_resize() {
+    if window.has_changed() {
         let size = window.size();
         let surface = context.surface.clone();
         context.surface_config.width = size.0;
@@ -33,7 +33,6 @@ pub(crate) fn update_window(
                 "depth_texture",
             );
         }
-        window.clear_resize();
     }
 
     if let Ok(output) = context.surface.get_current_texture() {

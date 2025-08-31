@@ -9,6 +9,7 @@ use crate::component::bundle::ComponentBundle;
 use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
+use crate::resource::ResourceStorage;
 use crate::table::MutableCellAccessor;
 use crate::{
     archetype::Archetype,
@@ -170,7 +171,24 @@ impl World {
             .flatten()
     }
 
-    pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<MutableCellAccessor<T>> {
+    pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        let current_tick = self.current_tick;
+        self.entity_store
+            .find_location(entity)
+            .map(|location| {
+                self.get_component_for_entity_location_mut(location)
+                    .map(|accessor| {
+                        accessor.changed_tick.set(current_tick);
+                        accessor.data
+                    })
+            })
+            .flatten()
+    }
+
+    pub(crate) fn get_component_accessor_for_entity_mut<T: Component>(
+        &mut self,
+        entity: Entity,
+    ) -> Option<MutableCellAccessor<T>> {
         self.entity_store
             .find_location(entity)
             .map(|location| self.get_component_for_entity_location_mut(location))
@@ -193,25 +211,42 @@ impl World {
     ) -> Option<MutableCellAccessor<T>> {
         self.archetypes
             .get_mut(entity_location.archetype_index as usize)
-            .map(|archetype| unsafe {
-                archetype.get_component_unsafe_mut(entity_location.row)
-            })
+            .map(|archetype| unsafe { archetype.get_component_unsafe_mut(entity_location.row) })
             .flatten()
     }
 
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
-        self.resources.insert(resource);
+        self.resources
+            .insert(ResourceStorage::new(resource, self.current_tick));
     }
 
     pub fn remove_resource<T: Resource + 'static>(&mut self) -> Option<T> {
-        self.resources.remove()
+        self.resources
+            .remove::<ResourceStorage<T>>()
+            .map(|resource_storage| resource_storage.data)
     }
 
-    pub fn get_resource<T: 'static>(&self) -> Option<&T> {
+    pub fn get_resource<T: Resource + 'static>(&self) -> Option<&T> {
+        self.resources
+            .get::<ResourceStorage<T>>()
+            .map(|resource_storage| &resource_storage.data)
+    }
+
+    pub fn get_resource_mut<T: Resource + 'static>(&mut self) -> Option<&mut T> {
+        self.resources
+            .get_mut::<ResourceStorage<T>>()
+            .map(|resource_storage| &mut resource_storage.data)
+    }
+
+    pub(crate) fn get_resource_storage<T: Resource + 'static>(
+        &self,
+    ) -> Option<&ResourceStorage<T>> {
         self.resources.get()
     }
 
-    pub fn get_resource_mut<T: 'static>(&mut self) -> Option<&mut T> {
+    pub(crate) fn get_resource_storage_mut<T: Resource + 'static>(
+        &mut self,
+    ) -> Option<&mut ResourceStorage<T>> {
         self.resources.get_mut()
     }
 
@@ -227,8 +262,7 @@ impl World {
         self.current_tick += 1;
     }
 
-    pub fn current_tick(&self) -> Tick
-    {
+    pub fn current_tick(&self) -> Tick {
         Tick::new(self.current_tick)
     }
 
@@ -262,18 +296,16 @@ impl World {
             .or_insert(ComponentLifecycleCallbacks::from_component::<T>());
     }
 
-    pub fn add_child(&mut self, parent: Entity, child: Entity)
-    {
+    pub fn add_child(&mut self, parent: Entity, child: Entity) {
         self.insert_component(ChildOf::new(parent), child);
 
-        match self.get_component_for_entity_mut::<Children>(parent){
-            Some(table_cell) => 
-            {        
+        match self.get_component_accessor_for_entity_mut::<Children>(parent) {
+            Some(table_cell) => {
                 table_cell.data.add_child(child);
-            },
+            }
             None => {
-                self.insert_component(Children::from_children(vec![child]), parent);   
-            },
+                self.insert_component(Children::from_children(vec![child]), parent);
+            }
         }
     }
 }

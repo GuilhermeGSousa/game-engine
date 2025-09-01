@@ -2,6 +2,8 @@ use bytemuck::Pod;
 use ecs::component::{Component, ComponentLifecycleCallback};
 use glam::{Mat3, Mat4, Quat, Vec3};
 
+pub mod systems;
+
 #[derive(Clone)]
 pub struct Transform {
     pub translation: Vec3,

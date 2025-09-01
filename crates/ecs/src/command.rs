@@ -33,6 +33,10 @@ impl<'w, 's> CommandQueue<'w, 's> {
         self.queue_state
             .add_command(InsertCommand::new(component, entity));
     }
+
+    pub fn add_child(&mut self, parent: Entity, child: Entity) {
+        self.queue_state.add_command(AddChild::new(parent, child));
+    }
 }
 
 pub struct CommandQueueState {
@@ -126,5 +130,22 @@ impl<T: Component> InsertCommand<T> {
 impl<T: Component> Command for InsertCommand<T> {
     fn execute(self: Box<Self>, world: &mut World) {
         world.insert_component(self.component, self.entity);
+    }
+}
+
+pub(crate) struct AddChild {
+    parent: Entity,
+    child: Entity,
+}
+
+impl AddChild {
+    pub fn new(parent: Entity, child: Entity) -> Self {
+        Self { parent, child }
+    }
+}
+
+impl Command for AddChild {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.add_child(self.parent, self.child);
     }
 }

@@ -95,11 +95,10 @@ where
             Some(location) => {
                 let archetypes = world.archetypes();
                 let archetype = &archetypes[location.archetype_index as usize];
+                let archetype_ids = archetype.component_ids();
                 let component_ids = T::get_component_ids();
-                archetype
-                    .component_ids()
-                    .iter()
-                    .all(|id| component_ids.contains(id))
+
+                component_ids.iter().all(|id| archetype_ids.contains(id))
             }
             None => false,
         }

@@ -15,6 +15,25 @@ impl Children {
     }
 }
 
+impl IntoIterator for Children {
+    type Item = Entity;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.children.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Children {
+    type Item = <&'a Vec<Entity> as IntoIterator>::Item;
+    type IntoIter = <&'a Vec<Entity> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.children).into_iter()
+    }
+}
+
 #[derive(Component)]
 pub struct ChildOf {
     parent: Entity,

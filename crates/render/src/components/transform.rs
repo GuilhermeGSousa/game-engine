@@ -1,12 +1,12 @@
-use essential::transform::TransformRaw;
+use essential::transform::GlobalTransformRaw;
 use std::mem;
 
 use crate::assets::vertex::VertexBufferLayout;
 
-impl VertexBufferLayout for TransformRaw {
+impl VertexBufferLayout for GlobalTransformRaw {
     fn describe() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<TransformRaw>() as wgpu::BufferAddress,
+            array_stride: mem::size_of::<GlobalTransformRaw>() as wgpu::BufferAddress,
             // We need to switch from using a step mode of Vertex to Instance
             // This means that our shaders will only change to use the next
             // instance when the shader starts processing a new instance

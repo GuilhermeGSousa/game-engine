@@ -32,7 +32,7 @@ use crate::{
 };
 use app::plugins::Plugin;
 use ecs::resource::Resource;
-use essential::transform::TransformRaw;
+use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};
 use wgpu::{
@@ -227,7 +227,7 @@ impl Plugin for RenderPlugin {
             vertex: wgpu::VertexState {
                 module: &main_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::describe(), TransformRaw::describe()],
+                buffers: &[Vertex::describe(), GlobalTransformRaw::describe()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {

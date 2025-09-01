@@ -5,7 +5,8 @@ use ecs::{
     resource::Res,
 };
 use encase::UniformBuffer;
-use essential::transform::Transform;
+use essential::transform::{GlobalTranform, Transform};
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -23,7 +24,7 @@ use crate::{
 };
 
 pub(crate) fn camera_added(
-    cameras: Query<(&Camera, &Transform, &mut RenderEntity), Added<(Camera,)>>,
+    cameras: Query<(&Camera, &GlobalTranform, &mut RenderEntity), Added<(Camera,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
@@ -74,7 +75,7 @@ pub(crate) fn camera_added(
 }
 
 pub(crate) fn camera_changed(
-    cameras: Query<(&Camera, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    cameras: Query<(&Camera, &GlobalTranform, &RenderEntity)>,
     render_cameras: Query<(&mut RenderCamera,)>,
     queue: Res<RenderQueue>,
 ) {
@@ -98,7 +99,7 @@ pub(crate) fn camera_changed(
 }
 
 pub(crate) fn mesh_added(
-    meshes: Query<(&MeshComponent, &Transform, &mut RenderEntity), Added<(MeshComponent,)>>,
+    meshes: Query<(&MeshComponent, &GlobalTranform, &mut RenderEntity), Added<(MeshComponent,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
@@ -127,7 +128,7 @@ pub(crate) fn mesh_added(
 }
 
 pub(crate) fn mesh_changed(
-    meshes: Query<(&MeshComponent, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    meshes: Query<(&MeshComponent, &GlobalTranform, &RenderEntity), Changed<(Transform,)>>,
     render_meshes: Query<(&mut RenderMeshInstance,)>,
     queue: Res<RenderQueue>,
 ) {
@@ -148,15 +149,16 @@ pub(crate) fn mesh_changed(
 }
 
 pub(crate) fn light_added(
-    lights: Query<(&Light, &Transform, &mut RenderEntity), Added<Light>>,
+    lights: Query<(&Light, &GlobalTranform, &mut RenderEntity), Added<Light>>,
     mut cmd: CommandQueue,
 ) {
     for (light, light_transform, mut render_entity) in lights.iter() {
+        let local_z = light_transform.rotation() * Vec3::Z;
         let render_light = RenderLight {
-            translation: light_transform.translation,
+            translation: light_transform.translation(),
             color: light.color,
             intensity: light.intensity,
-            direction: light_transform.forward(),
+            direction: -local_z,
             light_type: light.light_type.index(),
             cos_cone_angle: match &light.light_type {
                 LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
@@ -176,7 +178,7 @@ pub(crate) fn light_added(
 }
 
 pub(crate) fn light_changed(
-    lights: Query<(&Light, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    lights: Query<(&Light, &GlobalTranform, &RenderEntity)>,
     render_lights: Query<&mut RenderLight>,
 ) {
     for (light, transform, render_entity) in lights.iter() {
@@ -184,9 +186,10 @@ pub(crate) fn light_changed(
             RenderEntity::Uninitialized => {}
             RenderEntity::Initialized(entity) => {
                 if let Some(mut render_light) = render_lights.get_entity(*entity) {
-                    render_light.direction = transform.forward();
+                    let local_z = transform.rotation() * Vec3::Z;
+                    render_light.direction = -local_z;
                     render_light.color = light.color;
-                    render_light.translation = transform.translation;
+                    render_light.translation = transform.translation();
                     render_light.intensity = light.intensity;
                     render_light.light_type = light.light_type.index();
                     render_light.cos_cone_angle = match &light.light_type {

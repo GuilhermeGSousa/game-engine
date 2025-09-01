@@ -1,6 +1,6 @@
 use bytemuck::Pod;
 use ecs::component::{Component, ComponentLifecycleCallback};
-use glam::{Mat3, Mat4, Quat, Vec3};
+use glam::{Affine3A, Mat3, Mat4, Quat, Vec3, Vec3A};
 
 pub mod systems;
 
@@ -25,7 +25,7 @@ impl Component for Transform {
                     .compute_matrix(),
             );
 
-            world.insert_component(global_transform, context.entity);
+            world.insert_component(global_transform, context.entity, false);
         })
     }
 }
@@ -33,17 +33,6 @@ impl Component for Transform {
 impl Transform {
     pub fn compute_matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
-    }
-
-    pub fn compute_rotation_matrix(&self) -> Mat3 {
-        Mat3::from_quat(self.rotation)
-    }
-
-    pub fn to_raw(&self) -> TransformRaw {
-        TransformRaw {
-            matrix: self.compute_matrix().to_cols_array_2d(),
-            rotation_matrix: self.compute_rotation_matrix().to_cols_array_2d(),
-        }
     }
 
     pub fn from_translation_rotation(translation: Vec3, rotation: Quat) -> Self {
@@ -95,20 +84,41 @@ impl Transform {
     }
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Zeroable)]
-pub struct TransformRaw {
-    matrix: [[f32; 4]; 4],
-    rotation_matrix: [[f32; 3]; 3],
-}
-
-unsafe impl Pod for TransformRaw {}
-
 #[derive(Component)]
-pub struct GlobalTranform(Mat4);
+pub struct GlobalTranform(Affine3A);
 
 impl GlobalTranform {
     pub fn new(transform: Mat4) -> Self {
-        Self(transform)
+        Self(Affine3A::from_mat4(transform))
     }
+
+    pub fn matrix(&self) -> Mat4 {
+        Mat4::from(self.0)
+    }
+
+    pub fn set_matrix(&mut self, transform: Mat4) {
+        self.0 = Affine3A::from_mat4(transform)
+    }
+
+    pub fn translation(&self) -> Vec3 {
+        self.0.translation.into()
+    }
+
+    pub fn rotation(&self) -> Quat {
+        self.0.to_scale_rotation_translation().1
+    }
+
+    pub fn to_raw(&self) -> GlobalTransformRaw {
+        GlobalTransformRaw {
+            matrix: self.matrix().to_cols_array_2d(),
+            rotation_matrix: self.0.matrix3.to_cols_array_2d(),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GlobalTransformRaw {
+    matrix: [[f32; 4]; 4],
+    rotation_matrix: [[f32; 3]; 3],
 }

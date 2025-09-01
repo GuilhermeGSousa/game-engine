@@ -1,5 +1,5 @@
 use encase::ShaderType;
-use essential::{assets::handle::AssetHandle, transform::Transform};
+use essential::{assets::handle::AssetHandle, transform::GlobalTranform};
 
 use ecs::{component::Component, entity::Entity};
 use glam::{Mat4, Vec3};
@@ -91,11 +91,10 @@ impl CameraUniform {
         }
     }
 
-    pub fn update_view_proj(&mut self, camera: &Camera, transform: &Transform) {
-        self.view_pos = transform.translation;
-        self.view_proj = OPENGL_TO_WGPU_MATRIX
-            * camera.build_projection_matrix()
-            * transform.compute_matrix().inverse();
+    pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTranform) {
+        self.view_pos = transform.translation().into();
+        self.view_proj =
+            OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
     }
 }
 

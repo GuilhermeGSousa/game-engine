@@ -111,6 +111,15 @@ impl World {
     }
 
     pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
+        self.insert_component_internal(component, entity, true);
+    }
+
+    pub(crate) fn insert_component_internal<T: Component>(
+        &mut self,
+        component: T,
+        entity: Entity,
+        trigger_events: bool,
+    ) {
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
@@ -154,8 +163,10 @@ impl World {
                 // Store in entity store
                 self.entity_store.set_location(entity, location.clone());
 
-                let cell = self.as_unsafe_world_cell_mut();
-                cell.trigger_on_add(entity, location);
+                if trigger_events {
+                    let cell = self.as_unsafe_world_cell_mut();
+                    cell.trigger_on_add(entity, location);
+                }
             }
             None => panic!("Entity should exist in the world"),
         }
@@ -437,11 +448,16 @@ impl<'w> RestrictedWorld<'w> {
         self.world_cell.world_mut().despawn(entity);
     }
 
-    pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
+    pub fn insert_component<T: Component>(
+        &mut self,
+        component: T,
+        entity: Entity,
+        trigger_events: bool,
+    ) {
         // TODO: Use commands instead
         self.world_cell
             .world_mut()
-            .insert_component(component, entity);
+            .insert_component_internal(component, entity, trigger_events);
     }
 }
 

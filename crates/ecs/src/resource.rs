@@ -1,12 +1,14 @@
 use std::{
     any::TypeId,
-    marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
 pub use ecs_macros::Resource;
 
-use crate::{system::system_input::SystemInput, world::UnsafeWorldCell};
+use crate::{
+    component::Tick, query::change_detection::DetectChanges, system::system_input::SystemInput,
+    world::UnsafeWorldCell,
+};
 
 pub type ResourceId = TypeId;
 
@@ -16,16 +18,36 @@ pub trait Resource: 'static {
         Self: Sized;
 }
 
+pub(crate) struct ResourceStorage<T: Resource> {
+    pub(crate) data: T,
+    pub(crate) added_tick: Tick,
+    pub(crate) changed_tick: Tick,
+}
+
+impl<T: Resource> ResourceStorage<T> {
+    pub(crate) fn new(resource: T, current_tick: u32) -> Self {
+        Self {
+            data: resource,
+            added_tick: Tick::new(current_tick),
+            changed_tick: Tick::new(0),
+        }
+    }
+}
+
 pub struct Res<'world, T: Resource> {
     pub value: &'world T,
-    _marker: PhantomData<T>,
+    changed_tick: &'world Tick,
+    current_tick: Tick,
 }
 
 impl<'world, T: Resource> Res<'world, T> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
+        let world = world.world();
+        let res_storage = world.get_resource_storage::<T>().unwrap();
         Self {
-            value: world.world().get_resource::<T>().unwrap(),
-            _marker: PhantomData,
+            value: &res_storage.data,
+            changed_tick: &res_storage.changed_tick,
+            current_tick: world.current_tick(),
         }
     }
 }
@@ -60,16 +82,33 @@ where
     }
 }
 
+impl<T> DetectChanges for Res<'_, T>
+where
+    T: Resource,
+{
+    fn has_changed(&self) -> bool {
+        *self.changed_tick == self.current_tick
+    }
+}
+
 pub struct ResMut<'world, T: Resource> {
     pub value: &'world mut T,
-    _marker: PhantomData<T>,
+    changed_tick: &'world mut Tick,
+    current_tick: Tick,
+    has_changed: bool,
 }
 
 impl<'world, T: Resource> ResMut<'world, T> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
+        let world = world.world_mut();
+        let current_tick = world.current_tick();
+        let res_storage = world.get_resource_storage_mut::<T>().unwrap();
+
         Self {
-            value: world.world_mut().get_resource_mut::<T>().unwrap(),
-            _marker: PhantomData,
+            value: &mut res_storage.data,
+            changed_tick: &mut res_storage.changed_tick,
+            current_tick,
+            has_changed: false,
         }
     }
 }
@@ -109,6 +148,19 @@ where
     T: Resource,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        if !self.has_changed {
+            self.has_changed = true;
+            *self.changed_tick = self.current_tick;
+        }
         &mut self.value
+    }
+}
+
+impl<T> DetectChanges for ResMut<'_, T>
+where
+    T: Resource,
+{
+    fn has_changed(&self) -> bool {
+        *self.changed_tick == self.current_tick
     }
 }

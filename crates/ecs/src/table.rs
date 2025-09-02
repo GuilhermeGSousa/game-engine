@@ -54,8 +54,15 @@ impl Column {
         self.data.get_unchecked(*row).downcast_ref()
     }
 
-    pub unsafe fn get_mut_unsafe<T: 'static>(&mut self, row: TableRowIndex) -> Option<&mut T> {
-        self.data.get_unchecked_mut(*row).downcast_mut()
+    pub unsafe fn get_mut_unsafe<T: 'static>(&mut self, row: TableRowIndex) -> Option<MutableCellAccessor<T>> {
+        self.data.get_unchecked_mut(*row).downcast_mut().map(|data| {
+            
+            MutableCellAccessor{
+                data,
+                changed_tick: &mut self.changed_ticks[*row]
+            }
+        }
+    )
     }
 
     pub fn set_changed(&mut self, row: TableRowIndex, current_tick: u32) {
@@ -233,4 +240,10 @@ impl DerefMut for TableRowIndex {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+pub(crate) struct MutableCellAccessor<'w, T>
+{
+    pub(crate) data: &'w mut T,
+    pub(crate) changed_tick: &'w mut Tick
 }

@@ -1,18 +1,19 @@
 use std::f32::consts::PI;
 
-use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
+use essential::{assets::asset_server::AssetServer, time::Time, transform::{GlobalTranform, Transform}};
 
 use app::{
-    plugins::{AssetManagerPlugin, TimePlugin},
+    plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
     App,
 };
 use ecs::{
     command::CommandQueue,
+    component::Component,
     entity::Entity,
-    query::Query,
+    query::{query_filter::With, Query},
     resource::{Res, ResMut},
 };
-use glam::{Quat, Vec2, Vec3, Vec4};
+use glam::{Quat, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::{mesh::Mesh, texture::TextureUsageSettings},
@@ -46,6 +47,9 @@ const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
+#[derive(Component)]
+struct Player;
+
 pub fn run_game() {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
@@ -61,6 +65,7 @@ pub fn run_game() {
         .register_plugin(AssetManagerPlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
+        .register_plugin(TransformPlugin)
         .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
@@ -110,10 +115,6 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         ),
     };
 
-    let cam_pos = Vec3::new(0.0, 2.0, 0.0);
-    let cam_rot = Quat::look_at_rh(Vec3::X, Vec3::ZERO, Vec3::Y);
-    let camera_transform = Transform::from_translation_rotation(cam_pos, cam_rot);
-
     let light = Light {
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
         intensity: 10.0,
@@ -122,15 +123,24 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         }),
     };
 
-    let mut light_transform = camera_transform.clone();
+    let mut light_transform =
+        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
     light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
 
-    cmd.spawn((
+    let parent = cmd.spawn((
+        Player,
+        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+    ));
+
+    let child = cmd.spawn((
         camera,
         skybox,
-        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
         RenderEntity::new(),
     ));
+
+    cmd.add_child(parent, child);
+
     cmd.spawn((light, light_transform, RenderEntity::new()));
 }
 
@@ -155,8 +165,14 @@ fn spawn_floor(
     ));
 }
 
-fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, time: Res<Time>) {
-    let (_, transform) = cameras.iter().next().unwrap();
+fn move_around(
+    players: Query<&mut Transform, With<Player>>,
+    cameras: Query<&mut Transform, With<Camera>>,
+    input: Res<Input>,
+    time: Res<Time>,
+) {
+    let mut player_transform = players.iter().next().unwrap();
+    let mut camera_transform = cameras.iter().next().unwrap();
 
     let displacement = 10.0 * time.delta().as_secs_f32();
 
@@ -166,28 +182,31 @@ fn move_around(cameras: Query<(&Camera, &mut Transform)>, input: Res<Input>, tim
     let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
 
     if key_d == InputState::Pressed || key_d == InputState::Down {
-        transform.translation += transform.right() * displacement;
+        let right = player_transform.right();
+        player_transform.translation += right * displacement;
     }
 
     if key_a == InputState::Pressed || key_a == InputState::Down {
-        transform.translation += transform.left() * displacement;
+        let left = player_transform.left();
+        player_transform.translation += left * displacement;
     }
 
     if key_w == InputState::Pressed || key_w == InputState::Down {
-        transform.translation += transform.forward() * displacement;
+        let forward = player_transform.forward();
+        player_transform.translation += forward * displacement;
     }
 
     if key_s == InputState::Pressed || key_s == InputState::Down {
-        transform.translation += transform.backward() * displacement;
+        let back = player_transform.backward();
+        player_transform.translation += back * displacement;
     }
 
-    transform.translation.y = 0.0; // Keep the camera on the ground
-
+    let sensitivity = -0.5;
     let mouse_delta = input.mouse_delta();
-    let rotation_delta = mouse_delta.x * time.delta().as_secs_f32();
-    if mouse_delta != Vec2::ZERO {
-        transform.rotation *= Quat::from_axis_angle(Vec3::Y, rotation_delta);
-    }
+    let yaw_delta = sensitivity * mouse_delta.x * time.delta().as_secs_f32();
+    let pitch_delta = sensitivity * mouse_delta.y * time.delta().as_secs_f32();
+    player_transform.rotation *= Quat::from_axis_angle(Vec3::Y, yaw_delta);
+    camera_transform.rotation *= Quat::from_axis_angle(Vec3::X, pitch_delta);
 }
 
 fn spawn_on_button_press(
@@ -212,7 +231,7 @@ fn spawn_on_button_press(
 }
 
 fn spawn_with_collider(
-    cameras: Query<(&Camera, &Transform)>,
+    cameras: Query<(&Camera, &GlobalTranform)>,
     mut cmd: CommandQueue,
     input: Res<Input>,
     asset_server: Res<AssetServer>,
@@ -223,7 +242,7 @@ fn spawn_with_collider(
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
-        let spawn_point = pos.translation + pos.forward() * 10.0;
+        let spawn_point = pos.translation() + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
         let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
@@ -261,7 +280,7 @@ fn move_light_to_player(
     light: Query<(&Light, &mut Transform)>,
 ) {
     let (_, transform_cam) = cameras.iter().next().unwrap();
-    let (_, transform_light) = light.iter().next().unwrap();
+    let (_, mut transform_light) = light.iter().next().unwrap();
 
     transform_light.translation =
         transform_cam.translation + transform_cam.forward() * 2.0 + transform_cam.up();

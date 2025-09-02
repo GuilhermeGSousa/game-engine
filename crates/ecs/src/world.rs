@@ -5,13 +5,18 @@ use std::{
     any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
 };
 
+use crate::component::bundle::ComponentBundle;
+use crate::component::Tick;
+use crate::entity::entity_store::EntityStore;
+use crate::entity::hierarchy::{ChildOf, Children};
+use crate::resource::ResourceStorage;
+use crate::table::MutableCellAccessor;
+use crate::world;
 use crate::{
     archetype::Archetype,
-    bundle::ComponentBundle,
     common::generate_type_id,
     component::{Component, ComponentId, ComponentLifecycleCallbacks, ComponentLifecycleContext},
     entity::{Entity, EntityLocation, EntityType},
-    entity_store::EntityStore,
     resource::Resource,
     system::system_input::SystemInput,
     table::{Table, TableRowIndex},
@@ -69,7 +74,10 @@ impl World {
             row: table_row,
         };
 
-        self.entity_store.set_location(entity, new_location);
+        self.entity_store.set_location(entity, new_location.clone());
+
+        let cell = self.as_unsafe_world_cell_mut();
+        cell.trigger_on_add(entity, new_location);
     }
 
     pub fn despawn(&mut self, entity: Entity) {
@@ -94,7 +102,7 @@ impl World {
         }
     }
 
-    pub fn get_archetypes(&self) -> &Vec<Archetype> {
+    pub fn archetypes(&self) -> &Vec<Archetype> {
         &self.archetypes
     }
 
@@ -103,6 +111,15 @@ impl World {
     }
 
     pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
+        self.insert_component_internal(component, entity, true);
+    }
+
+    pub(crate) fn insert_component_internal<T: Component>(
+        &mut self,
+        component: T,
+        entity: Entity,
+        trigger_events: bool,
+    ) {
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
@@ -139,24 +156,27 @@ impl World {
                     }
                 };
 
+                let location = EntityLocation {
+                    archetype_index: archetype_index as u32,
+                    row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
+                };
                 // Store in entity store
-                self.entity_store.set_location(
-                    entity,
-                    EntityLocation {
-                        archetype_index: archetype_index as u32,
-                        row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
-                    },
-                );
+                self.entity_store.set_location(entity, location.clone());
+
+                if trigger_events {
+                    let cell = self.as_unsafe_world_cell_mut();
+                    cell.trigger_on_add(entity, location);
+                }
             }
             None => panic!("Entity should exist in the world"),
         }
     }
 
-    pub(crate) fn get_entity_store(&self) -> &EntityStore {
+    pub(crate) fn entity_store(&self) -> &EntityStore {
         &self.entity_store
     }
 
-    pub(crate) fn get_entity_store_mut(&mut self) -> &mut EntityStore {
+    pub(crate) fn entity_store_mut(&mut self) -> &mut EntityStore {
         &mut self.entity_store
     }
 
@@ -168,6 +188,23 @@ impl World {
     }
 
     pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        let current_tick = self.current_tick;
+        self.entity_store
+            .find_location(entity)
+            .map(|location| {
+                self.get_component_for_entity_location_mut(location)
+                    .map(|accessor| {
+                        accessor.changed_tick.set(current_tick);
+                        accessor.data
+                    })
+            })
+            .flatten()
+    }
+
+    pub(crate) fn get_component_accessor_for_entity_mut<T: Component>(
+        &mut self,
+        entity: Entity,
+    ) -> Option<MutableCellAccessor<T>> {
         self.entity_store
             .find_location(entity)
             .map(|location| self.get_component_for_entity_location_mut(location))
@@ -187,28 +224,45 @@ impl World {
     pub(crate) fn get_component_for_entity_location_mut<T: Component>(
         &mut self,
         entity_location: EntityLocation,
-    ) -> Option<&mut T> {
+    ) -> Option<MutableCellAccessor<T>> {
         self.archetypes
             .get_mut(entity_location.archetype_index as usize)
-            .map(|archetype| unsafe {
-                archetype.get_component_unsafe_mut(entity_location.row, self.current_tick)
-            })
+            .map(|archetype| unsafe { archetype.get_component_unsafe_mut(entity_location.row) })
             .flatten()
     }
 
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
-        self.resources.insert(resource);
+        self.resources
+            .insert(ResourceStorage::new(resource, self.current_tick));
     }
 
     pub fn remove_resource<T: Resource + 'static>(&mut self) -> Option<T> {
-        self.resources.remove()
+        self.resources
+            .remove::<ResourceStorage<T>>()
+            .map(|resource_storage| resource_storage.data)
     }
 
-    pub fn get_resource<T: 'static>(&self) -> Option<&T> {
+    pub fn get_resource<T: Resource + 'static>(&self) -> Option<&T> {
+        self.resources
+            .get::<ResourceStorage<T>>()
+            .map(|resource_storage| &resource_storage.data)
+    }
+
+    pub fn get_resource_mut<T: Resource + 'static>(&mut self) -> Option<&mut T> {
+        self.resources
+            .get_mut::<ResourceStorage<T>>()
+            .map(|resource_storage| &mut resource_storage.data)
+    }
+
+    pub(crate) fn get_resource_storage<T: Resource + 'static>(
+        &self,
+    ) -> Option<&ResourceStorage<T>> {
         self.resources.get()
     }
 
-    pub fn get_resource_mut<T: 'static>(&mut self) -> Option<&mut T> {
+    pub(crate) fn get_resource_storage_mut<T: Resource + 'static>(
+        &mut self,
+    ) -> Option<&mut ResourceStorage<T>> {
         self.resources.get_mut()
     }
 
@@ -222,6 +276,10 @@ impl World {
 
     pub fn tick(&mut self) {
         self.current_tick += 1;
+    }
+
+    pub fn current_tick(&self) -> Tick {
+        Tick::new(self.current_tick)
     }
 
     pub fn was_component_added(&self, entity: Entity, component_id: ComponentId) -> bool {
@@ -252,6 +310,19 @@ impl World {
         self.component_lifetimes
             .entry(ComponentId::of::<T>())
             .or_insert(ComponentLifecycleCallbacks::from_component::<T>());
+    }
+
+    pub fn add_child(&mut self, parent: Entity, child: Entity) {
+        self.insert_component(ChildOf::new(parent), child);
+
+        match self.get_component_accessor_for_entity_mut::<Children>(parent) {
+            Some(table_cell) => {
+                table_cell.data.add_child(child);
+            }
+            None => {
+                self.insert_component(Children::from_children(vec![child]), parent);
+            }
+        }
     }
 }
 
@@ -340,6 +411,19 @@ impl<'w> UnsafeWorldCell<'w> {
         RestrictedWorld { world_cell: self }
     }
 
+    pub fn trigger_on_add(&self, entity: Entity, location: EntityLocation) {
+        let world = self.world();
+        let archetype = &world.archetypes[location.archetype_index as usize];
+
+        for id in archetype.component_ids() {
+            if let Some(lifetimes) = world.component_lifetimes.get(id) {
+                if let Some(add) = lifetimes.on_add {
+                    add(self.into_restricted(), ComponentLifecycleContext { entity });
+                }
+            }
+        }
+    }
+
     pub fn trigger_on_remove(&self, entity: Entity, location: EntityLocation) {
         let world = self.world();
         let archetype = &world.archetypes[location.archetype_index as usize];
@@ -362,6 +446,18 @@ impl<'w> RestrictedWorld<'w> {
     pub fn despawn(&mut self, entity: Entity) {
         // TODO: Use commands instead
         self.world_cell.world_mut().despawn(entity);
+    }
+
+    pub fn insert_component<T: Component>(
+        &mut self,
+        component: T,
+        entity: Entity,
+        trigger_events: bool,
+    ) {
+        // TODO: Use commands instead
+        self.world_cell
+            .world_mut()
+            .insert_component_internal(component, entity, trigger_events);
     }
 }
 

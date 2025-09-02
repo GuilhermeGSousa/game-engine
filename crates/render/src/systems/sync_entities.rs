@@ -1,11 +1,12 @@
 use ecs::{
     command::CommandQueue,
+    query::query_filter::{Added, Changed},
     query::Query,
-    query_filter::{Added, Changed},
     resource::Res,
 };
 use encase::UniformBuffer;
-use essential::transform::Transform;
+use essential::transform::{GlobalTranform, Transform};
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -23,13 +24,13 @@ use crate::{
 };
 
 pub(crate) fn camera_added(
-    cameras: Query<(&Camera, &Transform, &mut RenderEntity), Added<(Camera,)>>,
+    cameras: Query<(&Camera, &GlobalTranform, &mut RenderEntity), Added<(Camera,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayouts>,
 ) {
-    for (camera, transform, render_entity) in cameras.iter() {
+    for (camera, transform, mut render_entity) in cameras.iter() {
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(camera, transform);
 
@@ -61,27 +62,27 @@ pub(crate) fn camera_added(
             clear_color: camera.clear_color,
         };
 
-        match render_entity {
+        match **render_entity {
             RenderEntity::Uninitialized => {
                 let new_entity = cmd.spawn(render_cam);
                 render_entity.set_entity(new_entity);
             }
             RenderEntity::Initialized(entity) => {
-                cmd.insert(render_cam, *entity);
+                cmd.insert(render_cam, entity);
             }
         }
     }
 }
 
 pub(crate) fn camera_changed(
-    cameras: Query<(&Camera, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    cameras: Query<(&Camera, &GlobalTranform, &RenderEntity)>,
     render_cameras: Query<(&mut RenderCamera,)>,
     queue: Res<RenderQueue>,
 ) {
     for (camera, transform, render_entity) in cameras.iter() {
         match render_entity {
             RenderEntity::Initialized(entity) => {
-                if let Some((render_camera,)) = render_cameras.get_entity(*entity) {
+                if let Some((mut render_camera,)) = render_cameras.get_entity(*entity) {
                     render_camera
                         .camera_uniform
                         .update_view_proj(camera, transform);
@@ -98,11 +99,11 @@ pub(crate) fn camera_changed(
 }
 
 pub(crate) fn mesh_added(
-    meshes: Query<(&MeshComponent, &Transform, &mut RenderEntity), Added<(MeshComponent,)>>,
+    meshes: Query<(&MeshComponent, &GlobalTranform, &mut RenderEntity), Added<(MeshComponent,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
-    for (mesh, transform, render_entity) in meshes.iter() {
+    for (mesh, transform, mut render_entity) in meshes.iter() {
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&[transform.to_raw()]),
@@ -114,20 +115,20 @@ pub(crate) fn mesh_added(
             buffer: instance_buffer,
         };
 
-        match render_entity {
+        match **render_entity {
             RenderEntity::Uninitialized => {
                 let new_entity = cmd.spawn(instance);
                 render_entity.set_entity(new_entity);
             }
             RenderEntity::Initialized(entity) => {
-                cmd.insert(instance, *entity);
+                cmd.insert(instance, entity);
             }
         }
     }
 }
 
 pub(crate) fn mesh_changed(
-    meshes: Query<(&MeshComponent, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    meshes: Query<(&MeshComponent, &GlobalTranform, &RenderEntity), Changed<(Transform,)>>,
     render_meshes: Query<(&mut RenderMeshInstance,)>,
     queue: Res<RenderQueue>,
 ) {
@@ -148,45 +149,47 @@ pub(crate) fn mesh_changed(
 }
 
 pub(crate) fn light_added(
-    lights: Query<(&Light, &Transform, &mut RenderEntity), Added<Light>>,
+    lights: Query<(&Light, &GlobalTranform, &mut RenderEntity), Added<Light>>,
     mut cmd: CommandQueue,
 ) {
-    for (light, light_transform, render_entity) in lights.iter() {
+    for (light, light_transform, mut render_entity) in lights.iter() {
+        let local_z = light_transform.rotation() * Vec3::Z;
         let render_light = RenderLight {
-            translation: light_transform.translation,
+            translation: light_transform.translation(),
             color: light.color,
             intensity: light.intensity,
-            direction: light_transform.forward(),
+            direction: -local_z,
             light_type: light.light_type.index(),
             cos_cone_angle: match &light.light_type {
                 LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
                 _ => 0.0,
             },
         };
-        match render_entity {
+        match **render_entity {
             RenderEntity::Uninitialized => {
                 let new_entity = cmd.spawn(render_light);
                 render_entity.set_entity(new_entity);
             }
             RenderEntity::Initialized(entity) => {
-                cmd.insert(render_light, *entity);
+                cmd.insert(render_light, entity);
             }
         }
     }
 }
 
 pub(crate) fn light_changed(
-    lights: Query<(&Light, &Transform, &RenderEntity), Changed<(Transform,)>>,
+    lights: Query<(&Light, &GlobalTranform, &RenderEntity)>,
     render_lights: Query<&mut RenderLight>,
 ) {
     for (light, transform, render_entity) in lights.iter() {
         match render_entity {
             RenderEntity::Uninitialized => {}
             RenderEntity::Initialized(entity) => {
-                if let Some(render_light) = render_lights.get_entity(*entity) {
-                    render_light.direction = transform.forward();
+                if let Some(mut render_light) = render_lights.get_entity(*entity) {
+                    let local_z = transform.rotation() * Vec3::Z;
+                    render_light.direction = -local_z;
                     render_light.color = light.color;
-                    render_light.translation = transform.translation;
+                    render_light.translation = transform.translation();
                     render_light.intensity = light.intensity;
                     render_light.light_type = light.light_type.index();
                     render_light.cos_cone_angle = match &light.light_type {

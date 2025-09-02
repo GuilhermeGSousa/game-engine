@@ -3,6 +3,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+pub mod bundle;
+
 pub use ecs_macros::Component;
 
 use crate::{entity::Entity, world::RestrictedWorld};
@@ -43,8 +45,8 @@ impl ComponentLifecycleCallbacks {
     }
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct Tick(u32);
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Tick(u32);
 
 impl Tick {
     pub fn new(tick: u32) -> Self {

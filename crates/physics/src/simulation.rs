@@ -12,7 +12,7 @@ pub fn step_simulation(
 ) {
     pipeline.step(&mut state);
 
-    for (rigid_body, transform) in query.iter() {
-        *transform = state.get_rigid_body(rigid_body);
+    for (rigid_body, mut transform) in query.iter() {
+        **transform = state.get_rigid_body(rigid_body);
     }
 }

@@ -1,6 +1,8 @@
 use crate::{
-    bundle::ComponentBundle, component::Component, entity::Entity, entity_store::EntityStore,
-    system::system_input::SystemInput, world::World,
+    component::{bundle::ComponentBundle, Component},
+    entity::{entity_store::EntityStore, Entity},
+    system::system_input::SystemInput,
+    world::World,
 };
 
 pub struct CommandQueue<'world, 'state> {
@@ -30,6 +32,10 @@ impl<'w, 's> CommandQueue<'w, 's> {
     pub fn insert<T: Component>(&mut self, component: T, entity: Entity) {
         self.queue_state
             .add_command(InsertCommand::new(component, entity));
+    }
+
+    pub fn add_child(&mut self, parent: Entity, child: Entity) {
+        self.queue_state.add_command(AddChild::new(parent, child));
     }
 }
 
@@ -65,7 +71,7 @@ unsafe impl SystemInput for CommandQueue<'_, '_> {
         state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        CommandQueue::new(state, world.world_mut().get_entity_store_mut())
+        CommandQueue::new(state, world.world_mut().entity_store_mut())
     }
 
     fn apply(state: &mut Self::State, world: &mut World) {
@@ -124,5 +130,22 @@ impl<T: Component> InsertCommand<T> {
 impl<T: Component> Command for InsertCommand<T> {
     fn execute(self: Box<Self>, world: &mut World) {
         world.insert_component(self.component, self.entity);
+    }
+}
+
+pub(crate) struct AddChild {
+    parent: Entity,
+    child: Entity,
+}
+
+impl AddChild {
+    pub fn new(parent: Entity, child: Entity) -> Self {
+        Self { parent, child }
+    }
+}
+
+impl Command for AddChild {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.add_child(self.parent, self.child);
     }
 }

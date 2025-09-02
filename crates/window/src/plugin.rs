@@ -22,7 +22,6 @@ use winit::{
 pub struct Window {
     pub window_handle: Arc<WinitWindow>,
     size: (u32, u32),
-    should_resize: bool,
 }
 
 #[derive(Resource)]
@@ -33,7 +32,6 @@ impl Window {
         Self {
             window_handle: Arc::new(window),
             size: (0, 0),
-            should_resize: true,
         }
     }
 
@@ -48,15 +46,6 @@ impl Window {
 
     pub fn request_resize(&mut self, size: (u32, u32)) {
         self.size = size;
-        self.should_resize = true;
-    }
-
-    pub fn should_resize(&self) -> bool {
-        self.should_resize
-    }
-
-    pub fn clear_resize(&mut self) {
-        self.should_resize = false;
     }
 }
 

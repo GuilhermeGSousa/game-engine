@@ -1,9 +1,9 @@
 use any_vec::any_value::AnyValueWrapper;
 
 use crate::{
-    component::{Component, ComponentId},
+    component::{Component, ComponentId, Tick},
     entity::Entity,
-    table::{Table, TableRow, TableRowIndex},
+    table::{MutableCellAccessor, Table, TableRow, TableRowIndex},
 };
 
 pub struct Archetype {
@@ -87,10 +87,8 @@ impl Archetype {
     pub unsafe fn get_component_unsafe_mut<T: 'static>(
         &mut self,
         row: TableRowIndex,
-        current_tick: u32,
-    ) -> Option<&mut T> {
+    ) -> Option<MutableCellAccessor<T>> {
         let column = self.data_table.get_column_mut(ComponentId::of::<T>())?;
-        column.set_changed(row, current_tick);
         column.get_mut_unsafe(row)
     }
 

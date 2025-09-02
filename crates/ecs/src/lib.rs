@@ -1,13 +1,10 @@
 pub mod archetype;
-pub mod bundle;
 pub mod command;
 pub mod common;
 pub mod component;
 pub mod entity;
-pub mod entity_store;
 pub mod events;
 pub mod query;
-pub mod query_filter;
 pub mod resource;
 pub mod system;
 pub mod table;
@@ -17,8 +14,15 @@ pub mod world;
 #[cfg(test)]
 mod tests {
     use crate::{
-        command::CommandQueue, component::Component, entity::Entity, query::Query,
-        query_filter::Added, system::schedule::Schedule, world::World,
+        command::CommandQueue,
+        component::Component,
+        entity::Entity,
+        query::{
+            query_filter::{Added, Changed, Or, With},
+            Query,
+        },
+        system::schedule::Schedule,
+        world::World,
     };
 
     #[derive(Component)]
@@ -45,6 +49,22 @@ mod tests {
     fn system_query_added(query: Query<(&Position,), Added<(Position,)>>) {
         for _ in query.iter() {
             print!("Found Added");
+        }
+    }
+
+    fn system_query_add_hp(query: Query<(&mut Health,)>) {
+        for hp in query.iter() {}
+    }
+
+    fn system_query_hp_changed(query: Query<(&Health,), Changed<(Health)>>) {
+        for hp in query.iter() {
+            println!("Health change detected");
+        }
+    }
+
+    fn system_filter_or(query: Query<Entity, Or<(With<Health>, With<Position>)>>) {
+        for entity in query.iter() {
+            println!("Entity {:?}", entity);
         }
     }
 
@@ -179,5 +199,35 @@ mod tests {
         }
 
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_change_detection() {
+        let mut world = World::new();
+
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+
+        world.tick();
+        let mut schedule = Schedule::new();
+        schedule.add_system(system_query_add_hp);
+        schedule.add_system(system_query_hp_changed);
+
+        schedule.run(&mut world);
+    }
+
+    #[test]
+    fn test_or_query() {
+        let mut world = World::new();
+
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        world.spawn((Position { x: 10.0, y: 20.0 }));
+
+        let mut schedule = Schedule::new();
+        schedule.add_system(system_filter_or);
+
+        schedule.run(&mut world);
     }
 }

@@ -26,9 +26,3 @@ impl Asset for Mesh {
         ()
     }
 }
-
-impl Drop for Mesh {
-    fn drop(&mut self) {
-        println!("Mesh was dropped!")
-    }
-}

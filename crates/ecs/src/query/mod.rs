@@ -2,10 +2,13 @@ use std::{any::TypeId, marker::PhantomData};
 
 use typle::typle;
 
+pub mod change_detection;
+pub mod query_filter;
+
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
-    query_filter::QueryFilter,
+    query::{change_detection::Mut, query_filter::QueryFilter},
     system::system_input::SystemInput,
     world::UnsafeWorldCell,
 };
@@ -29,7 +32,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         let matched_indices: Vec<usize> = world
             .world()
-            .get_archetypes()
+            .archetypes()
             .iter()
             .enumerate()
             .filter_map(|(index, archetype)| {
@@ -84,7 +87,7 @@ where
     type Item = T::Item<'world>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let archetypes = self.world.world().get_archetypes();
+        let archetypes = self.world.world().archetypes();
         loop {
             if self.current_row == self.current_len {
                 let archetype_index = self.matched_archetypes.next()?;
@@ -145,12 +148,11 @@ where
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         let world = world.world();
-
-        if let Some(location) = world.get_entity_store().find_location(entity) {
-            world.get_component_for_entity_location::<T>(location)
-        } else {
-            None
-        }
+        world
+            .entity_store()
+            .find_location(entity)
+            .map(|location| world.get_component_for_entity_location::<T>(location))
+            .flatten()
     }
 }
 
@@ -158,7 +160,7 @@ impl<T> QueryData for &mut T
 where
     T: Component,
 {
-    type Item<'w> = &'w mut T;
+    type Item<'w> = Mut<'w, T>;
 
     fn component_ids() -> Vec<ComponentId> {
         {
@@ -168,11 +170,19 @@ where
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         let world = world.world_mut();
-        if let Some(location) = world.get_entity_store().find_location(entity) {
-            world.get_component_for_entity_location_mut(location)
-        } else {
-            None
-        }
+
+        world
+            .entity_store()
+            .find_location(entity)
+            .map(|location| {
+                let current_tick = world.current_tick();
+                world
+                    .get_component_for_entity_location_mut::<T>(location)
+                    .map(|table_cell| {
+                        Mut::new(table_cell.data, table_cell.changed_tick, current_tick)
+                    })
+            })
+            .flatten()
     }
 }
 
@@ -185,6 +195,47 @@ impl QueryData for Entity {
 
     fn fetch<'w>(_world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         Some(entity)
+    }
+}
+
+impl<T> QueryData for Option<&T>
+where
+    T: Component,
+{
+    type Item<'w> = Option<&'w T>;
+
+    fn component_ids() -> Vec<ComponentId> {
+        vec![TypeId::of::<T>()]
+    }
+
+    fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
+        let world = world.world();
+        world
+            .entity_store()
+            .find_location(entity)
+            .map(|location| world.get_component_for_entity_location(location))
+    }
+}
+
+impl<T> QueryData for Option<&mut T>
+where
+    T: Component,
+{
+    type Item<'w> = Option<Mut<'w, T>>;
+
+    fn component_ids() -> Vec<ComponentId> {
+        vec![TypeId::of::<T>()]
+    }
+
+    fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
+        let world = world.world_mut();
+
+        world.entity_store().find_location(entity).map(|location| {
+            let current_tick = world.current_tick();
+            world
+                .get_component_for_entity_location_mut::<T>(location)
+                .map(|table_cell| Mut::new(table_cell.data, table_cell.changed_tick, current_tick))
+        })
     }
 }
 

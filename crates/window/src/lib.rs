@@ -58,7 +58,7 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 self.winit_events
                     .drain(..)
                     .for_each(|e| event_channel.push_event(WinitEvent::new(e.clone())));
-
+                
                 if self.app.plugin_state() == PluginsState::Finished {
                     self.app.update();
                 }
@@ -66,7 +66,6 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();
             }
-            WindowEvent::Resized(_size) => {}
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {

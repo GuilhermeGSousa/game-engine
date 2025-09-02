@@ -2,8 +2,8 @@
 pub enum UpdateGroup {
     Startup,
     Update,
-    LateUpdate,
     FixedUpdate,
+    LateUpdate,
     LateFixedUpdate,
     Render,
     LateRender,

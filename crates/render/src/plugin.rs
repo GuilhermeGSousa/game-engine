@@ -130,8 +130,12 @@ impl Plugin for RenderPlugin {
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
             .add_system(
+                app::update_group::UpdateGroup::Update,
+                update_window::request_window_resize,
+            )
+            .add_system(
                 app::update_group::UpdateGroup::Render,
-                update_window::update_window,
+                update_window::update_render_window,
             )
             .add_system(app::update_group::UpdateGroup::Render, prepare_skybox)
             .add_system(

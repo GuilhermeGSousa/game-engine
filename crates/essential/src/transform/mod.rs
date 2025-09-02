@@ -114,6 +114,42 @@ impl GlobalTranform {
             rotation_matrix: self.0.matrix3.to_cols_array_2d(),
         }
     }
+
+    pub fn local_x(&self) -> Vec3 {
+        self.rotation() * Vec3::X
+    }
+
+    pub fn local_y(&self) -> Vec3 {
+        self.rotation() * Vec3::Y
+    }
+
+    pub fn local_z(&self) -> Vec3 {
+        self.rotation() * Vec3::Z
+    }
+
+    pub fn up(&self) -> Vec3 {
+        self.local_y()
+    }
+
+    pub fn down(&self) -> Vec3 {
+        -self.up()
+    }
+
+    pub fn forward(&self) -> Vec3 {
+        -self.local_z()
+    }
+
+    pub fn backward(&self) -> Vec3 {
+        -self.forward()
+    }
+
+    pub fn right(&self) -> Vec3 {
+        self.local_x()
+    }
+
+    pub fn left(&self) -> Vec3 {
+        -self.right()
+    }
 }
 
 #[repr(C)]

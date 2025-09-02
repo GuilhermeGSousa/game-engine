@@ -182,22 +182,22 @@ fn move_around(
     let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
 
     if key_d == InputState::Pressed || key_d == InputState::Down {
-        let right = player_transform.right();
+        let right = camera_transform.right();
         player_transform.translation += right * displacement;
     }
 
     if key_a == InputState::Pressed || key_a == InputState::Down {
-        let left = player_transform.left();
+        let left = camera_transform.left();
         player_transform.translation += left * displacement;
     }
 
     if key_w == InputState::Pressed || key_w == InputState::Down {
-        let forward = player_transform.forward();
+        let forward = camera_transform.forward();
         player_transform.translation += forward * displacement;
     }
 
     if key_s == InputState::Pressed || key_s == InputState::Down {
-        let back = player_transform.backward();
+        let back = camera_transform.backward();
         player_transform.translation += back * displacement;
     }
 

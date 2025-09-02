@@ -182,30 +182,30 @@ fn move_around(
     let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
 
     if key_d == InputState::Pressed || key_d == InputState::Down {
-        let right = camera_transform.right();
+        let right = player_transform.right();
         player_transform.translation += right * displacement;
     }
 
     if key_a == InputState::Pressed || key_a == InputState::Down {
-        let left = camera_transform.left();
+        let left = player_transform.left();
         player_transform.translation += left * displacement;
     }
 
     if key_w == InputState::Pressed || key_w == InputState::Down {
-        let forward = camera_transform.forward();
+        let forward = player_transform.forward();
         player_transform.translation += forward * displacement;
     }
 
     if key_s == InputState::Pressed || key_s == InputState::Down {
-        let back = camera_transform.backward();
+        let back = player_transform.backward();
         player_transform.translation += back * displacement;
     }
 
     let mouse_delta = input.mouse_delta();
-    let rotation_delta = mouse_delta.x * time.delta().as_secs_f32();
-    if mouse_delta != Vec2::ZERO {
-        camera_transform.rotation *= Quat::from_axis_angle(Vec3::Y, rotation_delta);
-    }
+    let yaw_delta = mouse_delta.x * time.delta().as_secs_f32();
+    let pitch_delta = mouse_delta.y * time.delta().as_secs_f32();
+    player_transform.rotation *= Quat::from_axis_angle(Vec3::Y, yaw_delta);
+    camera_transform.rotation *= Quat::from_axis_angle(Vec3::X, pitch_delta);
 }
 
 fn spawn_on_button_press(

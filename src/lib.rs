@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
+use essential::{assets::asset_server::AssetServer, time::Time, transform::{GlobalTranform, Transform}};
 
 use app::{
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
@@ -13,7 +13,7 @@ use ecs::{
     query::{query_filter::With, Query},
     resource::{Res, ResMut},
 };
-use glam::{Quat, Vec2, Vec3, Vec4};
+use glam::{Quat, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::{mesh::Mesh, texture::TextureUsageSettings},
@@ -66,7 +66,7 @@ pub fn run_game() {
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
         .register_plugin(TransformPlugin)
-        // .register_plugin(UIPlugin)
+        .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
@@ -79,7 +79,7 @@ pub fn run_game() {
         )
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
         // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
-        // .add_system(app::update_group::UpdateGroup::Render, render_ui)
+        .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
 
@@ -201,9 +201,10 @@ fn move_around(
         player_transform.translation += back * displacement;
     }
 
+    let sensitivity = -0.5;
     let mouse_delta = input.mouse_delta();
-    let yaw_delta = mouse_delta.x * time.delta().as_secs_f32();
-    let pitch_delta = mouse_delta.y * time.delta().as_secs_f32();
+    let yaw_delta = sensitivity * mouse_delta.x * time.delta().as_secs_f32();
+    let pitch_delta = sensitivity * mouse_delta.y * time.delta().as_secs_f32();
     player_transform.rotation *= Quat::from_axis_angle(Vec3::Y, yaw_delta);
     camera_transform.rotation *= Quat::from_axis_angle(Vec3::X, pitch_delta);
 }
@@ -230,7 +231,7 @@ fn spawn_on_button_press(
 }
 
 fn spawn_with_collider(
-    cameras: Query<(&Camera, &Transform)>,
+    cameras: Query<(&Camera, &GlobalTranform)>,
     mut cmd: CommandQueue,
     input: Res<Input>,
     asset_server: Res<AssetServer>,
@@ -241,7 +242,7 @@ fn spawn_with_collider(
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
-        let spawn_point = pos.translation + pos.forward() * 10.0;
+        let spawn_point = pos.translation() + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
         let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 

@@ -44,7 +44,7 @@ struct VertexInput {
     @location(2) normal: vec3<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-    @location(5) bone_indices: vec4<u32>,
+    @location(5) bone_indices: vec4<i32>,
     @location(6) bone_weights: vec4<f32>,
 };
 

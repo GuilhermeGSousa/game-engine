@@ -88,16 +88,17 @@ impl AssetLoader for ObjLoader {
                         };
 
                         Vertex {
-                            pos_coords: [
-                                m.mesh.positions[vertex_index * 3],
-                                m.mesh.positions[vertex_index * 3 + 1],
-                                m.mesh.positions[vertex_index * 3 + 2],
+                            pos_coords:[
+                                m.mesh.positions[vertex_index*3],
+                                m.mesh.positions[vertex_index*3+1],
+                                m.mesh.positions[vertex_index*3+2],
                             ],
-                            uv_coords: uv_coords,
-                            normal: normal,
-                            // We'll calculate these later
-                            tangent: [0.0; 3],
-                            bitangent: [0.0; 3],
+                            uv_coords:uv_coords,
+                            normal:normal,
+                            tangent:[0.0;3],
+                            bitangent:[0.0;3], 
+                            bone_indices: [-1; Vertex::MAX_AFFECTED_BONES], 
+                            bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES]
                         }
                     })
                     .collect::<Vec<_>>();

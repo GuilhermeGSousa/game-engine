@@ -39,19 +39,21 @@ struct VertexInput {
     @location(2) normal: vec3<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-}
+    @location(5) bone_indices: vec4<i32>,
+    @location(6) bone_weights: vec4<f32>,
+};
 
 struct TransformInput {
     // Full transform
-    @location(5) model_matrix_0: vec4<f32>,
-    @location(6) model_matrix_1: vec4<f32>,
-    @location(7) model_matrix_2: vec4<f32>,
-    @location(8) model_matrix_3: vec4<f32>,
+    @location(7) model_matrix_0: vec4<f32>,
+    @location(8) model_matrix_1: vec4<f32>,
+    @location(9) model_matrix_2: vec4<f32>,
+    @location(10) model_matrix_3: vec4<f32>,
 
     // Rotation Matrix
-    @location(9) rotation_matrix_0: vec3<f32>,
-    @location(10) rotation_matrix_1: vec3<f32>,
-    @location(11) rotation_matrix_2: vec3<f32>,
+    @location(11) rotation_matrix_0: vec3<f32>,
+    @location(12) rotation_matrix_1: vec3<f32>,
+    @location(13) rotation_matrix_2: vec3<f32>,
 };
 
 struct VertexOutput {

@@ -1,6 +1,7 @@
 const TOON_LEVELS = 3.0; // Number of color bands
 
 const MAX_LIGHT_COUNT : i32 = 128;
+const MAX_BONE_COUNT : i32 = 128;
 
 const HAS_DIFFUSE_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
@@ -26,6 +27,10 @@ struct Light {
 struct Lights {
     lights: array<Light, MAX_LIGHT_COUNT>,
     light_count: i32,
+};
+
+struct Bones {
+    bones: array<mat4x4<f32>, MAX_BONE_COUNT>
 };
 
 struct CameraUniform {
@@ -112,6 +117,9 @@ var<uniform> camera: CameraUniform;
 
 @group(2) @binding(0)
 var<uniform> lights: Lights;
+
+@group(3) @binding(0)
+var<uniform> bones: Bones;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

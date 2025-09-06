@@ -8,11 +8,7 @@ use essential::assets::{
 use glam::{Vec2, Vec3};
 use tobj::Model;
 
-use crate::assets::{
-    material::Material,
-    mesh::{Mesh, SubMesh},
-    vertex::Vertex,
-};
+use crate::assets::{material::Material, mesh::Mesh, vertex::Vertex};
 
 pub(crate) struct ObjLoader;
 
@@ -61,7 +57,7 @@ impl AssetLoader for ObjLoader {
         .await
         .map_err(|_| ())?;
 
-        let meshes = models
+        let mut meshes = models
             .into_iter()
             .map(|m| {
                 let mut requires_normal_computation = false;
@@ -88,17 +84,17 @@ impl AssetLoader for ObjLoader {
                         };
 
                         Vertex {
-                            pos_coords:[
-                                m.mesh.positions[vertex_index*3],
-                                m.mesh.positions[vertex_index*3+1],
-                                m.mesh.positions[vertex_index*3+2],
+                            pos_coords: [
+                                m.mesh.positions[vertex_index * 3],
+                                m.mesh.positions[vertex_index * 3 + 1],
+                                m.mesh.positions[vertex_index * 3 + 2],
                             ],
-                            uv_coords:uv_coords,
-                            normal:normal,
-                            tangent:[0.0;3],
-                            bitangent:[0.0;3], 
-                            bone_indices: [-1; Vertex::MAX_AFFECTED_BONES], 
-                            bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES]
+                            uv_coords: uv_coords,
+                            normal: normal,
+                            tangent: [0.0; 3],
+                            bitangent: [0.0; 3],
+                            bone_indices: [-1; Vertex::MAX_AFFECTED_BONES],
+                            bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES],
                         }
                     })
                     .collect::<Vec<_>>();
@@ -109,18 +105,17 @@ impl AssetLoader for ObjLoader {
 
                 ObjLoader::compute_tangents(&m, &mut vertices);
 
-                SubMesh {
+                // TODO Handle the material handle correctly
+                Mesh {
                     vertices,
                     indices: m.mesh.indices,
-                    material_index: 0,
+                    material: Some(mat_handles[0].clone()),
                 }
             })
             .collect::<Vec<_>>();
 
-        Ok(Mesh {
-            meshes,
-            materials: mat_handles,
-        })
+        // TODO Handle loading multiple meshes
+        Ok(meshes.pop().unwrap())
     }
 }
 

@@ -60,25 +60,23 @@ pub(crate) fn main_renderpass(
             render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
 
             for (mesh_instance,) in render_mesh_query.iter() {
-                if let Some(mesh) = render_meshes.get(&mesh_instance.render_asset_id) {
-                    for submesh in &mesh.sub_meshes {
-                        if submesh.material.is_none() {
-                            continue;
-                        }
-
-                        if let Some(render_mat) = render_materials.get(&submesh.material.unwrap()) {
-                            render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
-                        } else {
-                            continue;
-                        }
-
-                        render_pass.set_vertex_buffer(0, submesh.vertices.slice(..));
-                        render_pass
-                            .set_index_buffer(submesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-
-                        render_pass.set_vertex_buffer(1, mesh_instance.buffer.slice(..));
-                        render_pass.draw_indexed(0..submesh.index_count, 0, 0..1);
+                if let Some(render_mesh) = render_meshes.get(&mesh_instance.render_asset_id) {
+                    if render_mesh.material.is_none() {
+                        continue;
                     }
+
+                    if let Some(render_mat) = render_materials.get(&render_mesh.material.unwrap()) {
+                        render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
+                    } else {
+                        continue;
+                    }
+
+                    render_pass.set_vertex_buffer(0, render_mesh.vertices.slice(..));
+                    render_pass
+                        .set_index_buffer(render_mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+
+                    render_pass.set_vertex_buffer(1, mesh_instance.buffer.slice(..));
+                    render_pass.draw_indexed(0..render_mesh.index_count, 0, 0..1);
                 }
             }
         }

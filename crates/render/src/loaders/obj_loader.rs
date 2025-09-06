@@ -14,10 +14,7 @@ use essential::{
 use glam::{Quat, Vec2, Vec3};
 use tobj::Model;
 
-use crate::{
-    assets::{material::Material, mesh::Mesh, vertex::Vertex},
-    components::{material_component::MaterialComponent, mesh_component::MeshComponent},
-};
+use crate::assets::{material::Material, mesh::Mesh, vertex::Vertex};
 
 pub(crate) struct OBJLoader;
 
@@ -90,9 +87,9 @@ impl AssetLoader for OBJLoader {
         .await
         .map_err(|_| ())?;
 
-        let meshes = models
-            .iter()
-            .map(|m: &Model| {
+        let mut meshes = models
+            .into_iter()
+            .map(|m| {
                 let mut requires_normal_computation = false;
                 let mut vertices = (0..m.mesh.positions.len() / 3)
                     .map(|vertex_index| {
@@ -116,17 +113,17 @@ impl AssetLoader for OBJLoader {
                             ],
                         };
                         Vertex {
-                            pos_coords:[
-                                m.mesh.positions[vertex_index*3],
-                                m.mesh.positions[vertex_index*3+1],
-                                m.mesh.positions[vertex_index*3+2],
+                            pos_coords: [
+                                m.mesh.positions[vertex_index * 3],
+                                m.mesh.positions[vertex_index * 3 + 1],
+                                m.mesh.positions[vertex_index * 3 + 2],
                             ],
-                            uv_coords:uv_coords,
-                            normal:normal,
-                            tangent:[0.0;3],
-                            bitangent:[0.0;3], 
-                            bone_indices: [-1; Vertex::MAX_AFFECTED_BONES], 
-                            bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES]
+                            uv_coords: uv_coords,
+                            normal: normal,
+                            tangent: [0.0; 3],
+                            bitangent: [0.0; 3],
+                            bone_indices: [-1; Vertex::MAX_AFFECTED_BONES],
+                            bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES],
                         }
                     })
                     .collect::<Vec<_>>();
@@ -137,22 +134,17 @@ impl AssetLoader for OBJLoader {
 
                 OBJLoader::compute_tangents(&m, &mut vertices);
 
-                let handle = load_context.asset_server().add(Mesh {
+                // TODO Handle the material handle correctly
+                Mesh {
                     vertices,
-                    indices: m.mesh.indices.clone(),
-                });
-
-                OBJMesh {
-                    handle,
-                    material_index: m.mesh.material_id,
+                    indices: m.mesh.indices,
+                    material: Some(mat_handles[0].clone()),
                 }
             })
             .collect::<Vec<_>>();
 
-        Ok(OBJAsset {
-            meshes,
-            materials: mat_handles,
-        })
+        // TODO Handle loading multiple meshes
+        Ok(meshes.pop().unwrap())
     }
 }
 

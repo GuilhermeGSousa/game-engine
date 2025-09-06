@@ -11,6 +11,7 @@ pub(crate) struct RenderMesh {
     pub(crate) vertices: wgpu::Buffer,
     pub(crate) indices: wgpu::Buffer,
     pub(crate) index_count: u32,
+    pub(crate) material: Option<AssetId>,
 }
 
 impl RenderAsset for RenderMesh {
@@ -31,7 +32,6 @@ impl RenderAsset for RenderMesh {
                 contents: bytemuck::cast_slice(&source_asset.vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
-
         let indices = context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -40,11 +40,13 @@ impl RenderAsset for RenderMesh {
                 usage: wgpu::BufferUsages::INDEX,
             });
         let index_count = source_asset.indices.len() as u32;
+        let material = source_asset.material.clone().map(|m| m.id());
 
         Ok(RenderMesh {
             vertices,
             indices,
             index_count,
+            material,
         })
     }
 }

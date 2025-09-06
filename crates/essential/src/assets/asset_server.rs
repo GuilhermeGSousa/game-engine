@@ -65,7 +65,6 @@ pub(crate) struct AssetInfo {
 pub(crate) struct AssetServerData {
     pending_tasks: RwLock<HashMap<AssetId, Task<()>>>,
     loaded_assets: RwLock<HashSet<AssetId>>,
-    path_to_id: RwLock<HashMap<AssetPath<'static>, AssetId>>,
     handle_provider: AssetHandleProvider,
     asset_load_event_sender: Sender<AssetLoadEvent>,
     asset_load_event_receiver: Receiver<AssetLoadEvent>,
@@ -82,7 +81,6 @@ impl AssetServer {
         let server_data = AssetServerData {
             pending_tasks: RwLock::new(HashMap::new()),
             loaded_assets: RwLock::new(HashSet::new()),
-            path_to_id: RwLock::new(HashMap::new()),
             handle_provider: AssetHandleProvider::new(),
             asset_load_event_sender,
             asset_load_event_receiver,
@@ -131,13 +129,7 @@ impl AssetServer {
         usage_settings: A::UsageSettings,
     ) -> AssetHandle<A> {
         let path = path.into().into_owned();
-
-        let id = match self.data.path_to_id.write().unwrap().entry(path.clone()) {
-            std::collections::hash_map::Entry::Occupied(occupied_entry) => *occupied_entry.get(),
-            std::collections::hash_map::Entry::Vacant(vacant_entry) => {
-                *vacant_entry.insert(AssetId::new())
-            }
-        };
+        let id = AssetId::new::<A>(&path);
 
         if !self.data.pending_tasks.read().unwrap().contains_key(&id)
             && !self.data.loaded_assets.read().unwrap().contains(&id)
@@ -145,7 +137,7 @@ impl AssetServer {
             self.request_load::<A>(path.clone(), id, usage_settings);
         }
 
-        self.data.handle_provider.request_handle(id, Some(path))
+        self.data.handle_provider.request_handle(id)
     }
 
     pub fn process_handle_drop(&mut self, id: &AssetId, path: Option<AssetPath<'static>>) {
@@ -241,11 +233,7 @@ impl AssetHandleProvider {
             .insert(type_id, lifetime_sender);
     }
 
-    pub fn request_handle<A: Asset>(
-        &self,
-        id: AssetId,
-        path: Option<AssetPath<'static>>,
-    ) -> AssetHandle<A> {
+    pub fn request_handle<A: Asset>(&self, id: AssetId) -> AssetHandle<A> {
         let lifetime_sender = self
             .asset_lifetime_send_map
             .read()
@@ -266,7 +254,6 @@ impl AssetHandleProvider {
             let handle = Arc::new(StrongAssetHandle {
                 id,
                 lifetime_sender,
-                path,
             });
 
             info.handle = Arc::downgrade(&handle);

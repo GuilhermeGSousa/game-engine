@@ -65,8 +65,7 @@ pub(crate) struct AssetInfo {
 pub(crate) struct AssetServerData {
     pending_tasks: RwLock<HashMap<AssetId, Task<()>>>,
     loaded_assets: RwLock<HashSet<AssetId>>,
-    asset_handles: RwLock<HashMap<AssetId, AssetInfo>>,
-    asset_lifetime_send_map: RwLock<HashMap<TypeId, Sender<AssetLifetimeEvent>>>,
+    handle_provider: AssetHandleProvider,
     asset_load_event_sender: Sender<AssetLoadEvent>,
     asset_load_event_receiver: Receiver<AssetLoadEvent>,
 }
@@ -82,8 +81,7 @@ impl AssetServer {
         let server_data = AssetServerData {
             pending_tasks: RwLock::new(HashMap::new()),
             loaded_assets: RwLock::new(HashSet::new()),
-            asset_handles: RwLock::new(HashMap::new()),
-            asset_lifetime_send_map: RwLock::new(HashMap::new()),
+            handle_provider: AssetHandleProvider::new(),
             asset_load_event_sender,
             asset_load_event_receiver,
         };
@@ -94,12 +92,9 @@ impl AssetServer {
     }
 
     pub fn register_asset<A: Asset>(&mut self, asset: &AssetStore<A>) {
-        let type_id = TypeId::of::<A>();
         self.data
-            .asset_lifetime_send_map
-            .write()
-            .unwrap()
-            .insert(type_id, asset.clone_drop_sender());
+            .handle_provider
+            .register_asset::<A>(asset.clone_drop_sender());
     }
 
     pub fn load<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A>
@@ -127,32 +122,6 @@ impl AssetServer {
     ) -> AssetHandle<A> {
         let path = path.into().into_owned();
         let id = AssetId::new::<A>(&path);
-        let lifetime_sender = self
-            .data
-            .asset_lifetime_send_map
-            .read()
-            .unwrap()
-            .get(&TypeId::of::<A>())
-            .expect("Asset lifetime sender not found, make sure to register it")
-            .clone();
-
-        let mut binding = self.data.asset_handles.write().unwrap();
-        let info = binding.entry(id.clone()).or_insert_with(|| AssetInfo {
-            handle: Weak::new(),
-        });
-
-        let handle = if let Some(strong_handle) = info.handle.upgrade() {
-            AssetHandle::new(strong_handle)
-        } else {
-            let handle = Arc::new(StrongAssetHandle {
-                id,
-                lifetime_sender,
-            });
-
-            info.handle = Arc::downgrade(&handle);
-
-            AssetHandle::new(handle)
-        };
 
         if !self.data.pending_tasks.read().unwrap().contains_key(&id)
             && !self.data.loaded_assets.read().unwrap().contains(&id)
@@ -160,7 +129,7 @@ impl AssetServer {
             self.request_load::<A>(path.clone(), usage_settings);
         }
 
-        handle
+        self.data.handle_provider.request_handle(id)
     }
 
     pub fn process_handle_drop(&mut self, id: &AssetId) {
@@ -225,4 +194,55 @@ pub fn handle_asset_load_events(world: &mut world::World) {
             }
         });
     world.insert_resource(server);
+}
+
+struct AssetHandleProvider {
+    asset_handles: RwLock<HashMap<AssetId, AssetInfo>>,
+    asset_lifetime_send_map: RwLock<HashMap<TypeId, Sender<AssetLifetimeEvent>>>,
+}
+
+impl AssetHandleProvider {
+    pub fn new() -> Self {
+        Self {
+            asset_handles: RwLock::new(HashMap::new()),
+            asset_lifetime_send_map: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn register_asset<A: Asset>(&self, lifetime_sender: Sender<AssetLifetimeEvent>) {
+        let type_id = TypeId::of::<A>();
+        self.asset_lifetime_send_map
+            .write()
+            .unwrap()
+            .insert(type_id, lifetime_sender);
+    }
+
+    pub fn request_handle<A: Asset>(&self, id: AssetId) -> AssetHandle<A> {
+        let lifetime_sender = self
+            .asset_lifetime_send_map
+            .read()
+            .unwrap()
+            .get(&TypeId::of::<A>())
+            .expect("Asset lifetime sender not found, make sure to register it")
+            .clone();
+
+        let mut binding = self.asset_handles.write().unwrap();
+
+        let info = binding.entry(id.clone()).or_insert_with(|| AssetInfo {
+            handle: Weak::new(),
+        });
+
+        if let Some(strong_handle) = info.handle.upgrade() {
+            AssetHandle::new(strong_handle)
+        } else {
+            let handle = Arc::new(StrongAssetHandle {
+                id,
+                lifetime_sender,
+            });
+
+            info.handle = Arc::downgrade(&handle);
+
+            AssetHandle::new(handle)
+        }
+    }
 }

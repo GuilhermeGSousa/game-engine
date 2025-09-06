@@ -1,6 +1,5 @@
-use bytemuck::Pod;
 use ecs::component::{Component, ComponentLifecycleCallback};
-use glam::{Affine3A, Mat3, Mat4, Quat, Vec3, Vec3A};
+use glam::{Affine3A, Mat4, Quat, Vec3};
 
 pub mod systems;
 

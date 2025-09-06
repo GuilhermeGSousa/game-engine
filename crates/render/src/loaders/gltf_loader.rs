@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use essential::assets::asset_loader::AssetLoader;
-use gltf::{Document, Gltf};
 
 use crate::assets::scene::Scene;
 pub(crate) struct GLTFLoader;

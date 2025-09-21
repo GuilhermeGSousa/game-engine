@@ -1,6 +1,10 @@
 use std::f32::consts::PI;
 
-use essential::{assets::asset_server::AssetServer, time::Time, transform::{GlobalTranform, Transform}};
+use essential::{
+    assets::asset_server::AssetServer,
+    time::Time,
+    transform::{GlobalTranform, Transform},
+};
 
 use app::{
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
@@ -16,7 +20,7 @@ use ecs::{
 use glam::{Quat, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
-    assets::{mesh::Mesh, texture::TextureUsageSettings},
+    assets::{mesh::Mesh, scene::Scene, texture::TextureUsageSettings},
     components::{
         camera::Camera,
         light::{LighType, Light, SpotLight},
@@ -44,6 +48,7 @@ use crate::game_ui::render_ui;
 pub mod game_ui;
 
 const MESH_ASSET: &str = "res/sphere.obj";
+const GLB_ASSET: &str = "res/duck.glb";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
@@ -87,6 +92,8 @@ pub fn run_game() {
 }
 
 fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
+    asset_server.load::<Scene>(GLB_ASSET);
+
     let camera = Camera::default();
     let skybox = Skybox {
         texture: asset_server.load_with_usage_settings(

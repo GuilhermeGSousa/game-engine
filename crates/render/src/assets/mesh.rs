@@ -11,7 +11,7 @@ pub struct Primitive {
 }
 
 pub struct Mesh {
-    pub meshes: Vec<Primitive>,
+    pub primitives: Vec<Primitive>,
     pub materials: Vec<AssetHandle<Material>>,
 }
 

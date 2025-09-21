@@ -2,6 +2,7 @@ use crate::{
     assets::{
         material::Material,
         mesh::Mesh,
+        scene::Scene,
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
     },
@@ -121,7 +122,8 @@ impl Plugin for RenderPlugin {
 
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
-            .register_asset::<Material>();
+            .register_asset::<Material>()
+            .register_asset::<Scene>();
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)

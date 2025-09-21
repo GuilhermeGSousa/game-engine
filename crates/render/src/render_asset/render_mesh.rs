@@ -31,7 +31,7 @@ impl RenderAsset for RenderMesh {
         let (context,) = params;
 
         let sub_meshes = source_asset
-            .meshes
+            .primitives
             .iter()
             .map(|sub_mesh| {
                 let vertices =

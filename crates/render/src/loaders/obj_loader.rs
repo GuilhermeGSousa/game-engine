@@ -8,7 +8,11 @@ use essential::assets::{
 use glam::{Vec2, Vec3};
 use tobj::Model;
 
-use crate::assets::{material::Material, mesh::Mesh, vertex::Vertex};
+use crate::assets::{
+    material::Material,
+    mesh::{Mesh, Primitive},
+    vertex::Vertex,
+};
 
 pub(crate) struct ObjLoader;
 
@@ -57,7 +61,7 @@ impl AssetLoader for ObjLoader {
         .await
         .map_err(|_| ())?;
 
-        let mut meshes = models
+        let meshes = models
             .into_iter()
             .map(|m| {
                 let mut requires_normal_computation = false;
@@ -105,17 +109,18 @@ impl AssetLoader for ObjLoader {
 
                 ObjLoader::compute_tangents(&m, &mut vertices);
 
-                // TODO Handle the material handle correctly
-                Mesh {
+                Primitive {
                     vertices,
                     indices: m.mesh.indices,
-                    material: Some(mat_handles[0].clone()),
+                    material_index: 0,
                 }
             })
             .collect::<Vec<_>>();
 
-        // TODO Handle loading multiple meshes
-        Ok(meshes.pop().unwrap())
+        Ok(Mesh {
+            meshes,
+            materials: mat_handles,
+        })
     }
 }
 

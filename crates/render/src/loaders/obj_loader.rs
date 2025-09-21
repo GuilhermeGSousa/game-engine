@@ -91,7 +91,7 @@ impl AssetLoader for OBJLoader {
         .await
         .map_err(|_| ())?;
 
-        let meshes = models
+        let primitives = models
             .into_iter()
             .map(|m| {
                 let mut requires_normal_computation = false;
@@ -126,7 +126,7 @@ impl AssetLoader for OBJLoader {
                             normal: normal,
                             tangent: [0.0; 3],
                             bitangent: [0.0; 3],
-                            bone_indices: [-1; Vertex::MAX_AFFECTED_BONES],
+                            bone_indices: [0; Vertex::MAX_AFFECTED_BONES],
                             bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES],
                         }
                     })
@@ -147,7 +147,7 @@ impl AssetLoader for OBJLoader {
             .collect::<Vec<_>>();
 
         Ok(Mesh {
-            meshes,
+            primitives,
             materials: mat_handles,
         })
     }

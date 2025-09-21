@@ -20,7 +20,7 @@ use ecs::{
 use glam::{Quat, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
-    assets::texture::TextureUsageSettings,
+    assets::{mesh::Mesh, scene::Scene, texture::TextureUsageSettings},
     components::{
         camera::Camera,
         light::{LighType, Light, SpotLight},
@@ -97,6 +97,8 @@ pub fn run_game() {
 }
 
 fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
+    asset_server.load::<Scene>(GLB_ASSET);
+
     let camera = Camera::default();
     let skybox = Skybox {
         texture: asset_server.load_with_usage_settings(

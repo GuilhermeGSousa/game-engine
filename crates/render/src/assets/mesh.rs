@@ -4,10 +4,15 @@ use crate::loaders::obj_loader::ObjLoader;
 
 use super::{material::Material, vertex::Vertex};
 
-pub struct Mesh {
+pub struct Primitive {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-    pub material: Option<AssetHandle<Material>>,
+    pub material_index: usize,
+}
+
+pub struct Mesh {
+    pub meshes: Vec<Primitive>,
+    pub materials: Vec<AssetHandle<Material>>,
 }
 
 impl Asset for Mesh {

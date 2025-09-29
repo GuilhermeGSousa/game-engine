@@ -113,7 +113,7 @@ impl AssetServer {
         self.data.handle_provider.request_handle(id)
     }
 
-    pub fn load_with_usage_settings<'a, A: Asset>(
+    pub fn load_with_usage_settings<'a, A: LoadableAsset>(
         &self,
         path: impl Into<AssetPath<'a>>,
         usage_settings: A::UsageSettings,
@@ -124,7 +124,7 @@ impl AssetServer {
         self.load_internal::<A>(path, usage_settings)
     }
 
-    fn load_internal<'a, A: Asset>(
+    fn load_internal<'a, A: LoadableAsset>(
         &self,
         path: impl Into<AssetPath<'a>>,
         usage_settings: A::UsageSettings,
@@ -152,9 +152,9 @@ impl AssetServer {
     fn request_load<A: LoadableAsset>(
         &self,
         path: AssetPath<'static>,
-        id: AssetId,
         usage_settings: A::UsageSettings,
     ) {
+        let id = AssetId::new::<A>(&path);
         let asset_loader = A::loader();
 
         let sender = self.data.asset_load_event_sender.clone();

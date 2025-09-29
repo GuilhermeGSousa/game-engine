@@ -1,6 +1,6 @@
 use crate::loaders::texture_loader::TextureLoader;
 use essential::assets::{Asset, LoadableAsset};
-use image::{GenericImageView, ImageBuffer};
+use image::GenericImageView;
 use wgpu::TextureUsages;
 use wgpu_types::{Extent3d, TextureDescriptor, TextureFormat, TextureViewDescriptor};
 

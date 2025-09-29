@@ -1,7 +1,6 @@
 use ecs::{
     command::CommandQueue,
     component::Component,
-    entity::Entity,
     query::{
         query_filter::{Added, Changed},
         Query,
@@ -36,18 +35,17 @@ pub(crate) struct RenderMeshInstance {
 pub(crate) fn mesh_added(
     meshes: Query<
         (
-            Entity,
             &MeshComponent,
             &MaterialComponent,
             &GlobalTranform,
-            Option<&RenderEntity>,
+            &mut RenderEntity,
         ),
         Added<(MeshComponent,)>,
     >,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
-    for (entity, mesh, material, transform, render_entity) in meshes.iter() {
+    for (mesh, material, transform, mut render_entity) in meshes.iter() {
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&[transform.to_raw()]),
@@ -60,11 +58,13 @@ pub(crate) fn mesh_added(
             buffer: instance_buffer,
         };
 
-        match render_entity {
-            Some(render_entity) => cmd.insert(instance, **render_entity),
-            None => {
-                let new_render_entity = cmd.spawn(instance);
-                cmd.insert(RenderEntity::new(new_render_entity), entity);
+        match **render_entity {
+            RenderEntity::Uninitialized => {
+                let new_entity = cmd.spawn(instance);
+                render_entity.set_entity(new_entity);
+            }
+            RenderEntity::Initialized(entity) => {
+                cmd.insert(instance, entity);
             }
         }
     }
@@ -76,12 +76,17 @@ pub(crate) fn mesh_changed(
     queue: Res<RenderQueue>,
 ) {
     for (_, transform, render_entity) in meshes.iter() {
-        if let Some((render_mesh,)) = render_meshes.get_entity(**render_entity) {
-            queue.write_buffer(
-                &render_mesh.buffer,
-                0,
-                bytemuck::cast_slice(&[transform.to_raw()]),
-            );
+        match render_entity {
+            RenderEntity::Initialized(entity) => {
+                if let Some((render_mesh,)) = render_meshes.get_entity(*entity) {
+                    queue.write_buffer(
+                        &render_mesh.buffer,
+                        0,
+                        bytemuck::cast_slice(&[transform.to_raw()]),
+                    );
+                }
+            }
+            _ => {}
         }
     }
 }

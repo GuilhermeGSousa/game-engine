@@ -1,9 +1,4 @@
-use ecs::{
-    command::CommandQueue,
-    entity::Entity,
-    query::{query_filter::Added, Query},
-    resource::Res,
-};
+use ecs::{command::CommandQueue, query::query_filter::Added, query::Query, resource::Res};
 use encase::UniformBuffer;
 use essential::transform::GlobalTranform;
 use glam::Vec3;
@@ -87,7 +82,10 @@ pub(crate) fn camera_changed(
             let mut buffer = UniformBuffer::new(Vec::new());
             buffer.write(&render_camera.camera_uniform).unwrap();
 
-            queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
+                    queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
+                }
+            }
+            _ => {}
         }
     }
 }

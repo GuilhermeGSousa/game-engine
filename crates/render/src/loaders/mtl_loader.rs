@@ -2,8 +2,8 @@ use std::io::{BufReader, Cursor};
 
 use async_trait::async_trait;
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
-    LoadableAsset,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
+    AssetPath, LoadableAsset,
 };
 
 use crate::assets::{material::Material, texture::Texture};

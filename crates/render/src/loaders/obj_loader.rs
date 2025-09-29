@@ -1,8 +1,9 @@
 use std::io::{BufRead, BufReader, Cursor};
 
 use async_trait::async_trait;
-use ecs::{
-    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
+use essential::assets::{
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
+    LoadableAsset,
 };
 use essential::{
     assets::{
@@ -14,11 +15,7 @@ use essential::{
 use glam::{Quat, Vec2, Vec3};
 use tobj::Model;
 
-use crate::assets::{
-    material::Material,
-    mesh::{Mesh, Primitive},
-    vertex::Vertex,
-};
+use crate::assets::{material::Material, mesh::Mesh, vertex::Vertex};
 
 pub(crate) struct OBJLoader;
 

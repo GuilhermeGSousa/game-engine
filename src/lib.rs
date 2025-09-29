@@ -97,8 +97,6 @@ pub fn run_game() {
 }
 
 fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
-    asset_server.load::<Scene>(GLB_ASSET);
-
     let camera = Camera::default();
     let skybox = Skybox {
         texture: asset_server.load_with_usage_settings(

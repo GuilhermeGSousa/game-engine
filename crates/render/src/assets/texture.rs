@@ -1,5 +1,5 @@
 use crate::loaders::texture_loader::TextureLoader;
-use essential::assets::Asset;
+use essential::assets::{Asset, LoadableAsset};
 use image::GenericImageView;
 use wgpu::TextureUsages;
 use wgpu_types::{Extent3d, TextureDescriptor, TextureFormat, TextureViewDescriptor};
@@ -74,7 +74,9 @@ impl Texture {
     }
 }
 
-impl Asset for Texture {
+impl Asset for Texture {}
+
+impl LoadableAsset for Texture {
     type UsageSettings = TextureUsageSettings;
 
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {

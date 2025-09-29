@@ -1,5 +1,6 @@
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, Asset, AssetPath,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, Asset,
+    AssetPath, LoadableAsset,
 };
 
 use async_trait::async_trait;
@@ -17,7 +18,7 @@ impl AssetLoader for TextureLoader {
         &self,
         path: AssetPath<'static>,
         _load_context: &mut AssetLoadContext,
-        usage_settings: <Self::Asset as Asset>::UsageSettings,
+        usage_settings: <Self::Asset as LoadableAsset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let data = load_binary(path).await;
 

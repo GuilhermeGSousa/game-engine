@@ -1,21 +1,17 @@
-use essential::assets::{handle::AssetHandle, Asset};
+use essential::assets::{Asset, LoadableAsset};
 
 use crate::loaders::obj_loader::ObjLoader;
 
-use super::{material::Material, vertex::Vertex};
-
-pub struct Primitive {
-    pub vertices: Vec<Vertex>,
-    pub indices: Vec<u32>,
-    pub material_index: usize,
-}
+use super::vertex::Vertex;
 
 pub struct Mesh {
-    pub primitives: Vec<Primitive>,
-    pub materials: Vec<AssetHandle<Material>>,
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
 }
 
-impl Asset for Mesh {
+impl Asset for Mesh {}
+
+impl LoadableAsset for Mesh {
     type UsageSettings = ();
 
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {

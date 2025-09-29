@@ -8,6 +8,7 @@ use crate::{
     },
     components::{
         light::{prepare_lights_buffer, RenderLights},
+        mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
         skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex},
         world_environment::WorldEnvironment,
@@ -25,9 +26,7 @@ use crate::{
     resources::RenderContext,
     systems::{
         render::{self, present_window},
-        sync_entities::{
-            camera_added, camera_changed, light_added, light_changed, mesh_added, mesh_changed,
-        },
+        sync_entities::{camera_added, camera_changed, light_added, light_changed},
         update_window,
     },
 };

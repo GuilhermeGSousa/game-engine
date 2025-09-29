@@ -83,7 +83,9 @@ impl AssetId {
     }
 }
 
-pub trait Asset: Send + Sync + 'static {
+pub trait Asset: Send + Sync + 'static {}
+
+pub trait LoadableAsset: Asset {
     type UsageSettings: Send + Sync;
     fn loader() -> Box<dyn asset_loader::AssetLoader<Asset = Self>>;
 

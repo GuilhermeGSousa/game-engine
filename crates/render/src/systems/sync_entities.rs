@@ -1,11 +1,6 @@
-use ecs::{
-    command::CommandQueue,
-    query::query_filter::{Added, Changed},
-    query::Query,
-    resource::Res,
-};
+use ecs::{command::CommandQueue, query::query_filter::Added, query::Query, resource::Res};
 use encase::UniformBuffer;
-use essential::transform::{GlobalTranform, Transform};
+use essential::transform::GlobalTranform;
 use glam::Vec3;
 use wgpu::util::DeviceExt;
 
@@ -13,7 +8,6 @@ use crate::{
     components::{
         camera::{Camera, CameraUniform, RenderCamera},
         light::{LighType, Light, RenderLight},
-        mesh_component::{MeshComponent, RenderMeshInstance},
         render_entity::RenderEntity,
     },
     device::RenderDevice,
@@ -91,56 +85,6 @@ pub(crate) fn camera_changed(
                     buffer.write(&render_camera.camera_uniform).unwrap();
 
                     queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-pub(crate) fn mesh_added(
-    meshes: Query<(&MeshComponent, &GlobalTranform, &mut RenderEntity), Added<(MeshComponent,)>>,
-    mut cmd: CommandQueue,
-    device: Res<RenderDevice>,
-) {
-    for (mesh, transform, mut render_entity) in meshes.iter() {
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&[transform.to_raw()]),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let instance: RenderMeshInstance = RenderMeshInstance {
-            render_asset_id: mesh.handle.id(),
-            buffer: instance_buffer,
-        };
-
-        match **render_entity {
-            RenderEntity::Uninitialized => {
-                let new_entity = cmd.spawn(instance);
-                render_entity.set_entity(new_entity);
-            }
-            RenderEntity::Initialized(entity) => {
-                cmd.insert(instance, entity);
-            }
-        }
-    }
-}
-
-pub(crate) fn mesh_changed(
-    meshes: Query<(&MeshComponent, &GlobalTranform, &RenderEntity), Changed<(Transform,)>>,
-    render_meshes: Query<(&mut RenderMeshInstance,)>,
-    queue: Res<RenderQueue>,
-) {
-    for (_, transform, render_entity) in meshes.iter() {
-        match render_entity {
-            RenderEntity::Initialized(entity) => {
-                if let Some((render_mesh,)) = render_meshes.get_entity(*entity) {
-                    queue.write_buffer(
-                        &render_mesh.buffer,
-                        0,
-                        bytemuck::cast_slice(&[transform.to_raw()]),
-                    );
                 }
             }
             _ => {}

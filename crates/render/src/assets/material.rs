@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use essential::assets::{handle::AssetHandle, Asset};
+use essential::assets::{handle::AssetHandle, Asset, LoadableAsset};
 
 use super::texture::Texture;
 use crate::loaders::mtl_loader::MTLLoader;
@@ -35,7 +35,9 @@ impl Material {
     }
 }
 
-impl Asset for Material {
+impl Asset for Material {}
+
+impl LoadableAsset for Material {
     type UsageSettings = ();
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
         Box::new(MTLLoader)

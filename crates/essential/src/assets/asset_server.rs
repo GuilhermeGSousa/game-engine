@@ -8,7 +8,7 @@ use crossbeam_channel::{Receiver, Sender};
 use ecs::{resource::Resource, world};
 
 use crate::{
-    assets::{handle::StrongAssetHandle, AssetPath},
+    assets::{handle::StrongAssetHandle, AssetPath, LoadableAsset},
     tasks::{task_pool::TaskPool, Task},
 };
 
@@ -97,7 +97,7 @@ impl AssetServer {
             .register_asset::<A>(asset.clone_drop_sender());
     }
 
-    pub fn load<'a, A: Asset>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A>
+    pub fn load<'a, A: LoadableAsset>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A>
     where
         A: 'static,
     {
@@ -113,7 +113,7 @@ impl AssetServer {
         self.data.handle_provider.request_handle(id)
     }
 
-    pub fn load_with_usage_settings<'a, A: Asset>(
+    pub fn load_with_usage_settings<'a, A: LoadableAsset>(
         &self,
         path: impl Into<AssetPath<'a>>,
         usage_settings: A::UsageSettings,
@@ -124,7 +124,7 @@ impl AssetServer {
         self.load_internal::<A>(path, usage_settings)
     }
 
-    fn load_internal<'a, A: Asset>(
+    fn load_internal<'a, A: LoadableAsset>(
         &self,
         path: impl Into<AssetPath<'a>>,
         usage_settings: A::UsageSettings,
@@ -145,7 +145,11 @@ impl AssetServer {
         self.data.loaded_assets.write().unwrap().remove(id);
     }
 
-    fn request_load<A: Asset>(&self, path: AssetPath<'static>, usage_settings: A::UsageSettings) {
+    fn request_load<A: LoadableAsset>(
+        &self,
+        path: AssetPath<'static>,
+        usage_settings: A::UsageSettings,
+    ) {
         let id = AssetId::new::<A>(&path);
         let asset_loader = A::loader();
 

@@ -7,5 +7,5 @@ WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML = "index.html"
 RUST_BACKTRACE = "1"
 runner = "wasm-server-runner"
 
-[unstable]
-build-std = ["panic_abort", "std"]
+# [unstable]
+# build-std = ["panic_abort", "std"]

@@ -2,8 +2,8 @@ use std::io::{BufRead, BufReader, Cursor};
 
 use async_trait::async_trait;
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
-    LoadableAsset,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
+    AssetPath, LoadableAsset,
 };
 use glam::{Vec2, Vec3};
 use tobj::Model;
@@ -12,11 +12,27 @@ use crate::assets::{material::Material, mesh::Mesh, vertex::Vertex};
 
 pub(crate) struct ObjLoader;
 
+pub struct ObjAsset {}
+
+impl Asset for ObjAsset {}
+
+impl LoadableAsset for ObjAsset {
+    type UsageSettings = ();
+
+    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
+        todo!()
+    }
+
+    fn default_usage_settings() -> Self::UsageSettings {
+        todo!()
+    }
+}
+
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[allow(deprecated)]
 impl AssetLoader for ObjLoader {
-    type Asset = Mesh;
+    type Asset = ObjAsset;
 
     async fn load(
         &self,
@@ -24,99 +40,100 @@ impl AssetLoader for ObjLoader {
         load_context: &mut AssetLoadContext,
         _usage_setting: <Self::Asset as LoadableAsset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
-        let obj_text = load_to_string(path.clone()).await?;
-        let obj_cursor = Cursor::new(obj_text);
+        todo!()
+        // let obj_text = load_to_string(path.clone()).await?;
+        // let obj_cursor = Cursor::new(obj_text);
 
-        let mat_handles = BufReader::new(obj_cursor.clone())
-            .lines()
-            .filter_map(Result::ok)
-            .filter_map(|line| {
-                if line.starts_with("mtllib") {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() > 1 {
-                        let mtl_path = path.to_path().parent().unwrap().join(parts[1]);
-                        Some(load_context.asset_server().load::<Material>(mtl_path))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+        // let mat_handles = BufReader::new(obj_cursor.clone())
+        //     .lines()
+        //     .filter_map(Result::ok)
+        //     .filter_map(|line| {
+        //         if line.starts_with("mtllib") {
+        //             let parts: Vec<&str> = line.split_whitespace().collect();
+        //             if parts.len() > 1 {
+        //                 let mtl_path = path.to_path().parent().unwrap().join(parts[1]);
+        //                 Some(load_context.asset_server().load::<Material>(mtl_path))
+        //             } else {
+        //                 None
+        //             }
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .collect::<Vec<_>>();
 
-        let (models, _) = tobj::load_obj_buf_async(
-            &mut BufReader::new(obj_cursor),
-            &tobj::LoadOptions {
-                single_index: true,
-                triangulate: true,
-                ..Default::default()
-            },
-            move |_| async move { Err(tobj::LoadError::GenericFailure) },
-        )
-        .await
-        .map_err(|_| ())?;
+        // let (models, _) = tobj::load_obj_buf_async(
+        //     &mut BufReader::new(obj_cursor),
+        //     &tobj::LoadOptions {
+        //         single_index: true,
+        //         triangulate: true,
+        //         ..Default::default()
+        //     },
+        //     move |_| async move { Err(tobj::LoadError::GenericFailure) },
+        // )
+        // .await
+        // .map_err(|_| ())?;
 
-        let primitives = models
-            .into_iter()
-            .map(|m| {
-                let mut requires_normal_computation = false;
-                let mut vertices = (0..m.mesh.positions.len() / 3)
-                    .map(|vertex_index| {
-                        let uv_coords = match m.mesh.texcoords.len() {
-                            0 => [0.0, 0.0],
-                            _ => [
-                                m.mesh.texcoords[vertex_index * 2],
-                                m.mesh.texcoords[vertex_index * 2 + 1],
-                            ],
-                        };
+        // let primitives = models
+        //     .into_iter()
+        //     .map(|m| {
+        //         let mut requires_normal_computation = false;
+        //         let mut vertices = (0..m.mesh.positions.len() / 3)
+        //             .map(|vertex_index| {
+        //                 let uv_coords = match m.mesh.texcoords.len() {
+        //                     0 => [0.0, 0.0],
+        //                     _ => [
+        //                         m.mesh.texcoords[vertex_index * 2],
+        //                         m.mesh.texcoords[vertex_index * 2 + 1],
+        //                     ],
+        //                 };
 
-                        let normal = match m.mesh.normals.len() {
-                            0 => {
-                                requires_normal_computation = true;
-                                [0.0, 0.0, 1.0]
-                            }
-                            _ => [
-                                m.mesh.normals[vertex_index * 3],
-                                m.mesh.normals[vertex_index * 3 + 1],
-                                m.mesh.normals[vertex_index * 3 + 2],
-                            ],
-                        };
+        //                 let normal = match m.mesh.normals.len() {
+        //                     0 => {
+        //                         requires_normal_computation = true;
+        //                         [0.0, 0.0, 1.0]
+        //                     }
+        //                     _ => [
+        //                         m.mesh.normals[vertex_index * 3],
+        //                         m.mesh.normals[vertex_index * 3 + 1],
+        //                         m.mesh.normals[vertex_index * 3 + 2],
+        //                     ],
+        //                 };
 
-                        Vertex {
-                            pos_coords: [
-                                m.mesh.positions[vertex_index * 3],
-                                m.mesh.positions[vertex_index * 3 + 1],
-                                m.mesh.positions[vertex_index * 3 + 2],
-                            ],
-                            uv_coords: uv_coords,
-                            normal: normal,
-                            tangent: [0.0; 3],
-                            bitangent: [0.0; 3],
-                            bone_indices: [0; Vertex::MAX_AFFECTED_BONES],
-                            bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES],
-                        }
-                    })
-                    .collect::<Vec<_>>();
+        //                 Vertex {
+        //                     pos_coords: [
+        //                         m.mesh.positions[vertex_index * 3],
+        //                         m.mesh.positions[vertex_index * 3 + 1],
+        //                         m.mesh.positions[vertex_index * 3 + 2],
+        //                     ],
+        //                     uv_coords: uv_coords,
+        //                     normal: normal,
+        //                     tangent: [0.0; 3],
+        //                     bitangent: [0.0; 3],
+        //                     bone_indices: [0; Vertex::MAX_AFFECTED_BONES],
+        //                     bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES],
+        //                 }
+        //             })
+        //             .collect::<Vec<_>>();
 
-                if requires_normal_computation {
-                    ObjLoader::compute_normals(&m, &mut vertices);
-                }
+        //         if requires_normal_computation {
+        //             ObjLoader::compute_normals(&m, &mut vertices);
+        //         }
 
-                ObjLoader::compute_tangents(&m, &mut vertices);
+        //         ObjLoader::compute_tangents(&m, &mut vertices);
 
-                Primitive {
-                    vertices,
-                    indices: m.mesh.indices,
-                    material_index: 0,
-                }
-            })
-            .collect::<Vec<_>>();
+        //         Primitive {
+        //             vertices,
+        //             indices: m.mesh.indices,
+        //             material_index: 0,
+        //         }
+        //     })
+        //     .collect::<Vec<_>>();
 
-        Ok(Mesh {
-            primitives,
-            materials: mat_handles,
-        })
+        // Ok(Mesh {
+        //     primitives,
+        //     materials: mat_handles,
+        // })
     }
 }
 

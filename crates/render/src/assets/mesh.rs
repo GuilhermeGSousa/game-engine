@@ -1,6 +1,4 @@
-use essential::assets::{Asset, LoadableAsset};
-
-use crate::loaders::obj_loader::ObjLoader;
+use essential::assets::Asset;
 
 use super::vertex::Vertex;
 
@@ -10,15 +8,3 @@ pub struct Mesh {
 }
 
 impl Asset for Mesh {}
-
-impl LoadableAsset for Mesh {
-    type UsageSettings = ();
-
-    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
-        Box::new(ObjLoader)
-    }
-
-    fn default_usage_settings() -> Self::UsageSettings {
-        ()
-    }
-}

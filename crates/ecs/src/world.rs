@@ -11,7 +11,6 @@ use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
 use crate::resource::ResourceStorage;
 use crate::table::MutableCellAccessor;
-use crate::world;
 use crate::{
     archetype::Archetype,
     common::generate_type_id,

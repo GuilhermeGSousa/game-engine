@@ -1,5 +1,4 @@
 use ecs::resource::Res;
-use essential::assets::AssetId;
 use wgpu::util::DeviceExt;
 
 use crate::{

@@ -34,6 +34,7 @@ impl<'a> IntoIterator for &'a Children {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Component)]
 pub struct ChildOf {
     parent: Entity,

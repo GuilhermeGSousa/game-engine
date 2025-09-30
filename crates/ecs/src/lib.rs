@@ -53,11 +53,11 @@ mod tests {
     }
 
     fn system_query_add_hp(query: Query<(&mut Health,)>) {
-        for hp in query.iter() {}
+        for _ in query.iter() {}
     }
 
-    fn system_query_hp_changed(query: Query<(&Health,), Changed<(Health)>>) {
-        for hp in query.iter() {
+    fn system_query_hp_changed(query: Query<(&Health,), Changed<Health>>) {
+        for _ in query.iter() {
             println!("Health change detected");
         }
     }
@@ -223,7 +223,7 @@ mod tests {
 
         world.spawn((Health, Position { x: 10.0, y: 20.0 }));
         world.spawn((Health, Position { x: 10.0, y: 20.0 }));
-        world.spawn((Position { x: 10.0, y: 20.0 }));
+        world.spawn(Position { x: 10.0, y: 20.0 });
 
         let mut schedule = Schedule::new();
         schedule.add_system(system_filter_or);

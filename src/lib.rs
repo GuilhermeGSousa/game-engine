@@ -20,7 +20,7 @@ use ecs::{
 use glam::{Quat, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
-    assets::{mesh::Mesh, scene::Scene, texture::TextureUsageSettings},
+    assets::texture::TextureUsageSettings,
     components::{
         camera::Camera,
         light::{LighType, Light, SpotLight},
@@ -47,8 +47,10 @@ use crate::game_ui::render_ui;
 
 pub mod game_ui;
 
-const MESH_ASSET: &str = "res/sphere.obj";
-const GLB_ASSET: &str = "res/duck.glb";
+#[allow(dead_code)]
+
+// const MESH_ASSET: &str = "res/sphere.obj";
+// const GLB_ASSET: &str = "res/duck.glb";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
@@ -150,24 +152,24 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
 }
 
 fn spawn_floor(
-    mut cmd: CommandQueue,
-    mut physics_state: ResMut<PhysicsState>,
-    asset_server: Res<AssetServer>,
+    mut _cmd: CommandQueue,
+    mut _physics_state: ResMut<PhysicsState>,
+    _asset_server: Res<AssetServer>,
 ) {
-    let height = 1.0;
-    let ground_mesh = asset_server.load::<Mesh>(GROUND_ASSET);
-    let ground_transform =
-        Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
-    let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
+    // let height = 1.0;
+    // let ground_mesh = asset_server.load::<ObjAsset>(GROUND_ASSET);
+    // let ground_transform =
+    //     Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
+    // let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
 
-    cmd.spawn((
-        MeshComponent {
-            handle: ground_mesh,
-        },
-        RenderEntity::Uninitialized,
-        ground_colider,
-        ground_transform,
-    ));
+    // cmd.spawn((
+    //     MeshComponent {
+    //         handle: ground_mesh,
+    //     },
+    //     RenderEntity::Uninitialized,
+    //     ground_colider,
+    //     ground_transform,
+    // ));
 }
 
 fn move_around(
@@ -216,9 +218,9 @@ fn move_around(
 
 fn spawn_on_button_press(
     cameras: Query<(&Camera, &Transform)>,
-    mut cmd: CommandQueue,
+    mut _cmd: CommandQueue,
     input: Res<Input>,
-    asset_server: Res<AssetServer>,
+    _asset_server: Res<AssetServer>,
 ) {
     let (_, pos) = cameras.iter().next().expect("No camera found");
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
@@ -226,20 +228,20 @@ fn spawn_on_button_press(
     let mut mesh_transform = pos.clone();
     mesh_transform.translation = pos.translation + pos.forward() * 50.0;
     if key_p == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>(MESH_ASSET);
-        cmd.spawn((
-            MeshComponent { handle },
-            mesh_transform,
-            RenderEntity::new(),
-        ));
+        // let handle = asset_server.load::<ObjAsset>(MESH_ASSET);
+        // cmd.spawn((
+        //     MeshComponent { handle },
+        //     mesh_transform,
+        //     RenderEntity::new(),
+        // ));
     }
 }
 
 fn spawn_with_collider(
     cameras: Query<(&Camera, &GlobalTranform)>,
-    mut cmd: CommandQueue,
+    mut _cmd: CommandQueue,
     input: Res<Input>,
-    asset_server: Res<AssetServer>,
+    _asset_server: Res<AssetServer>,
     mut physics_state: ResMut<PhysicsState>,
 ) {
     let (_, pos) = cameras.iter().next().expect("No camera found");
@@ -247,21 +249,21 @@ fn spawn_with_collider(
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
-        let spawn_point = pos.translation() + pos.forward() * 10.0;
-        let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
-        let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
+        // let spawn_point = pos.translation() + pos.forward() * 10.0;
+        // let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
+        // let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
-        let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
+        // let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
 
-        cmd.spawn((
-            MeshComponent {
-                handle: asset_server.load::<Mesh>(MESH_ASSET),
-            },
-            rigid_body,
-            collider,
-            cube_transform.clone(),
-            RenderEntity::new(),
-        ));
+        // cmd.spawn((
+        //     MeshComponent {
+        //         handle: asset_server.load::<ObjAsset>(MESH_ASSET),
+        //     },
+        //     rigid_body,
+        //     collider,
+        //     cube_transform.clone(),
+        //     RenderEntity::new(),
+        // ));
     }
 }
 

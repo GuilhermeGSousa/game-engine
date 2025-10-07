@@ -119,7 +119,7 @@ impl World {
     }
 
     pub fn remove_component<T: Component>(&mut self, entity: Entity) {
-        self.remove_component_internal::<T>(entity, true);
+        todo!()
     }
 
     pub(crate) fn insert_component_internal<T: Component>(

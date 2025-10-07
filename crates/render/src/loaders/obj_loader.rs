@@ -1,9 +1,12 @@
 use std::io::{BufRead, BufReader, Cursor};
 
 use async_trait::async_trait;
+use ecs::{
+    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
+};
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, handle::AssetHandle,
-    utils::load_to_string, Asset, AssetPath, LoadableAsset,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, asset_store::AssetStore,
+    handle::AssetHandle, utils::load_to_string, Asset, AssetPath, LoadableAsset,
 };
 use essential::{
     assets::{
@@ -278,10 +281,10 @@ impl OBJLoader {
 }
 
 #[derive(Component)]
-pub struct OBJSpawnerComponent(pub AssetHandle<OBJAsset>);
+pub struct ObjAssetComponent(AssetHandle<ObjAsset>);
 
-impl std::ops::Deref for OBJSpawnerComponent {
-    type Target = AssetHandle<OBJAsset>;
+impl std::ops::Deref for ObjAssetComponent {
+    type Target = AssetHandle<ObjAsset>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -290,26 +293,14 @@ impl std::ops::Deref for OBJSpawnerComponent {
 
 pub(crate) fn spawn_obj_component(
     mut cmd: CommandQueue,
-    objs: Query<(Entity, &OBJSpawnerComponent)>,
-    obj_assets: Res<AssetStore<OBJAsset>>,
+    objs: Query<(Entity, &ObjAssetComponent)>,
+    obj_assets: Res<AssetStore<ObjAsset>>,
 ) {
     for (entity, component) in objs.iter() {
         if let Some(asset) = obj_assets.get(component) {
-            for mesh in &asset.meshes {
-                let child_entity = cmd.spawn((
-                    MeshComponent {
-                        handle: mesh.handle.clone(),
-                    },
-                    Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-                    MaterialComponent {
-                        handle: asset.materials[mesh.material_index.unwrap_or(0)].clone(),
-                    },
-                ));
+            // Do the spawning
 
-                cmd.add_child(entity, child_entity);
-            }
-
-            cmd.remove::<OBJSpawnerComponent>(entity);
+            cmd.remove::<ObjAssetComponent>(entity);
         }
     }
 }

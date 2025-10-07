@@ -15,6 +15,7 @@ use crate::{
     },
     device::RenderDevice,
     layouts::{CameraLayouts, LightLayouts, MaterialLayouts},
+    loaders::obj_loader::spawn_obj_component,
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial,
@@ -134,6 +135,7 @@ impl Plugin for RenderPlugin {
                 app::update_group::UpdateGroup::Update,
                 update_window::request_window_resize,
             )
+            .add_system(app::update_group::UpdateGroup::Update, spawn_obj_component)
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 update_window::update_render_window,

@@ -28,6 +28,7 @@ use render::{
         render_entity::RenderEntity,
         skybox::Skybox,
     },
+    loaders::obj_loader::ObjAsset,
     plugin::RenderPlugin,
 };
 
@@ -154,10 +155,11 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
 fn spawn_floor(
     mut _cmd: CommandQueue,
     mut _physics_state: ResMut<PhysicsState>,
-    _asset_server: Res<AssetServer>,
+    asset_server: Res<AssetServer>,
 ) {
-    // let height = 1.0;
-    // let ground_mesh = asset_server.load::<ObjAsset>(GROUND_ASSET);
+    let height = 1.0;
+    let ground_mesh = asset_server.load::<ObjAsset>(GROUND_ASSET);
+
     // let ground_transform =
     //     Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
     // let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);

@@ -1,9 +1,12 @@
 use std::io::{BufRead, BufReader, Cursor};
 
 use async_trait::async_trait;
+use ecs::{
+    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
+};
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, handle::AssetHandle,
-    utils::load_to_string, Asset, AssetPath, LoadableAsset,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, asset_store::AssetStore,
+    handle::AssetHandle, utils::load_to_string, Asset, AssetPath, LoadableAsset,
 };
 use glam::{Vec2, Vec3};
 use tobj::Model;
@@ -242,6 +245,31 @@ impl ObjLoader {
             let v = &mut vertices[i];
             v.tangent = (Vec3::from(v.tangent) * denom).into();
             v.bitangent = (Vec3::from(v.bitangent) * denom).into();
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct ObjAssetComponent(AssetHandle<ObjAsset>);
+
+impl std::ops::Deref for ObjAssetComponent {
+    type Target = AssetHandle<ObjAsset>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+pub(crate) fn spawn_obj_component(
+    mut cmd: CommandQueue,
+    objs: Query<(Entity, &ObjAssetComponent)>,
+    obj_assets: Res<AssetStore<ObjAsset>>,
+) {
+    for (entity, component) in objs.iter() {
+        if let Some(asset) = obj_assets.get(component) {
+            // Do the spawning
+
+            cmd.remove::<ObjAssetComponent>(entity);
         }
     }
 }

@@ -1,17 +1,20 @@
 use async_trait::async_trait;
-use essential::assets::{asset_loader::AssetLoader, Asset, LoadableAsset};
+use ecs::{
+    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
+};
+use essential::assets::{
+    asset_loader::AssetLoader, asset_store::AssetStore, handle::AssetHandle, Asset, LoadableAsset,
+};
 
-use crate::assets::{texture::{Texture, TextureUsageSettings}, vertex::Vertex};
+use crate::assets::{
+    texture::{Texture, TextureUsageSettings},
+    vertex::Vertex,
+};
 pub(crate) struct GLTFLoader;
 
-pub struct GLTFScene
-{
+pub struct GLTFScene {}
 
-}
-
-impl Asset for GLTFScene {
-    
-}
+impl Asset for GLTFScene {}
 
 impl LoadableAsset for GLTFScene {
     type UsageSettings = ();
@@ -170,4 +173,14 @@ impl AssetLoader for GLTFLoader {
 
         Err(())
     }
+}
+
+#[derive(Component)]
+pub struct GLTFSpawnerComponent(pub AssetHandle<GLTFScene>);
+
+pub(crate) fn spawn_gltf_component(
+    mut cmd: CommandQueue,
+    objs: Query<(Entity, &GLTFSpawnerComponent)>,
+    gltf_assets: Res<AssetStore<GLTFScene>>,
+) {
 }

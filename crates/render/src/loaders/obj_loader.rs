@@ -4,10 +4,6 @@ use async_trait::async_trait;
 use ecs::{
     command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
 };
-use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, asset_store::AssetStore,
-    handle::AssetHandle, utils::load_to_string, Asset, AssetPath, LoadableAsset,
-};
 use essential::{
     assets::{
         asset_loader::AssetLoader, asset_server::AssetLoadContext, asset_store::AssetStore,
@@ -18,7 +14,13 @@ use essential::{
 use glam::{Quat, Vec2, Vec3};
 use tobj::Model;
 
-use crate::assets::{material::Material, mesh::Mesh, vertex::Vertex};
+use crate::{
+    assets::{material::Material, mesh::Mesh, vertex::Vertex},
+    components::{
+        material_component::MaterialComponent, mesh_component::MeshComponent,
+        render_entity::RenderEntity,
+    },
+};
 
 pub(crate) struct OBJLoader;
 
@@ -46,35 +48,11 @@ impl LoadableAsset for OBJAsset {
     }
 }
 
-pub struct ObjAsset {
-    meshes: Vec<ObjMesh>,
-    materials: Vec<AssetHandle<Material>>,
-}
-
-pub struct ObjMesh {
-    pub handle: AssetHandle<Mesh>,
-    pub material_index: Option<usize>,
-}
-
-impl Asset for ObjAsset {}
-
-impl LoadableAsset for ObjAsset {
-    type UsageSettings = ();
-
-    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
-        Box::new(ObjLoader)
-    }
-
-    fn default_usage_settings() -> Self::UsageSettings {
-        ()
-    }
-}
-
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[allow(deprecated)]
-impl AssetLoader for ObjLoader {
-    type Asset = ObjAsset;
+impl AssetLoader for OBJLoader {
+    type Asset = OBJAsset;
 
     async fn load(
         &self,
@@ -119,8 +97,6 @@ impl AssetLoader for ObjLoader {
             .iter()
             .map(|m: &Model| {
                 let mut requires_normal_computation = false;
-
-                let mut requires_normal_computation = false;
                 let mut vertices = (0..m.mesh.positions.len() / 3)
                     .map(|vertex_index| {
                         let uv_coords = match m.mesh.texcoords.len() {
@@ -159,24 +135,24 @@ impl AssetLoader for ObjLoader {
                     .collect::<Vec<_>>();
 
                 if requires_normal_computation {
-                    ObjLoader::compute_normals(&m, &mut vertices);
+                    OBJLoader::compute_normals(&m, &mut vertices);
                 }
 
-                ObjLoader::compute_tangents(&m, &mut vertices);
+                OBJLoader::compute_tangents(&m, &mut vertices);
 
                 let handle = load_context.asset_server().add(Mesh {
                     vertices,
                     indices: m.mesh.indices.clone(),
                 });
 
-                ObjMesh {
+                OBJMesh {
                     handle,
                     material_index: m.mesh.material_id,
                 }
             })
             .collect::<Vec<_>>();
 
-        Ok(ObjAsset {
+        Ok(OBJAsset {
             meshes,
             materials: mat_handles,
         })
@@ -281,10 +257,10 @@ impl OBJLoader {
 }
 
 #[derive(Component)]
-pub struct ObjAssetComponent(AssetHandle<ObjAsset>);
+pub struct OBJSpawnerComponent(pub AssetHandle<OBJAsset>);
 
-impl std::ops::Deref for ObjAssetComponent {
-    type Target = AssetHandle<ObjAsset>;
+impl std::ops::Deref for OBJSpawnerComponent {
+    type Target = AssetHandle<OBJAsset>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -293,14 +269,27 @@ impl std::ops::Deref for ObjAssetComponent {
 
 pub(crate) fn spawn_obj_component(
     mut cmd: CommandQueue,
-    objs: Query<(Entity, &ObjAssetComponent)>,
-    obj_assets: Res<AssetStore<ObjAsset>>,
+    objs: Query<(Entity, &OBJSpawnerComponent)>,
+    obj_assets: Res<AssetStore<OBJAsset>>,
 ) {
     for (entity, component) in objs.iter() {
         if let Some(asset) = obj_assets.get(component) {
-            // Do the spawning
+            for mesh in &asset.meshes {
+                let child_entity = cmd.spawn((
+                    MeshComponent {
+                        handle: mesh.handle.clone(),
+                    },
+                    Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+                    MaterialComponent {
+                        handle: asset.materials[mesh.material_index.unwrap_or(0)].clone(),
+                    },
+                    RenderEntity::Uninitialized,
+                ));
 
-            cmd.remove::<ObjAssetComponent>(entity);
+                cmd.add_child(entity, child_entity);
+            }
+
+            cmd.remove::<OBJSpawnerComponent>(entity);
         }
     }
 }

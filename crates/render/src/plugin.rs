@@ -14,7 +14,10 @@ use crate::{
     },
     device::RenderDevice,
     layouts::{CameraLayouts, LightLayouts, MaterialLayouts},
-    loaders::obj_loader::spawn_obj_component,
+    loaders::{
+        gltf_loader::{spawn_gltf_component, GLTFScene},
+        obj_loader::{spawn_obj_component, OBJAsset},
+    },
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial,
@@ -121,7 +124,9 @@ impl Plugin for RenderPlugin {
 
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
-            .register_asset::<Material>();
+            .register_asset::<Material>()
+            .register_asset::<OBJAsset>()
+            .register_asset::<GLTFScene>();
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)
@@ -134,6 +139,7 @@ impl Plugin for RenderPlugin {
                 update_window::request_window_resize,
             )
             .add_system(app::update_group::UpdateGroup::Update, spawn_obj_component)
+            .add_system(app::update_group::UpdateGroup::Update, spawn_gltf_component)
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 update_window::update_render_window,

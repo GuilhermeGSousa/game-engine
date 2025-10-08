@@ -1,4 +1,5 @@
 use std::{
+    any::TypeId,
     collections::HashMap,
     ops::{Deref, DerefMut},
 };
@@ -218,6 +219,10 @@ impl TableRow {
             .entry(id)
             .or_insert(AnyVec::new::<T>())
             .push(raw_value);
+    }
+
+    pub fn remove<T: Component>(&mut self) {
+        self.data.remove(&TypeId::of::<T>());
     }
 }
 

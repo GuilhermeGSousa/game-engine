@@ -1,33 +1,50 @@
 use async_trait::async_trait;
-use essential::assets::asset_loader::AssetLoader;
+use essential::assets::{asset_loader::AssetLoader, Asset, LoadableAsset};
 
-use crate::assets::{scene::Scene, vertex::Vertex};
+use crate::assets::{texture::{Texture, TextureUsageSettings}, vertex::Vertex};
 pub(crate) struct GLTFLoader;
+
+pub struct GLTFScene
+{
+
+}
+
+impl Asset for GLTFScene {
+    
+}
+
+impl LoadableAsset for GLTFScene {
+    type UsageSettings = ();
+
+    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
+        Box::new(GLTFLoader)
+    }
+
+    fn default_usage_settings() -> Self::UsageSettings {
+        ()
+    }
+}
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl AssetLoader for GLTFLoader {
-    type Asset = Scene;
+    type Asset = GLTFScene;
 
     async fn load(
         &self,
         path: essential::assets::AssetPath<'static>,
-        _load_context: &mut essential::assets::asset_server::AssetLoadContext,
-        _usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
+        load_context: &mut essential::assets::asset_server::AssetLoadContext,
+        usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
-        todo!()
+        let (document, buffers, images) = gltf::import(path.to_path()).unwrap();
 
-        // let (document, buffers, images) = gltf::import(path.to_path()).unwrap();
-
-        // let mut textures = images.iter().enumerate().map(|(index, image)| {
-        //     if let Ok(asset) = Texture::from_bytes(&image.pixels, TextureUsageSettings::default()) {
-        //         let mut texture_path = path.to_string().to_owned();
-        //         texture_path.push_str(&format!("#texture_{}", index));
-        //         Some(load_context.asset_server().add(asset, texture_path))
-        //     } else {
-        //         None
-        //     }
-        // });
+        let mut textures = images.iter().enumerate().map(|(index, image)| {
+            if let Ok(asset) = Texture::from_bytes(&image.pixels, TextureUsageSettings::default()) {
+                Some(load_context.asset_server().add(asset))
+            } else {
+                None
+            }
+        });
 
         // if textures.any(|handle| handle.is_none()) {
         //     return Err(());
@@ -150,5 +167,7 @@ impl AssetLoader for GLTFLoader {
         //     .collect::<Vec<_>>();
 
         // Ok(Scene {})
+
+        Err(())
     }
 }

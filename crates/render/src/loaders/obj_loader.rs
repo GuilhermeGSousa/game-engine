@@ -62,11 +62,11 @@ impl LoadableAsset for ObjAsset {
     type UsageSettings = ();
 
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
-        todo!()
+        Box::new(ObjLoader)
     }
 
     fn default_usage_settings() -> Self::UsageSettings {
-        todo!()
+        ()
     }
 }
 

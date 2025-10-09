@@ -11,10 +11,13 @@ pub struct Material {
 }
 
 impl Material {
-    pub fn new() -> Self {
+    pub fn new(
+        diffuse_texture: Option<AssetHandle<Texture>>,
+        normal_texture: Option<AssetHandle<Texture>>,
+    ) -> Self {
         Self {
-            diffuse_texture: None,
-            normal_texture: None,
+            diffuse_texture,
+            normal_texture,
         }
     }
 

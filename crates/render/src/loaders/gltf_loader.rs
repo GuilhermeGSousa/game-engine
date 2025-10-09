@@ -7,23 +7,25 @@ use essential::assets::{
     handle::AssetHandle, Asset, LoadableAsset,
 };
 use gltf::{buffer::Data, Primitive};
-use wgpu::hal::auxil::db::amd::VENDOR;
 
 use crate::assets::{
-    material::Material, mesh::Mesh, texture::{Texture, TextureUsageSettings}, vertex::Vertex
+    material::Material,
+    mesh::Mesh,
+    texture::{Texture, TextureUsageSettings},
+    vertex::Vertex,
 };
 pub(crate) struct GLTFLoader;
 
 pub struct GLTFScene {
     pub(crate) meshes: Vec<GLTFMesh>,
-    pub(crate) materials: Vec<AssetHandle<Material>>
+    pub(crate) materials: Vec<AssetHandle<Material>>,
 }
 
 impl Asset for GLTFScene {}
 
 pub struct GLTFMesh {
     pub(crate) primitives: Vec<AssetHandle<Mesh>>,
-    pub(crate) materials: Vec<Option<usize>>
+    pub(crate) materials: Vec<Option<usize>>,
 }
 
 impl LoadableAsset for GLTFScene {
@@ -47,34 +49,50 @@ impl AssetLoader for GLTFLoader {
         &self,
         path: essential::assets::AssetPath<'static>,
         load_context: &mut essential::assets::asset_server::AssetLoadContext,
-        usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
+        _usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let (document, buffers, images) = gltf::import(path.to_path()).unwrap();
 
-        let mut textures = images.iter().enumerate().map(|(index, image)| {
+        let mut textures = Vec::new();
+        for image in images {
             let texture = Texture::from_bytes(&image.pixels, TextureUsageSettings::default())?;
-            load_context.asset_server().add(texture)
-        });
+            textures.push(load_context.asset_server().add(texture));
+        }
 
-        let mut textures = VENDOR
+        let mut materials = Vec::new();
+        for gltf_material in document.materials() {
+            let material = Material::new(
+                gltf_material
+                    .occlusion_texture()
+                    .map(|texture| textures[texture.texture().index()].clone()),
+                gltf_material
+                    .occlusion_texture()
+                    .map(|texture| textures[texture.texture().index()].clone()),
+            );
+
+            materials.push(load_context.asset_server().add(material));
+        }
 
         let mut meshes = Vec::new();
         for mesh in document.meshes() {
-
             let mut primitives = Vec::new();
             let mut materials = Vec::new();
             for gltf_primitive in mesh.primitives() {
-                primitives.push(GLTFLoader::load_primitive(&buffers, &gltf_primitive, load_context.asset_server())?);
+                primitives.push(GLTFLoader::load_primitive(
+                    &buffers,
+                    &gltf_primitive,
+                    load_context.asset_server(),
+                )?);
                 materials.push(gltf_primitive.material().index());
             }
 
             meshes.push(GLTFMesh {
                 primitives,
-                materials
+                materials,
             });
         }
 
-        Ok(GLTFScene { meshes, materials: vec![] })
+        Ok(GLTFScene { meshes, materials })
     }
 }
 

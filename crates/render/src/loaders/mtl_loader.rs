@@ -2,8 +2,8 @@ use std::io::{BufReader, Cursor};
 
 use async_trait::async_trait;
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
-    AssetPath, LoadableAsset,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
+    LoadableAsset,
 };
 
 use crate::assets::{material::Material, texture::Texture};
@@ -27,7 +27,7 @@ impl AssetLoader for MTLLoader {
 
         match mat {
             Ok((mats, _)) => {
-                let mut material = Material::new();
+                let mut material = Material::new(None, None);
                 for m in mats {
                     if let Some(diffuse_texture) = m.diffuse_texture {
                         let texture_handle =

@@ -283,7 +283,6 @@ pub(crate) fn spawn_obj_component(
                     MaterialComponent {
                         handle: asset.materials[mesh.material_index.unwrap_or(0)].clone(),
                     },
-                    RenderEntity::Uninitialized,
                 ));
 
                 cmd.add_child(entity, child_entity);

@@ -1,33 +1,26 @@
+use std::ops::Deref;
+
 use ecs::{
     component::{Component, ComponentLifecycleCallback},
     entity::Entity,
 };
 
-pub enum RenderEntity {
-    Uninitialized,
-    Initialized(Entity),
-}
+pub struct RenderEntity(Entity);
 
 impl RenderEntity {
-    pub fn new() -> Self {
-        RenderEntity::Uninitialized
-    }
-
-    pub fn is_set(&self) -> bool {
-        match self {
-            RenderEntity::Uninitialized => false,
-            RenderEntity::Initialized(_) => true,
-        }
-    }
-
-    pub fn set_entity(&mut self, entity: Entity) {
-        match self {
-            RenderEntity::Uninitialized => *self = RenderEntity::Initialized(entity),
-            RenderEntity::Initialized(e) => *e = entity,
-        }
+    pub fn new(entity: Entity) -> Self
+    {
+        Self(entity)
     }
 }
 
+impl Deref for RenderEntity {
+    type Target = Entity;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 impl Component for RenderEntity {
     fn name() -> String {
         String::from("RenderEntity")
@@ -38,9 +31,7 @@ impl Component for RenderEntity {
             if let Some(render_entity) =
                 world.get_component_for_entity::<RenderEntity>(context.entity)
             {
-                if let RenderEntity::Initialized(other_entity) = render_entity {
-                    world.despawn(*other_entity);
-                }
+                world.despawn(**render_entity);
             }
         })
     }

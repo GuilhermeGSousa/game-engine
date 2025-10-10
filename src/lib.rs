@@ -144,12 +144,11 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         camera,
         skybox,
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
-        RenderEntity::new(),
     ));
 
     cmd.add_child(parent, child);
 
-    cmd.spawn((light, light_transform, RenderEntity::new()));
+    cmd.spawn((light, light_transform));
 }
 
 fn spawn_floor(

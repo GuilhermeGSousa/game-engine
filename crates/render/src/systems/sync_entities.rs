@@ -1,4 +1,9 @@
-use ecs::{command::CommandQueue, query::query_filter::Added, query::Query, resource::Res};
+use ecs::{
+    command::CommandQueue,
+    entity::Entity,
+    query::{query_filter::Added, Query},
+    resource::Res,
+};
 use encase::UniformBuffer;
 use essential::transform::GlobalTranform;
 use glam::Vec3;
@@ -18,13 +23,13 @@ use crate::{
 };
 
 pub(crate) fn camera_added(
-    cameras: Query<(&Camera, &GlobalTranform, &mut RenderEntity), Added<(Camera,)>>,
+    cameras: Query<(Entity, &Camera, &GlobalTranform, Option<&RenderEntity>), Added<(Camera,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayouts>,
 ) {
-    for (camera, transform, mut render_entity) in cameras.iter() {
+    for (entity, camera, transform, render_entity) in cameras.iter() {
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(camera, transform);
 
@@ -56,13 +61,13 @@ pub(crate) fn camera_added(
             clear_color: camera.clear_color,
         };
 
-        match **render_entity {
-            RenderEntity::Uninitialized => {
-                let new_entity = cmd.spawn(render_cam);
-                render_entity.set_entity(new_entity);
+        match render_entity {
+            None => {
+                let new_render_entity = cmd.spawn(render_cam);
+                cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
-            RenderEntity::Initialized(entity) => {
-                cmd.insert(render_cam, entity);
+            Some(render_entity) => {
+                cmd.insert(render_cam, **render_entity);
             }
         }
     }
@@ -74,29 +79,24 @@ pub(crate) fn camera_changed(
     queue: Res<RenderQueue>,
 ) {
     for (camera, transform, render_entity) in cameras.iter() {
-        match render_entity {
-            RenderEntity::Initialized(entity) => {
-                if let Some((mut render_camera,)) = render_cameras.get_entity(*entity) {
-                    render_camera
-                        .camera_uniform
-                        .update_view_proj(camera, transform);
+        if let Some((mut render_camera,)) = render_cameras.get_entity(**render_entity) {
+            render_camera
+                .camera_uniform
+                .update_view_proj(camera, transform);
 
-                    let mut buffer = UniformBuffer::new(Vec::new());
-                    buffer.write(&render_camera.camera_uniform).unwrap();
+            let mut buffer = UniformBuffer::new(Vec::new());
+            buffer.write(&render_camera.camera_uniform).unwrap();
 
-                    queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
-                }
-            }
-            _ => {}
+            queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
         }
     }
 }
 
 pub(crate) fn light_added(
-    lights: Query<(&Light, &GlobalTranform, &mut RenderEntity), Added<Light>>,
+    lights: Query<(Entity, &Light, &GlobalTranform, Option<&RenderEntity>), Added<Light>>,
     mut cmd: CommandQueue,
 ) {
-    for (light, light_transform, mut render_entity) in lights.iter() {
+    for (entity, light, light_transform, render_entity) in lights.iter() {
         let local_z = light_transform.rotation() * Vec3::Z;
         let render_light = RenderLight {
             translation: light_transform.translation(),
@@ -109,13 +109,13 @@ pub(crate) fn light_added(
                 _ => 0.0,
             },
         };
-        match **render_entity {
-            RenderEntity::Uninitialized => {
-                let new_entity = cmd.spawn(render_light);
-                render_entity.set_entity(new_entity);
+        match render_entity {
+            None => {
+                let new_render_entity = cmd.spawn(render_light);
+                cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
-            RenderEntity::Initialized(entity) => {
-                cmd.insert(render_light, entity);
+            Some(render_entity) => {
+                cmd.insert(render_light, **render_entity);
             }
         }
     }
@@ -126,22 +126,17 @@ pub(crate) fn light_changed(
     render_lights: Query<&mut RenderLight>,
 ) {
     for (light, transform, render_entity) in lights.iter() {
-        match render_entity {
-            RenderEntity::Uninitialized => {}
-            RenderEntity::Initialized(entity) => {
-                if let Some(mut render_light) = render_lights.get_entity(*entity) {
-                    let local_z = transform.rotation() * Vec3::Z;
-                    render_light.direction = -local_z;
-                    render_light.color = light.color;
-                    render_light.translation = transform.translation();
-                    render_light.intensity = light.intensity;
-                    render_light.light_type = light.light_type.index();
-                    render_light.cos_cone_angle = match &light.light_type {
-                        LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
-                        _ => 0.0,
-                    };
-                }
-            }
+        if let Some(mut render_light) = render_lights.get_entity(**render_entity) {
+            let local_z = transform.rotation() * Vec3::Z;
+            render_light.direction = -local_z;
+            render_light.color = light.color;
+            render_light.translation = transform.translation();
+            render_light.intensity = light.intensity;
+            render_light.light_type = light.light_type.index();
+            render_light.cos_cone_angle = match &light.light_type {
+                LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                _ => 0.0,
+            };
         }
     }
 }

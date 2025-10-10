@@ -122,8 +122,7 @@ pub(crate) fn prepare_skybox(
 ) {
     for (_, skybox, render_entity) in cameras.iter() {
         if let Some(render_texture) = render_textures.get(&skybox.texture.id()) {
-            if let RenderEntity::Initialized(e) = render_entity {
-                let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            let bind_group = device.create_bind_group(&BindGroupDescriptor {
                     label: Some("skybox_bind_group"),
                     layout: &skybox_layout.skybox_material_layout,
                     entries: &[
@@ -139,8 +138,7 @@ pub(crate) fn prepare_skybox(
                 });
                 let skybox_bind_group = RenderSkyboxBindGroup { bind_group };
 
-                cmd.insert(skybox_bind_group, *e);
-            }
+                cmd.insert(skybox_bind_group, **render_entity);
         }
     }
 }

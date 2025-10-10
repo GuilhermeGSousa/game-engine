@@ -194,9 +194,27 @@ impl GLTFLoader {
 #[derive(Component)]
 pub struct GLTFSpawnerComponent(pub AssetHandle<GLTFScene>);
 
+impl std::ops::Deref for GLTFSpawnerComponent {
+    type Target = AssetHandle<GLTFScene>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 pub(crate) fn spawn_gltf_component(
     mut cmd: CommandQueue,
-    objs: Query<(Entity, &GLTFSpawnerComponent)>,
+    gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
 ) {
+    for (entity, component) in gltf_components.iter() 
+    {
+        if let Some(asset) = gltf_assets.get(component)
+        {
+            // TODO: Spawn entities
+
+            cmd.remove::<GLTFSpawnerComponent>(entity);
+        }
+         
+    }
 }

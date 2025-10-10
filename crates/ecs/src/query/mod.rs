@@ -205,7 +205,7 @@ where
     type Item<'w> = Option<&'w T>;
 
     fn component_ids() -> Vec<ComponentId> {
-        vec![TypeId::of::<T>()]
+        vec![]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
@@ -224,7 +224,7 @@ where
     type Item<'w> = Option<Mut<'w, T>>;
 
     fn component_ids() -> Vec<ComponentId> {
-        vec![TypeId::of::<T>()]
+        vec![]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {

@@ -1,6 +1,6 @@
 use any_vec::any_value::AnyValueWrapper;
 use anymap3::AnyMap;
-use log::{info, warn};
+use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{
     any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
@@ -77,15 +77,19 @@ impl World {
         self.entity_store.set_location(entity, new_location.clone());
 
         let cell = self.as_unsafe_world_cell_mut();
-        cell.trigger_on_add(entity, new_location);
+        cell.trigger_on_add(entity, &T::get_component_ids());
     }
 
     pub fn despawn(&mut self, entity: Entity) {
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 {
+                    let mut component_ids = Vec::new();
+                    component_ids.clone_from_slice(
+                        self.archetypes[location.archetype_index as usize].component_ids(),
+                    );
                     let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_remove(entity, location);
+                    cell.trigger_on_remove(entity, &component_ids);
                 }
 
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
@@ -175,8 +179,8 @@ impl World {
                 self.entity_store.set_location(entity, location.clone());
 
                 if trigger_events {
-                    let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_add(entity, location);
+                    self.as_unsafe_world_cell_mut()
+                        .trigger_on_add_component(entity, &inserted_id);
                 }
             }
             None => panic!("Entity should exist in the world"),
@@ -246,7 +250,7 @@ impl World {
 
                 if trigger_events {
                     let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_remove(entity, location);
+                    cell.trigger_on_remove_component(entity, &removed_id);
                 }
             }
             None => panic!("Entity should exist in the world"),
@@ -492,28 +496,33 @@ impl<'w> UnsafeWorldCell<'w> {
         RestrictedWorld { world_cell: self }
     }
 
-    pub fn trigger_on_add(&self, entity: Entity, location: EntityLocation) {
-        let world = self.world();
-        let archetype = &world.archetypes[location.archetype_index as usize];
+    pub(crate) fn trigger_on_add(&self, entity: Entity, ids: &[ComponentId]) {
+        for id in ids {
+            self.trigger_on_add_component(entity, id);
+        }
+    }
 
-        for id in archetype.component_ids() {
-            if let Some(lifetimes) = world.component_lifetimes.get(id) {
-                if let Some(add) = lifetimes.on_add {
-                    add(self.into_restricted(), ComponentLifecycleContext { entity });
-                }
+    pub(crate) fn trigger_on_add_component(&self, entity: Entity, id: &ComponentId) {
+        let world = self.world();
+        if let Some(lifetimes) = world.component_lifetimes.get(id) {
+            if let Some(add) = lifetimes.on_add {
+                add(self.into_restricted(), ComponentLifecycleContext { entity });
             }
         }
     }
 
-    pub fn trigger_on_remove(&self, entity: Entity, location: EntityLocation) {
-        let world = self.world();
-        let archetype = &world.archetypes[location.archetype_index as usize];
+    pub(crate) fn trigger_on_remove(&self, entity: Entity, ids: &[ComponentId]) {
+        for id in ids {
+            self.trigger_on_remove_component(entity, id);
+        }
+    }
 
-        for id in archetype.component_ids() {
-            if let Some(lifetimes) = world.component_lifetimes.get(id) {
-                if let Some(remove) = lifetimes.on_remove {
-                    remove(self.into_restricted(), ComponentLifecycleContext { entity });
-                }
+    pub(crate) fn trigger_on_remove_component(&self, entity: Entity, id: &ComponentId) {
+        let world = self.world();
+
+        if let Some(lifetimes) = world.component_lifetimes.get(id) {
+            if let Some(remove) = lifetimes.on_remove {
+                remove(self.into_restricted(), ComponentLifecycleContext { entity });
             }
         }
     }

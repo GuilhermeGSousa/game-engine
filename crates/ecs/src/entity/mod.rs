@@ -1,4 +1,7 @@
-use std::{fmt::Debug, num::NonZero};
+use std::{
+    fmt::{Debug, Display},
+    num::NonZero,
+};
 
 use crate::table::TableRowIndex;
 
@@ -31,6 +34,12 @@ impl Debug for Entity {
             .field("index", &self.index)
             .field("generation", &self.generation)
             .finish()
+    }
+}
+
+impl Display for Entity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Entity(index: {}, gen: {})", self.index, self.generation)
     }
 }
 

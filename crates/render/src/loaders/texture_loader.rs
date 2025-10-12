@@ -1,6 +1,6 @@
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, Asset,
-    AssetPath, LoadableAsset,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, AssetPath,
+    LoadableAsset,
 };
 
 use async_trait::async_trait;

@@ -67,6 +67,10 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     pub fn get_entity(&self, entity: Entity) -> Option<T::Item<'world>> {
         T::fetch(self.world, entity)
     }
+
+    pub fn contains_entity(&self, entity: Entity) -> bool {
+        self.get_entity(entity).is_some()
+    }
 }
 
 pub struct QueryIter<'world, 'a, T, F> {

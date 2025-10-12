@@ -134,6 +134,13 @@ impl World {
 
                 let entity_type = generate_type_id(&component_ids);
 
+                // Update the location of the entity being swapped
+                // It will take the location of the entity being removed
+                if let Some(swapped_entity) = previous_archetype.entities().last() {
+                    self.entity_store
+                        .set_location(*swapped_entity, location.clone());
+                }
+
                 // Remove row from previous archetype
                 let mut removed_row = previous_archetype.remove_swap(location.row);
 
@@ -187,6 +194,13 @@ impl World {
 
                 let removed_id = TypeId::of::<T>();
 
+                // Update the location of the entity being swapped
+                // It will take the location of the entity being removed
+                if let Some(swapped_entity) = previous_archetype.entities().last() {
+                    self.entity_store
+                        .set_location(*swapped_entity, location.clone());
+                }
+
                 let mut component_ids = previous_archetype.component_ids().to_vec();
                 if let Some(removed_index) = component_ids.iter().position(|id| *id == removed_id) {
                     component_ids.swap_remove(removed_index);
@@ -232,7 +246,7 @@ impl World {
 
                 if trigger_events {
                     let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_add(entity, location);
+                    cell.trigger_on_remove(entity, location);
                 }
             }
             None => panic!("Entity should exist in the world"),
@@ -525,6 +539,12 @@ impl<'w> RestrictedWorld<'w> {
         self.world_cell
             .world_mut()
             .insert_component_internal(component, entity, trigger_events);
+    }
+
+    pub fn remove_component<T: Component>(&mut self, entity: Entity, trigger_events: bool) {
+        self.world_cell
+            .world_mut()
+            .remove_component_internal::<T>(entity, trigger_events);
     }
 }
 

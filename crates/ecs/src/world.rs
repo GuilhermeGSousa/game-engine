@@ -1,6 +1,6 @@
 use any_vec::any_value::AnyValueWrapper;
 use anymap3::AnyMap;
-use log::{info, warn};
+use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{
     any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
@@ -251,76 +251,6 @@ impl World {
                 if trigger_events {
                     let cell = self.as_unsafe_world_cell_mut();
                     cell.trigger_on_remove_component(entity, &removed_id);
-                }
-            }
-            None => panic!("Entity should exist in the world"),
-        }
-    }
-
-    pub(crate) fn remove_component_internal<T: Component>(
-        &mut self,
-        entity: Entity,
-        trigger_events: bool,
-    ) {
-        match self.entity_store.find_location(entity) {
-            Some(location) => {
-                let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
-
-                let removed_id = TypeId::of::<T>();
-
-                // Update the location of the entity being swapped
-                // It will take the location of the entity being removed
-                if let Some(swapped_entity) = previous_archetype.entities().last() {
-                    self.entity_store
-                        .set_location(*swapped_entity, location.clone());
-                }
-
-                let mut component_ids = previous_archetype.component_ids().to_vec();
-                if let Some(removed_index) = component_ids.iter().position(|id| *id == removed_id) {
-                    component_ids.swap_remove(removed_index);
-                } else {
-                    warn!("Entity does not have the component being removed.");
-                    return;
-                }
-
-                let entity_type = generate_type_id(&component_ids);
-
-                // Remove row from previous archetype
-                let mut removed_row = previous_archetype.remove_swap(location.row);
-
-                // Remove component from the removed row
-                removed_row.remove::<T>();
-
-                let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
-                    Occupied(occupied_entry) => {
-                        let new_archetype_index = *occupied_entry.get();
-                        let new_archetype = &mut self.archetypes[*occupied_entry.get() as usize];
-                        new_archetype.add_row(removed_row, self.current_tick);
-                        new_archetype_index
-                    }
-                    Vacant(vacant_entry) => {
-                        let new_archetype_index = self.archetypes.len();
-                        let archetype = Archetype::new(
-                            Table::from_row(removed_row, self.current_tick),
-                            component_ids,
-                        );
-                        self.archetypes.push(archetype);
-                        vacant_entry.insert(new_archetype_index);
-                        new_archetype_index
-                    }
-                };
-
-                let location = EntityLocation {
-                    archetype_index: archetype_index as u32,
-                    row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
-                };
-
-                // Store in entity store
-                self.entity_store.set_location(entity, location.clone());
-
-                if trigger_events {
-                    let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_remove(entity, location);
                 }
             }
             None => panic!("Entity should exist in the world"),

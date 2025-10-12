@@ -12,6 +12,12 @@ pub struct Vertex {
     pub normal: [f32; 3],
     pub tangent: [f32; 3],
     pub bitangent: [f32; 3],
+    pub bone_indices: [u32; Vertex::MAX_AFFECTED_BONES],
+    pub bone_weights: [f32; Vertex::MAX_AFFECTED_BONES],
+}
+
+impl Vertex {
+    pub const MAX_AFFECTED_BONES: usize = 4;
 }
 
 impl VertexBufferLayout for Vertex {
@@ -44,6 +50,16 @@ impl VertexBufferLayout for Vertex {
                     offset: mem::size_of::<[f32; 11]>() as wgpu::BufferAddress,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[u32; 14]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Uint32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 18]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
             ],
         }

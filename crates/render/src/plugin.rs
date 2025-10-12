@@ -7,12 +7,17 @@ use crate::{
     },
     components::{
         light::{prepare_lights_buffer, RenderLights},
+        mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
         skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
     layouts::{CameraLayouts, LightLayouts, MaterialLayouts},
+    loaders::{
+        gltf_loader::{spawn_gltf_component, GLTFScene},
+        obj_loader::{spawn_obj_component, OBJAsset},
+    },
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial,
@@ -24,9 +29,7 @@ use crate::{
     resources::RenderContext,
     systems::{
         render::{self, present_window},
-        sync_entities::{
-            camera_added, camera_changed, light_added, light_changed, mesh_added, mesh_changed,
-        },
+        sync_entities::{camera_added, camera_changed, light_added, light_changed},
         update_window,
     },
 };
@@ -121,7 +124,9 @@ impl Plugin for RenderPlugin {
 
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
-            .register_asset::<Material>();
+            .register_asset::<Material>()
+            .register_asset::<OBJAsset>()
+            .register_asset::<GLTFScene>();
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)
@@ -133,6 +138,8 @@ impl Plugin for RenderPlugin {
                 app::update_group::UpdateGroup::Update,
                 update_window::request_window_resize,
             )
+            .add_system(app::update_group::UpdateGroup::Update, spawn_obj_component)
+            .add_system(app::update_group::UpdateGroup::Update, spawn_gltf_component)
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 update_window::update_render_window,

@@ -1,6 +1,6 @@
 use crate::loaders::texture_loader::TextureLoader;
-use essential::assets::Asset;
-use image::GenericImageView;
+use essential::assets::{Asset, LoadableAsset};
+use image::{GenericImageView, ImageBuffer};
 use wgpu::TextureUsages;
 use wgpu_types::{Extent3d, TextureDescriptor, TextureFormat, TextureViewDescriptor};
 
@@ -61,6 +61,44 @@ impl Texture {
         })
     }
 
+    pub fn from_gltf_data(data: gltf::image::Data) -> Self {
+        let mut usage_settings = TextureUsageSettings::default();
+
+        let extent = Extent3d {
+            width: data.width,
+            height: data.height,
+            depth_or_array_layers: 1,
+        };
+
+        usage_settings.texture_descriptor.size = extent;
+        usage_settings.texture_descriptor.format = TextureFormat::Rgba8UnormSrgb;
+
+        let image = match data.format {
+            gltf::image::Format::R8 => image::DynamicImage::ImageLuma8(
+                ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                    .expect("Out of memory loading image."),
+            ),
+            gltf::image::Format::R8G8 => image::DynamicImage::ImageLumaA8(
+                ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                    .expect("Out of memory loading image."),
+            ),
+            gltf::image::Format::R8G8B8 => image::DynamicImage::ImageRgb8(
+                ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                    .expect("Out of memory loading image."),
+            ),
+            gltf::image::Format::R8G8B8A8 => image::DynamicImage::ImageRgba8(
+                ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                    .expect("Out of memory loading image."),
+            ),
+            _ => panic!("Image format usupported (for now)"),
+        };
+
+        Self {
+            data: image.to_rgba8().into_raw(),
+            usage_settings: usage_settings,
+        }
+    }
+
     pub fn size(&self) -> &wgpu::Extent3d {
         &self.usage_settings.texture_descriptor.size
     }
@@ -74,7 +112,9 @@ impl Texture {
     }
 }
 
-impl Asset for Texture {
+impl Asset for Texture {}
+
+impl LoadableAsset for Texture {
     type UsageSettings = TextureUsageSettings;
 
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {

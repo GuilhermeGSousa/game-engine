@@ -1,6 +1,5 @@
-use bytemuck::Pod;
 use ecs::component::{Component, ComponentLifecycleCallback};
-use glam::{Affine3A, Mat3, Mat4, Quat, Vec3, Vec3A};
+use glam::{Affine3A, Mat4, Quat, Vec3};
 
 pub mod systems;
 
@@ -28,6 +27,12 @@ impl Component for Transform {
             world.insert_component(global_transform, context.entity, false);
         })
     }
+
+    fn on_remove() -> Option<ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            world.remove_component::<GlobalTranform>(context.entity, false);
+        })
+    }
 }
 
 impl Transform {
@@ -40,6 +45,16 @@ impl Transform {
             translation: translation,
             rotation: rotation,
             scale: Vec3::ONE,
+        }
+    }
+
+    pub fn from_matrix(matrix: &[[f32; 4]; 4]) -> Self {
+        let (scale, rotation, translation) =
+            Mat4::from_cols_array_2d(matrix).to_scale_rotation_translation();
+        Self {
+            translation,
+            rotation,
+            scale,
         }
     }
 

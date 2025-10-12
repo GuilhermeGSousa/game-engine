@@ -11,3 +11,4 @@ any_vec = "0.14.0"
 anymap3 = "1.0.1"
 typle = "0.10.6"
 ecs-macros = { path = "macros" }
+log = "0.4.27"

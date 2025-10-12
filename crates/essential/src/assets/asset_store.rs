@@ -54,9 +54,9 @@ impl<A: Asset + 'static> AssetStore<A> {
         for event in self.drop_receiver.try_iter() {
             if let Some(_) = self.assets.get_mut(&event.id()) {
                 match event {
-                    AssetLifetimeEvent::Dropped(id) => {
+                    AssetLifetimeEvent::Dropped(id, asset_path) => {
                         self.assets.remove(&id);
-                        asset_server.process_handle_drop(&id);
+                        asset_server.process_handle_drop(&id, asset_path);
                     }
                 }
             }

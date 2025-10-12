@@ -1,7 +1,7 @@
 use any_vec::any_value::AnyValueWrapper;
 
 use crate::{
-    component::{Component, ComponentId, Tick},
+    component::{Component, ComponentId},
     entity::Entity,
     table::{MutableCellAccessor, Table, TableRow, TableRowIndex},
 };
@@ -84,7 +84,7 @@ impl Archetype {
         self.data_table.was_changed(row, component_id, current_tick)
     }
 
-    pub unsafe fn get_component_unsafe_mut<T: 'static>(
+    pub(crate) unsafe fn get_component_unsafe_mut<T: 'static>(
         &mut self,
         row: TableRowIndex,
     ) -> Option<MutableCellAccessor<T>> {

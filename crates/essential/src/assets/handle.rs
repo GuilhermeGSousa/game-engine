@@ -1,30 +1,34 @@
 use std::{marker::PhantomData, sync::Arc};
 
+use crate::assets::AssetPath;
+
 use super::{Asset, AssetId};
 use crossbeam_channel::Sender;
 
 pub enum AssetLifetimeEvent {
-    Dropped(AssetId),
+    Dropped(AssetId, Option<AssetPath<'static>>),
 }
 
 impl AssetLifetimeEvent {
     pub fn id(&self) -> AssetId {
         match self {
-            AssetLifetimeEvent::Dropped(id) => *id,
+            AssetLifetimeEvent::Dropped(id, _) => *id,
         }
     }
 }
 
 pub struct StrongAssetHandle {
     pub(crate) id: AssetId,
+    pub(crate) path: Option<AssetPath<'static>>,
     pub(crate) lifetime_sender: Sender<AssetLifetimeEvent>,
 }
 
 impl Drop for StrongAssetHandle {
     fn drop(&mut self) {
+        let path = self.path.clone();
         let _ = self
             .lifetime_sender
-            .send(AssetLifetimeEvent::Dropped(self.id));
+            .send(AssetLifetimeEvent::Dropped(self.id, path));
     }
 }
 

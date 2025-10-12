@@ -24,6 +24,15 @@ impl RenderDevice {
             queue.submit(std::iter::once(encoder.finish()));
         }
     }
+
+    pub fn scoped_encoder(&mut self, f: impl FnOnce(&wgpu::Device, &mut CommandEncoder))
+    {
+        let mut encoder = self.encoder.take().unwrap_or(self.device
+                .create_command_encoder(&CommandEncoderDescriptor::default()));
+        f(self, &mut encoder);
+
+        self.encoder = Some(encoder);
+    }
 }
 
 impl Deref for RenderDevice {

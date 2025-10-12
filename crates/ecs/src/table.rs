@@ -1,4 +1,5 @@
 use std::{
+    any::TypeId,
     collections::HashMap,
     ops::{Deref, DerefMut},
 };
@@ -50,19 +51,21 @@ impl Column {
         self.data.downcast_mut_unchecked::<T>()
     }
 
-    pub unsafe fn get_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
+    pub(crate) unsafe fn get_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
         self.data.get_unchecked(*row).downcast_ref()
     }
 
-    pub unsafe fn get_mut_unsafe<T: 'static>(&mut self, row: TableRowIndex) -> Option<MutableCellAccessor<T>> {
-        self.data.get_unchecked_mut(*row).downcast_mut().map(|data| {
-            
-            MutableCellAccessor{
+    pub(crate) unsafe fn get_mut_unsafe<T: 'static>(
+        &mut self,
+        row: TableRowIndex,
+    ) -> Option<MutableCellAccessor<T>> {
+        self.data
+            .get_unchecked_mut(*row)
+            .downcast_mut()
+            .map(|data| MutableCellAccessor {
                 data,
-                changed_tick: &mut self.changed_ticks[*row]
-            }
-        }
-    )
+                changed_tick: &mut self.changed_ticks[*row],
+            })
     }
 
     pub fn set_changed(&mut self, row: TableRowIndex, current_tick: u32) {
@@ -217,6 +220,10 @@ impl TableRow {
             .or_insert(AnyVec::new::<T>())
             .push(raw_value);
     }
+
+    pub fn remove<T: Component>(&mut self) {
+        self.data.remove(&TypeId::of::<T>());
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -242,8 +249,7 @@ impl DerefMut for TableRowIndex {
     }
 }
 
-pub(crate) struct MutableCellAccessor<'w, T>
-{
+pub(crate) struct MutableCellAccessor<'w, T> {
     pub(crate) data: &'w mut T,
-    pub(crate) changed_tick: &'w mut Tick
+    pub(crate) changed_tick: &'w mut Tick,
 }

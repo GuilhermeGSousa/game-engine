@@ -1,32 +1,61 @@
 use std::io::{BufRead, BufReader, Cursor};
 
 use async_trait::async_trait;
-use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, Asset,
-    AssetPath,
+use ecs::{
+    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
 };
-use glam::{Vec2, Vec3};
+use essential::{
+    assets::{
+        asset_loader::AssetLoader, asset_server::AssetLoadContext, asset_store::AssetStore,
+        handle::AssetHandle, utils::load_to_string, Asset, AssetPath, LoadableAsset,
+    },
+    transform::Transform,
+};
+use glam::{Quat, Vec2, Vec3};
 use tobj::Model;
 
-use crate::assets::{
-    material::Material,
-    mesh::{Mesh, SubMesh},
-    vertex::Vertex,
+use crate::{
+    assets::{material::Material, mesh::Mesh, vertex::Vertex},
+    components::{material_component::MaterialComponent, mesh_component::MeshComponent},
 };
 
-pub(crate) struct ObjLoader;
+pub(crate) struct OBJLoader;
+
+pub struct OBJAsset {
+    meshes: Vec<OBJMesh>,
+    materials: Vec<AssetHandle<Material>>,
+}
+
+pub struct OBJMesh {
+    pub handle: AssetHandle<Mesh>,
+    pub material_index: Option<usize>,
+}
+
+impl Asset for OBJAsset {}
+
+impl LoadableAsset for OBJAsset {
+    type UsageSettings = ();
+
+    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
+        Box::new(OBJLoader)
+    }
+
+    fn default_usage_settings() -> Self::UsageSettings {
+        ()
+    }
+}
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[allow(deprecated)]
-impl AssetLoader for ObjLoader {
-    type Asset = Mesh;
+impl AssetLoader for OBJLoader {
+    type Asset = OBJAsset;
 
     async fn load(
         &self,
         path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
-        _usage_setting: <Self::Asset as Asset>::UsageSettings,
+        _usage_setting: <Self::Asset as LoadableAsset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);
@@ -62,8 +91,8 @@ impl AssetLoader for ObjLoader {
         .map_err(|_| ())?;
 
         let meshes = models
-            .into_iter()
-            .map(|m| {
+            .iter()
+            .map(|m: &Model| {
                 let mut requires_normal_computation = false;
                 let mut vertices = (0..m.mesh.positions.len() / 3)
                     .map(|vertex_index| {
@@ -86,7 +115,6 @@ impl AssetLoader for ObjLoader {
                                 m.mesh.normals[vertex_index * 3 + 2],
                             ],
                         };
-
                         Vertex {
                             pos_coords: [
                                 m.mesh.positions[vertex_index * 3],
@@ -95,35 +123,40 @@ impl AssetLoader for ObjLoader {
                             ],
                             uv_coords: uv_coords,
                             normal: normal,
-                            // We'll calculate these later
                             tangent: [0.0; 3],
                             bitangent: [0.0; 3],
+                            bone_indices: [0; Vertex::MAX_AFFECTED_BONES],
+                            bone_weights: [0.0; Vertex::MAX_AFFECTED_BONES],
                         }
                     })
                     .collect::<Vec<_>>();
 
                 if requires_normal_computation {
-                    ObjLoader::compute_normals(&m, &mut vertices);
+                    OBJLoader::compute_normals(&m, &mut vertices);
                 }
 
-                ObjLoader::compute_tangents(&m, &mut vertices);
+                OBJLoader::compute_tangents(&m, &mut vertices);
 
-                SubMesh {
+                let handle = load_context.asset_server().add(Mesh {
                     vertices,
-                    indices: m.mesh.indices,
-                    material_index: 0,
+                    indices: m.mesh.indices.clone(),
+                });
+
+                OBJMesh {
+                    handle,
+                    material_index: m.mesh.material_id,
                 }
             })
             .collect::<Vec<_>>();
 
-        Ok(Mesh {
+        Ok(OBJAsset {
             meshes,
             materials: mat_handles,
         })
     }
 }
 
-impl ObjLoader {
+impl OBJLoader {
     fn compute_normals(model: &Model, vertices: &mut Vec<Vertex>) {
         let mut triangles_included = vec![0; vertices.len()];
 
@@ -216,6 +249,43 @@ impl ObjLoader {
             let v = &mut vertices[i];
             v.tangent = (Vec3::from(v.tangent) * denom).into();
             v.bitangent = (Vec3::from(v.bitangent) * denom).into();
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct OBJSpawnerComponent(pub AssetHandle<OBJAsset>);
+
+impl std::ops::Deref for OBJSpawnerComponent {
+    type Target = AssetHandle<OBJAsset>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+pub(crate) fn spawn_obj_component(
+    mut cmd: CommandQueue,
+    objs: Query<(Entity, &OBJSpawnerComponent)>,
+    obj_assets: Res<AssetStore<OBJAsset>>,
+) {
+    for (entity, component) in objs.iter() {
+        if let Some(asset) = obj_assets.get(component) {
+            for mesh in &asset.meshes {
+                let child_entity = cmd.spawn((
+                    MeshComponent {
+                        handle: mesh.handle.clone(),
+                    },
+                    Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+                    MaterialComponent {
+                        handle: asset.materials[mesh.material_index.unwrap_or(0)].clone(),
+                    },
+                ));
+
+                cmd.add_child(entity, child_entity);
+            }
+
+            cmd.remove::<OBJSpawnerComponent>(entity);
         }
     }
 }

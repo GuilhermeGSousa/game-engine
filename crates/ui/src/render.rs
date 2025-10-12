@@ -25,7 +25,7 @@ pub(crate) fn begin_ui_frame(
 pub(crate) fn end_ui_frame(
     mut ui_renderer: ResMut<UIRenderer>,
     render_context: Res<RenderContext>,
-    device: Res<RenderDevice>,
+    mut device: ResMut<RenderDevice>,
     queue: Res<RenderQueue>,
     window: Res<Window>,
     render_window: Res<RenderWindow>,
@@ -48,10 +48,6 @@ pub(crate) fn end_ui_frame(
                 .update_texture(&device, &queue, *id, image_delta);
         }
 
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("UI Render Encoder"),
-        });
-
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [
                 render_context.surface_config.width,
@@ -60,14 +56,18 @@ pub(crate) fn end_ui_frame(
             pixels_per_point: window.window_handle.scale_factor() as f32,
         };
 
-        ui_renderer.renderer.update_buffers(
-            &device,
-            &queue,
-            &mut encoder,
-            &tris,
-            &screen_descriptor,
-        );
+        device.scoped_encoder(|device, mut encoder|
+        {
+            ui_renderer.renderer.update_buffers(
+                        &device,
+                        &queue,
+                        &mut encoder,
+                        &tris,
+                        &screen_descriptor,
+                    );
+        });
 
+        let encoder = device.command_encoder();
         let rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &surface_view,
@@ -91,6 +91,6 @@ pub(crate) fn end_ui_frame(
             ui_renderer.renderer.free_texture(x)
         }
 
-        queue.submit(Some(encoder.finish()));
+        device.finish(&queue);
     }
 }

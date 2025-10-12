@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use essential::assets::{handle::AssetHandle, Asset};
+use essential::assets::{handle::AssetHandle, Asset, LoadableAsset};
 
 use super::texture::Texture;
 use crate::loaders::mtl_loader::MTLLoader;
@@ -11,10 +11,13 @@ pub struct Material {
 }
 
 impl Material {
-    pub fn new() -> Self {
+    pub fn new(
+        diffuse_texture: Option<AssetHandle<Texture>>,
+        normal_texture: Option<AssetHandle<Texture>>,
+    ) -> Self {
         Self {
-            diffuse_texture: None,
-            normal_texture: None,
+            diffuse_texture,
+            normal_texture,
         }
     }
 
@@ -35,7 +38,9 @@ impl Material {
     }
 }
 
-impl Asset for Material {
+impl Asset for Material {}
+
+impl LoadableAsset for Material {
     type UsageSettings = ();
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
         Box::new(MTLLoader)

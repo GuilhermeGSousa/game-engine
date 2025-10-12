@@ -1,8 +1,10 @@
 use std::{
     borrow::Cow,
-    hash::{DefaultHasher, Hash, Hasher},
+    hash::Hash,
     path::{Path, PathBuf},
 };
+
+use uuid::Uuid;
 
 pub mod asset_container;
 pub mod asset_loader;
@@ -73,17 +75,17 @@ impl<'a> From<&'a str> for AssetPath<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AssetId(u64);
+pub struct AssetId(Uuid);
 
 impl AssetId {
-    pub fn new<T: Asset>(path: &AssetPath) -> Self {
-        let mut hasher = DefaultHasher::new();
-        path.hash(&mut hasher);
-        AssetId(hasher.finish())
+    pub fn new() -> Self {
+        AssetId(Uuid::new_v4())
     }
 }
 
-pub trait Asset: Send + Sync + 'static {
+pub trait Asset: Send + Sync + 'static {}
+
+pub trait LoadableAsset: Asset {
     type UsageSettings: Send + Sync;
     fn loader() -> Box<dyn asset_loader::AssetLoader<Asset = Self>>;
 

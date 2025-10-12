@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{
     component::{bundle::ComponentBundle, Component},
     entity::{entity_store::EntityStore, Entity},
@@ -32,6 +34,11 @@ impl<'w, 's> CommandQueue<'w, 's> {
     pub fn insert<T: Component>(&mut self, component: T, entity: Entity) {
         self.queue_state
             .add_command(InsertCommand::new(component, entity));
+    }
+
+    pub fn remove<T: Component>(&mut self, entity: Entity) {
+        self.queue_state
+            .add_command(RemoveCommand::<T>::new(entity));
     }
 
     pub fn add_child(&mut self, parent: Entity, child: Entity) {
@@ -130,6 +137,26 @@ impl<T: Component> InsertCommand<T> {
 impl<T: Component> Command for InsertCommand<T> {
     fn execute(self: Box<Self>, world: &mut World) {
         world.insert_component(self.component, self.entity);
+    }
+}
+
+pub(crate) struct RemoveCommand<T: Component> {
+    entity: Entity,
+    _marker: PhantomData<T>,
+}
+
+impl<T: Component> RemoveCommand<T> {
+    pub fn new(entity: Entity) -> Self {
+        RemoveCommand {
+            entity,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: Component> Command for RemoveCommand<T> {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.remove_component::<T>(self.entity);
     }
 }
 

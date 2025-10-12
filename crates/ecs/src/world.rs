@@ -1,5 +1,6 @@
 use any_vec::any_value::AnyValueWrapper;
 use anymap3::AnyMap;
+use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{
     any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
@@ -11,7 +12,6 @@ use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
 use crate::resource::ResourceStorage;
 use crate::table::MutableCellAccessor;
-use crate::world;
 use crate::{
     archetype::Archetype,
     common::generate_type_id,
@@ -77,15 +77,19 @@ impl World {
         self.entity_store.set_location(entity, new_location.clone());
 
         let cell = self.as_unsafe_world_cell_mut();
-        cell.trigger_on_add(entity, new_location);
+        cell.trigger_on_add(entity, &T::get_component_ids());
     }
 
     pub fn despawn(&mut self, entity: Entity) {
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 {
+                    let mut component_ids = Vec::new();
+                    component_ids.clone_from_slice(
+                        self.archetypes[location.archetype_index as usize].component_ids(),
+                    );
                     let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_remove(entity, location);
+                    cell.trigger_on_remove(entity, &component_ids);
                 }
 
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
@@ -114,6 +118,10 @@ impl World {
         self.insert_component_internal(component, entity, true);
     }
 
+    pub fn remove_component<T: Component>(&mut self, entity: Entity) {
+        self.remove_component_internal::<T>(entity, true);
+    }
+
     pub(crate) fn insert_component_internal<T: Component>(
         &mut self,
         component: T,
@@ -129,6 +137,13 @@ impl World {
                 component_ids.push(inserted_id);
 
                 let entity_type = generate_type_id(&component_ids);
+
+                // Update the location of the entity being swapped
+                // It will take the location of the entity being removed
+                if let Some(swapped_entity) = previous_archetype.entities().last() {
+                    self.entity_store
+                        .set_location(*swapped_entity, location.clone());
+                }
 
                 // Remove row from previous archetype
                 let mut removed_row = previous_archetype.remove_swap(location.row);
@@ -164,8 +179,78 @@ impl World {
                 self.entity_store.set_location(entity, location.clone());
 
                 if trigger_events {
+                    self.as_unsafe_world_cell_mut()
+                        .trigger_on_add_component(entity, &inserted_id);
+                }
+            }
+            None => panic!("Entity should exist in the world"),
+        }
+    }
+
+    pub(crate) fn remove_component_internal<T: Component>(
+        &mut self,
+        entity: Entity,
+        trigger_events: bool,
+    ) {
+        match self.entity_store.find_location(entity) {
+            Some(location) => {
+                let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
+
+                let removed_id = TypeId::of::<T>();
+
+                // Update the location of the entity being swapped
+                // It will take the location of the entity being removed
+                if let Some(swapped_entity) = previous_archetype.entities().last() {
+                    self.entity_store
+                        .set_location(*swapped_entity, location.clone());
+                }
+
+                let mut component_ids = previous_archetype.component_ids().to_vec();
+                if let Some(removed_index) = component_ids.iter().position(|id| *id == removed_id) {
+                    component_ids.swap_remove(removed_index);
+                } else {
+                    warn!("Entity does not have the component being removed.");
+                    return;
+                }
+
+                let entity_type = generate_type_id(&component_ids);
+
+                // Remove row from previous archetype
+                let mut removed_row = previous_archetype.remove_swap(location.row);
+
+                // Remove component from the removed row
+                removed_row.remove::<T>();
+
+                let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
+                    Occupied(occupied_entry) => {
+                        let new_archetype_index = *occupied_entry.get();
+                        let new_archetype = &mut self.archetypes[*occupied_entry.get() as usize];
+                        new_archetype.add_row(removed_row, self.current_tick);
+                        new_archetype_index
+                    }
+                    Vacant(vacant_entry) => {
+                        let new_archetype_index = self.archetypes.len();
+                        let archetype = Archetype::new(
+                            Table::from_row(removed_row, self.current_tick),
+                            component_ids,
+                        );
+                        self.archetypes.push(archetype);
+                        vacant_entry.insert(new_archetype_index);
+                        new_archetype_index
+                    }
+                };
+
+                let location = EntityLocation {
+                    archetype_index: archetype_index as u32,
+                    row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
+                };
+
+                // Store in entity store
+                self.entity_store.set_location(entity, location.clone());
+
+                if trigger_events {
                     let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_add(entity, location);
+                    cell.trigger_on_remove_component(entity, &removed_id);
                 }
             }
             None => panic!("Entity should exist in the world"),
@@ -411,28 +496,33 @@ impl<'w> UnsafeWorldCell<'w> {
         RestrictedWorld { world_cell: self }
     }
 
-    pub fn trigger_on_add(&self, entity: Entity, location: EntityLocation) {
-        let world = self.world();
-        let archetype = &world.archetypes[location.archetype_index as usize];
+    pub(crate) fn trigger_on_add(&self, entity: Entity, ids: &[ComponentId]) {
+        for id in ids {
+            self.trigger_on_add_component(entity, id);
+        }
+    }
 
-        for id in archetype.component_ids() {
-            if let Some(lifetimes) = world.component_lifetimes.get(id) {
-                if let Some(add) = lifetimes.on_add {
-                    add(self.into_restricted(), ComponentLifecycleContext { entity });
-                }
+    pub(crate) fn trigger_on_add_component(&self, entity: Entity, id: &ComponentId) {
+        let world = self.world();
+        if let Some(lifetimes) = world.component_lifetimes.get(id) {
+            if let Some(add) = lifetimes.on_add {
+                add(self.into_restricted(), ComponentLifecycleContext { entity });
             }
         }
     }
 
-    pub fn trigger_on_remove(&self, entity: Entity, location: EntityLocation) {
-        let world = self.world();
-        let archetype = &world.archetypes[location.archetype_index as usize];
+    pub(crate) fn trigger_on_remove(&self, entity: Entity, ids: &[ComponentId]) {
+        for id in ids {
+            self.trigger_on_remove_component(entity, id);
+        }
+    }
 
-        for id in archetype.component_ids() {
-            if let Some(lifetimes) = world.component_lifetimes.get(id) {
-                if let Some(remove) = lifetimes.on_remove {
-                    remove(self.into_restricted(), ComponentLifecycleContext { entity });
-                }
+    pub(crate) fn trigger_on_remove_component(&self, entity: Entity, id: &ComponentId) {
+        let world = self.world();
+
+        if let Some(lifetimes) = world.component_lifetimes.get(id) {
+            if let Some(remove) = lifetimes.on_remove {
+                remove(self.into_restricted(), ComponentLifecycleContext { entity });
             }
         }
     }
@@ -458,6 +548,12 @@ impl<'w> RestrictedWorld<'w> {
         self.world_cell
             .world_mut()
             .insert_component_internal(component, entity, trigger_events);
+    }
+
+    pub fn remove_component<T: Component>(&mut self, entity: Entity, trigger_events: bool) {
+        self.world_cell
+            .world_mut()
+            .remove_component_internal::<T>(entity, trigger_events);
     }
 }
 

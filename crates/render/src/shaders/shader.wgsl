@@ -1,6 +1,7 @@
 const TOON_LEVELS = 3.0; // Number of color bands
 
 const MAX_LIGHT_COUNT : i32 = 128;
+const MAX_BONE_COUNT : i32 = 128;
 
 const HAS_DIFFUSE_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
@@ -28,6 +29,10 @@ struct Lights {
     light_count: i32,
 };
 
+struct Bones {
+    bones: array<mat4x4<f32>, MAX_BONE_COUNT>
+};
+
 struct CameraUniform {
     view_pos: vec3<f32>,
     view_proj: mat4x4<f32>,
@@ -39,19 +44,21 @@ struct VertexInput {
     @location(2) normal: vec3<f32>,
     @location(3) tangent: vec3<f32>,
     @location(4) bitangent: vec3<f32>,
-}
+    @location(5) bone_indices: vec4<u32>,
+    @location(6) bone_weights: vec4<f32>,
+};
 
 struct TransformInput {
     // Full transform
-    @location(5) model_matrix_0: vec4<f32>,
-    @location(6) model_matrix_1: vec4<f32>,
-    @location(7) model_matrix_2: vec4<f32>,
-    @location(8) model_matrix_3: vec4<f32>,
+    @location(7) model_matrix_0: vec4<f32>,
+    @location(8) model_matrix_1: vec4<f32>,
+    @location(9) model_matrix_2: vec4<f32>,
+    @location(10) model_matrix_3: vec4<f32>,
 
     // Rotation Matrix
-    @location(9) rotation_matrix_0: vec3<f32>,
-    @location(10) rotation_matrix_1: vec3<f32>,
-    @location(11) rotation_matrix_2: vec3<f32>,
+    @location(11) rotation_matrix_0: vec3<f32>,
+    @location(12) rotation_matrix_1: vec3<f32>,
+    @location(13) rotation_matrix_2: vec3<f32>,
 };
 
 struct VertexOutput {
@@ -110,6 +117,9 @@ var<uniform> camera: CameraUniform;
 
 @group(2) @binding(0)
 var<uniform> lights: Lights;
+
+@group(3) @binding(0)
+var<uniform> bones: Bones;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

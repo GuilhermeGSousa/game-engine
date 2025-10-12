@@ -34,6 +34,9 @@ mod tests {
         pub y: f32,
     }
 
+    #[derive(Component)]
+    struct Player;
+
     fn system_query_pos_hp(query: Query<(Entity, &Position, &mut Health)>) {
         for (_, position, _) in query.iter() {
             print!("{}", position.x);
@@ -53,11 +56,11 @@ mod tests {
     }
 
     fn system_query_add_hp(query: Query<(&mut Health,)>) {
-        for hp in query.iter() {}
+        for _ in query.iter() {}
     }
 
-    fn system_query_hp_changed(query: Query<(&Health,), Changed<(Health)>>) {
-        for hp in query.iter() {
+    fn system_query_hp_changed(query: Query<(&Health,), Changed<Health>>) {
+        for _ in query.iter() {
             println!("Health change detected");
         }
     }
@@ -223,11 +226,23 @@ mod tests {
 
         world.spawn((Health, Position { x: 10.0, y: 20.0 }));
         world.spawn((Health, Position { x: 10.0, y: 20.0 }));
-        world.spawn((Position { x: 10.0, y: 20.0 }));
+        world.spawn(Position { x: 10.0, y: 20.0 });
 
         let mut schedule = Schedule::new();
         schedule.add_system(system_filter_or);
 
         schedule.run(&mut world);
+    }
+
+    #[test]
+    fn test_add_children() {
+        let mut world = World::new();
+
+        let entity_parent = world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        let entity_child_1 = world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+        let entity_child_2 = world.spawn((Health, Position { x: 10.0, y: 20.0 }));
+
+        world.add_child(entity_parent, entity_child_1);
+        world.add_child(entity_parent, entity_child_2);
     }
 }

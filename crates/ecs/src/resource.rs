@@ -18,6 +18,7 @@ pub trait Resource: 'static {
         Self: Sized;
 }
 
+#[allow(dead_code)]
 pub(crate) struct ResourceStorage<T: Resource> {
     pub(crate) data: T,
     pub(crate) added_tick: Tick,

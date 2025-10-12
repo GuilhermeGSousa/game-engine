@@ -1,6 +1,10 @@
 use std::f32::consts::PI;
 
-use essential::{assets::asset_server::AssetServer, time::Time, transform::{GlobalTranform, Transform}};
+use essential::{
+    assets::asset_server::AssetServer,
+    time::Time,
+    transform::{GlobalTranform, Transform},
+};
 
 use app::{
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
@@ -16,13 +20,16 @@ use ecs::{
 use glam::{Quat, Vec3, Vec4};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
-    assets::{mesh::Mesh, texture::TextureUsageSettings},
+    assets::texture::TextureUsageSettings,
     components::{
         camera::Camera,
         light::{LighType, Light, SpotLight},
         mesh_component::MeshComponent,
-        render_entity::RenderEntity,
         skybox::Skybox,
+    },
+    loaders::{
+        gltf_loader::{GLTFScene, GLTFSpawnerComponent},
+        obj_loader::{OBJAsset, OBJSpawnerComponent},
     },
     plugin::RenderPlugin,
 };
@@ -43,7 +50,10 @@ use crate::game_ui::render_ui;
 
 pub mod game_ui;
 
+#[allow(dead_code)]
+
 const MESH_ASSET: &str = "res/sphere.obj";
+const GLB_ASSET: &str = "res/duck.glb";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
@@ -136,12 +146,11 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         camera,
         skybox,
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
-        RenderEntity::new(),
     ));
 
     cmd.add_child(parent, child);
 
-    cmd.spawn((light, light_transform, RenderEntity::new()));
+    cmd.spawn((light, light_transform));
 }
 
 fn spawn_floor(
@@ -150,16 +159,14 @@ fn spawn_floor(
     asset_server: Res<AssetServer>,
 ) {
     let height = 1.0;
-    let ground_mesh = asset_server.load::<Mesh>(GROUND_ASSET);
+    let ground_mesh = asset_server.load::<OBJAsset>(GROUND_ASSET);
+
     let ground_transform =
         Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
     let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
 
     cmd.spawn((
-        MeshComponent {
-            handle: ground_mesh,
-        },
-        RenderEntity::Uninitialized,
+        OBJSpawnerComponent(ground_mesh),
         ground_colider,
         ground_transform,
     ));
@@ -221,11 +228,9 @@ fn spawn_on_button_press(
     let mut mesh_transform = pos.clone();
     mesh_transform.translation = pos.translation + pos.forward() * 50.0;
     if key_p == InputState::Pressed {
-        let handle = asset_server.load::<Mesh>(MESH_ASSET);
         cmd.spawn((
-            MeshComponent { handle },
+            GLTFSpawnerComponent(asset_server.load::<GLTFScene>(GLB_ASSET)),
             mesh_transform,
-            RenderEntity::new(),
         ));
     }
 }
@@ -249,13 +254,10 @@ fn spawn_with_collider(
         let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
 
         cmd.spawn((
-            MeshComponent {
-                handle: asset_server.load::<Mesh>(MESH_ASSET),
-            },
+            OBJSpawnerComponent(asset_server.load::<OBJAsset>(MESH_ASSET)),
             rigid_body,
             collider,
             cube_transform.clone(),
-            RenderEntity::new(),
         ));
     }
 }

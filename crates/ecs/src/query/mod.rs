@@ -67,6 +67,10 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     pub fn get_entity(&self, entity: Entity) -> Option<T::Item<'world>> {
         T::fetch(self.world, entity)
     }
+
+    pub fn contains_entity(&self, entity: Entity) -> bool {
+        self.get_entity(entity).is_some()
+    }
 }
 
 pub struct QueryIter<'world, 'a, T, F> {
@@ -205,7 +209,7 @@ where
     type Item<'w> = Option<&'w T>;
 
     fn component_ids() -> Vec<ComponentId> {
-        vec![TypeId::of::<T>()]
+        vec![]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
@@ -224,7 +228,7 @@ where
     type Item<'w> = Option<Mut<'w, T>>;
 
     fn component_ids() -> Vec<ComponentId> {
-        vec![TypeId::of::<T>()]
+        vec![]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {

@@ -2,23 +2,25 @@ use async_trait::async_trait;
 use ecs::{
     command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
 };
-use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetServer, asset_store::AssetStore,
-    handle::AssetHandle, Asset, LoadableAsset,
+use essential::{
+    assets::{
+        asset_loader::AssetLoader, asset_server::AssetServer, asset_store::AssetStore,
+        handle::AssetHandle, Asset, LoadableAsset,
+    },
+    transform::Transform,
 };
-use gltf::{buffer::Data, Primitive};
+use gltf::{buffer::Data, Node, Primitive};
 
-use crate::assets::{
-    material::Material,
-    mesh::Mesh,
-    texture::{Texture, TextureUsageSettings},
-    vertex::Vertex,
+use crate::{
+    assets::{material::Material, mesh::Mesh, texture::Texture, vertex::Vertex},
+    components::{material_component::MaterialComponent, mesh_component::MeshComponent},
 };
 pub(crate) struct GLTFLoader;
 
 pub struct GLTFScene {
     pub(crate) meshes: Vec<GLTFMesh>,
     pub(crate) materials: Vec<AssetHandle<Material>>,
+    pub(crate) nodes: Vec<GLTFNode>,
 }
 
 impl Asset for GLTFScene {}
@@ -26,6 +28,12 @@ impl Asset for GLTFScene {}
 pub struct GLTFMesh {
     pub(crate) primitives: Vec<AssetHandle<Mesh>>,
     pub(crate) materials: Vec<Option<usize>>,
+}
+
+pub struct GLTFNode {
+    pub(crate) children: Vec<GLTFNode>,
+    pub(crate) mesh: Option<usize>,
+    pub(crate) transform: Transform,
 }
 
 impl LoadableAsset for GLTFScene {
@@ -53,9 +61,14 @@ impl AssetLoader for GLTFLoader {
     ) -> Result<Self::Asset, ()> {
         let (document, buffers, images) = gltf::import(path.to_path()).unwrap();
 
+        let nodes = document
+            .nodes()
+            .map(|node| GLTFLoader::extract_node(&node))
+            .collect();
+
         let mut textures = Vec::new();
         for image in images {
-            let texture = Texture::from_bytes(&image.pixels, TextureUsageSettings::default())?;
+            let texture = Texture::from_gltf_data(image);
             textures.push(load_context.asset_server().add(texture));
         }
 
@@ -63,10 +76,11 @@ impl AssetLoader for GLTFLoader {
         for gltf_material in document.materials() {
             let material = Material::new(
                 gltf_material
-                    .occlusion_texture()
+                    .pbr_metallic_roughness()
+                    .base_color_texture()
                     .map(|texture| textures[texture.texture().index()].clone()),
                 gltf_material
-                    .occlusion_texture()
+                    .normal_texture()
                     .map(|texture| textures[texture.texture().index()].clone()),
             );
 
@@ -92,7 +106,11 @@ impl AssetLoader for GLTFLoader {
             });
         }
 
-        Ok(GLTFScene { meshes, materials })
+        Ok(GLTFScene {
+            nodes,
+            meshes,
+            materials,
+        })
     }
 }
 
@@ -189,6 +207,19 @@ impl GLTFLoader {
 
         Ok(asset_server.add(primitive))
     }
+
+    fn extract_node(gltf_node: &Node) -> GLTFNode {
+        let gltf_transform = gltf_node.transform();
+
+        GLTFNode {
+            children: gltf_node
+                .children()
+                .map(|node| Self::extract_node(&node))
+                .collect(),
+            mesh: gltf_node.mesh().map(|mesh| mesh.index()),
+            transform: Transform::from_matrix(&gltf_transform.matrix()),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -207,14 +238,46 @@ pub(crate) fn spawn_gltf_component(
     gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
 ) {
-    for (entity, component) in gltf_components.iter() 
-    {
-        if let Some(asset) = gltf_assets.get(component)
-        {
-            // TODO: Spawn entities
+    for (entity, component) in gltf_components.iter() {
+        if let Some(asset) = gltf_assets.get(component) {
+            for node in &asset.nodes {
+                spawn_gltf_node(&asset, &node, &mut cmd);
+            }
 
             cmd.remove::<GLTFSpawnerComponent>(entity);
         }
-         
     }
+}
+
+fn spawn_gltf_node(gltf_scene: &GLTFScene, gltf_node: &GLTFNode, cmd: &mut CommandQueue) -> Entity {
+    // Spawn node
+    let parent_entity = cmd.spawn(gltf_node.transform.clone());
+
+    if let Some(mesh_index) = gltf_node.mesh {
+        let gltf_meshes = &gltf_scene.meshes[mesh_index];
+
+        for (mesh, material_index) in gltf_meshes.primitives.iter().zip(&gltf_meshes.materials) {
+            if let Some(material_index) = material_index {
+                let child = cmd.spawn((
+                    gltf_node.transform.clone(),
+                    MeshComponent {
+                        handle: mesh.clone(),
+                    },
+                    MaterialComponent {
+                        handle: gltf_scene.materials[*material_index].clone(),
+                    },
+                ));
+
+                cmd.add_child(parent_entity, child);
+            }
+        }
+    }
+
+    // Spawn children
+    for gltf_child in &gltf_node.children {
+        let child_entity = spawn_gltf_node(gltf_scene, gltf_child, cmd);
+        cmd.add_child(parent_entity, child_entity);
+    }
+
+    parent_entity
 }

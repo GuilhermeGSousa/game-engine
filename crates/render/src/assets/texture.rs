@@ -1,6 +1,6 @@
 use crate::loaders::texture_loader::TextureLoader;
 use essential::assets::{Asset, LoadableAsset};
-use image::GenericImageView;
+use image::{GenericImageView, ImageBuffer};
 use wgpu::TextureUsages;
 use wgpu_types::{Extent3d, TextureDescriptor, TextureFormat, TextureViewDescriptor};
 
@@ -72,29 +72,25 @@ impl Texture {
 
         usage_settings.texture_descriptor.size = extent;
         usage_settings.texture_descriptor.format = TextureFormat::Rgba8UnormSrgb;
+        // match data.format {
+        //     gltf::image::Format::R8 => TextureFormat::R8Sint,
+        //     gltf::image::Format::R8G8 => TextureFormat::Rg8Sint,
+        //     gltf::image::Format::R8G8B8 => TextureFormat::Rgba8Sint, // Is this correct?
+        //     gltf::image::Format::R8G8B8A8 => TextureFormat::Rgba8Sint,
+        //     gltf::image::Format::R16 => TextureFormat::R16Sint,
+        //     gltf::image::Format::R16G16 => TextureFormat::Rg16Sint,
+        //     gltf::image::Format::R16G16B16 => TextureFormat::Rgba16Sint, // Is this correct?
+        //     gltf::image::Format::R16G16B16A16 => TextureFormat::Rgba16Sint,
+        //     gltf::image::Format::R32G32B32FLOAT => TextureFormat::Rgba32Float, // Is this correct?
+        //     gltf::image::Format::R32G32B32A32FLOAT => TextureFormat::Rgba32Float,
+        // };
 
-        let image = match data.format {
-            gltf::image::Format::R8 => image::DynamicImage::ImageLuma8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            gltf::image::Format::R8G8 => image::DynamicImage::ImageLumaA8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            gltf::image::Format::R8G8B8 => image::DynamicImage::ImageRgb8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            gltf::image::Format::R8G8B8A8 => image::DynamicImage::ImageRgba8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            _ => panic!("Image format usupported (for now)"),
-        };
+        let a = image::DynamicImage::ImageRgb8(
+            ImageBuffer::from_vec(data.width, data.height, data.pixels).unwrap(),
+        );
 
         Self {
-            data: image.to_rgba8().into_raw(),
+            data: a.to_rgba8().into_raw(),
             usage_settings: usage_settings,
         }
     }

@@ -16,10 +16,7 @@ use tobj::Model;
 
 use crate::{
     assets::{material::Material, mesh::Mesh, vertex::Vertex},
-    components::{
-        material_component::MaterialComponent, mesh_component::MeshComponent,
-        render_entity::RenderEntity,
-    },
+    components::{material_component::MaterialComponent, mesh_component::MeshComponent},
 };
 
 pub(crate) struct OBJLoader;

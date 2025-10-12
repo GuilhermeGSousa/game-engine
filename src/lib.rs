@@ -27,7 +27,10 @@ use render::{
         mesh_component::MeshComponent,
         skybox::Skybox,
     },
-    loaders::obj_loader::{OBJAsset, OBJSpawnerComponent},
+    loaders::{
+        gltf_loader::{GLTFScene, GLTFSpawnerComponent},
+        obj_loader::{OBJAsset, OBJSpawnerComponent},
+    },
     plugin::RenderPlugin,
 };
 
@@ -49,8 +52,8 @@ pub mod game_ui;
 
 #[allow(dead_code)]
 
-// const MESH_ASSET: &str = "res/sphere.obj";
-// const GLB_ASSET: &str = "res/duck.glb";
+const MESH_ASSET: &str = "res/sphere.obj";
+const GLB_ASSET: &str = "res/duck.glb";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
@@ -215,9 +218,9 @@ fn move_around(
 
 fn spawn_on_button_press(
     cameras: Query<(&Camera, &Transform)>,
-    mut _cmd: CommandQueue,
+    mut cmd: CommandQueue,
     input: Res<Input>,
-    _asset_server: Res<AssetServer>,
+    asset_server: Res<AssetServer>,
 ) {
     let (_, pos) = cameras.iter().next().expect("No camera found");
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
@@ -225,20 +228,18 @@ fn spawn_on_button_press(
     let mut mesh_transform = pos.clone();
     mesh_transform.translation = pos.translation + pos.forward() * 50.0;
     if key_p == InputState::Pressed {
-        // let handle = asset_server.load::<ObjAsset>(MESH_ASSET);
-        // cmd.spawn((
-        //     MeshComponent { handle },
-        //     mesh_transform,
-        //     RenderEntity::new(),
-        // ));
+        cmd.spawn((
+            GLTFSpawnerComponent(asset_server.load::<GLTFScene>(GLB_ASSET)),
+            mesh_transform,
+        ));
     }
 }
 
 fn spawn_with_collider(
     cameras: Query<(&Camera, &GlobalTranform)>,
-    mut _cmd: CommandQueue,
+    mut cmd: CommandQueue,
     input: Res<Input>,
-    _asset_server: Res<AssetServer>,
+    asset_server: Res<AssetServer>,
     mut physics_state: ResMut<PhysicsState>,
 ) {
     let (_, pos) = cameras.iter().next().expect("No camera found");
@@ -246,21 +247,18 @@ fn spawn_with_collider(
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
-        // let spawn_point = pos.translation() + pos.forward() * 10.0;
-        // let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
-        // let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
+        let spawn_point = pos.translation() + pos.forward() * 10.0;
+        let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
+        let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
-        // let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
+        let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
 
-        // cmd.spawn((
-        //     MeshComponent {
-        //         handle: asset_server.load::<ObjAsset>(MESH_ASSET),
-        //     },
-        //     rigid_body,
-        //     collider,
-        //     cube_transform.clone(),
-        //     RenderEntity::new(),
-        // ));
+        cmd.spawn((
+            OBJSpawnerComponent(asset_server.load::<OBJAsset>(MESH_ASSET)),
+            rigid_body,
+            collider,
+            cube_transform.clone(),
+        ));
     }
 }
 

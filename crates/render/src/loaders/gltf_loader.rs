@@ -106,6 +106,18 @@ impl AssetLoader for GLTFLoader {
             });
         }
 
+        // let mut skeletons = Vec::new();
+        // for skin in document.skins() {
+        //     let joints: Vec<usize> = skin.joints().map(|j| j.index()).collect();
+        //     let inverse_bind_matrices = skin
+        //         .reader(|buffer| Some(&buffers[buffer.index()]))
+        //         .read_inverse_bind_matrices()
+        //         .map(|iter| iter.collect())
+        //         .unwrap_or_default();
+
+        //     skeletons.push((joints, inverse_bind_matrices));
+        // }
+
         Ok(GLTFScene {
             nodes,
             meshes,

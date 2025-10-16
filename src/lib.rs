@@ -53,7 +53,8 @@ pub mod game_ui;
 #[allow(dead_code)]
 
 const MESH_ASSET: &str = "res/sphere.obj";
-const GLB_ASSET: &str = "res/duck.glb";
+// const GLB_ASSET: &str = "res/duck.glb";
+const GLB_ASSET: &str = "res/capoeira.glb";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 

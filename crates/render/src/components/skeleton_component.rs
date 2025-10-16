@@ -1,4 +1,9 @@
-use ecs::component::Component;
+use crate::assets::skeleton::Skeleton;
+use ecs::{component::Component, entity::Entity};
+use essential::assets::handle::AssetHandle;
 
 #[derive(Component)]
-pub struct Skeleton {}
+pub struct SkeletonComponent {
+    inverse_bindposes: AssetHandle<Skeleton>,
+    joints: Vec<Entity>,
+}

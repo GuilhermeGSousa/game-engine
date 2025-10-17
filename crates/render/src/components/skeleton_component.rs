@@ -4,6 +4,6 @@ use essential::assets::handle::AssetHandle;
 
 #[derive(Component)]
 pub struct SkeletonComponent {
-    inverse_bindposes: AssetHandle<Skeleton>,
+    skeleton: AssetHandle<Skeleton>,
     joints: Vec<Entity>,
 }

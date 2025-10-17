@@ -6,11 +6,7 @@ use crate::{
         vertex::{Vertex, VertexBufferLayout},
     },
     components::{
-        light::{prepare_lights_buffer, RenderLights},
-        mesh_component::{mesh_added, mesh_changed},
-        render_entity::RenderEntity,
-        skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex},
-        world_environment::WorldEnvironment,
+        camera::{camera_added, camera_changed}, light::{light_added, light_changed, prepare_lights_buffer, RenderLights}, mesh_component::{mesh_added, mesh_changed}, render_entity::RenderEntity, skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex}, world_environment::WorldEnvironment
     },
     device::RenderDevice,
     layouts::{CameraLayouts, LightLayouts, MaterialLayouts},
@@ -29,7 +25,6 @@ use crate::{
     resources::RenderContext,
     systems::{
         render::{self, present_window},
-        sync_entities::{camera_added, camera_changed, light_added, light_changed},
         update_window,
     },
 };

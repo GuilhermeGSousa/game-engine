@@ -6,7 +6,7 @@ use crate::{
         vertex::{Vertex, VertexBufferLayout},
     },
     components::{
-        camera::{camera_added, camera_changed}, light::{light_added, light_changed, prepare_lights_buffer, RenderLights}, mesh_component::{mesh_added, mesh_changed}, render_entity::RenderEntity, skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex}, world_environment::WorldEnvironment
+        camera::{camera_added, camera_changed}, light::{light_added, light_changed, prepare_lights_buffer, RenderLights}, mesh_component::{mesh_added, mesh_changed}, render_entity::RenderEntity, skeleton_component::{skeleton_added, skeleton_changed}, skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex}, world_environment::WorldEnvironment
     },
     device::RenderDevice,
     layouts::{CameraLayouts, LightLayouts, MaterialLayouts},
@@ -16,11 +16,7 @@ use crate::{
     },
     queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial,
-        render_mesh::RenderMesh,
-        render_texture::{DummyRenderTexture, RenderTexture},
-        render_window::RenderWindow,
-        RenderAssetPlugin,
+        render_material::RenderMaterial, render_mesh::RenderMesh, render_skeleton::RenderSkeleton, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow, RenderAssetPlugin
     },
     resources::RenderContext,
     systems::{
@@ -115,7 +111,8 @@ impl Plugin for RenderPlugin {
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
             .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
-            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
+            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new())
+            .register_plugin(RenderAssetPlugin::<RenderSkeleton>::new());
 
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
@@ -129,6 +126,8 @@ impl Plugin for RenderPlugin {
             .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_changed)
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, skeleton_added)
+            .add_system(app::update_group::UpdateGroup::LateUpdate, skeleton_changed)
             .add_system(
                 app::update_group::UpdateGroup::Update,
                 update_window::request_window_resize,

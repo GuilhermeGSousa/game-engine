@@ -1,7 +1,6 @@
 pub mod render_material;
 pub mod render_mesh;
 pub mod render_texture;
-pub mod render_skeleton;
 pub mod render_window;
 
 use std::collections::HashMap;

@@ -2,21 +2,32 @@ use crate::{
     assets::{
         material::Material,
         mesh::Mesh,
+        skeleton::Skeleton,
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
     },
     components::{
-        camera::{camera_added, camera_changed}, light::{light_added, light_changed, prepare_lights_buffer, RenderLights}, mesh_component::{mesh_added, mesh_changed}, render_entity::RenderEntity, skeleton_component::{skeleton_added, skeleton_changed}, skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex}, world_environment::WorldEnvironment
+        camera::{camera_added, camera_changed},
+        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
+        mesh_component::{mesh_added, mesh_changed},
+        render_entity::RenderEntity,
+        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
+        skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex},
+        world_environment::WorldEnvironment,
     },
     device::RenderDevice,
-    layouts::{CameraLayouts, LightLayouts, MaterialLayouts},
+    layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
     loaders::{
         gltf_loader::{spawn_gltf_component, GLTFScene},
         obj_loader::{spawn_obj_component, OBJAsset},
     },
     queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial, render_mesh::RenderMesh, render_skeleton::RenderSkeleton, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow, RenderAssetPlugin
+        render_material::RenderMaterial,
+        render_mesh::RenderMesh,
+        render_texture::{DummyRenderTexture, RenderTexture},
+        render_window::RenderWindow,
+        RenderAssetPlugin,
     },
     resources::RenderContext,
     systems::{
@@ -111,14 +122,14 @@ impl Plugin for RenderPlugin {
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
             .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
-            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new())
-            .register_plugin(RenderAssetPlugin::<RenderSkeleton>::new());
+            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
 
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
             .register_asset::<Material>()
             .register_asset::<OBJAsset>()
-            .register_asset::<GLTFScene>();
+            .register_asset::<GLTFScene>()
+            .register_asset::<Skeleton>();
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)
@@ -127,7 +138,6 @@ impl Plugin for RenderPlugin {
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
             .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
             .add_system(app::update_group::UpdateGroup::LateUpdate, skeleton_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, skeleton_changed)
             .add_system(
                 app::update_group::UpdateGroup::Update,
                 update_window::request_window_resize,
@@ -138,6 +148,7 @@ impl Plugin for RenderPlugin {
                 app::update_group::UpdateGroup::Render,
                 update_window::update_render_window,
             )
+            .add_system(app::update_group::UpdateGroup::Render, update_skeletons)
             .add_system(app::update_group::UpdateGroup::Render, prepare_skybox)
             .add_system(
                 app::update_group::UpdateGroup::Render,
@@ -206,11 +217,13 @@ impl Plugin for RenderPlugin {
         let skybox_shader =
             device.create_shader_module(wgpu::include_wgsl!("shaders\\skybox.wgsl"));
 
-        let camera_layouts = CameraLayouts::new(&device);
+        let camera_layouts = CameraLayout::new(&device);
 
         let material_layouts = MaterialLayouts::new(&device);
 
-        let light_layouts = LightLayouts::new(&device);
+        let light_layout = LightLayout::new(&device);
+
+        let skeleton_layout = SkeletonLayout::new(&device);
 
         let skybox_cube = RenderSkyboxCube::new(&device);
 
@@ -221,7 +234,8 @@ impl Plugin for RenderPlugin {
                 bind_group_layouts: &[
                     &material_layouts.main_material_layout,
                     &camera_layouts.camera_layout,
-                    &light_layouts.lights_layout,
+                    &*light_layout,
+                    &*skeleton_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -317,7 +331,8 @@ impl Plugin for RenderPlugin {
 
         app.register_component_lifecycle::<RenderEntity>();
 
-        let render_lights = RenderLights::new(&device, &light_layouts);
+        let render_lights = RenderLights::new(&device, &light_layout);
+        let empty_skeleton_buffer = EmptySkeletonBuffer::new(&device, &skeleton_layout);
 
         app.insert_resource(DummyRenderTexture::new(&device))
             .insert_resource(RenderContext {
@@ -334,9 +349,11 @@ impl Plugin for RenderPlugin {
             .insert_resource(RenderWindow::new())
             .insert_resource(material_layouts)
             .insert_resource(camera_layouts)
-            .insert_resource(light_layouts)
+            .insert_resource(light_layout)
+            .insert_resource(skeleton_layout)
             .insert_resource(render_lights)
             .insert_resource(skybox_cube)
+            .insert_resource(empty_skeleton_buffer)
             .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
     }
 }

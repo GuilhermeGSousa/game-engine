@@ -1,5 +1,9 @@
 use ecs::{
-    command::CommandQueue, component::Component, entity::Entity, query::{query_filter::Added, Query}, resource::{Res, Resource}
+    command::CommandQueue,
+    component::Component,
+    entity::Entity,
+    query::{query_filter::Added, Query},
+    resource::{Res, Resource},
 };
 
 use encase::{ShaderType, UniformBuffer};
@@ -7,7 +11,7 @@ use essential::transform::GlobalTranform;
 use glam::{Vec3, Vec4};
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
-use crate::{components::render_entity::RenderEntity, layouts::LightLayouts, queue::RenderQueue};
+use crate::{components::render_entity::RenderEntity, layouts::LightLayout, queue::RenderQueue};
 
 const MAX_LIGHTS: usize = 128;
 
@@ -76,7 +80,7 @@ pub(crate) struct RenderLights {
 }
 
 impl RenderLights {
-    pub fn new(device: &wgpu::Device, layouts: &LightLayouts) -> Self {
+    pub fn new(device: &wgpu::Device, layout: &LightLayout) -> Self {
         let lights = LightsUniform {
             lights: [RenderLight::zeroed(); MAX_LIGHTS],
             light_count: 0,
@@ -93,7 +97,7 @@ impl RenderLights {
 
         let lights_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("lights_bind_group"),
-            layout: &layouts.lights_layout,
+            layout: &*layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: lights_buffer.as_entire_binding(),
@@ -133,7 +137,6 @@ pub(crate) fn prepare_lights_buffer(
         },
     );
 }
-
 
 pub(crate) fn light_added(
     lights: Query<(Entity, &Light, &GlobalTranform, Option<&RenderEntity>), Added<Light>>,

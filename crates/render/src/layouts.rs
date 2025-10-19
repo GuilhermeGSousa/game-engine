@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use ecs::resource::Resource;
 use wgpu::BindGroupLayoutDescriptor;
 
@@ -93,11 +95,11 @@ impl MaterialLayouts {
 }
 
 #[derive(Resource)]
-pub(crate) struct CameraLayouts {
+pub(crate) struct CameraLayout {
     pub camera_layout: wgpu::BindGroupLayout,
 }
 
-impl CameraLayouts {
+impl CameraLayout {
     pub fn new(device: &wgpu::Device) -> Self {
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -121,11 +123,9 @@ impl CameraLayouts {
 }
 
 #[derive(Resource)]
-pub(crate) struct LightLayouts {
-    pub lights_layout: wgpu::BindGroupLayout,
-}
+pub(crate) struct LightLayout(wgpu::BindGroupLayout);
 
-impl LightLayouts {
+impl LightLayout {
     pub fn new(device: &wgpu::Device) -> Self {
         let lights_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("lights_bind_group_layout"),
@@ -141,6 +141,45 @@ impl LightLayouts {
             }],
         });
 
-        Self { lights_layout }
+        Self(lights_layout)
+    }
+}
+
+impl Deref for LightLayout {
+    type Target = wgpu::BindGroupLayout;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Resource)]
+pub(crate) struct SkeletonLayout(pub(crate) wgpu::BindGroupLayout);
+
+impl SkeletonLayout {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let skeleton_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("skeleton_bind_group_layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        Self(skeleton_layout)
+    }
+}
+
+impl Deref for SkeletonLayout {
+    type Target = wgpu::BindGroupLayout;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

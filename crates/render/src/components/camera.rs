@@ -1,11 +1,21 @@
 use encase::{ShaderType, UniformBuffer};
 use essential::{assets::handle::AssetHandle, transform::GlobalTranform};
 
-use ecs::{command::CommandQueue, component::Component, entity::Entity, query::{query_filter::Added, Query}, resource::Res};
+use ecs::{
+    command::CommandQueue,
+    component::Component,
+    entity::Entity,
+    query::{query_filter::Added, Query},
+    resource::Res,
+};
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
-use crate::{assets::texture::Texture, components::render_entity::RenderEntity, device::RenderDevice, layouts::CameraLayouts, queue::RenderQueue, render_asset::render_texture::RenderTexture, resources::RenderContext};
+use crate::{
+    assets::texture::Texture, components::render_entity::RenderEntity, device::RenderDevice,
+    layouts::CameraLayout, queue::RenderQueue, render_asset::render_texture::RenderTexture,
+    resources::RenderContext,
+};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(
@@ -113,7 +123,7 @@ pub(crate) fn camera_added(
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
-    camera_layouts: Res<CameraLayouts>,
+    camera_layouts: Res<CameraLayout>,
 ) {
     for (entity, camera, transform, render_entity) in cameras.iter() {
         let mut camera_uniform = CameraUniform::new();

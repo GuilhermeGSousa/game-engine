@@ -29,7 +29,7 @@ struct Lights {
     light_count: i32,
 };
 
-struct Bones {
+struct Skeleton {
     bones: array<mat4x4<f32>, MAX_BONE_COUNT>
 };
 
@@ -119,7 +119,7 @@ var<uniform> camera: CameraUniform;
 var<uniform> lights: Lights;
 
 @group(3) @binding(0)
-var<uniform> bones: Bones;
+var<uniform> bones: Skeleton;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

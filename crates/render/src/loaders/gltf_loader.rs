@@ -312,6 +312,12 @@ pub(crate) fn spawn_gltf_components(
 
                     // TODO: Spawn the rest of the primitives as children
                 }
+
+                if let Some(skeleton_index) = gltf_node.skeleton {
+                    let gltf_skeleton = &asset.skeletons[skeleton_index];
+                    let skeleton_component = SkeletonComponent::new(gltf_skeleton.skeleton.clone(), gltf_skeleton.bones.iter().map(|bone_index| node_entities[*bone_index]).collect::<Vec<_>>());
+                    cmd.insert(skeleton_component, node_entities[node_index]);
+                }
             }
 
             cmd.remove::<GLTFSpawnerComponent>(entity);

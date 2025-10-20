@@ -14,7 +14,7 @@ use ecs::{
 use encase::{ShaderType, UniformBuffer};
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
-    transform::Transform,
+    transform::GlobalTranform,
 };
 use glam::Mat4;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Device};
@@ -77,13 +77,30 @@ pub(crate) fn skeleton_added(
         Added<(SkeletonComponent,)>,
     >,
     skeleton_layout: Res<SkeletonLayout>,
+    skeleton_store: Res<AssetStore<Skeleton>>,
+    transforms: Query<&GlobalTranform>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
     for (entity, skeleton, render_entity) in skeletons.iter() {
+
+
         let mut bone_transforms = [Mat4::IDENTITY; MAX_SKELETON_BONES];
 
-        // Fill bone_transforms
+        
+        if let Some(skeleton_asset) = skeleton_store.get(&skeleton.skeleton).and(bone_transforms.len() <= MAX_SKELETON_BONES)
+        {
+            for (bone_index, (inverse_bindpose, bone_entity)) in skeleton_asset.inverse_bindposes.iter().zip(&skeleton.bones).enumerate()
+            {
+                if let Some(bone_transform) = transforms.get_entity(*bone_entity)
+                {
+                    bone_transforms[bone_index] = bone_transform.matrix() * *inverse_bindpose;
+                }
+                
+            }
+        }
+        
+        // TODO: Fill bone_transforms
 
         let mut buffer = UniformBuffer::new(Vec::new());
 
@@ -124,7 +141,7 @@ pub(crate) fn skeleton_added(
 pub(crate) fn update_skeletons(
     skeletons: Query<(&SkeletonComponent, &RenderEntity)>,
     render_skeletons: Query<&RenderSkeletonComponent>,
-    transforms: Query<&Transform>,
+    transforms: Query<&GlobalTranform>,
     skeleton_assets: Res<AssetStore<Skeleton>>,
     queue: Res<RenderQueue>,
 ) {

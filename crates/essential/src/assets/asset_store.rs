@@ -15,7 +15,7 @@ pub struct AssetStoreEntry<A: Asset> {
 
 #[derive(Resource)]
 pub struct AssetStore<A: Asset + 'static> {
-    pub assets: HashMap<AssetId, AssetStoreEntry<A>>,
+    assets: HashMap<AssetId, AssetStoreEntry<A>>,
     drop_sender: Sender<AssetLifetimeEvent>,
     drop_receiver: Receiver<AssetLifetimeEvent>,
     _marker: std::marker::PhantomData<A>,

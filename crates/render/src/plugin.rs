@@ -18,7 +18,7 @@ use crate::{
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
     loaders::{
-        gltf_loader::{spawn_gltf_component, GLTFScene},
+        gltf_loader::{spawn_gltf_components, GLTFScene},
         obj_loader::{spawn_obj_component, OBJAsset},
     },
     queue::RenderQueue,
@@ -143,7 +143,10 @@ impl Plugin for RenderPlugin {
                 update_window::request_window_resize,
             )
             .add_system(app::update_group::UpdateGroup::Update, spawn_obj_component)
-            .add_system(app::update_group::UpdateGroup::Update, spawn_gltf_component)
+            .add_system(
+                app::update_group::UpdateGroup::Update,
+                spawn_gltf_components,
+            )
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 update_window::update_render_window,

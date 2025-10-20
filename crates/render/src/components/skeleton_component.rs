@@ -24,9 +24,14 @@ const MAX_SKELETON_BONES: usize = 40;
 #[derive(Component)]
 pub struct SkeletonComponent {
     skeleton: AssetHandle<Skeleton>,
-    joints: Vec<Entity>,
+    bones: Vec<Entity>,
 }
 
+impl SkeletonComponent {
+    pub fn new(skeleton: AssetHandle<Skeleton>, bones: Vec<Entity>) -> Self {
+        Self { skeleton, bones }
+    }
+}
 #[derive(Component)]
 pub struct RenderSkeletonComponent {
     pub(crate) bones: wgpu::Buffer,
@@ -76,9 +81,17 @@ pub(crate) fn skeleton_added(
     device: Res<RenderDevice>,
 ) {
     for (entity, skeleton, render_entity) in skeletons.iter() {
+        let mut bone_transforms = [Mat4::IDENTITY; MAX_SKELETON_BONES];
+
+        // Fill bone_transforms
+
+        let mut buffer = UniformBuffer::new(Vec::new());
+
+        buffer.write(&bone_transforms).unwrap();
+
         let bones_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Skeleton Buffer"),
-            contents: todo!(),
+            contents: &buffer.into_inner(),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 

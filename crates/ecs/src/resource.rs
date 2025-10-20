@@ -1,4 +1,3 @@
-use core::fmt;
 use std::{
     any::TypeId,
     ops::{Deref, DerefMut},

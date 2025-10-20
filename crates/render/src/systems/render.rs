@@ -72,7 +72,6 @@ pub(crate) fn main_renderpass(
 
                     if let Some(skeleton) = skeleton {
                         render_pass.set_bind_group(3, &skeleton.skeleton_bind_group, &[]);
-                        // render_pass.set_bind_group(3, bind_group, offsets);
                     } else {
                         render_pass.set_bind_group(3, &**empty_skeleton, &[]);
                     }

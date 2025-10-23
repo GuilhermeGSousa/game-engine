@@ -17,9 +17,10 @@ use essential::{
     transform::GlobalTranform,
 };
 use glam::Mat4;
-use wgpu::{util::DeviceExt, BindGroupDescriptor, Device};
+use wgpu::{util::DeviceExt, BindGroupDescriptor, BufferDescriptor, Device};
 
-const MAX_SKELETON_BONES: usize = 40;
+const MAX_SKELETON_BONES: usize = 256;
+const BONE_SIZE: usize = size_of::<Mat4>();
 
 #[derive(Component)]
 pub struct SkeletonComponent {
@@ -72,44 +73,17 @@ impl Deref for EmptySkeletonBuffer {
 }
 
 pub(crate) fn skeleton_added(
-    skeletons: Query<
-        (Entity, &SkeletonComponent, Option<&RenderEntity>),
-        Added<(SkeletonComponent,)>,
-    >,
+    skeletons: Query<(Entity, Option<&RenderEntity>), Added<(SkeletonComponent,)>>,
     skeleton_layout: Res<SkeletonLayout>,
-    skeleton_store: Res<AssetStore<Skeleton>>,
-    transforms: Query<&GlobalTranform>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
-    for (entity, skeleton, render_entity) in skeletons.iter() {
-
-
-        let mut bone_transforms = [Mat4::IDENTITY; MAX_SKELETON_BONES];
-
-        
-        if let Some(skeleton_asset) = skeleton_store.get(&skeleton.skeleton).and(bone_transforms.len() <= MAX_SKELETON_BONES)
-        {
-            for (bone_index, (inverse_bindpose, bone_entity)) in skeleton_asset.inverse_bindposes.iter().zip(&skeleton.bones).enumerate()
-            {
-                if let Some(bone_transform) = transforms.get_entity(*bone_entity)
-                {
-                    bone_transforms[bone_index] = bone_transform.matrix() * *inverse_bindpose;
-                }
-                
-            }
-        }
-        
-        // TODO: Fill bone_transforms
-
-        let mut buffer = UniformBuffer::new(Vec::new());
-
-        buffer.write(&bone_transforms).unwrap();
-
-        let bones_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    for (entity, render_entity) in skeletons.iter() {
+        let bones_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Skeleton Buffer"),
-            contents: &buffer.into_inner(),
+            size: (MAX_SKELETON_BONES * BONE_SIZE) as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let skeleton_bind_group = device.create_bind_group(&BindGroupDescriptor {
@@ -146,13 +120,32 @@ pub(crate) fn update_skeletons(
     queue: Res<RenderQueue>,
 ) {
     for (skeleton, render_entity) in skeletons.iter() {
-        if let Some(skeleton_asset) = skeleton_assets.get(&skeleton.skeleton) {
-            let render_skeleton = render_skeletons
-                .get_entity(**render_entity)
-                .expect("Could not find render skeleton.");
+        let render_skeleton = render_skeletons.get_entity(**render_entity);
 
-            queue.write_buffer(&render_skeleton.bones, 0, todo!());
-        }
+        match (skeleton_assets.get(&skeleton.skeleton), render_skeleton) {
+            (Some(skeleton_asset), Some(render_skeleton)) => {
+                let mut bone_transforms = [Mat4::IDENTITY; MAX_SKELETON_BONES];
+
+                for (bone_index, (inverse_bindpose, bone_entity)) in skeleton_asset
+                    .inverse_bindposes
+                    .iter()
+                    .zip(&skeleton.bones)
+                    .enumerate()
+                {
+                    let transform = match transforms.get_entity(*bone_entity) {
+                        Some(bone_transform) => bone_transform.matrix() * *inverse_bindpose,
+                        None => Mat4::IDENTITY,
+                    };
+
+                    bone_transforms[bone_index] = transform;
+                }
+
+                let mut buffer = UniformBuffer::new(Vec::new());
+                buffer.write(&bone_transforms).unwrap();
+                queue.write_buffer(&render_skeleton.bones, 0, &buffer.into_inner());
+            }
+            _ => continue,
+        };
     }
 }
 

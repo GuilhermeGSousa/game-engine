@@ -1,14 +1,17 @@
 use ecs::{
+    command::CommandQueue,
     component::Component,
-    query::Query,
+    entity::Entity,
+    query::{query_filter::Added, Query},
     resource::{Res, Resource},
 };
 
 use encase::{ShaderType, UniformBuffer};
+use essential::transform::GlobalTranform;
 use glam::{Vec3, Vec4};
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
-use crate::{layouts::LightLayouts, queue::RenderQueue};
+use crate::{components::render_entity::RenderEntity, layouts::LightLayout, queue::RenderQueue};
 
 const MAX_LIGHTS: usize = 128;
 
@@ -77,7 +80,7 @@ pub(crate) struct RenderLights {
 }
 
 impl RenderLights {
-    pub fn new(device: &wgpu::Device, layouts: &LightLayouts) -> Self {
+    pub fn new(device: &wgpu::Device, layout: &LightLayout) -> Self {
         let lights = LightsUniform {
             lights: [RenderLight::zeroed(); MAX_LIGHTS],
             light_count: 0,
@@ -94,7 +97,7 @@ impl RenderLights {
 
         let lights_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("lights_bind_group"),
-            layout: &layouts.lights_layout,
+            layout: &*layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: lights_buffer.as_entire_binding(),
@@ -133,4 +136,53 @@ pub(crate) fn prepare_lights_buffer(
             light_count: current_index as i32,
         },
     );
+}
+
+pub(crate) fn light_added(
+    lights: Query<(Entity, &Light, &GlobalTranform, Option<&RenderEntity>), Added<Light>>,
+    mut cmd: CommandQueue,
+) {
+    for (entity, light, light_transform, render_entity) in lights.iter() {
+        let local_z = light_transform.rotation() * Vec3::Z;
+        let render_light = RenderLight {
+            translation: light_transform.translation(),
+            color: light.color,
+            intensity: light.intensity,
+            direction: -local_z,
+            light_type: light.light_type.index(),
+            cos_cone_angle: match &light.light_type {
+                LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                _ => 0.0,
+            },
+        };
+        match render_entity {
+            None => {
+                let new_render_entity = cmd.spawn(render_light);
+                cmd.insert(RenderEntity::new(new_render_entity), entity);
+            }
+            Some(render_entity) => {
+                cmd.insert(render_light, **render_entity);
+            }
+        }
+    }
+}
+
+pub(crate) fn light_changed(
+    lights: Query<(&Light, &GlobalTranform, &RenderEntity)>,
+    render_lights: Query<&mut RenderLight>,
+) {
+    for (light, transform, render_entity) in lights.iter() {
+        if let Some(mut render_light) = render_lights.get_entity(**render_entity) {
+            let local_z = transform.rotation() * Vec3::Z;
+            render_light.direction = -local_z;
+            render_light.color = light.color;
+            render_light.translation = transform.translation();
+            render_light.intensity = light.intensity;
+            render_light.light_type = light.light_type.index();
+            render_light.cos_cone_angle = match &light.light_type {
+                LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                _ => 0.0,
+            };
+        }
+    }
 }

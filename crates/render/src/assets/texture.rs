@@ -1,6 +1,6 @@
 use crate::loaders::texture_loader::TextureLoader;
 use essential::assets::{Asset, LoadableAsset};
-use image::{GenericImageView, ImageBuffer};
+use image::{DynamicImage, GenericImageView};
 use wgpu::TextureUsages;
 use wgpu_types::{Extent3d, TextureDescriptor, TextureFormat, TextureViewDescriptor};
 
@@ -61,37 +61,17 @@ impl Texture {
         })
     }
 
-    pub fn from_gltf_data(data: gltf::image::Data) -> Self {
+    pub fn from_dynamic_image(image: DynamicImage) -> Self {
         let mut usage_settings = TextureUsageSettings::default();
 
         let extent = Extent3d {
-            width: data.width,
-            height: data.height,
+            width: image.width(),
+            height: image.height(),
             depth_or_array_layers: 1,
         };
 
         usage_settings.texture_descriptor.size = extent;
         usage_settings.texture_descriptor.format = TextureFormat::Rgba8UnormSrgb;
-
-        let image = match data.format {
-            gltf::image::Format::R8 => image::DynamicImage::ImageLuma8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            gltf::image::Format::R8G8 => image::DynamicImage::ImageLumaA8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            gltf::image::Format::R8G8B8 => image::DynamicImage::ImageRgb8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            gltf::image::Format::R8G8B8A8 => image::DynamicImage::ImageRgba8(
-                ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                    .expect("Out of memory loading image."),
-            ),
-            _ => panic!("Image format usupported (for now)"),
-        };
 
         Self {
             data: image.to_rgba8().into_raw(),

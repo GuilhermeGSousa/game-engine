@@ -24,6 +24,8 @@ ui = { path = "crates/ui" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 physics = { path = "crates/physics" }
+gltf = { path = "crates/gltf" }
+obj = { path = "crates/obj" }
 cfg-if = "1.0.0"
 env_logger = "0.11.8"
 log = "0.4.27"
@@ -44,3 +46,6 @@ web-sys = { version = "0.3.77", features = ["Document", "Window", "Element"] }
 anyhow = "1.0.97"
 fs_extra = "1.3.0"
 glob = "0.3.2"
+
+[profile.dev.package.rapier3d]
+opt-level = 3

@@ -1,0 +1,17 @@
+[package]
+name = "gltf"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+app = { path = "../app" }
+essential = { path = "../essential" }
+ecs = { path = "../ecs" }
+render = { path = "../render" }
+gltf = { version = "1.4.1" }
+async-trait = "0.1.50"
+glam = { version = "0.30.1" }
+
+[dependencies.image]
+version = "0.25.5"
+default-features = true

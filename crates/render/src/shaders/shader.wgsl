@@ -29,7 +29,7 @@ struct Lights {
     light_count: i32,
 };
 
-struct Bones {
+struct Skeleton {
     bones: array<mat4x4<f32>, MAX_BONE_COUNT>
 };
 
@@ -91,7 +91,18 @@ fn vs_main(
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * world_position;
+
+    let total_weight = model.bone_weights.x + model.bone_weights.y + model.bone_weights.z + model.bone_weights.w;
+    if total_weight > 0 {
+        var pose_transform = mat4x4<f32>();
+        for (var i: i32 = 0; i < 4; i = i + 1) {
+            pose_transform += bones.bones[model.bone_indices[i]] * model.bone_weights[i];
+        }
+        out.clip_position = camera.view_proj * pose_transform * world_position;
+    } else {
+        out.clip_position = camera.view_proj * world_position;
+    }
+
     out.tex_coords = model.tex_coords;
     out.world_position = world_position.xyz;
     out.world_normal = normalize(rotation_matrix * model.normal);
@@ -119,7 +130,7 @@ var<uniform> camera: CameraUniform;
 var<uniform> lights: Lights;
 
 @group(3) @binding(0)
-var<uniform> bones: Bones;
+var<uniform> bones: Skeleton;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

@@ -1,8 +1,8 @@
 use bytemuck::{Pod, Zeroable};
-use essential::assets::{handle::AssetHandle, Asset, LoadableAsset};
+use essential::assets::{handle::AssetHandle, Asset};
 
 use super::texture::Texture;
-use crate::loaders::mtl_loader::MTLLoader;
+
 use bitflags::bitflags;
 
 pub struct Material {
@@ -39,17 +39,6 @@ impl Material {
 }
 
 impl Asset for Material {}
-
-impl LoadableAsset for Material {
-    type UsageSettings = ();
-    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
-        Box::new(MTLLoader)
-    }
-
-    fn default_usage_settings() -> Self::UsageSettings {
-        ()
-    }
-}
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]

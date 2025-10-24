@@ -8,6 +8,7 @@ use crate::{
         camera::RenderCamera,
         light::RenderLights,
         mesh_component::RenderMeshInstance,
+        skeleton_component::{EmptySkeletonBuffer, RenderSkeletonComponent},
         skybox::{RenderSkyboxBindGroup, RenderSkyboxCube, SKYBOX_INDICES},
     },
     device::RenderDevice,
@@ -22,12 +23,13 @@ use crate::{
 pub(crate) fn main_renderpass(
     context: Res<RenderContext>,
     mut device: ResMut<RenderDevice>,
-    render_mesh_query: Query<(&RenderMeshInstance,)>,
+    render_mesh_query: Query<(&RenderMeshInstance, Option<&RenderSkeletonComponent>)>,
     render_cameras: Query<&RenderCamera>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
-    render_window: Res<RenderWindow>,
     render_materials: Res<RenderAssets<RenderMaterial>>,
+    render_window: Res<RenderWindow>,
     render_lights: Res<RenderLights>,
+    empty_skeleton: Res<EmptySkeletonBuffer>,
 ) {
     if let Some(view) = render_window.get_view() {
         let encoder = device.command_encoder();
@@ -59,13 +61,19 @@ pub(crate) fn main_renderpass(
             render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
             render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
 
-            for (mesh_instance,) in render_mesh_query.iter() {
+            for (mesh_instance, skeleton) in render_mesh_query.iter() {
                 if let Some(mesh) = render_meshes.get(&mesh_instance.mesh_asset_id) {
                     if let Some(render_mat) = render_materials.get(&mesh_instance.material_asset_id)
                     {
                         render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
                     } else {
                         continue;
+                    }
+
+                    if let Some(skeleton) = skeleton {
+                        render_pass.set_bind_group(3, &skeleton.skeleton_bind_group, &[]);
+                    } else {
+                        render_pass.set_bind_group(3, &**empty_skeleton, &[]);
                     }
 
                     render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));

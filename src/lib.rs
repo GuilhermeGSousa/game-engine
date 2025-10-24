@@ -18,6 +18,14 @@ use ecs::{
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec3, Vec4};
+use gltf::{
+    loader::{GLTFScene, GLTFSpawnerComponent},
+    plugin::GLTFPlugin,
+};
+use obj::{
+    obj_loader::{OBJAsset, OBJSpawnerComponent},
+    plugin::OBJPlugin,
+};
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
     assets::texture::TextureUsageSettings,
@@ -26,10 +34,6 @@ use render::{
         light::{LighType, Light, SpotLight},
         mesh_component::MeshComponent,
         skybox::Skybox,
-    },
-    loaders::{
-        gltf_loader::{GLTFScene, GLTFSpawnerComponent},
-        obj_loader::{OBJAsset, OBJSpawnerComponent},
     },
     plugin::RenderPlugin,
 };
@@ -53,7 +57,8 @@ pub mod game_ui;
 #[allow(dead_code)]
 
 const MESH_ASSET: &str = "res/sphere.obj";
-const GLB_ASSET: &str = "res/duck.glb";
+// const GLB_ASSET: &str = "res/duck.glb";
+const GLB_ASSET: &str = "res/capoeira.glb";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
@@ -78,6 +83,8 @@ pub fn run_game() {
         .register_plugin(TransformPlugin)
         .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
+        .register_plugin(GLTFPlugin)
+        .register_plugin(OBJPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
             app::update_group::UpdateGroup::Update,

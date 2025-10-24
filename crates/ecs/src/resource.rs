@@ -44,7 +44,9 @@ pub struct Res<'world, T: Resource> {
 impl<'world, T: Resource> Res<'world, T> {
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         let world = world.world();
-        let res_storage = world.get_resource_storage::<T>().unwrap();
+        let res_storage = world
+            .get_resource_storage::<T>()
+            .expect(&format!("Could not find resource {}", T::name()));
         Self {
             value: &res_storage.data,
             changed_tick: &res_storage.changed_tick,

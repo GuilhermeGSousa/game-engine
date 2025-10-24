@@ -36,7 +36,6 @@ winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
 [dependencies.image]
 version = "0.25.5"
 default-features = true
-rayon = false
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"

@@ -2,18 +2,35 @@ use std::io::{BufReader, Cursor};
 
 use async_trait::async_trait;
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_to_string, AssetPath,
-    LoadableAsset,
+    Asset, AssetPath, LoadableAsset, asset_loader::AssetLoader, asset_server::AssetLoadContext,
+    handle::AssetHandle, utils::load_to_string,
 };
 
-use crate::assets::{material::Material, texture::Texture};
+use render::assets::{material::Material, texture::Texture};
+
+pub struct MTLMaterial {
+    pub material: AssetHandle<Material>,
+}
+
+impl Asset for MTLMaterial {}
+
+impl LoadableAsset for MTLMaterial {
+    type UsageSettings = ();
+    fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
+        Box::new(MTLLoader)
+    }
+
+    fn default_usage_settings() -> Self::UsageSettings {
+        ()
+    }
+}
 
 pub(crate) struct MTLLoader;
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl AssetLoader for MTLLoader {
-    type Asset = Material;
+    type Asset = MTLMaterial;
 
     async fn load(
         &self,
@@ -41,7 +58,10 @@ impl AssetLoader for MTLLoader {
                         material.set_normal_texture(texture_handle);
                     }
                 }
-                return Ok(material);
+
+                return Ok(MTLMaterial {
+                    material: load_context.asset_server().add(material),
+                });
             }
             Err(_) => {
                 eprintln!("Failed to load MTL file: {}", path.to_path().display());

@@ -6,24 +6,26 @@ use ecs::{
 };
 use essential::{
     assets::{
-        asset_loader::AssetLoader, asset_server::AssetLoadContext, asset_store::AssetStore,
-        handle::AssetHandle, utils::load_to_string, Asset, AssetPath, LoadableAsset,
+        Asset, AssetPath, LoadableAsset, asset_loader::AssetLoader, asset_server::AssetLoadContext,
+        asset_store::AssetStore, handle::AssetHandle, utils::load_to_string,
     },
     transform::Transform,
 };
 use glam::{Quat, Vec2, Vec3};
 use tobj::Model;
 
-use crate::{
-    assets::{material::Material, mesh::Mesh, vertex::Vertex},
+use render::{
+    assets::{mesh::Mesh, vertex::Vertex},
     components::{material_component::MaterialComponent, mesh_component::MeshComponent},
 };
+
+use crate::mtl_loader::MTLMaterial;
 
 pub(crate) struct OBJLoader;
 
 pub struct OBJAsset {
     meshes: Vec<OBJMesh>,
-    materials: Vec<AssetHandle<Material>>,
+    materials: Vec<AssetHandle<MTLMaterial>>,
 }
 
 pub struct OBJMesh {
@@ -68,7 +70,7 @@ impl AssetLoader for OBJLoader {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() > 1 {
                         let mtl_path = path.to_path().parent().unwrap().join(parts[1]);
-                        Some(load_context.asset_server().load::<Material>(mtl_path))
+                        Some(load_context.asset_server().load::<MTLMaterial>(mtl_path))
                     } else {
                         None
                     }
@@ -268,6 +270,7 @@ pub(crate) fn spawn_obj_component(
     mut cmd: CommandQueue,
     objs: Query<(Entity, &OBJSpawnerComponent)>,
     obj_assets: Res<AssetStore<OBJAsset>>,
+    mtl_assets: Res<AssetStore<MTLMaterial>>,
 ) {
     for (entity, component) in objs.iter() {
         if let Some(asset) = obj_assets.get(component) {
@@ -278,7 +281,11 @@ pub(crate) fn spawn_obj_component(
                     },
                     Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
                     MaterialComponent {
-                        handle: asset.materials[mesh.material_index.unwrap_or(0)].clone(),
+                        handle: mtl_assets
+                            .get(&asset.materials[mesh.material_index.unwrap_or(0)])
+                            .unwrap()
+                            .material
+                            .clone(),
                     },
                 ));
 

@@ -4,15 +4,16 @@ use ecs::{
 };
 use essential::{
     assets::{
-        asset_loader::AssetLoader, asset_server::AssetServer, asset_store::AssetStore,
-        handle::AssetHandle, Asset, LoadableAsset,
+        Asset, LoadableAsset, asset_loader::AssetLoader, asset_server::AssetServer,
+        asset_store::AssetStore, handle::AssetHandle,
     },
     transform::Transform,
 };
 use glam::Mat4;
-use gltf::{buffer::Data, Node, Primitive};
+use gltf::{Node, Primitive, buffer::Data};
 
-use crate::{
+use image::ImageBuffer;
+use render::{
     assets::{
         material::Material, mesh::Mesh, skeleton::Skeleton, texture::Texture, vertex::Vertex,
     },
@@ -80,8 +81,27 @@ impl AssetLoader for GLTFLoader {
             .collect();
 
         let mut textures = Vec::new();
-        for image in images {
-            let texture = Texture::from_gltf_data(image);
+        for data in images {
+            let image = match data.format {
+                gltf::image::Format::R8 => image::DynamicImage::ImageLuma8(
+                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                        .expect("Out of memory loading image."),
+                ),
+                gltf::image::Format::R8G8 => image::DynamicImage::ImageLumaA8(
+                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                        .expect("Out of memory loading image."),
+                ),
+                gltf::image::Format::R8G8B8 => image::DynamicImage::ImageRgb8(
+                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                        .expect("Out of memory loading image."),
+                ),
+                gltf::image::Format::R8G8B8A8 => image::DynamicImage::ImageRgba8(
+                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
+                        .expect("Out of memory loading image."),
+                ),
+                _ => panic!("Image format usupported (for now)"),
+            };
+            let texture = Texture::from_dynamic_image(image);
             textures.push(load_context.asset_server().add(texture));
         }
 

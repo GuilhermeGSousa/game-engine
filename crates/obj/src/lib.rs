@@ -1,6 +1,6 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+pub mod mtl_loader;
+pub mod obj_loader;
+pub mod plugin;
 
 #[cfg(test)]
 mod tests {

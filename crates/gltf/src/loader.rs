@@ -156,6 +156,8 @@ impl AssetLoader for GLTFLoader {
             }
         }
 
+        // TODO: Load animations
+
         Ok(GLTFScene {
             nodes,
             meshes,

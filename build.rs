@@ -18,11 +18,6 @@ fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=res/*");
 
     let output_path = get_output_path();
-    println!(
-        "cargo:warning=Calculated build path: {}",
-        output_path.to_str().unwrap()
-    );
-
     let input_path = Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("res");
     let output_path = Path::new(&output_path);
     //let res = std::fs::copy(input_path, output_path);

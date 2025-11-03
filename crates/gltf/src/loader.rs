@@ -1,3 +1,4 @@
+use animation::clip::{AnimationChannel, AnimationClip};
 use async_trait::async_trait;
 use ecs::{
     command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
@@ -29,6 +30,7 @@ pub struct GLTFScene {
     pub(crate) materials: Vec<AssetHandle<Material>>,
     pub(crate) nodes: Vec<GLTFNode>,
     pub(crate) skeletons: Vec<GLTFSkeleton>,
+    pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
 }
 
 impl Asset for GLTFScene {}
@@ -156,13 +158,42 @@ impl AssetLoader for GLTFLoader {
             }
         }
 
-        // TODO: Load animations
+        let mut animation_clips = Vec::new();
+        for animation in document.animations() {
+            let mut animation_clip = AnimationClip::default();
+
+            for channel in animation.channels() {
+                let animation_channel = AnimationChannel::default();
+
+                let target = channel.target();
+                let target_node = target.node().index();
+                let target_property = target.property();
+                let channel_reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
+
+                let time_samples = channel_reader
+                    .read_inputs()
+                    .map(|inputs| inputs.collect::<Vec<_>>());
+
+                let time_samples = channel_reader.read_outputs().map(|outputs| match outputs {
+                    gltf::animation::util::ReadOutputs::Translations(iter) => todo!(),
+                    gltf::animation::util::ReadOutputs::Rotations(rotations) => todo!(),
+                    gltf::animation::util::ReadOutputs::Scales(iter) => todo!(),
+                    gltf::animation::util::ReadOutputs::MorphTargetWeights(
+                        morph_target_weights,
+                    ) => todo!(),
+                });
+
+                animation_clip.add_channel(animation_channel);
+            }
+            animation_clips.push(load_context.asset_server().add(animation_clip));
+        }
 
         Ok(GLTFScene {
             nodes,
             meshes,
             materials,
             skeletons,
+            animations: animation_clips,
         })
     }
 }

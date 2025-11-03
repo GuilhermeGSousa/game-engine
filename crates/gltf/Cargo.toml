@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 app = { path = "../app" }
+animation = { path = "../animation" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 render = { path = "../render" }

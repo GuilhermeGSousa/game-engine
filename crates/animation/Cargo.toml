@@ -8,3 +8,4 @@ app = { path = "../app" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 glam = { version = "0.30.1" }
+uuid = { version = "1.18.1", features = ["v4"] }

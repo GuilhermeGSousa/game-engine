@@ -12,6 +12,8 @@ render = { path = "../render" }
 gltf = { version = "1.4.1" }
 async-trait = "0.1.50"
 glam = { version = "0.30.1" }
+log = "0.4.27"
+uuid = { version = "1.18.1", features = ["v4"] }
 
 [dependencies.image]
 version = "0.25.5"

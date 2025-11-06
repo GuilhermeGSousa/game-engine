@@ -34,6 +34,7 @@ impl Default for TextureUsageSettings {
     }
 }
 
+#[derive(Asset)]
 pub struct Texture {
     data: Vec<u8>,
     usage_settings: TextureUsageSettings,
@@ -91,8 +92,6 @@ impl Texture {
         &self.usage_settings
     }
 }
-
-impl Asset for Texture {}
 
 impl LoadableAsset for Texture {
     type UsageSettings = TextureUsageSettings;

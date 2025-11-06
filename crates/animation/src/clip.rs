@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Keys};
 
 use essential::assets::Asset;
 use glam::{Quat, Vec3};
@@ -56,7 +56,11 @@ pub struct AnimationClip {
     channels: HashMap<Uuid, AnimationChannel>,
 }
 
-impl Asset for AnimationClip {}
+impl Asset for AnimationClip {
+    fn name() -> &'static str {
+        "AnimationClip"
+    }
+}
 
 impl Default for AnimationClip {
     fn default() -> Self {
@@ -69,5 +73,9 @@ impl Default for AnimationClip {
 impl AnimationClip {
     pub fn add_channel(&mut self, id: Uuid, channel: AnimationChannel) {
         self.channels.insert(id, channel);
+    }
+
+    pub fn target_ids(&self) -> Keys<'_, Uuid, AnimationChannel> {
+        self.channels.keys()
     }
 }

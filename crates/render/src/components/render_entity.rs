@@ -8,8 +8,7 @@ use ecs::{
 pub struct RenderEntity(Entity);
 
 impl RenderEntity {
-    pub fn new(entity: Entity) -> Self
-    {
+    pub fn new(entity: Entity) -> Self {
         Self(entity)
     }
 }
@@ -22,8 +21,8 @@ impl Deref for RenderEntity {
     }
 }
 impl Component for RenderEntity {
-    fn name() -> String {
-        String::from("RenderEntity")
+    fn name() -> &'static str {
+        "RenderEntity"
     }
 
     fn on_remove() -> Option<ComponentLifecycleCallback> {

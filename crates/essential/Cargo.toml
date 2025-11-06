@@ -21,6 +21,7 @@ futures-lite = "2.0.1"
 anyhow = "1.0.97"
 log = "0.4.27"
 uuid = { version = "1.18.1", features = ["v4"] }
+essential-macros = { path = "macros" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # Other dependencies

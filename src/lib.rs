@@ -1,5 +1,6 @@
 use std::f32::consts::PI;
 
+use animation::plugin::AnimationPlugin;
 use essential::{
     assets::asset_server::AssetServer,
     time::Time,
@@ -83,6 +84,7 @@ pub fn run_game() {
         .register_plugin(TransformPlugin)
         .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
+        .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)

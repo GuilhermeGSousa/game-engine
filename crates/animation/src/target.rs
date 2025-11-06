@@ -3,6 +3,6 @@ use uuid::Uuid;
 
 #[derive(Component)]
 pub struct AnimationTarget {
-    id: Uuid,
-    animator: Entity,
+    pub id: Uuid,
+    pub animator: Entity,
 }

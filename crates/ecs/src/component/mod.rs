@@ -17,8 +17,8 @@ pub struct ComponentLifecycleContext {
     pub entity: Entity,
 }
 
-pub trait Component: 'static + Sized {
-    fn name() -> String;
+pub trait Component: 'static {
+    fn name() -> &'static str;
 
     fn on_add() -> Option<ComponentLifecycleCallback> {
         None

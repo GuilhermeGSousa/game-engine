@@ -5,6 +5,7 @@ use super::texture::Texture;
 
 use bitflags::bitflags;
 
+#[derive(Asset)]
 pub struct Material {
     diffuse_texture: Option<AssetHandle<Texture>>,
     normal_texture: Option<AssetHandle<Texture>>,
@@ -37,8 +38,6 @@ impl Material {
         self.normal_texture.as_ref()
     }
 }
-
-impl Asset for Material {}
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]

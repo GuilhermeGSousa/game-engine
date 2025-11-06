@@ -8,11 +8,10 @@ use essential::assets::{
 
 use render::assets::{material::Material, texture::Texture};
 
+#[derive(Asset)]
 pub struct MTLMaterial {
     pub material: AssetHandle<Material>,
 }
-
-impl Asset for MTLMaterial {}
 
 impl LoadableAsset for MTLMaterial {
     type UsageSettings = ();

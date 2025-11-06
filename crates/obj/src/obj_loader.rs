@@ -23,17 +23,17 @@ use crate::mtl_loader::MTLMaterial;
 
 pub(crate) struct OBJLoader;
 
+#[derive(Asset)]
 pub struct OBJAsset {
     meshes: Vec<OBJMesh>,
     materials: Vec<AssetHandle<MTLMaterial>>,
 }
 
+#[derive(Asset)]
 pub struct OBJMesh {
     pub handle: AssetHandle<Mesh>,
     pub material_index: Option<usize>,
 }
-
-impl Asset for OBJAsset {}
 
 impl LoadableAsset for OBJAsset {
     type UsageSettings = ();

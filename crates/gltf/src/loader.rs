@@ -4,7 +4,11 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use animation::clip::{AnimationChanelOutput, AnimationChannel, AnimationClip};
+use animation::{
+    clip::{AnimationChanelOutput, AnimationChannel, AnimationClip},
+    player::AnimationPlayer,
+    target::AnimationTarget,
+};
 use async_trait::async_trait;
 use ecs::{
     command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
@@ -34,15 +38,16 @@ use uuid::Uuid;
 
 pub(crate) struct GLTFLoader;
 
+#[derive(Asset)]
 pub struct GLTFScene {
     pub(crate) meshes: Vec<GLTFMesh>,
     pub(crate) materials: Vec<AssetHandle<Material>>,
     pub(crate) nodes: Vec<GLTFNode>,
     pub(crate) skeletons: Vec<GLTFSkeleton>,
     pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
+    pub(crate) target_id_to_node_idx: HashMap<Uuid, GLTFAnimationTargetInfo>,
+    pub(crate) animation_roots: HashSet<usize>,
 }
-
-impl Asset for GLTFScene {}
 
 pub struct GLTFMesh {
     pub(crate) primitives: Vec<AssetHandle<Mesh>>,
@@ -59,6 +64,16 @@ pub struct GLTFNode {
 pub struct GLTFSkeleton {
     pub(crate) bones: Vec<usize>,
     pub(crate) skeleton: AssetHandle<Skeleton>,
+}
+
+pub(crate) struct GLTFNodePathInfo {
+    pub(crate) root_node: usize,
+    pub(crate) node_path: Vec<Cow<'static, str>>,
+}
+
+pub(crate) struct GLTFAnimationTargetInfo {
+    pub(crate) node_index: usize,
+    pub(crate) root_index: usize,
 }
 
 impl LoadableAsset for GLTFScene {
@@ -170,10 +185,19 @@ impl AssetLoader for GLTFLoader {
         let mut node_paths = HashMap::new();
         for scene in document.scenes() {
             for root_node in scene.nodes() {
-                collect_paths(&root_node, &[], &mut node_paths, &mut HashSet::new());
+                let root_index = root_node.index();
+                collect_paths(
+                    &root_node,
+                    &[],
+                    &root_index,
+                    &mut node_paths,
+                    &mut HashSet::new(),
+                );
             }
         }
 
+        let mut target_id_to_node_idx = HashMap::new();
+        let mut animation_roots = HashSet::new();
         let mut animation_clips = Vec::new();
         for animation in document.animations() {
             let mut animation_clip = AnimationClip::default();
@@ -194,10 +218,10 @@ impl AssetLoader for GLTFLoader {
                         .map(AnimationChanelOutput::from_translation)
                         .collect::<Vec<_>>(),
                     gltf::animation::util::ReadOutputs::Rotations(rotations) => match rotations {
-                        gltf::animation::util::Rotations::I8(iter) => todo!(),
-                        gltf::animation::util::Rotations::U8(iter) => todo!(),
-                        gltf::animation::util::Rotations::I16(iter) => todo!(),
-                        gltf::animation::util::Rotations::U16(iter) => todo!(),
+                        gltf::animation::util::Rotations::I8(_) => todo!(),
+                        gltf::animation::util::Rotations::U8(_) => todo!(),
+                        gltf::animation::util::Rotations::I16(_) => todo!(),
+                        gltf::animation::util::Rotations::U16(_) => todo!(),
                         gltf::animation::util::Rotations::F32(iter) => iter
                             .map(AnimationChanelOutput::from_rotation)
                             .collect::<Vec<_>>(),
@@ -213,8 +237,17 @@ impl AssetLoader for GLTFLoader {
                 }
 
                 // Generate an id
-                if let Some(node_paths) = node_paths.get(&target_node_idx) {
-                    animation_clip.add_channel(paths_to_uuid(node_paths), animation_channel);
+                if let Some(node_path_info) = node_paths.get(&target_node_idx) {
+                    let target_id = paths_to_uuid(&node_path_info.node_path);
+                    target_id_to_node_idx.insert(
+                        target_id.clone(),
+                        GLTFAnimationTargetInfo {
+                            node_index: target_node_idx,
+                            root_index: node_path_info.root_node,
+                        },
+                    );
+                    animation_roots.insert(node_path_info.root_node);
+                    animation_clip.add_channel(target_id, animation_channel);
                 } else {
                     warn!("Missing an node name for node {}.", target_node_idx);
                 }
@@ -228,6 +261,8 @@ impl AssetLoader for GLTFLoader {
             materials,
             skeletons,
             animations: animation_clips,
+            target_id_to_node_idx,
+            animation_roots,
         })
     }
 }
@@ -353,6 +388,7 @@ pub(crate) fn spawn_gltf_components(
     mut cmd: CommandQueue,
     gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
+    animation_assets: Res<AssetStore<AnimationClip>>,
 ) {
     for (entity, component) in gltf_components.iter() {
         if let Some(asset) = gltf_assets.get(component) {
@@ -371,7 +407,7 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
 
-            // Insert MeshComponents
+            // Insert MeshComponents and AnimationPlayers
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
                 if let Some(gltf_mesh_index) = gltf_node.mesh {
                     let gltf_mesh = &asset.meshes[gltf_mesh_index];
@@ -410,6 +446,30 @@ pub(crate) fn spawn_gltf_components(
                             .collect::<Vec<_>>(),
                     );
                     cmd.insert(skeleton_component, node_entities[node_index]);
+
+                    if asset.animation_roots.contains(&node_index) {
+                        cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
+                    }
+                }
+            }
+
+            // Insert animation target components
+            for animation_clip in asset
+                .animations
+                .iter()
+                .map(|handle| animation_assets.get(handle))
+                .filter_map(|value| value)
+            {
+                for target_id in animation_clip.target_ids() {
+                    if let Some(node_info) = asset.target_id_to_node_idx.get(&*target_id) {
+                        let target_component = AnimationTarget {
+                            id: target_id.clone(),
+                            animator: node_entities[node_info.root_index],
+                        };
+
+                        let target_entity = node_entities[node_info.node_index];
+                        cmd.insert(target_component, target_entity);
+                    }
                 }
             }
 
@@ -421,7 +481,8 @@ pub(crate) fn spawn_gltf_components(
 pub(crate) fn collect_paths(
     node: &Node,
     current_path: &[Cow<'static, str>],
-    paths: &mut HashMap<usize, Vec<Cow<'static, str>>>,
+    root_index: &usize,
+    paths: &mut HashMap<usize, GLTFNodePathInfo>,
     visited: &mut HashSet<usize>,
 ) {
     let mut path = current_path.to_owned();
@@ -435,10 +496,16 @@ pub(crate) fn collect_paths(
     visited.insert(node.index());
     for child in node.children() {
         if !visited.contains(&child.index()) {
-            collect_paths(&child, &path, paths, visited);
+            collect_paths(&child, &path, &root_index, paths, visited);
         }
     }
-    paths.insert(node.index(), path);
+    paths.insert(
+        node.index(),
+        GLTFNodePathInfo {
+            root_node: *root_index,
+            node_path: path,
+        },
+    );
 }
 
 pub(crate) fn paths_to_uuid(paths: &[Cow<'static, str>]) -> Uuid {

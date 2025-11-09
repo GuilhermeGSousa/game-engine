@@ -52,14 +52,9 @@ impl AnimationChannel {
     }
 }
 
+#[derive(Asset)]
 pub struct AnimationClip {
     channels: HashMap<Uuid, AnimationChannel>,
-}
-
-impl Asset for AnimationClip {
-    fn name() -> &'static str {
-        "AnimationClip"
-    }
 }
 
 impl Default for AnimationClip {
@@ -77,5 +72,9 @@ impl AnimationClip {
 
     pub fn target_ids(&self) -> Keys<'_, Uuid, AnimationChannel> {
         self.channels.keys()
+    }
+
+    pub fn get_channel(&self, id: &Uuid) -> Option<&AnimationChannel> {
+        self.channels.get(id)
     }
 }

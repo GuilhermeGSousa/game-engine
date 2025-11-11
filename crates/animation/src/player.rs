@@ -7,11 +7,25 @@ use crate::clip::AnimationClip;
 
 pub struct ActiveAnimation {
     time: f32,
+    duration: f32,
 }
 
 impl Default for ActiveAnimation {
     fn default() -> Self {
-        Self { time: 0.0 }
+        Self {
+            time: 0.0,
+            duration: 0.0,
+        }
+    }
+}
+
+impl ActiveAnimation {
+    pub fn update(&mut self, delta_time: f32) {
+        self.time += delta_time;
+
+        if self.time > self.duration {
+            self.time = 0.0;
+        }
     }
 }
 
@@ -20,7 +34,20 @@ pub struct AnimationPlayer {
     active_animation: ActiveAnimation,
 }
 
-impl AnimationPlayer {}
+impl AnimationPlayer {
+    pub fn update(&mut self, delta_time: f32) {
+        self.active_animation.update(delta_time);
+    }
+
+    pub fn current_time(&self) -> f32 {
+        self.active_animation.time
+    }
+
+    pub fn play(&mut self, clip: &AnimationClip) {
+        self.active_animation.duration = clip.duration();
+        self.active_animation.time = 0.0;
+    }
+}
 
 #[derive(Component)]
 pub struct AnimationHandleComponent {

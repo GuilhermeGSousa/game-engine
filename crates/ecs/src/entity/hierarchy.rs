@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::{component::Component, entity::Entity};
 
 #[derive(Component)]
@@ -43,5 +45,13 @@ pub struct ChildOf {
 impl ChildOf {
     pub fn new(parent: Entity) -> Self {
         Self { parent }
+    }
+}
+
+impl Deref for ChildOf {
+    type Target = Entity;
+
+    fn deref(&self) -> &Self::Target {
+        &self.parent
     }
 }

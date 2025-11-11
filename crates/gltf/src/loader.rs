@@ -11,7 +11,11 @@ use animation::{
 };
 use async_trait::async_trait;
 use ecs::{
-    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
+    command::CommandQueue,
+    component::Component,
+    entity::Entity,
+    query::{Query, query_filter::Without},
+    resource::Res,
 };
 use essential::{
     assets::{
@@ -47,6 +51,12 @@ pub struct GLTFScene {
     pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
     pub(crate) target_id_to_node_idx: HashMap<Uuid, GLTFAnimationTargetInfo>,
     pub(crate) animation_roots: HashSet<usize>,
+}
+
+impl GLTFScene {
+    pub fn animations(&self) -> &Vec<AssetHandle<AnimationClip>> {
+        &self.animations
+    }
 }
 
 pub struct GLTFMesh {
@@ -203,7 +213,7 @@ impl AssetLoader for GLTFLoader {
             let mut animation_clip = AnimationClip::default();
 
             for channel in animation.channels() {
-                let mut animation_channel = AnimationChannel::default();
+                // let mut animation_channel = AnimationChannel::default();
 
                 let target = channel.target();
                 let target_node_idx = target.node().index();
@@ -214,27 +224,31 @@ impl AssetLoader for GLTFLoader {
                     .map(|inputs| inputs.collect::<Vec<_>>());
 
                 let output_samples = channel_reader.read_outputs().map(|outputs| match outputs {
-                    gltf::animation::util::ReadOutputs::Translations(iter) => iter
-                        .map(AnimationChanelOutput::from_translation)
-                        .collect::<Vec<_>>(),
+                    gltf::animation::util::ReadOutputs::Translations(iter) => {
+                        AnimationChanelOutput::from_translation(iter)
+                    }
                     gltf::animation::util::ReadOutputs::Rotations(rotations) => match rotations {
                         gltf::animation::util::Rotations::I8(_) => todo!(),
                         gltf::animation::util::Rotations::U8(_) => todo!(),
                         gltf::animation::util::Rotations::I16(_) => todo!(),
                         gltf::animation::util::Rotations::U16(_) => todo!(),
-                        gltf::animation::util::Rotations::F32(iter) => iter
-                            .map(AnimationChanelOutput::from_rotation)
-                            .collect::<Vec<_>>(),
+                        gltf::animation::util::Rotations::F32(iter) => {
+                            AnimationChanelOutput::from_rotation(iter)
+                        }
                     },
-                    gltf::animation::util::ReadOutputs::Scales(iter) => iter
-                        .map(AnimationChanelOutput::from_scale)
-                        .collect::<Vec<_>>(),
+                    gltf::animation::util::ReadOutputs::Scales(iter) => {
+                        AnimationChanelOutput::from_scale(iter)
+                    }
                     gltf::animation::util::ReadOutputs::MorphTargetWeights(_) => todo!(),
                 });
 
-                if let Some((time, output)) = time_samples.zip(output_samples).filter(|_| true) {
-                    animation_channel.set_data(time, output);
-                }
+                let Some((time_samples, outputs)) =
+                    time_samples.zip(output_samples).filter(|_| true)
+                else {
+                    continue;
+                };
+
+                let animation_channel = AnimationChannel::new(time_samples, outputs);
 
                 // Generate an id
                 if let Some(node_path_info) = node_paths.get(&target_node_idx) {
@@ -376,6 +390,21 @@ impl GLTFLoader {
 #[derive(Component)]
 pub struct GLTFSpawnerComponent(pub AssetHandle<GLTFScene>);
 
+#[derive(Component)]
+pub struct GLTFSpawnedMarker {
+    animation_roots: Vec<Entity>,
+}
+
+impl GLTFSpawnedMarker {
+    pub fn new(animation_roots: Vec<Entity>) -> Self {
+        Self { animation_roots }
+    }
+
+    pub fn animation_roots(&self) -> &Vec<Entity> {
+        &self.animation_roots
+    }
+}
+
 impl std::ops::Deref for GLTFSpawnerComponent {
     type Target = AssetHandle<GLTFScene>;
 
@@ -386,7 +415,7 @@ impl std::ops::Deref for GLTFSpawnerComponent {
 
 pub(crate) fn spawn_gltf_components(
     mut cmd: CommandQueue,
-    gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
+    gltf_components: Query<(Entity, &GLTFSpawnerComponent), Without<GLTFSpawnedMarker>>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
     animation_assets: Res<AssetStore<AnimationClip>>,
 ) {
@@ -446,10 +475,10 @@ pub(crate) fn spawn_gltf_components(
                             .collect::<Vec<_>>(),
                     );
                     cmd.insert(skeleton_component, node_entities[node_index]);
+                }
 
-                    if asset.animation_roots.contains(&node_index) {
-                        cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
-                    }
+                if asset.animation_roots.contains(&node_index) {
+                    cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
                 }
             }
 
@@ -473,7 +502,17 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
 
-            cmd.remove::<GLTFSpawnerComponent>(entity);
+            cmd.insert(
+                GLTFSpawnedMarker::new(
+                    asset
+                        .animation_roots
+                        .iter()
+                        .map(|node_index| node_entities[*node_index])
+                        .collect(),
+                ),
+                entity,
+            );
+            // cmd.remove::<GLTFSpawnerComponent>(entity);
         }
     }
 }

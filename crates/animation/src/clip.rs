@@ -46,24 +46,44 @@ impl AnimationChannel {
     }
 
     pub fn interpolate(&self, current_time: f32, transform: &mut Transform) {
-        if self.time_samples.is_empty() {
+        if self.time_samples.len() < 2 {
             return;
         }
 
-        let Ok(from_index) = self
+        match self
             .time_samples
             .binary_search_by(|val| val.total_cmp(&current_time))
-        else {
-            return;
-        };
+        {
+            Ok(_index) => {
+                //
+            }
+            Err(index) => {
+                if index == 0 {
+                    //
+                } else if index == self.time_samples.len() {
+                    //
+                } else {
+                    let after_time = self.time_samples[index];
+                    let before_time = self.time_samples[index - 1];
 
-        let Some(after_time) = self.time_samples.get(from_index + 1) else {
-            return;
-        };
+                    let normalized_time = current_time / (after_time - before_time);
 
-        let before_time = self.time_samples[from_index];
+                    self.interpolate_internal(transform, index - 1, normalized_time);
+                }
+            }
+        }
+    }
 
-        let normalized_time = current_time / (after_time - before_time);
+    pub fn duration(&self) -> Option<f32> {
+        self.time_samples.last().copied()
+    }
+
+    fn interpolate_internal(
+        &self,
+        transform: &mut Transform,
+        from_index: usize,
+        normalized_time: f32,
+    ) {
         match &self.outputs {
             AnimationChanelOutput::Translation(pos) => {
                 let before_pos = pos[from_index];
@@ -84,10 +104,6 @@ impl AnimationChannel {
                 transform.scale = before_scl.lerp(after_scl, normalized_time);
             }
         }
-    }
-
-    pub fn duration(&self) -> Option<f32> {
-        self.time_samples.last().copied()
     }
 }
 

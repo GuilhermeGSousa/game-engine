@@ -65,6 +65,9 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     }
 
     pub fn get_entity(&self, entity: Entity) -> Option<T::Item<'world>> {
+        if !F::filter(self.world, entity) {
+            return None;
+        }
         T::fetch(self.world, entity)
     }
 

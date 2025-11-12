@@ -18,7 +18,7 @@ use app::{
 use ecs::{
     command::CommandQueue,
     component::Component,
-    entity::{hierarchy::ChildOf, Entity},
+    entity::Entity,
     query::{
         query_filter::{With, Without},
         Query,
@@ -253,7 +253,7 @@ fn spawn_on_button_press(
 }
 
 fn setup_animations(
-    animation_roots: Query<(Entity, &mut AnimationPlayer)>,
+    animation_roots: Query<(Entity, &mut AnimationPlayer), Without<AnimationHandleComponent>>,
     gltf_comps: Query<(&GLTFSpawnerComponent, &GLTFSpawnedMarker)>,
     gltf_scenes: Res<AssetStore<GLTFScene>>,
     animation_clips: Res<AssetStore<AnimationClip>>,

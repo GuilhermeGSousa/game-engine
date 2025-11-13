@@ -213,9 +213,8 @@ impl AssetLoader for GLTFLoader {
             let mut animation_clip = AnimationClip::default();
 
             for channel in animation.channels() {
-                // let mut animation_channel = AnimationChannel::default();
-
                 let target = channel.target();
+
                 let target_node_idx = target.node().index();
                 let channel_reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
 
@@ -247,6 +246,14 @@ impl AssetLoader for GLTFLoader {
                 else {
                     continue;
                 };
+
+                if time_samples.is_empty() {
+                    warn!(
+                        "No time samples found for animation channel of index {}",
+                        channel.index()
+                    );
+                    continue;
+                }
 
                 let animation_channel = AnimationChannel::new(time_samples, outputs);
 

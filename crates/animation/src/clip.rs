@@ -54,21 +54,21 @@ impl AnimationChannel {
             .time_samples
             .binary_search_by(|val| val.total_cmp(&current_time))
         {
-            Ok(_index) => {
-                //
+            Ok(index) => {
+                self.set_transform_at(transform, index);
             }
             Err(index) => {
                 if index == 0 {
-                    //
-                } else if index == self.time_samples.len() {
-                    //
+                    self.set_transform_at(transform, index);
+                } else if index >= self.time_samples.len() {
+                    self.set_transform_at(transform, self.time_samples.len() - 1);
                 } else {
                     let after_time = self.time_samples[index];
                     let before_time = self.time_samples[index - 1];
 
-                    let normalized_time = current_time / (after_time - before_time);
+                    let normalized_time = (current_time - before_time) / (after_time - before_time);
 
-                    self.interpolate_internal(transform, index - 1, normalized_time);
+                    self.interpolate_between(transform, index - 1, normalized_time);
                 }
             }
         }
@@ -78,7 +78,7 @@ impl AnimationChannel {
         self.time_samples.last().copied()
     }
 
-    fn interpolate_internal(
+    fn interpolate_between(
         &self,
         transform: &mut Transform,
         from_index: usize,
@@ -102,6 +102,20 @@ impl AnimationChannel {
                 let after_scl = scl[from_index + 1];
 
                 transform.scale = before_scl.lerp(after_scl, normalized_time);
+            }
+        }
+    }
+
+    fn set_transform_at(&self, transform: &mut Transform, index: usize) {
+        match &self.outputs {
+            AnimationChanelOutput::Translation(pos) => {
+                transform.translation = pos[index];
+            }
+            AnimationChanelOutput::Rotation(rots) => {
+                transform.rotation = rots[index];
+            }
+            AnimationChanelOutput::Scale(scl) => {
+                transform.scale = scl[index];
             }
         }
     }

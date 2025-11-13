@@ -14,13 +14,12 @@ pub struct AnimationTarget {
 }
 
 pub(crate) fn animate_targets(
-    animation_players: Query<(&mut AnimationPlayer, &AnimationHandleComponent)>,
+    animation_players: Query<(&AnimationPlayer, &AnimationHandleComponent)>,
     animation_targets: Query<(&mut Transform, &AnimationTarget)>,
     animation_clips: Res<AssetStore<AnimationClip>>,
-    time: Res<Time>,
 ) {
     for (mut target_transform, animation_target) in animation_targets.iter() {
-        let Some((mut animation_player, animation_handle)) =
+        let Some((animation_player, animation_handle)) =
             animation_players.get_entity(animation_target.animator)
         else {
             continue;
@@ -39,8 +38,14 @@ pub(crate) fn animate_targets(
         for animation_channel in animation_channels {
             animation_channel.interpolate(animation_player.current_time(), &mut target_transform);
         }
+    }
+}
 
-        // Update animation player
+pub(crate) fn update_animation_players(
+    animation_players: Query<&mut AnimationPlayer>,
+    time: Res<Time>,
+) {
+    for mut animation_player in animation_players.iter() {
         animation_player.update(time.delta().as_secs_f32());
     }
 }

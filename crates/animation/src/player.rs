@@ -8,6 +8,8 @@ use crate::clip::AnimationClip;
 pub struct ActiveAnimation {
     time: f32,
     duration: f32,
+    is_paused: bool,
+    play_rate: f32,
 }
 
 impl Default for ActiveAnimation {
@@ -15,13 +17,19 @@ impl Default for ActiveAnimation {
         Self {
             time: 0.0,
             duration: 0.0,
+            is_paused: false,
+            play_rate: 1.0,
         }
     }
 }
 
 impl ActiveAnimation {
     pub fn update(&mut self, delta_time: f32) {
-        self.time += delta_time;
+        if self.is_paused {
+            return;
+        }
+
+        self.time += delta_time * self.play_rate;
 
         if self.time > self.duration {
             self.time = 0.0;

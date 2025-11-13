@@ -45,7 +45,7 @@ impl AnimationChannel {
         }
     }
 
-    pub fn interpolate(&self, current_time: f32, transform: &mut Transform) {
+    pub fn sample_transform(&self, current_time: f32, transform: &mut Transform) {
         if self.time_samples.len() < 2 {
             return;
         }

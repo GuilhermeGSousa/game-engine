@@ -1,4 +1,6 @@
 pub mod clip;
+pub mod graph;
+pub mod node;
 pub mod player;
 pub mod plugin;
 pub mod target;

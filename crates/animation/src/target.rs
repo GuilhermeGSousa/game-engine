@@ -36,7 +36,8 @@ pub(crate) fn animate_targets(
 
         // Based on the current time of the animation player + delta time, interpolate the target's transform
         for animation_channel in animation_channels {
-            animation_channel.interpolate(animation_player.current_time(), &mut target_transform);
+            animation_channel
+                .sample_transform(animation_player.current_time(), &mut target_transform);
         }
     }
 }

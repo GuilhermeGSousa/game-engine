@@ -13,12 +13,17 @@ pub struct AssetStoreEntry<A: Asset> {
     pub(crate) asset: A,
 }
 
-#[derive(Resource)]
 pub struct AssetStore<A: Asset + 'static> {
     assets: HashMap<AssetId, AssetStoreEntry<A>>,
     drop_sender: Sender<AssetLifetimeEvent>,
     drop_receiver: Receiver<AssetLifetimeEvent>,
     _marker: std::marker::PhantomData<A>,
+}
+
+impl<A: Asset + 'static> Resource for AssetStore<A> {
+    fn name() -> &'static str {
+        A::name()
+    }
 }
 
 impl<A: Asset + 'static> AssetStore<A> {

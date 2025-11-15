@@ -1,7 +1,12 @@
 use std::f32::consts::PI;
 
+use animation::{
+    clip::AnimationClip,
+    player::{AnimationHandleComponent, AnimationPlayer},
+    plugin::AnimationPlugin,
+};
 use essential::{
-    assets::asset_server::AssetServer,
+    assets::{asset_server::AssetServer, asset_store::AssetStore},
     time::Time,
     transform::{GlobalTranform, Transform},
 };
@@ -14,12 +19,15 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{query_filter::With, Query},
+    query::{
+        query_filter::{With, Without},
+        Query,
+    },
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec3, Vec4};
 use gltf::{
-    loader::{GLTFScene, GLTFSpawnerComponent},
+    loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent},
     plugin::GLTFPlugin,
 };
 use obj::{
@@ -83,6 +91,7 @@ pub fn run_game() {
         .register_plugin(TransformPlugin)
         .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
+        .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
@@ -94,6 +103,7 @@ pub fn run_game() {
             app::update_group::UpdateGroup::Update,
             despawn_on_button_press,
         )
+        .add_system(app::update_group::UpdateGroup::Update, setup_animations)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
         // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
         .add_system(app::update_group::UpdateGroup::Render, render_ui)
@@ -239,6 +249,40 @@ fn spawn_on_button_press(
             GLTFSpawnerComponent(asset_server.load::<GLTFScene>(GLB_ASSET)),
             mesh_transform,
         ));
+    }
+}
+
+fn setup_animations(
+    animation_roots: Query<(Entity, &mut AnimationPlayer), Without<AnimationHandleComponent>>,
+    gltf_comps: Query<(&GLTFSpawnerComponent, &GLTFSpawnedMarker)>,
+    gltf_scenes: Res<AssetStore<GLTFScene>>,
+    animation_clips: Res<AssetStore<AnimationClip>>,
+    mut cmd: CommandQueue,
+) {
+    for (gltf_comp, gltf_marker) in gltf_comps.iter() {
+        for anim_root in gltf_marker.animation_roots() {
+            let Some((entity, mut animation_player)) = animation_roots.get_entity(*anim_root)
+            else {
+                continue;
+            };
+
+            let Some(gltf_scene) = gltf_scenes.get(&gltf_comp) else {
+                continue;
+            };
+
+            let Some(anim_clip) = animation_clips.get(&gltf_scene.animations()[0]) else {
+                continue;
+            };
+
+            cmd.insert(
+                AnimationHandleComponent {
+                    handle: gltf_scene.animations()[0].clone(),
+                },
+                entity,
+            );
+
+            animation_player.play(anim_clip);
+        }
     }
 }
 

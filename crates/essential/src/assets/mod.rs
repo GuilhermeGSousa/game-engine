@@ -6,6 +6,8 @@ use std::{
 
 use uuid::Uuid;
 
+pub use essential_macros::Asset;
+
 pub mod asset_container;
 pub mod asset_loader;
 pub mod asset_server;
@@ -83,7 +85,9 @@ impl AssetId {
     }
 }
 
-pub trait Asset: Send + Sync + 'static {}
+pub trait Asset: Send + Sync + 'static {
+    fn name() -> &'static str;
+}
 
 pub trait LoadableAsset: Asset {
     type UsageSettings: Send + Sync;

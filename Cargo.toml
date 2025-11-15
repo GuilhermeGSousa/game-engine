@@ -18,6 +18,7 @@ members = ["crates/*"]
 
 [dependencies]
 app = { path = "crates/app" }
+animation = { path = "crates/animation" }
 essential = { path = "crates/essential" }
 render = { path = "crates/render" }
 ui = { path = "crates/ui" }

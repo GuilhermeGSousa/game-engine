@@ -13,9 +13,7 @@ use crate::{
 pub type ResourceId = TypeId;
 
 pub trait Resource: 'static {
-    fn name() -> String
-    where
-        Self: Sized;
+    fn name() -> &'static str;
 }
 
 #[allow(dead_code)]

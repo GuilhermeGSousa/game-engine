@@ -16,8 +16,8 @@ fn impl_component(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let gen = quote! {
         impl Component for #name {
-            fn name() -> String {
-                String::from(stringify!(#name))
+            fn name() -> &'static str {
+                stringify!(#name)
             }
         }
 
@@ -36,8 +36,8 @@ fn impl_resource(ast: &syn::DeriveInput) -> TokenStream {
     let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
     let gen = quote! {
         impl #impl_generics Resource for #name #type_generics #where_clause  {
-            fn name() -> String {
-                String::from(stringify!(#name))
+            fn name() -> &'static str {
+                stringify!(#name)
             }
         }
 

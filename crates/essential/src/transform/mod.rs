@@ -11,8 +11,8 @@ pub struct Transform {
 }
 
 impl Component for Transform {
-    fn name() -> String {
-        String::from("Transform")
+    fn name() -> &'static str {
+        "Transform"
     }
 
     fn on_add() -> Option<ComponentLifecycleCallback> {

@@ -1,6 +1,21 @@
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    hash::{Hash, Hasher},
+};
+
+use animation::{
+    clip::{AnimationChanelOutput, AnimationChannel, AnimationClip},
+    player::AnimationPlayer,
+    target::AnimationTarget,
+};
 use async_trait::async_trait;
 use ecs::{
-    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
+    command::CommandQueue,
+    component::Component,
+    entity::Entity,
+    query::{Query, query_filter::Without},
+    resource::Res,
 };
 use essential::{
     assets::{
@@ -13,6 +28,7 @@ use glam::Mat4;
 use gltf::{Node, Primitive, buffer::Data};
 
 use image::ImageBuffer;
+use log::warn;
 use render::{
     assets::{
         material::Material, mesh::Mesh, skeleton::Skeleton, texture::Texture, vertex::Vertex,
@@ -22,16 +38,26 @@ use render::{
         skeleton_component::SkeletonComponent,
     },
 };
+use uuid::Uuid;
+
 pub(crate) struct GLTFLoader;
 
+#[derive(Asset)]
 pub struct GLTFScene {
     pub(crate) meshes: Vec<GLTFMesh>,
     pub(crate) materials: Vec<AssetHandle<Material>>,
     pub(crate) nodes: Vec<GLTFNode>,
     pub(crate) skeletons: Vec<GLTFSkeleton>,
+    pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
+    pub(crate) target_id_to_node_idx: HashMap<Uuid, GLTFAnimationTargetInfo>,
+    pub(crate) animation_roots: HashSet<usize>,
 }
 
-impl Asset for GLTFScene {}
+impl GLTFScene {
+    pub fn animations(&self) -> &Vec<AssetHandle<AnimationClip>> {
+        &self.animations
+    }
+}
 
 pub struct GLTFMesh {
     pub(crate) primitives: Vec<AssetHandle<Mesh>>,
@@ -48,6 +74,16 @@ pub struct GLTFNode {
 pub struct GLTFSkeleton {
     pub(crate) bones: Vec<usize>,
     pub(crate) skeleton: AssetHandle<Skeleton>,
+}
+
+pub(crate) struct GLTFNodePathInfo {
+    pub(crate) root_node: usize,
+    pub(crate) node_path: Vec<Cow<'static, str>>,
+}
+
+pub(crate) struct GLTFAnimationTargetInfo {
+    pub(crate) node_index: usize,
+    pub(crate) root_index: usize,
 }
 
 impl LoadableAsset for GLTFScene {
@@ -156,11 +192,98 @@ impl AssetLoader for GLTFLoader {
             }
         }
 
+        let mut node_paths = HashMap::new();
+        for scene in document.scenes() {
+            for root_node in scene.nodes() {
+                let root_index = root_node.index();
+                collect_paths(
+                    &root_node,
+                    &[],
+                    &root_index,
+                    &mut node_paths,
+                    &mut HashSet::new(),
+                );
+            }
+        }
+
+        let mut target_id_to_node_idx = HashMap::new();
+        let mut animation_roots = HashSet::new();
+        let mut animation_clips = Vec::new();
+        for animation in document.animations() {
+            let mut animation_clip = AnimationClip::default();
+
+            for channel in animation.channels() {
+                let target = channel.target();
+
+                let target_node_idx = target.node().index();
+                let channel_reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
+
+                let time_samples = channel_reader
+                    .read_inputs()
+                    .map(|inputs| inputs.collect::<Vec<_>>());
+
+                let output_samples = channel_reader.read_outputs().map(|outputs| match outputs {
+                    gltf::animation::util::ReadOutputs::Translations(iter) => {
+                        AnimationChanelOutput::from_translation(iter)
+                    }
+                    gltf::animation::util::ReadOutputs::Rotations(rotations) => match rotations {
+                        gltf::animation::util::Rotations::I8(_) => todo!(),
+                        gltf::animation::util::Rotations::U8(_) => todo!(),
+                        gltf::animation::util::Rotations::I16(_) => todo!(),
+                        gltf::animation::util::Rotations::U16(_) => todo!(),
+                        gltf::animation::util::Rotations::F32(iter) => {
+                            AnimationChanelOutput::from_rotation(iter)
+                        }
+                    },
+                    gltf::animation::util::ReadOutputs::Scales(iter) => {
+                        AnimationChanelOutput::from_scale(iter)
+                    }
+                    gltf::animation::util::ReadOutputs::MorphTargetWeights(_) => todo!(),
+                });
+
+                let Some((time_samples, outputs)) =
+                    time_samples.zip(output_samples).filter(|_| true)
+                else {
+                    continue;
+                };
+
+                if time_samples.is_empty() {
+                    warn!(
+                        "No time samples found for animation channel of index {}",
+                        channel.index()
+                    );
+                    continue;
+                }
+
+                let animation_channel = AnimationChannel::new(time_samples, outputs);
+
+                // Generate an id
+                if let Some(node_path_info) = node_paths.get(&target_node_idx) {
+                    let target_id = paths_to_uuid(&node_path_info.node_path);
+                    target_id_to_node_idx.insert(
+                        target_id.clone(),
+                        GLTFAnimationTargetInfo {
+                            node_index: target_node_idx,
+                            root_index: node_path_info.root_node,
+                        },
+                    );
+                    animation_roots.insert(node_path_info.root_node);
+                    animation_clip.add_channel(target_id, animation_channel);
+                } else {
+                    warn!("Missing an node name for node {}.", target_node_idx);
+                }
+            }
+            animation_clips.push(load_context.asset_server().add(animation_clip));
+        }
+
         Ok(GLTFScene {
             nodes,
             meshes,
             materials,
             skeletons,
+            animations: animation_clips,
+            target_id_to_node_idx,
+            animation_roots,
         })
     }
 }
@@ -274,6 +397,21 @@ impl GLTFLoader {
 #[derive(Component)]
 pub struct GLTFSpawnerComponent(pub AssetHandle<GLTFScene>);
 
+#[derive(Component)]
+pub struct GLTFSpawnedMarker {
+    animation_roots: Vec<Entity>,
+}
+
+impl GLTFSpawnedMarker {
+    pub fn new(animation_roots: Vec<Entity>) -> Self {
+        Self { animation_roots }
+    }
+
+    pub fn animation_roots(&self) -> &Vec<Entity> {
+        &self.animation_roots
+    }
+}
+
 impl std::ops::Deref for GLTFSpawnerComponent {
     type Target = AssetHandle<GLTFScene>;
 
@@ -284,8 +422,9 @@ impl std::ops::Deref for GLTFSpawnerComponent {
 
 pub(crate) fn spawn_gltf_components(
     mut cmd: CommandQueue,
-    gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
+    gltf_components: Query<(Entity, &GLTFSpawnerComponent), Without<GLTFSpawnedMarker>>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
+    animation_assets: Res<AssetStore<AnimationClip>>,
 ) {
     for (entity, component) in gltf_components.iter() {
         if let Some(asset) = gltf_assets.get(component) {
@@ -304,7 +443,7 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
 
-            // Insert MeshComponents
+            // Insert MeshComponents and AnimationPlayers
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
                 if let Some(gltf_mesh_index) = gltf_node.mesh {
                     let gltf_mesh = &asset.meshes[gltf_mesh_index];
@@ -344,9 +483,79 @@ pub(crate) fn spawn_gltf_components(
                     );
                     cmd.insert(skeleton_component, node_entities[node_index]);
                 }
+
+                if asset.animation_roots.contains(&node_index) {
+                    cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
+                }
             }
 
-            cmd.remove::<GLTFSpawnerComponent>(entity);
+            // Insert animation target components
+            for animation_clip in asset
+                .animations
+                .iter()
+                .map(|handle| animation_assets.get(handle))
+                .filter_map(|value| value)
+            {
+                for target_id in animation_clip.target_ids() {
+                    if let Some(node_info) = asset.target_id_to_node_idx.get(&*target_id) {
+                        let target_component = AnimationTarget {
+                            id: target_id.clone(),
+                            animator: node_entities[node_info.root_index],
+                        };
+
+                        let target_entity = node_entities[node_info.node_index];
+                        cmd.insert(target_component, target_entity);
+                    }
+                }
+            }
+
+            cmd.insert(
+                GLTFSpawnedMarker::new(
+                    asset
+                        .animation_roots
+                        .iter()
+                        .map(|node_index| node_entities[*node_index])
+                        .collect(),
+                ),
+                entity,
+            );
+            // cmd.remove::<GLTFSpawnerComponent>(entity);
         }
     }
+}
+
+pub(crate) fn collect_paths(
+    node: &Node,
+    current_path: &[Cow<'static, str>],
+    root_index: &usize,
+    paths: &mut HashMap<usize, GLTFNodePathInfo>,
+    visited: &mut HashSet<usize>,
+) {
+    let mut path = current_path.to_owned();
+    let node_name = node
+        .name()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("GLTF Node: {}", node.index()));
+
+    path.push(Cow::from(node_name));
+
+    visited.insert(node.index());
+    for child in node.children() {
+        if !visited.contains(&child.index()) {
+            collect_paths(&child, &path, &root_index, paths, visited);
+        }
+    }
+    paths.insert(
+        node.index(),
+        GLTFNodePathInfo {
+            root_node: *root_index,
+            node_path: path,
+        },
+    );
+}
+
+pub(crate) fn paths_to_uuid(paths: &[Cow<'static, str>]) -> Uuid {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    paths.join("/").hash(&mut hasher);
+    Uuid::from_u128(hasher.finish() as u128)
 }

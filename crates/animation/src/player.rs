@@ -1,9 +1,10 @@
-use std::ops::Deref;
+use std::{collections::HashMap, ops::Deref};
 
 use ecs::component::Component;
 use essential::assets::handle::AssetHandle;
+use petgraph::graph::NodeIndex;
 
-use crate::clip::AnimationClip;
+use crate::{clip::AnimationClip, graph::AnimationGraph};
 
 pub struct ActiveAnimation {
     time: f32,
@@ -39,31 +40,27 @@ impl ActiveAnimation {
 
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
-    active_animation: ActiveAnimation,
+    node_data: HashMap<NodeIndex, ActiveAnimation>,
 }
 
 impl AnimationPlayer {
     pub fn update(&mut self, delta_time: f32) {
-        self.active_animation.update(delta_time);
-    }
-
-    pub fn current_time(&self) -> f32 {
-        self.active_animation.time
+        // self.active_animation.update(delta_time);
     }
 
     pub fn play(&mut self, clip: &AnimationClip) {
-        self.active_animation.duration = clip.duration();
-        self.active_animation.time = 0.0;
+        // self.active_animation.duration = clip.duration();
+        // self.active_animation.time = 0.0;
     }
 }
 
 #[derive(Component)]
 pub struct AnimationHandleComponent {
-    pub handle: AssetHandle<AnimationClip>,
+    pub handle: AssetHandle<AnimationGraph>,
 }
 
 impl Deref for AnimationHandleComponent {
-    type Target = AssetHandle<AnimationClip>;
+    type Target = AssetHandle<AnimationGraph>;
 
     fn deref(&self) -> &Self::Target {
         &self.handle

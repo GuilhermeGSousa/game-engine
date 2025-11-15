@@ -21,3 +21,9 @@ impl Deref for AnimationClipNode {
         &self.0
     }
 }
+
+impl AnimationClipNode {
+    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
+        Self(clip)
+    }
+}

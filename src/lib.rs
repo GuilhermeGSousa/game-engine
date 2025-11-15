@@ -2,6 +2,8 @@ use std::f32::consts::PI;
 
 use animation::{
     clip::AnimationClip,
+    graph::AnimationGraph,
+    node::AnimationClipNode,
     player::{AnimationHandleComponent, AnimationPlayer},
     plugin::AnimationPlugin,
 };
@@ -257,6 +259,7 @@ fn setup_animations(
     gltf_comps: Query<(&GLTFSpawnerComponent, &GLTFSpawnedMarker)>,
     gltf_scenes: Res<AssetStore<GLTFScene>>,
     animation_clips: Res<AssetStore<AnimationClip>>,
+    asset_server: Res<AssetServer>,
     mut cmd: CommandQueue,
 ) {
     for (gltf_comp, gltf_marker) in gltf_comps.iter() {
@@ -274,9 +277,17 @@ fn setup_animations(
                 continue;
             };
 
+            let mut anim_graph = AnimationGraph::new();
+
+            // Add nodes
+            anim_graph.add_node(
+                AnimationClipNode::new(gltf_scene.animations()[0].clone()),
+                *anim_graph.root(),
+            );
+
             cmd.insert(
                 AnimationHandleComponent {
-                    handle: gltf_scene.animations()[0].clone(),
+                    handle: asset_server.add(anim_graph),
                 },
                 entity,
             );

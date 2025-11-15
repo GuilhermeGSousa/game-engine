@@ -3,7 +3,7 @@ use essential::{assets::asset_store::AssetStore, time::Time, transform::Transfor
 use uuid::Uuid;
 
 use crate::{
-    clip::AnimationClip,
+    graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
 };
 
@@ -16,7 +16,7 @@ pub struct AnimationTarget {
 pub(crate) fn animate_targets(
     animation_players: Query<(&AnimationPlayer, &AnimationHandleComponent)>,
     animation_targets: Query<(&mut Transform, &AnimationTarget)>,
-    animation_clips: Res<AssetStore<AnimationClip>>,
+    animation_graphs: Res<AssetStore<AnimationGraph>>,
 ) {
     for (mut target_transform, animation_target) in animation_targets.iter() {
         let Some((animation_player, animation_handle)) =
@@ -25,20 +25,25 @@ pub(crate) fn animate_targets(
             continue;
         };
 
-        let Some(animation_clip) = animation_clips.get(&animation_handle) else {
+        let Some(animation_graph) = animation_graphs.get(&animation_handle) else {
             continue;
         };
 
-        // Find the channel for this animation target
-        let Some(animation_channels) = animation_clip.get_channels(&animation_target.id) else {
-            continue;
-        };
-
-        // Based on the current time of the animation player + delta time, interpolate the target's transform
-        for animation_channel in animation_channels {
-            animation_channel
-                .sample_transform(animation_player.current_time(), &mut target_transform);
+        for node_index in animation_graph.iter() {
+            let Some(node) = animation_graph.get_node(node_index) else {
+                continue;
+            };
         }
+        // Find the channel for this animation target
+        // let Some(animation_channels) = animation_clip.get_channels(&animation_target.id) else {
+        //     continue;
+        // };
+
+        // // Based on the current time of the animation player + delta time, interpolate the target's transform
+        // for animation_channel in animation_channels {
+        //     animation_channel
+        //         .sample_transform(animation_player.current_time(), &mut target_transform);
+        // }
     }
 }
 

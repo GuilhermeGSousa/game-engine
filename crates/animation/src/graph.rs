@@ -1,7 +1,7 @@
 use essential::assets::Asset;
 use petgraph::{
     graph::{DiGraph, Neighbors, NodeIndex},
-    visit::{DfsPostOrder, Walker},
+    visit::{Dfs, DfsPostOrder, Walker},
 };
 
 use crate::node::{AnimationGraphNode, RootAnimationNode};
@@ -35,6 +35,10 @@ impl AnimationGraph {
 
     pub fn root(&self) -> &AnimationNodeIndex {
         &self.root
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = AnimationNodeIndex> + '_ {
+        Dfs::new(&self.graph, self.root).iter(&self.graph)
     }
 
     pub fn iter_post_order(&self) -> impl Iterator<Item = AnimationNodeIndex> + '_ {

@@ -2,16 +2,11 @@ use std::{collections::HashMap, ops::Deref};
 
 use ecs::component::Component;
 use essential::assets::handle::AssetHandle;
-use petgraph::graph::NodeIndex;
 
-use crate::{
-    clip::AnimationClip,
-    graph::{AnimationGraph, AnimationNodeIndex},
-};
+use crate::graph::{AnimationGraph, AnimationNodeIndex};
 
 pub struct ActiveAnimation {
     time: f32,
-    duration: f32,
     is_paused: bool,
     play_rate: f32,
 }
@@ -20,7 +15,6 @@ impl Default for ActiveAnimation {
     fn default() -> Self {
         Self {
             time: 0.0,
-            duration: 0.0,
             is_paused: false,
             play_rate: 1.0,
         }
@@ -28,14 +22,14 @@ impl Default for ActiveAnimation {
 }
 
 impl ActiveAnimation {
-    pub fn update(&mut self, delta_time: f32) {
+    pub fn update(&mut self, delta_time: f32, duration: f32) {
         if self.is_paused {
             return;
         }
 
         self.time += delta_time * self.play_rate;
 
-        if self.time > self.duration {
+        if self.time > duration {
             self.time = 0.0;
         }
     }
@@ -47,32 +41,34 @@ impl ActiveAnimation {
 
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
-    node_state: HashMap<AnimationNodeIndex, ActiveAnimation>,
+    active_animations: HashMap<AnimationNodeIndex, ActiveAnimation>,
 }
 
 impl AnimationPlayer {
-    pub fn update(&mut self, delta_time: f32) {
-        for (_, active_animation) in self.node_state.iter_mut() {
-            active_animation.update(delta_time);
-        }
-    }
-
-    pub fn play(&mut self, clip: &AnimationClip) {
-        // self.active_animation.duration = clip.duration();
-        // self.active_animation.time = 0.0;
-    }
-
-    pub fn initialize(&mut self, graph: &AnimationGraph) {
-        for  in  {
-            
-        }
-    }
-
     pub fn get_active_animation(
         &self,
         node_index: &AnimationNodeIndex,
     ) -> Option<&ActiveAnimation> {
-        self.node_state.get(node_index)
+        self.active_animations.get(node_index)
+    }
+
+    pub fn get_active_animation_mut(
+        &mut self,
+        node_index: &AnimationNodeIndex,
+    ) -> Option<&mut ActiveAnimation> {
+        self.active_animations.get_mut(node_index)
+    }
+
+    pub fn play(&mut self, node_index: &AnimationNodeIndex) -> &mut ActiveAnimation {
+        self.active_animations.entry(*node_index).or_default()
+    }
+
+    pub fn active_animations(&self) -> &HashMap<AnimationNodeIndex, ActiveAnimation> {
+        &self.active_animations
+    }
+
+    pub fn active_animations_mut(&mut self) -> &mut HashMap<AnimationNodeIndex, ActiveAnimation> {
+        &mut self.active_animations
     }
 }
 

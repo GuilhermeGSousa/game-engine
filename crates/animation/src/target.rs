@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::AnimationGraphEvaluator,
+    evaluation::{AnimationGraphEvaluationContext, AnimationGraphEvaluator},
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
 };
@@ -38,15 +38,14 @@ pub(crate) fn animate_targets(
             let Some(node) = animation_graph.get_node(node_index) else {
                 continue;
             };
-
-            node.evaluate(
-                &animation_target.id,
-                &node_index,
-                animation_player.get_active_animation(&node_index),
-                &animation_clips,
-                &mut graph_evaluator,
-                animation_graph.neighbors(node_index),
-            );
+            let context = AnimationGraphEvaluationContext {
+                target_id: &animation_target.id,
+                node_index: &node_index,
+                active_animation: animation_player.get_active_animation(&node_index),
+                animation_clips: &animation_clips,
+                node_neighbors: animation_graph.neighbors(node_index),
+            };
+            node.evaluate(context, &mut graph_evaluator);
         }
 
         // Now we just apply the root transform on the evaluator
@@ -58,10 +57,26 @@ pub(crate) fn animate_targets(
 }
 
 pub(crate) fn update_animation_players(
-    animation_players: Query<&mut AnimationPlayer>,
+    animation_players: Query<(&mut AnimationPlayer, &AnimationHandleComponent)>,
+    animation_graphs: Res<AssetStore<AnimationGraph>>,
+    animation_clips: Res<AssetStore<AnimationClip>>,
     time: Res<Time>,
 ) {
-    for mut animation_player in animation_players.iter() {
-        animation_player.update(time.delta().as_secs_f32());
+    for (mut animation_player, anim_handle) in animation_players.iter() {
+        let Some(anim_graph) = animation_graphs.get(&anim_handle) else {
+            continue;
+        };
+
+        for (node_index, active_animation) in animation_player.active_animations_mut().iter_mut() {
+            let Some(node) = anim_graph.get_node(*node_index) else {
+                continue;
+            };
+
+            node.update_animation(
+                &animation_clips,
+                active_animation,
+                time.delta().as_secs_f32(),
+            );
+        }
     }
 }

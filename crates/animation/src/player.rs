@@ -4,7 +4,10 @@ use ecs::component::Component;
 use essential::assets::handle::AssetHandle;
 use petgraph::graph::NodeIndex;
 
-use crate::{clip::AnimationClip, graph::AnimationGraph};
+use crate::{
+    clip::AnimationClip,
+    graph::{AnimationGraph, AnimationNodeIndex},
+};
 
 pub struct ActiveAnimation {
     time: f32,
@@ -36,21 +39,40 @@ impl ActiveAnimation {
             self.time = 0.0;
         }
     }
+
+    pub fn current_time(&self) -> f32 {
+        self.time
+    }
 }
 
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
-    node_data: HashMap<NodeIndex, ActiveAnimation>,
+    node_state: HashMap<AnimationNodeIndex, ActiveAnimation>,
 }
 
 impl AnimationPlayer {
     pub fn update(&mut self, delta_time: f32) {
-        // self.active_animation.update(delta_time);
+        for (_, active_animation) in self.node_state.iter_mut() {
+            active_animation.update(delta_time);
+        }
     }
 
     pub fn play(&mut self, clip: &AnimationClip) {
         // self.active_animation.duration = clip.duration();
         // self.active_animation.time = 0.0;
+    }
+
+    pub fn initialize(&mut self, graph: &AnimationGraph) {
+        for  in  {
+            
+        }
+    }
+
+    pub fn get_active_animation(
+        &self,
+        node_index: &AnimationNodeIndex,
+    ) -> Option<&ActiveAnimation> {
+        self.node_state.get(node_index)
     }
 }
 

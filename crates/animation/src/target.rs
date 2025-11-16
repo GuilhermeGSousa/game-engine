@@ -3,6 +3,8 @@ use essential::{assets::asset_store::AssetStore, time::Time, transform::Transfor
 use uuid::Uuid;
 
 use crate::{
+    clip::AnimationClip,
+    evaluation::AnimationGraphEvaluator,
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
 };
@@ -17,6 +19,7 @@ pub(crate) fn animate_targets(
     animation_players: Query<(&AnimationPlayer, &AnimationHandleComponent)>,
     animation_targets: Query<(&mut Transform, &AnimationTarget)>,
     animation_graphs: Res<AssetStore<AnimationGraph>>,
+    animation_clips: Res<AssetStore<AnimationClip>>,
 ) {
     for (mut target_transform, animation_target) in animation_targets.iter() {
         let Some((animation_player, animation_handle)) =
@@ -29,21 +32,28 @@ pub(crate) fn animate_targets(
             continue;
         };
 
-        for node_index in animation_graph.iter() {
+        let mut graph_evaluator = AnimationGraphEvaluator::new();
+
+        for node_index in animation_graph.iter_post_order() {
             let Some(node) = animation_graph.get_node(node_index) else {
                 continue;
             };
-        }
-        // Find the channel for this animation target
-        // let Some(animation_channels) = animation_clip.get_channels(&animation_target.id) else {
-        //     continue;
-        // };
 
-        // // Based on the current time of the animation player + delta time, interpolate the target's transform
-        // for animation_channel in animation_channels {
-        //     animation_channel
-        //         .sample_transform(animation_player.current_time(), &mut target_transform);
-        // }
+            node.evaluate(
+                &animation_target.id,
+                &node_index,
+                animation_player.get_active_animation(&node_index),
+                &animation_clips,
+                &mut graph_evaluator,
+                animation_graph.neighbors(node_index),
+            );
+        }
+
+        // Now we just apply the root transform on the evaluator
+        let result_transform = graph_evaluator.get_transform(&animation_graph.root());
+        target_transform.translation = result_transform.translation;
+        target_transform.rotation = result_transform.rotation;
+        target_transform.scale = result_transform.scale;
     }
 }
 

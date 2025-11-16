@@ -10,3 +10,4 @@ ecs = { path = "../ecs" }
 glam = { version = "0.30.1" }
 uuid = { version = "1.18.1", features = ["v4"] }
 petgraph = { version = "0.8" }
+log = "0.4.27"

@@ -1,5 +1,6 @@
 use ecs::{component::Component, entity::Entity, query::Query, resource::Res};
 use essential::{assets::asset_store::AssetStore, time::Time, transform::Transform};
+use log::warn;
 use uuid::Uuid;
 
 use crate::{
@@ -40,16 +41,18 @@ pub(crate) fn animate_targets(
             };
             let context = AnimationGraphEvaluationContext {
                 target_id: &animation_target.id,
-                node_index: &node_index,
                 active_animation: animation_player.get_active_animation(&node_index),
                 animation_clips: &animation_clips,
-                node_neighbors: animation_graph.neighbors(node_index),
             };
             node.evaluate(context, &mut graph_evaluator);
         }
 
         // Now we just apply the root transform on the evaluator
-        let result_transform = graph_evaluator.get_transform(&animation_graph.root());
+        let Some(result_transform) = graph_evaluator.pop_transform() else {
+            warn!("No result transform found for animation graph");
+            continue;
+        };
+
         target_transform.translation = result_transform.translation;
         target_transform.rotation = result_transform.rotation;
         target_transform.scale = result_transform.scale;

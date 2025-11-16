@@ -1,7 +1,9 @@
 use std::ops::Deref;
 
-use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
-use log::warn;
+use essential::{
+    assets::{asset_store::AssetStore, handle::AssetHandle},
+    transform::Transform,
+};
 
 use crate::{
     clip::AnimationClip,
@@ -20,30 +22,15 @@ pub trait AnimationGraphNode: Sync + Send {
 
     fn evaluate(
         &self,
-        context: AnimationGraphEvaluationContext<'_>,
-        evaluator: &mut AnimationGraphEvaluator,
-    );
+        _context: AnimationGraphEvaluationContext<'_>,
+        _evaluator: &mut AnimationGraphEvaluator,
+    ) {
+    }
 }
 
 pub struct RootAnimationNode;
 
-impl AnimationGraphNode for RootAnimationNode {
-    fn evaluate(
-        &self,
-        mut context: AnimationGraphEvaluationContext<'_>,
-        evaluator: &mut AnimationGraphEvaluator,
-    ) {
-        let Some(input_node) = context.node_neighbors.next() else {
-            warn!("No input node found for animation graph root node");
-            return;
-        };
-        let input_transform = evaluator.get_transform(&input_node).clone();
-        let result_transform = evaluator.get_transform_mut(context.node_index);
-        result_transform.translation = input_transform.translation;
-        result_transform.rotation = input_transform.rotation;
-        result_transform.scale = input_transform.scale;
-    }
-}
+impl AnimationGraphNode for RootAnimationNode {}
 
 pub struct AnimationClipNode(AssetHandle<AnimationClip>);
 
@@ -80,10 +67,13 @@ impl AnimationGraphNode for AnimationClipNode {
         };
 
         // Based on the current time of the animation player + delta time, interpolate the target's transform
-        let target_transform = evaluator.get_transform_mut(context.node_index);
+        let mut target_transform = Transform::identity();
         for animation_channel in animation_channels {
-            animation_channel.sample_transform(animation_state.current_time(), target_transform);
+            animation_channel
+                .sample_transform(animation_state.current_time(), &mut target_transform);
         }
+
+        evaluator.push_transform(target_transform);
     }
 }
 

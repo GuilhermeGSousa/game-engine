@@ -1,7 +1,5 @@
-use std::ops::Deref;
-
 use essential::{
-    assets::{asset_store::AssetStore, handle::AssetHandle},
+    assets::{asset_store::AssetStore},
     transform::Transform,
 };
 
@@ -32,7 +30,7 @@ pub struct RootAnimationNode;
 
 impl AnimationGraphNode for RootAnimationNode {}
 
-pub struct AnimationClipNode(AssetHandle<AnimationClip>);
+pub struct AnimationClipNode;
 
 impl AnimationGraphNode for AnimationClipNode {
     fn update_animation(
@@ -41,7 +39,7 @@ impl AnimationGraphNode for AnimationClipNode {
         active_animation: &mut ActiveAnimation,
         delta_time: f32,
     ) {
-        let Some(anim_clip) = anim_clips.get(&self) else {
+        let Some(anim_clip) = anim_clips.get(active_animation.current_animation()) else {
             return;
         };
 
@@ -57,7 +55,7 @@ impl AnimationGraphNode for AnimationClipNode {
             return;
         };
 
-        let Some(animation_clip) = context.animation_clips.get(&self) else {
+        let Some(animation_clip) = context.animation_clips.get(animation_state.current_animation()) else {
             return;
         };
 
@@ -74,19 +72,5 @@ impl AnimationGraphNode for AnimationClipNode {
         }
 
         evaluator.push_transform(target_transform);
-    }
-}
-
-impl Deref for AnimationClipNode {
-    type Target = AssetHandle<AnimationClip>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AnimationClipNode {
-    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
-        Self(clip)
     }
 }

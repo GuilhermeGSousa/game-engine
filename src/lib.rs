@@ -275,11 +275,11 @@ fn setup_animations(
 
             // Add nodes
             let anim_clip_node = anim_graph.add_node(
-                AnimationClipNode::new(gltf_scene.animations()[0].clone()),
+                AnimationClipNode,
                 *anim_graph.root(),
             );
 
-            animation_player.play(&anim_clip_node);
+            animation_player.start(&anim_clip_node, gltf_scene.animations()[0].clone());
 
             cmd.insert(
                 AnimationHandleComponent {

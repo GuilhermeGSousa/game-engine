@@ -3,22 +3,13 @@ use std::{collections::HashMap, ops::Deref};
 use ecs::component::Component;
 use essential::assets::handle::AssetHandle;
 
-use crate::graph::{AnimationGraph, AnimationNodeIndex};
+use crate::{clip::AnimationClip, graph::{AnimationGraph, AnimationNodeIndex}};
 
 pub struct ActiveAnimation {
     time: f32,
     is_paused: bool,
     play_rate: f32,
-}
-
-impl Default for ActiveAnimation {
-    fn default() -> Self {
-        Self {
-            time: 0.0,
-            is_paused: false,
-            play_rate: 1.0,
-        }
-    }
+    animation_clip: AssetHandle<AnimationClip>,
 }
 
 impl ActiveAnimation {
@@ -34,8 +25,21 @@ impl ActiveAnimation {
         }
     }
 
+    pub fn reset(&mut self, clip: AssetHandle<AnimationClip>)
+    {
+        self.time = 0.0;
+        self.play_rate = 1.0;
+        self.animation_clip = clip;
+        self.is_paused = false;
+    }
+
     pub fn current_time(&self) -> f32 {
         self.time
+    }
+
+    pub fn current_animation(&self) -> &AssetHandle<AnimationClip>
+    {
+        &self.animation_clip
     }
 }
 
@@ -59,8 +63,18 @@ impl AnimationPlayer {
         self.active_animations.get_mut(node_index)
     }
 
-    pub fn play(&mut self, node_index: &AnimationNodeIndex) -> &mut ActiveAnimation {
-        self.active_animations.entry(*node_index).or_default()
+    pub fn start(&mut self, node_index: &AnimationNodeIndex, clip: AssetHandle<AnimationClip>) -> &mut ActiveAnimation {
+        match self.active_animations.entry(*node_index) 
+        {
+            std::collections::hash_map::Entry::Occupied(occupied_entry) => {
+                let active_anim = occupied_entry.into_mut();
+                active_anim.reset(clip);
+                active_anim
+            },
+            std::collections::hash_map::Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(ActiveAnimation { time: 0.0, is_paused: false, play_rate: 1.0, animation_clip: clip })
+            },
+        }
     }
 
     pub fn active_animations(&self) -> &HashMap<AnimationNodeIndex, ActiveAnimation> {

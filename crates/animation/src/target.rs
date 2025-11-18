@@ -60,26 +60,19 @@ pub(crate) fn animate_targets(
 }
 
 pub(crate) fn update_animation_players(
-    animation_players: Query<(&mut AnimationPlayer, &AnimationHandleComponent)>,
-    animation_graphs: Res<AssetStore<AnimationGraph>>,
+    animation_players: Query<&mut AnimationPlayer>,
     animation_clips: Res<AssetStore<AnimationClip>>,
     time: Res<Time>,
 ) {
-    for (mut animation_player, anim_handle) in animation_players.iter() {
-        let Some(anim_graph) = animation_graphs.get(&anim_handle) else {
-            continue;
-        };
+    let delta_time= time.delta().as_secs_f32();
+    for mut animation_player in animation_players.iter() {
+        for (_, active_animation) in animation_player.active_animations_mut().iter_mut() {
 
-        for (node_index, active_animation) in animation_player.active_animations_mut().iter_mut() {
-            let Some(node) = anim_graph.get_node(*node_index) else {
-                continue;
+            let Some(anim_clip) = animation_clips.get(active_animation.current_animation()) else {
+                return;
             };
 
-            node.update_animation(
-                &animation_clips,
-                active_animation,
-                time.delta().as_secs_f32(),
-            );
+            active_animation.update(delta_time, anim_clip.duration());
         }
     }
 }

@@ -1,23 +1,12 @@
 use essential::{
-    assets::{asset_store::AssetStore},
     transform::Transform,
 };
 
 use crate::{
-    clip::AnimationClip,
     evaluation::{AnimationGraphEvaluationContext, AnimationGraphEvaluator},
-    player::ActiveAnimation,
 };
 
 pub trait AnimationGraphNode: Sync + Send {
-    fn update_animation(
-        &self,
-        _anim_clips: &AssetStore<AnimationClip>,
-        _active_animation: &mut ActiveAnimation,
-        _delta_time: f32,
-    ) {
-    }
-
     fn evaluate(
         &self,
         _context: AnimationGraphEvaluationContext<'_>,
@@ -33,19 +22,6 @@ impl AnimationGraphNode for RootAnimationNode {}
 pub struct AnimationClipNode;
 
 impl AnimationGraphNode for AnimationClipNode {
-    fn update_animation(
-        &self,
-        anim_clips: &AssetStore<AnimationClip>,
-        active_animation: &mut ActiveAnimation,
-        delta_time: f32,
-    ) {
-        let Some(anim_clip) = anim_clips.get(active_animation.current_animation()) else {
-            return;
-        };
-
-        active_animation.update(delta_time, anim_clip.duration());
-    }
-
     fn evaluate(
         &self,
         context: AnimationGraphEvaluationContext<'_>,

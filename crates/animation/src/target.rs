@@ -39,12 +39,17 @@ pub(crate) fn animate_targets(
             let Some(node) = animation_graph.get_node(node_index) else {
                 continue;
             };
+
+            let input_transforms = animation_graph.get_node_inputs(node_index).map(|_| graph_evaluator.pop_transform()).filter_map(|transform| transform).collect::<Vec<_>>();
+
             let context = AnimationGraphEvaluationContext {
                 target_id: &animation_target.id,
                 active_animation: animation_player.get_active_animation(&node_index),
                 animation_clips: &animation_clips,
+                input_transforms: &input_transforms
             };
-            node.evaluate(context, &mut graph_evaluator);
+            
+            graph_evaluator.push_transform(node.evaluate(context));
         }
 
         // Now we just apply the root transform on the evaluator

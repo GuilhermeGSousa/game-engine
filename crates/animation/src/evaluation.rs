@@ -27,4 +27,5 @@ pub struct AnimationGraphEvaluationContext<'a> {
     pub(crate) target_id: &'a Uuid,
     pub(crate) active_animation: Option<&'a ActiveAnimation>,
     pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
+    pub(crate) input_transforms: &'a Vec<Transform>,
 }

@@ -7,9 +7,14 @@ This is a small game engine I am using as a way to learn more about, game engine
 :warning: If you are reading this, first of all thank you for checking out this repo, that's cool of you. But also, right now this repo is not functional and everything is WIP! :warning:
 
 ### Features
-- An archetype based ECS system, and my attempt at implementing an API as ergonomic as Bevy's.
+- An archetype based ECS system
 - A very basic renderer, that currently supports:
     - Static meshes
+    - Skeletal Meshes
     - Point/Directinal/Spot lights
+    - Skyboxes
+- OBJ and GLTF support
+- Skeletal animations
+    - Animation graphs (WIP)
 - Physics (Rapier engine)
 - WASM support.

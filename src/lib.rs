@@ -1,13 +1,8 @@
 use std::f32::consts::PI;
 
-use animation::{
-    graph::AnimationGraph,
-    node::AnimationClipNode,
-    player::{AnimationHandleComponent, AnimationPlayer},
-    plugin::AnimationPlugin,
-};
+use animation::plugin::AnimationPlugin;
 use essential::{
-    assets::{asset_server::AssetServer, asset_store::AssetStore},
+    assets::asset_server::AssetServer,
     time::Time,
     transform::{GlobalTranform, Transform},
 };
@@ -20,17 +15,11 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{
-        query_filter::{With, Without},
-        Query,
-    },
+    query::{query_filter::With, Query},
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec3, Vec4};
-use gltf::{
-    loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent},
-    plugin::GLTFPlugin,
-};
+use gltf::plugin::GLTFPlugin;
 use obj::{
     obj_loader::{OBJAsset, OBJSpawnerComponent},
     plugin::OBJPlugin,
@@ -59,18 +48,21 @@ use window::{
 
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-use crate::game_ui::render_ui;
+use crate::{
+    game_ui::render_ui,
+    movement_animation::{
+        setup_animations, setup_state_machine, spawn_on_button_press, update_animation_state,
+    },
+};
 
 pub mod game_ui;
+pub mod movement_animation;
 
 #[allow(dead_code)]
 
 const MESH_ASSET: &str = "res/sphere.obj";
-// const GLB_ASSET: &str = "res/duck.glb";
-const GLB_ASSET: &str = "res/capoeira.glb";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
-
 #[derive(Component)]
 struct Player;
 
@@ -104,9 +96,13 @@ pub fn run_game() {
             app::update_group::UpdateGroup::Update,
             despawn_on_button_press,
         )
+        .add_system(app::update_group::UpdateGroup::Update, setup_state_machine)
         .add_system(app::update_group::UpdateGroup::Update, setup_animations)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
-        // .add_system(app::update_group::UpdateGroup::Update, move_light_to_player)
+        .add_system(
+            app::update_group::UpdateGroup::Update,
+            update_animation_state,
+        )
         .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
@@ -234,63 +230,6 @@ fn move_around(
     camera_transform.rotation *= Quat::from_axis_angle(Vec3::X, pitch_delta);
 }
 
-fn spawn_on_button_press(
-    cameras: Query<(&Camera, &Transform)>,
-    mut cmd: CommandQueue,
-    input: Res<Input>,
-    asset_server: Res<AssetServer>,
-) {
-    let (_, pos) = cameras.iter().next().expect("No camera found");
-    let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
-
-    let mut mesh_transform = pos.clone();
-    mesh_transform.translation = pos.translation + pos.forward() * 50.0;
-    if key_p == InputState::Pressed {
-        cmd.spawn((
-            GLTFSpawnerComponent(asset_server.load::<GLTFScene>(GLB_ASSET)),
-            mesh_transform,
-        ));
-    }
-}
-
-fn setup_animations(
-    animation_roots: Query<(Entity, &mut AnimationPlayer), Without<AnimationHandleComponent>>,
-    gltf_comps: Query<(&GLTFSpawnerComponent, &GLTFSpawnedMarker)>,
-    gltf_scenes: Res<AssetStore<GLTFScene>>,
-    asset_server: Res<AssetServer>,
-    mut cmd: CommandQueue,
-) {
-    for (gltf_comp, gltf_marker) in gltf_comps.iter() {
-        for anim_root in gltf_marker.animation_roots() {
-            let Some((entity, mut animation_player)) = animation_roots.get_entity(*anim_root)
-            else {
-                continue;
-            };
-
-            let Some(gltf_scene) = gltf_scenes.get(&gltf_comp) else {
-                continue;
-            };
-
-            let mut anim_graph = AnimationGraph::new();
-
-            // Add nodes
-            let anim_clip_node = anim_graph.add_node(
-                AnimationClipNode,
-                *anim_graph.root(),
-            );
-
-            animation_player.start(&anim_clip_node, gltf_scene.animations()[0].clone());
-
-            cmd.insert(
-                AnimationHandleComponent {
-                    handle: asset_server.add(anim_graph),
-                },
-                entity,
-            );
-        }
-    }
-}
-
 fn spawn_with_collider(
     cameras: Query<(&Camera, &GlobalTranform)>,
     mut cmd: CommandQueue,
@@ -330,16 +269,4 @@ fn despawn_on_button_press(
             cmd.despawn(entity);
         }
     }
-}
-
-#[allow(dead_code)]
-fn move_light_to_player(
-    cameras: Query<(&Camera, &Transform)>,
-    light: Query<(&Light, &mut Transform)>,
-) {
-    let (_, transform_cam) = cameras.iter().next().unwrap();
-    let (_, mut transform_light) = light.iter().next().unwrap();
-
-    transform_light.translation =
-        transform_cam.translation + transform_cam.forward() * 2.0 + transform_cam.up();
 }

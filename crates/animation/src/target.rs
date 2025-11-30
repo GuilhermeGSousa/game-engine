@@ -40,15 +40,19 @@ pub(crate) fn animate_targets(
                 continue;
             };
 
-            let input_transforms = animation_graph.get_node_inputs(node_index).map(|_| graph_evaluator.pop_transform()).filter_map(|transform| transform).collect::<Vec<_>>();
+            let input_transforms = animation_graph
+                .get_node_inputs(node_index)
+                .map(|_| graph_evaluator.pop_transform())
+                .filter_map(|transform| transform)
+                .collect::<Vec<_>>();
 
             let context = AnimationGraphEvaluationContext {
                 target_id: &animation_target.id,
                 active_animation: animation_player.get_active_animation(&node_index),
                 animation_clips: &animation_clips,
-                input_transforms: &input_transforms
+                input_transforms: &input_transforms,
             };
-            
+
             graph_evaluator.push_transform(node.evaluate(context));
         }
 
@@ -66,18 +70,10 @@ pub(crate) fn animate_targets(
 
 pub(crate) fn update_animation_players(
     animation_players: Query<&mut AnimationPlayer>,
-    animation_clips: Res<AssetStore<AnimationClip>>,
     time: Res<Time>,
 ) {
-    let delta_time= time.delta().as_secs_f32();
+    let delta_time = time.delta().as_secs_f32();
     for mut animation_player in animation_players.iter() {
-        for (_, active_animation) in animation_player.active_animations_mut().iter_mut() {
-
-            let Some(anim_clip) = animation_clips.get(active_animation.current_animation()) else {
-                return;
-            };
-
-            active_animation.update(delta_time, anim_clip.duration());
-        }
+        animation_player.update(delta_time);
     }
 }

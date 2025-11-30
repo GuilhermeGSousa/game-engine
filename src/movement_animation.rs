@@ -108,7 +108,7 @@ pub(crate) fn setup_animations(
             // Add nodes
             let anim_clip_node = anim_graph.add_node(AnimationClipNode, *anim_graph.root());
 
-            animation_player.start(&anim_clip_node, anim_store.idle.clone());
+            animation_player.initialize_states(&anim_graph);
 
             cmd.insert(
                 AnimationHandleComponent {
@@ -144,6 +144,6 @@ pub(crate) fn update_animation_state(
             continue;
         };
 
-        player.start(&clip_node, anim_store.walk.clone());
+        // TODO Switch States
     }
 }

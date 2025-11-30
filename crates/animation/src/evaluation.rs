@@ -1,7 +1,7 @@
 use essential::{assets::asset_store::AssetStore, transform::Transform};
 use uuid::Uuid;
 
-use crate::{clip::AnimationClip, player::ActiveAnimation};
+use crate::{clip::AnimationClip, player::ActiveNodeState};
 
 pub struct AnimationGraphEvaluator {
     evaluation_stack: Vec<Transform>,
@@ -25,7 +25,7 @@ impl AnimationGraphEvaluator {
 
 pub struct AnimationGraphEvaluationContext<'a> {
     pub(crate) target_id: &'a Uuid,
-    pub(crate) active_animation: Option<&'a ActiveAnimation>,
+    pub(crate) active_animation: &'a ActiveNodeState,
     pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
     pub(crate) input_transforms: &'a Vec<Transform>,
 }

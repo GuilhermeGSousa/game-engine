@@ -1,11 +1,13 @@
 use essential::assets::Asset;
 use petgraph::{
-    Direction::{Outgoing}, graph::{DiGraph, Neighbors, NodeIndex}, visit::{Dfs, DfsPostOrder, Walker}
+    Direction::Outgoing,
+    graph::{DiGraph, Neighbors, NodeIndex},
+    visit::{Dfs, DfsPostOrder, Walker},
 };
 
-use crate::node::{AnimationGraphNode, AnimationRootNode};
+use crate::node::{AnimationNode, AnimationRootNode};
 
-type AnimationDirectedGraph = DiGraph<Box<dyn AnimationGraphNode>, ()>;
+type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
 pub(crate) type AnimationNodeIndex = NodeIndex;
 
 #[derive(Asset)]
@@ -22,7 +24,7 @@ impl AnimationGraph {
         Self { graph, root }
     }
 
-    pub fn add_node<T: AnimationGraphNode + 'static>(
+    pub fn add_node<T: AnimationNode + 'static>(
         &mut self,
         node: T,
         parent_node: AnimationNodeIndex,
@@ -44,7 +46,7 @@ impl AnimationGraph {
         DfsPostOrder::new(&self.graph, self.root).iter(&self.graph)
     }
 
-    pub fn get_node(&self, node_index: AnimationNodeIndex) -> Option<&Box<dyn AnimationGraphNode>> {
+    pub fn get_node(&self, node_index: AnimationNodeIndex) -> Option<&Box<dyn AnimationNode>> {
         self.graph.node_weight(node_index)
     }
 

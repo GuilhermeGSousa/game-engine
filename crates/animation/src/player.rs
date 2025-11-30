@@ -3,86 +3,92 @@ use std::{collections::HashMap, ops::Deref};
 use ecs::component::Component;
 use essential::assets::handle::AssetHandle;
 
-use crate::{clip::AnimationClip, graph::{AnimationGraph, AnimationNodeIndex}};
+use crate::{
+    clip::AnimationClip,
+    graph::{AnimationGraph, AnimationNodeIndex},
+    node::{AnimationClipNodeState, AnimationNodeState},
+};
 
-pub struct ActiveAnimation {
-    time: f32,
-    is_paused: bool,
-    play_rate: f32,
-    animation_clip: AssetHandle<AnimationClip>,
+pub struct ActiveNodeState {
+    pub(crate) node_state: Box<dyn AnimationNodeState>,
+    weight: f32,
 }
 
-impl ActiveAnimation {
-    pub fn update(&mut self, delta_time: f32, duration: f32) {
-        if self.is_paused {
-            return;
-        }
-
-        self.time += delta_time * self.play_rate;
-
-        if self.time > duration {
-            self.time = 0.0;
-        }
+impl ActiveNodeState {
+    pub fn update(&mut self, delta_time: f32) {
+        self.node_state.update(delta_time);
     }
 
-    pub fn reset(&mut self, clip: AssetHandle<AnimationClip>)
-    {
-        self.time = 0.0;
-        self.play_rate = 1.0;
-        self.animation_clip = clip;
-        self.is_paused = false;
-    }
-
-    pub fn current_time(&self) -> f32 {
-        self.time
-    }
-
-    pub fn current_animation(&self) -> &AssetHandle<AnimationClip>
-    {
-        &self.animation_clip
+    pub fn reset(&mut self) {
+        self.node_state.reset();
     }
 }
 
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
-    active_animations: HashMap<AnimationNodeIndex, ActiveAnimation>,
+    active_animations: HashMap<AnimationNodeIndex, ActiveNodeState>,
 }
 
 impl AnimationPlayer {
-    pub fn get_active_animation(
-        &self,
-        node_index: &AnimationNodeIndex,
-    ) -> Option<&ActiveAnimation> {
-        self.active_animations.get(node_index)
+    pub fn get_active_animation(&self, node_index: &AnimationNodeIndex) -> &ActiveNodeState {
+        self.active_animations
+            .get(node_index)
+            .expect("Animation Node was not initialized")
     }
 
     pub fn get_active_animation_mut(
         &mut self,
         node_index: &AnimationNodeIndex,
-    ) -> Option<&mut ActiveAnimation> {
+    ) -> Option<&mut ActiveNodeState> {
         self.active_animations.get_mut(node_index)
     }
 
-    pub fn start(&mut self, node_index: &AnimationNodeIndex, clip: AssetHandle<AnimationClip>) -> &mut ActiveAnimation {
-        match self.active_animations.entry(*node_index) 
-        {
-            std::collections::hash_map::Entry::Occupied(occupied_entry) => {
-                let active_anim = occupied_entry.into_mut();
-                active_anim.reset(clip);
-                active_anim
-            },
-            std::collections::hash_map::Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert(ActiveAnimation { time: 0.0, is_paused: false, play_rate: 1.0, animation_clip: clip })
-            },
+    pub fn initialize_states(&mut self, animation_graph: &AnimationGraph) {
+        self.active_animations.clear();
+        for node_index in animation_graph.iter() {
+            let Some(anim_node) = animation_graph.get_node(node_index) else {
+                continue;
+            };
+
+            let node_state = anim_node.create_state();
+            self.active_animations.insert(
+                node_index,
+                ActiveNodeState {
+                    node_state,
+                    weight: 1.0,
+                },
+            );
         }
     }
 
-    pub fn active_animations(&self) -> &HashMap<AnimationNodeIndex, ActiveAnimation> {
+    pub fn active_animations(&self) -> &HashMap<AnimationNodeIndex, ActiveNodeState> {
         &self.active_animations
     }
 
-    pub fn active_animations_mut(&mut self) -> &mut HashMap<AnimationNodeIndex, ActiveAnimation> {
-        &mut self.active_animations
+    pub fn update(&mut self, delta_time: f32) {
+        self.active_animations
+            .iter_mut()
+            .for_each(|(_, node_state)| node_state.update(delta_time));
+    }
+
+    pub fn play_animation(
+        &mut self,
+        node_index: &AnimationNodeIndex,
+        anim_clip: AssetHandle<AnimationClip>,
+    ) {
+        if let Some(anim_clip_state) = self
+            .active_animations
+            .get_mut(node_index)
+            .map(|node_state| {
+                node_state
+                    .node_state
+                    .as_any_mut()
+                    .downcast_mut::<AnimationClipNodeState>()
+            })
+            .flatten()
+        {
+            anim_clip_state.play(anim_clip);
+        }
     }
 }
 

@@ -3,8 +3,13 @@ use uuid::Uuid;
 
 use crate::{clip::AnimationClip, player::ActiveNodeState};
 
+pub struct EvaluatedNode {
+    pub transform: Transform,
+    pub weight: f32,
+}
+
 pub struct AnimationGraphEvaluator {
-    evaluation_stack: Vec<Transform>,
+    evaluation_stack: Vec<EvaluatedNode>,
 }
 
 impl AnimationGraphEvaluator {
@@ -14,18 +19,18 @@ impl AnimationGraphEvaluator {
         }
     }
 
-    pub fn push_transform(&mut self, transform: Transform) {
-        self.evaluation_stack.push(transform);
+    pub fn push_evaluation(&mut self, evaluated_node: EvaluatedNode) {
+        self.evaluation_stack.push(evaluated_node);
     }
 
-    pub fn pop_transform(&mut self) -> Option<Transform> {
+    pub fn pop_evaluation(&mut self) -> Option<EvaluatedNode> {
         self.evaluation_stack.pop()
     }
 }
 
 pub struct AnimationGraphEvaluationContext<'a> {
     pub(crate) target_id: &'a Uuid,
-    pub(crate) active_animation: &'a ActiveNodeState,
+    pub(crate) node_state: &'a ActiveNodeState,
     pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
-    pub(crate) input_transforms: &'a Vec<Transform>,
+    pub(crate) evaluated_inputs: &'a Vec<EvaluatedNode>,
 }

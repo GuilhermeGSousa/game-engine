@@ -38,8 +38,9 @@ pub struct AnimationRootNode;
 impl AnimationNode for AnimationRootNode {
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
         context
-            .input_transforms
+            .evaluated_inputs
             .first()
+            .map(|evaluated_node| &evaluated_node.transform)
             .unwrap_or(&Transform::identity())
             .clone()
     }
@@ -118,7 +119,7 @@ impl AnimationNode for AnimationClipNode {
 
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
         let Some(clip_anim_state) = context
-            .active_animation
+            .node_state
             .node_state
             .as_any()
             .downcast_ref::<AnimationClipNodeState>()
@@ -156,7 +157,10 @@ impl AnimationNode for AnimationBlendNode {
     fn create_state(&self) -> Box<dyn AnimationNodeState> {
         Box::new(NoneState)
     }
-    fn evaluate(&self, _context: AnimationGraphEvaluationContext<'_>) -> Transform {
+    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
+        for evaluated_input in context.evaluated_inputs {
+            // TODO: Blend nodes
+        }
         Transform::identity()
     }
 }

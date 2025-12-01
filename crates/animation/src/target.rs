@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphEvaluationContext, AnimationGraphEvaluator},
+    evaluation::{AnimationGraphEvaluationContext, AnimationGraphEvaluator, EvaluatedNode},
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
 };
@@ -40,31 +40,41 @@ pub(crate) fn animate_targets(
                 continue;
             };
 
-            let input_transforms = animation_graph
+            let Some(node_state) = animation_player.get_node_state(&node_index) else {
+                warn!(
+                    "No node state found for node, make sure the animation player has been correctly initialized"
+                );
+                continue;
+            };
+
+            let evaluated_inputs = animation_graph
                 .get_node_inputs(node_index)
-                .map(|_| graph_evaluator.pop_transform())
+                .map(|_| graph_evaluator.pop_evaluation())
                 .filter_map(|transform| transform)
                 .collect::<Vec<_>>();
 
             let context = AnimationGraphEvaluationContext {
                 target_id: &animation_target.id,
-                active_animation: animation_player.get_active_animation(&node_index),
+                node_state,
                 animation_clips: &animation_clips,
-                input_transforms: &input_transforms,
+                evaluated_inputs: &evaluated_inputs,
             };
 
-            graph_evaluator.push_transform(node.evaluate(context));
+            graph_evaluator.push_evaluation(EvaluatedNode {
+                transform: node.evaluate(context),
+                weight: node_state.weight,
+            });
         }
 
         // Now we just apply the root transform on the evaluator
-        let Some(result_transform) = graph_evaluator.pop_transform() else {
+        let Some(result_transform) = graph_evaluator.pop_evaluation() else {
             warn!("No result transform found for animation graph");
             continue;
         };
 
-        target_transform.translation = result_transform.translation;
-        target_transform.rotation = result_transform.rotation;
-        target_transform.scale = result_transform.scale;
+        target_transform.translation = result_transform.transform.translation;
+        target_transform.rotation = result_transform.transform.rotation;
+        target_transform.scale = result_transform.transform.scale;
     }
 }
 

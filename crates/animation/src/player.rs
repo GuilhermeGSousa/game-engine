@@ -10,8 +10,8 @@ use crate::{
 };
 
 pub struct ActiveNodeState {
+    pub weight: f32,
     pub(crate) node_state: Box<dyn AnimationNodeState>,
-    weight: f32,
 }
 
 impl ActiveNodeState {
@@ -30,13 +30,11 @@ pub struct AnimationPlayer {
 }
 
 impl AnimationPlayer {
-    pub fn get_active_animation(&self, node_index: &AnimationNodeIndex) -> &ActiveNodeState {
-        self.active_animations
-            .get(node_index)
-            .expect("Animation Node was not initialized")
+    pub fn get_node_state(&self, node_index: &AnimationNodeIndex) -> Option<&ActiveNodeState> {
+        self.active_animations.get(node_index)
     }
 
-    pub fn get_active_animation_mut(
+    pub fn get_node_state_mut(
         &mut self,
         node_index: &AnimationNodeIndex,
     ) -> Option<&mut ActiveNodeState> {

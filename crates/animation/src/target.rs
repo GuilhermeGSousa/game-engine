@@ -80,10 +80,11 @@ pub(crate) fn animate_targets(
 
 pub(crate) fn update_animation_players(
     animation_players: Query<&mut AnimationPlayer>,
+    animation_clips: Res<AssetStore<AnimationClip>>,
     time: Res<Time>,
 ) {
     let delta_time = time.delta().as_secs_f32();
     for mut animation_player in animation_players.iter() {
-        animation_player.update(delta_time);
+        animation_player.update(delta_time, &animation_clips);
     }
 }

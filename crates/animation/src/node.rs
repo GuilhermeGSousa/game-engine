@@ -1,16 +1,17 @@
 use std::any::Any;
 
-use essential::{assets::handle::AssetHandle, transform::Transform};
+use essential::{assets::{asset_store::AssetStore, handle::AssetHandle}, blend::Blendable, transform::Transform};
 
 use crate::{clip::AnimationClip, evaluation::AnimationGraphEvaluationContext};
 
 pub trait AnimationNodeState: Any + Sync + Send {
     fn as_any(&self) -> &dyn Any;
+
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     fn reset(&mut self);
 
-    fn update(&mut self, delta_time: f32);
+    fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>);
 }
 
 pub trait AnimationNode: Sync + Send {
@@ -22,7 +23,7 @@ pub struct NoneState;
 impl AnimationNodeState for NoneState {
     fn reset(&mut self) {}
 
-    fn update(&mut self, _delta_time: f32) {}
+    fn update(&mut self, _delta_time: f32, _animation_clips: &AssetStore<AnimationClip>) {}
 
     fn as_any(&self) -> &dyn Any {
         self
@@ -41,7 +42,7 @@ impl AnimationNode for AnimationRootNode {
             .evaluated_inputs
             .first()
             .map(|evaluated_node| &evaluated_node.transform)
-            .unwrap_or(&Transform::identity())
+            .unwrap_or(&Transform::IDENTITY)
             .clone()
     }
 
@@ -97,16 +98,26 @@ impl AnimationNodeState for AnimationClipNodeState {
         self.is_paused = false;
     }
 
-    fn update(&mut self, delta_time: f32) {
+    fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
+
+        let Some(clip) = self
+            .animation_clip
+            .as_ref()
+            .and_then(|clip_handle| animation_clips.get(clip_handle))
+        else {
+            return;
+        };
+
         if self.is_paused {
             return;
         }
 
         self.time += delta_time * self.play_rate;
 
-        // if self.time > self.clip_duration {
-        //     self.time = 0.0;
-        // }
+        
+        if self.time > clip.duration() {
+            self.time = 0.0;
+        }
     }
 }
 
@@ -124,24 +135,24 @@ impl AnimationNode for AnimationClipNode {
             .as_any()
             .downcast_ref::<AnimationClipNodeState>()
         else {
-            return Transform::identity();
+            return Transform::IDENTITY;
         };
 
         let Some(current_anim) = clip_anim_state.current_animation() else {
-            return Transform::identity();
+            return Transform::IDENTITY;
         };
 
         let Some(animation_clip) = context.animation_clips.get(current_anim) else {
-            return Transform::identity();
+            return Transform::IDENTITY;
         };
 
         // Find the channel for this animation target
         let Some(animation_channels) = animation_clip.get_channels(&context.target_id) else {
-            return Transform::identity();
+            return Transform::IDENTITY;
         };
 
         // Based on the current time of the animation player + delta time, interpolate the target's transform
-        let mut target_transform = Transform::identity();
+        let mut target_transform = Transform::IDENTITY;
         for animation_channel in animation_channels {
             animation_channel
                 .sample_transform(clip_anim_state.current_time(), &mut target_transform);
@@ -157,12 +168,15 @@ impl AnimationNode for AnimationBlendNode {
     fn create_state(&self) -> Box<dyn AnimationNodeState> {
         Box::new(NoneState)
     }
+    
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
+        let mut result = Transform::IDENTITY;
         for evaluated_input in context.evaluated_inputs {
-            // TODO: Blend nodes
+            result = result.lerp(evaluated_input.transform.clone(), evaluated_input.weight);
         }
-        Transform::identity()
+        result
     }
 }
+pub struct AnimationStateMachineNodeState;
 
 pub struct AnimationStateMachineNode;

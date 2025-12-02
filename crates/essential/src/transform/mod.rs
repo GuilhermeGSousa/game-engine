@@ -1,9 +1,11 @@
 use ecs::component::{Component, ComponentLifecycleCallback};
 use glam::{Affine3A, Mat4, Quat, Vec3};
 
+use crate::blend::Blendable;
+
 pub mod systems;
 
-#[derive(Clone)]
+#[derive(Clone, Blendable)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -36,16 +38,14 @@ impl Component for Transform {
 }
 
 impl Transform {
-    pub fn compute_matrix(&self) -> Mat4 {
-        Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
-    }
-
-    pub fn identity() -> Self {
-        Self {
+    pub const IDENTITY: Self = Self {
             translation: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
-        }
+        };
+
+    pub fn compute_matrix(&self) -> Mat4 {
+        Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
     }
 
     pub fn from_translation_rotation(translation: Vec3, rotation: Quat) -> Self {

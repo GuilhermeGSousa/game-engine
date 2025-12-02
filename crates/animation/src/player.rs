@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Deref};
 
 use ecs::component::Component;
-use essential::assets::handle::AssetHandle;
+use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
 
 use crate::{
     clip::AnimationClip,
@@ -15,8 +15,8 @@ pub struct ActiveNodeState {
 }
 
 impl ActiveNodeState {
-    pub fn update(&mut self, delta_time: f32) {
-        self.node_state.update(delta_time);
+    pub fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
+        self.node_state.update(delta_time, animation_clips);
     }
 
     pub fn reset(&mut self) {
@@ -63,10 +63,10 @@ impl AnimationPlayer {
         &self.active_animations
     }
 
-    pub fn update(&mut self, delta_time: f32) {
+    pub fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
         self.active_animations
             .iter_mut()
-            .for_each(|(_, node_state)| node_state.update(delta_time));
+            .for_each(|(_, node_state)| node_state.update(delta_time, animation_clips));
     }
 
     pub fn play_animation(
@@ -77,13 +77,12 @@ impl AnimationPlayer {
         if let Some(anim_clip_state) = self
             .active_animations
             .get_mut(node_index)
-            .map(|node_state| {
+            .and_then(|node_state| {
                 node_state
                     .node_state
                     .as_any_mut()
                     .downcast_mut::<AnimationClipNodeState>()
             })
-            .flatten()
         {
             anim_clip_state.play(anim_clip);
         }

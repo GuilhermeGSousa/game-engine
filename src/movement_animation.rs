@@ -1,7 +1,7 @@
 use animation::{
     clip::AnimationClip,
     graph::AnimationGraph,
-    node::AnimationClipNode,
+    node::{AnimationBlendNode, AnimationClipNode},
     player::{AnimationHandleComponent, AnimationPlayer},
 };
 use ecs::{
@@ -106,9 +106,14 @@ pub(crate) fn setup_animations(
             let mut anim_graph = AnimationGraph::new();
 
             // Add nodes
-            let anim_clip_node = anim_graph.add_node(AnimationClipNode, *anim_graph.root());
+            let anim_blend_node = anim_graph.add_node(AnimationBlendNode, *anim_graph.root());
+            let idle_node = anim_graph.add_node(AnimationClipNode, anim_blend_node);
+            let walk_node = anim_graph.add_node(AnimationClipNode, anim_blend_node);
 
             animation_player.initialize_states(&anim_graph);
+
+            animation_player.play_animation(&idle_node, anim_store.idle.clone());
+            animation_player.play_animation(&walk_node, anim_store.walk.clone());
 
             cmd.insert(
                 AnimationHandleComponent {
@@ -135,7 +140,7 @@ pub(crate) fn update_animation_state(
         return;
     }
 
-    for (mut player, anim_store, anim_handle) in animation_player.iter() {
+    for (player, anim_store, anim_handle) in animation_player.iter() {
         let Some(graph) = anim_graphs.get(&anim_handle) else {
             continue;
         };

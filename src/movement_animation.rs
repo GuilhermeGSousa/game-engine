@@ -111,7 +111,8 @@ pub(crate) fn setup_animations(
             let walk_node = anim_graph.add_node(AnimationClipNode, anim_blend_node);
 
             animation_player.initialize_states(&anim_graph);
-
+            animation_player.set_node_weight(&idle_node, 0.5);
+            animation_player.set_node_weight(&walk_node, 0.5);
             animation_player.play_animation(&idle_node, anim_store.idle.clone());
             animation_player.play_animation(&walk_node, anim_store.walk.clone());
 
@@ -134,21 +135,21 @@ pub(crate) fn update_animation_state(
     anim_graphs: Res<AssetStore<AnimationGraph>>,
     input: Res<Input>,
 ) {
-    let y_key_state = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
+    // let y_key_state = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
-    if y_key_state != InputState::Pressed {
-        return;
-    }
+    // if y_key_state != InputState::Pressed {
+    //     return;
+    // }
 
-    for (player, anim_store, anim_handle) in animation_player.iter() {
-        let Some(graph) = anim_graphs.get(&anim_handle) else {
-            continue;
-        };
+    // for (player, anim_store, anim_handle) in animation_player.iter() {
+    //     let Some(graph) = anim_graphs.get(&anim_handle) else {
+    //         continue;
+    //     };
 
-        let Some(clip_node) = graph.get_node_inputs(*graph.root()).next() else {
-            continue;
-        };
+    //     let Some(clip_node) = graph.get_node_inputs(*graph.root()).next() else {
+    //         continue;
+    //     };
 
-        // TODO Switch States
-    }
+    //     // TODO Switch States
+    // }
 }

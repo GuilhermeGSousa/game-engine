@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use essential::{assets::{asset_store::AssetStore, handle::AssetHandle}, blend::Blendable, transform::Transform};
+use glam::{Quat, Vec3, Vec3A};
 
 use crate::{clip::AnimationClip, evaluation::AnimationGraphEvaluationContext};
 
@@ -170,11 +171,15 @@ impl AnimationNode for AnimationBlendNode {
     }
     
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
-        let mut result = Transform::IDENTITY;
+        let mut translation = Vec3::ZERO;
+        let mut rotation = Quat::IDENTITY;
+        let mut scale = Vec3::ZERO;
         for evaluated_input in context.evaluated_inputs {
-            result = result.lerp(evaluated_input.transform.clone(), evaluated_input.weight);
+            translation += evaluated_input.transform.translation * evaluated_input.weight;
+            rotation = Quat::interpolate(Quat::IDENTITY, evaluated_input.transform.rotation, evaluated_input.weight) * rotation;
+            scale += evaluated_input.transform.scale * evaluated_input.weight;
         }
-        result
+        Transform { translation, rotation, scale }
     }
 }
 pub struct AnimationStateMachineNodeState;

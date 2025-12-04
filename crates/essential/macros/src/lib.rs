@@ -70,7 +70,7 @@ pub fn lerp_derive(input: TokenStream) -> TokenStream {
     // 3. Generate the implementation
     let gen = quote! {
         impl Blendable for #name {
-            fn lerp(self, other: Self, t: f32) -> Self {
+            fn interpolate(self, other: Self, t: f32) -> Self {
                 #name #fields_processing
             }
         }

@@ -59,10 +59,6 @@ impl AnimationPlayer {
         }
     }
 
-    pub fn active_animations(&self) -> &HashMap<AnimationNodeIndex, ActiveNodeState> {
-        &self.active_animations
-    }
-
     pub fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
         self.active_animations
             .iter_mut()
@@ -85,6 +81,13 @@ impl AnimationPlayer {
             })
         {
             anim_clip_state.play(anim_clip);
+        }
+    }
+
+    pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32)
+    {
+        if let Some(active_anim) = self.active_animations.get_mut(node_index){
+            active_anim.weight = weight;
         }
     }
 }

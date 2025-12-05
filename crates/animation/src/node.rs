@@ -1,6 +1,10 @@
 use std::any::Any;
 
-use essential::{assets::{asset_store::AssetStore, handle::AssetHandle}, blend::Blendable, transform::Transform};
+use essential::{
+    assets::{asset_store::AssetStore, handle::AssetHandle},
+    blend::Blendable,
+    transform::Transform,
+};
 use glam::{Quat, Vec3, Vec3A};
 
 use crate::{clip::AnimationClip, evaluation::AnimationGraphEvaluationContext};
@@ -100,7 +104,6 @@ impl AnimationNodeState for AnimationClipNodeState {
     }
 
     fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
-
         let Some(clip) = self
             .animation_clip
             .as_ref()
@@ -115,7 +118,6 @@ impl AnimationNodeState for AnimationClipNodeState {
 
         self.time += delta_time * self.play_rate;
 
-        
         if self.time > clip.duration() {
             self.time = 0.0;
         }
@@ -169,17 +171,26 @@ impl AnimationNode for AnimationBlendNode {
     fn create_state(&self) -> Box<dyn AnimationNodeState> {
         Box::new(NoneState)
     }
-    
+
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
         let mut translation = Vec3::ZERO;
         let mut rotation = Quat::IDENTITY;
         let mut scale = Vec3::ZERO;
         for evaluated_input in context.evaluated_inputs {
             translation += evaluated_input.transform.translation * evaluated_input.weight;
-            rotation = Quat::interpolate(Quat::IDENTITY, evaluated_input.transform.rotation, evaluated_input.weight) * rotation;
+            rotation = Quat::interpolate(
+                Quat::IDENTITY,
+                evaluated_input.transform.rotation,
+                evaluated_input.weight,
+            ) * rotation;
             scale += evaluated_input.transform.scale * evaluated_input.weight;
         }
-        Transform { translation, rotation, scale }
+
+        Transform {
+            translation,
+            rotation,
+            scale,
+        }
     }
 }
 pub struct AnimationStateMachineNodeState;

@@ -13,7 +13,7 @@ use app::{
 use winit::platform::web::EventLoopExtWebSys;
 
 use winit::{
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopProxy},
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::Window as WinitWindow,
 };
@@ -25,7 +25,7 @@ pub struct Window {
 }
 
 #[derive(Resource)]
-pub struct WindowEventLoop(EventLoop<()>);
+pub struct WindowEventLoopProxy(EventLoopProxy<()>);
 
 impl Window {
     pub fn new(window: WinitWindow) -> Self {
@@ -69,12 +69,10 @@ impl HasWindowHandle for Window {
 
 pub struct WindowPlugin;
 
-fn winit_runner(mut app: App) -> AppExit {
+fn winit_runner(mut app: App, event_loop: EventLoop<()>) -> AppExit {
     if app.plugin_state() == PluginsState::Ready {
         app.finish_plugin_build();
     }
-
-    let event_loop = app.remove_resource::<WindowEventLoop>().unwrap();
 
     let state = ApplicationWindowHandler::new(app);
 
@@ -83,7 +81,7 @@ fn winit_runner(mut app: App) -> AppExit {
             event_loop.0.spawn_app(state);
         } else {
             let mut state = state;
-            let _ = event_loop.0.run_app(&mut state);
+            let _ = event_loop.run_app(&mut state);
         }
     }
 
@@ -118,13 +116,13 @@ impl Plugin for WindowPlugin {
         let window = event_loop
             .create_window(win_attr)
             .expect("create window err.");
-
+        
         window.set_cursor_visible(true);
         app.insert_resource(Input::new());
         app.insert_resource(Window::new(window));
-        app.insert_resource(WindowEventLoop(event_loop));
+        app.insert_resource(WindowEventLoopProxy(event_loop.create_proxy()));
 
         app.add_system(UpdateGroup::Render, update_input);
-        app.set_runner(winit_runner);
+        app.set_runner(|app| winit_runner(app, event_loop));
     }
 }

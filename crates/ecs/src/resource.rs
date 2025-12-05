@@ -12,7 +12,7 @@ use crate::{
 
 pub type ResourceId = TypeId;
 
-pub trait Resource: 'static {
+pub trait Resource: Send + Sync + 'static {
     fn name() -> &'static str;
 }
 

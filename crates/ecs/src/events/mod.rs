@@ -4,4 +4,4 @@ pub mod event_writer;
 
 pub use ecs_macros::Event;
 
-pub trait Event {}
+pub trait Event: Send + Sync {}

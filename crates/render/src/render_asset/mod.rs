@@ -16,7 +16,7 @@ pub enum AssetPreparationError {
     NotReady,
 }
 
-pub(crate) trait RenderAsset: Sized + 'static {
+pub(crate) trait RenderAsset: Send + Sync + Sized + 'static {
     type SourceAsset: Asset;
     type PreparationParams: SystemInput;
 

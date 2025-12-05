@@ -444,6 +444,10 @@ unsafe impl SystemInput for &World {
     ) -> Self::Data<'world, 'state> {
         world.world()
     }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.read_world();
+    }
 }
 
 unsafe impl SystemInput for &mut World {
@@ -459,6 +463,10 @@ unsafe impl SystemInput for &mut World {
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         world.world_mut()
+    }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.write_world();
     }
 }
 

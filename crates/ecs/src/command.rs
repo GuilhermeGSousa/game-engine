@@ -90,6 +90,10 @@ unsafe impl SystemInput for CommandQueue<'_, '_> {
     fn apply(state: &mut Self::State, world: &mut World) {
         state.execute_commands(world);
     }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.write_world();
+    }
 }
 
 pub trait Command {

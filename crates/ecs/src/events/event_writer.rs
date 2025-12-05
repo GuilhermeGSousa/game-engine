@@ -37,4 +37,8 @@ where
     ) -> Self::Data<'world, 'state> {
         EventWriter::new(world)
     }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.write_resource::<EventChannel<T>>();
+    }
 }

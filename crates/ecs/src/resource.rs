@@ -70,6 +70,10 @@ where
     ) -> Self::Data<'world, 'state> {
         Res::new(world)
     }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.read_resource::<T>();
+    }
 }
 
 impl<T> Deref for Res<'_, T>
@@ -130,6 +134,10 @@ where
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         ResMut::new(world)
+    }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.write_resource::<T>();
     }
 }
 

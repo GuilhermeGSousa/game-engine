@@ -14,7 +14,7 @@ use crate::{
 
 pub type BoxedSystem = Box<dyn System>;
 
-pub trait System {
+pub trait System: Send + Sync {
     fn access(&self) -> SystemAccess;
 
     fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
@@ -76,8 +76,9 @@ where
 #[typle(Tuple for 0..=12)]
 impl<F, T> System for FunctionSystem<F, T>
 where
+    F: Send + Sync,
     T: Tuple,
-    T<_>: SystemInput + 'static,
+    T<_>: SystemInput + Send + Sync + 'static,
     for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
         + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
         + 'static,
@@ -112,8 +113,9 @@ pub trait IntoSystem<Marker> {
 #[typle(Tuple for 0..=12)]
 impl<F, T> IntoSystem<T> for F
 where
+    F: Send + Sync,
     T: Tuple,
-    T<_>: SystemInput + 'static,
+    T<_>: SystemInput + Send + Sync + 'static,
     for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
         + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
         + 'static,

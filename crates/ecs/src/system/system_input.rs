@@ -7,7 +7,7 @@ use crate::{
 use typle::typle;
 
 pub unsafe trait SystemInput {
-    type State: 'static;
+    type State: Send + Sync + 'static;
     type Data<'world, 'state>;
 
     fn init_state() -> Self::State;

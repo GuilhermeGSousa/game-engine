@@ -1,10 +1,13 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::world::{UnsafeWorldCell, World};
+use crate::{
+    system::access::SystemAccess,
+    world::{UnsafeWorldCell, World},
+};
 use typle::typle;
 
 pub unsafe trait SystemInput {
-    type State: 'static;
+    type State: Send + Sync + 'static;
     type Data<'world, 'state>;
 
     fn init_state() -> Self::State;
@@ -15,9 +18,11 @@ pub unsafe trait SystemInput {
     ) -> Self::Data<'world, 'state>;
 
     fn apply(_state: &mut Self::State, _world: &mut World) {}
+
+    fn fill_access(access: &mut SystemAccess);
 }
 
-#[allow(unused_variables)]
+#[allow(unused_variables, unused_mut)]
 #[typle(Tuple for 0..=12)]
 unsafe impl<T> SystemInput for T
 where
@@ -36,6 +41,10 @@ where
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         typle_for!(i in .. => <T<{i}>>::get_data(&mut state[[i]], world))
+    }
+
+    fn fill_access(access: &mut SystemAccess) {
+        typle_for!(i in .. => <T<{i}>>::fill_access(access));
     }
 }
 
@@ -76,5 +85,9 @@ unsafe impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         StaticSystemInput(unsafe { P::get_data(state, world) })
+    }
+
+    fn fill_access(access: &mut SystemAccess) {
+        P::fill_access(access);
     }
 }

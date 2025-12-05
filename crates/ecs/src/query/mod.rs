@@ -9,7 +9,7 @@ use crate::{
     component::{Component, ComponentId},
     entity::Entity,
     query::{change_detection::Mut, query_filter::QueryFilter},
-    system::system_input::SystemInput,
+    system::{access::SystemAccess, system_input::SystemInput},
     world::UnsafeWorldCell,
 };
 
@@ -26,6 +26,8 @@ pub trait QueryData {
     fn component_ids() -> Vec<ComponentId>;
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>>;
+
+    fn fill_access(access: &mut SystemAccess);
 }
 
 impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
@@ -139,6 +141,10 @@ where
     ) -> Self::Data<'world, 'state> {
         Query::new(world)
     }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        T::fill_access(access);
+    }
 }
 
 impl<T> QueryData for &T
@@ -160,6 +166,10 @@ where
             .find_location(entity)
             .map(|location| world.get_component_for_entity_location::<T>(location))
             .flatten()
+    }
+
+    fn fill_access(access: &mut SystemAccess) {
+        access.read_component::<T>();
     }
 }
 
@@ -191,6 +201,10 @@ where
             })
             .flatten()
     }
+
+    fn fill_access(access: &mut SystemAccess) {
+        access.write_component::<T>();
+    }
 }
 
 impl QueryData for Entity {
@@ -203,6 +217,8 @@ impl QueryData for Entity {
     fn fetch<'w>(_world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         Some(entity)
     }
+
+    fn fill_access(_access: &mut SystemAccess) {}
 }
 
 impl<T> QueryData for Option<&T>
@@ -221,6 +237,10 @@ where
             .entity_store()
             .find_location(entity)
             .map(|location| world.get_component_for_entity_location(location))
+    }
+
+    fn fill_access(access: &mut SystemAccess) {
+        access.read_component::<T>();
     }
 }
 
@@ -243,6 +263,10 @@ where
                 .get_component_for_entity_location_mut::<T>(location)
                 .map(|table_cell| Mut::new(table_cell.data, table_cell.changed_tick, current_tick))
         })
+    }
+
+    fn fill_access(access: &mut SystemAccess) {
+        access.write_component::<T>();
     }
 }
 
@@ -277,5 +301,11 @@ where
                 }
             }
         ))
+    }
+
+    fn fill_access(access: &mut SystemAccess) {
+        for typle_index!(i) in 0..T::LEN {
+            <T<{ i }>>::fill_access(access);
+        }
     }
 }

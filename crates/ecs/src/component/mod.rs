@@ -17,7 +17,7 @@ pub struct ComponentLifecycleContext {
     pub entity: Entity,
 }
 
-pub trait Component: 'static {
+pub trait Component: Send + Sync + 'static {
     fn name() -> &'static str;
 
     fn on_add() -> Option<ComponentLifecycleCallback> {

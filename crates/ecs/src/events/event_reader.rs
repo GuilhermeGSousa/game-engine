@@ -1,4 +1,4 @@
-use std::{slice::Iter};
+use std::slice::Iter;
 
 use crate::{
     events::{event_channel::EventChannel, Event},
@@ -39,6 +39,10 @@ where
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         EventReader::new(world)
+    }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.read_resource::<EventChannel<T>>();
     }
 }
 

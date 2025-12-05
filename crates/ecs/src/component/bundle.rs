@@ -9,7 +9,7 @@ use std::any::TypeId;
 
 use typle::typle;
 
-pub trait ComponentBundle {
+pub trait ComponentBundle: Send + Sync {
     fn get_component_ids() -> Vec<ComponentId>;
 
     fn add_row_to_archetype(

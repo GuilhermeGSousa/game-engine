@@ -18,7 +18,9 @@ impl Schedule {
 
     #[allow(unused)]
     pub fn add_system<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
-        self.systems.push(system.into_system());
+        let scheduled_system = system.into_system();
+        let system_access = scheduled_system.access();
+        self.systems.push(scheduled_system);
         self
     }
 

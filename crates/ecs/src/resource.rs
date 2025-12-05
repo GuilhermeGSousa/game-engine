@@ -12,7 +12,7 @@ use crate::{
 
 pub type ResourceId = TypeId;
 
-pub trait Resource: 'static {
+pub trait Resource: Send + Sync + 'static {
     fn name() -> &'static str;
 }
 
@@ -69,6 +69,10 @@ where
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         Res::new(world)
+    }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.read_resource::<T>();
     }
 }
 
@@ -130,6 +134,10 @@ where
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         ResMut::new(world)
+    }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.write_resource::<T>();
     }
 }
 

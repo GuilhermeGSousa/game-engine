@@ -24,6 +24,7 @@ pub struct Window {
     size: (u32, u32),
 }
 
+#[allow(dead_code)]
 #[derive(Resource)]
 pub struct WindowEventLoopProxy(EventLoopProxy<()>);
 
@@ -116,7 +117,7 @@ impl Plugin for WindowPlugin {
         let window = event_loop
             .create_window(win_attr)
             .expect("create window err.");
-        
+
         window.set_cursor_visible(true);
         app.insert_resource(Input::new());
         app.insert_resource(Window::new(window));

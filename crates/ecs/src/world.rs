@@ -32,6 +32,9 @@ pub struct World {
     current_tick: u32,
 }
 
+unsafe impl Send for World {}
+unsafe impl Sync for World {}
+
 impl World {
     pub fn new() -> World {
         Self {
@@ -417,6 +420,9 @@ pub struct UnsafeWorldCell<'w> {
     is_mutable: bool,
     _marker: PhantomData<(&'w World, &'w UnsafeCell<World>)>,
 }
+
+unsafe impl Send for UnsafeWorldCell<'_> {}
+unsafe impl Sync for UnsafeWorldCell<'_> {}
 
 impl<'w> From<&'w mut World> for UnsafeWorldCell<'w> {
     fn from(value: &'w mut World) -> Self {

@@ -96,7 +96,7 @@ unsafe impl SystemInput for CommandQueue<'_, '_> {
     }
 }
 
-pub trait Command {
+pub trait Command: Send + Sync {
     fn execute(self: Box<Self>, world: &mut World);
 }
 

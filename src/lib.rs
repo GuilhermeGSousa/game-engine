@@ -51,7 +51,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use crate::{
     game_ui::render_ui,
     movement_animation::{
-        setup_animations, setup_state_machine, spawn_on_button_press, update_animation_state,
+        setup_animations, setup_state_machine, spawn_on_button_press,
     },
 };
 
@@ -99,10 +99,6 @@ pub fn run_game() {
         .add_system(app::update_group::UpdateGroup::Update, setup_state_machine)
         .add_system(app::update_group::UpdateGroup::Update, setup_animations)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
-        .add_system(
-            app::update_group::UpdateGroup::Update,
-            update_animation_state,
-        )
         .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);

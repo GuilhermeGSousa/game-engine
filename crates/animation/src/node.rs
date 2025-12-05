@@ -5,7 +5,7 @@ use essential::{
     blend::Blendable,
     transform::Transform,
 };
-use glam::{Quat, Vec3, Vec3A};
+use glam::{Quat, Vec3};
 
 use crate::{clip::AnimationClip, evaluation::AnimationGraphEvaluationContext};
 

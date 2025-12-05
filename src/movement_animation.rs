@@ -125,31 +125,3 @@ pub(crate) fn setup_animations(
         }
     }
 }
-
-pub(crate) fn update_animation_state(
-    animation_player: Query<(
-        &mut AnimationPlayer,
-        &AnimationStore,
-        &AnimationHandleComponent,
-    )>,
-    anim_graphs: Res<AssetStore<AnimationGraph>>,
-    input: Res<Input>,
-) {
-    // let y_key_state = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
-
-    // if y_key_state != InputState::Pressed {
-    //     return;
-    // }
-
-    // for (player, anim_store, anim_handle) in animation_player.iter() {
-    //     let Some(graph) = anim_graphs.get(&anim_handle) else {
-    //         continue;
-    //     };
-
-    //     let Some(clip_node) = graph.get_node_inputs(*graph.root()).next() else {
-    //         continue;
-    //     };
-
-    //     // TODO Switch States
-    // }
-}

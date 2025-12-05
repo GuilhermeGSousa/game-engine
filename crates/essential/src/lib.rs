@@ -2,6 +2,7 @@ pub mod assets;
 pub mod tasks;
 pub mod time;
 pub mod transform;
+pub mod blend;
 #[cfg(test)]
 mod tests {
     use ecs::{component::Component, world::World};

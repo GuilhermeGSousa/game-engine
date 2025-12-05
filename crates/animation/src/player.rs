@@ -1,69 +1,104 @@
-use std::ops::Deref;
+use std::{collections::HashMap, ops::Deref};
 
 use ecs::component::Component;
-use essential::assets::handle::AssetHandle;
+use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
 
-use crate::clip::AnimationClip;
+use crate::{
+    clip::AnimationClip,
+    graph::{AnimationGraph, AnimationNodeIndex},
+    node::{AnimationClipNodeState, AnimationNodeState},
+};
 
-pub struct ActiveAnimation {
-    time: f32,
-    duration: f32,
-    is_paused: bool,
-    play_rate: f32,
+pub struct ActiveNodeState {
+    pub weight: f32,
+    pub(crate) node_state: Box<dyn AnimationNodeState>,
 }
 
-impl Default for ActiveAnimation {
-    fn default() -> Self {
-        Self {
-            time: 0.0,
-            duration: 0.0,
-            is_paused: false,
-            play_rate: 1.0,
-        }
+impl ActiveNodeState {
+    pub fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
+        self.node_state.update(delta_time, animation_clips);
     }
-}
 
-impl ActiveAnimation {
-    pub fn update(&mut self, delta_time: f32) {
-        if self.is_paused {
-            return;
-        }
-
-        self.time += delta_time * self.play_rate;
-
-        if self.time > self.duration {
-            self.time = 0.0;
-        }
+    pub fn reset(&mut self) {
+        self.node_state.reset();
     }
 }
 
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
-    active_animation: ActiveAnimation,
+    active_animations: HashMap<AnimationNodeIndex, ActiveNodeState>,
 }
 
 impl AnimationPlayer {
-    pub fn update(&mut self, delta_time: f32) {
-        self.active_animation.update(delta_time);
+    pub fn get_node_state(&self, node_index: &AnimationNodeIndex) -> Option<&ActiveNodeState> {
+        self.active_animations.get(node_index)
     }
 
-    pub fn current_time(&self) -> f32 {
-        self.active_animation.time
+    pub fn get_node_state_mut(
+        &mut self,
+        node_index: &AnimationNodeIndex,
+    ) -> Option<&mut ActiveNodeState> {
+        self.active_animations.get_mut(node_index)
     }
 
-    pub fn play(&mut self, clip: &AnimationClip) {
-        self.active_animation.duration = clip.duration();
-        self.active_animation.time = 0.0;
+    pub fn initialize_states(&mut self, animation_graph: &AnimationGraph) {
+        self.active_animations.clear();
+        for node_index in animation_graph.iter() {
+            let Some(anim_node) = animation_graph.get_node(node_index) else {
+                continue;
+            };
+
+            let node_state = anim_node.create_state();
+            self.active_animations.insert(
+                node_index,
+                ActiveNodeState {
+                    node_state,
+                    weight: 1.0,
+                },
+            );
+        }
+    }
+
+    pub fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
+        self.active_animations
+            .iter_mut()
+            .for_each(|(_, node_state)| node_state.update(delta_time, animation_clips));
+    }
+
+    pub fn play_animation(
+        &mut self,
+        node_index: &AnimationNodeIndex,
+        anim_clip: AssetHandle<AnimationClip>,
+    ) {
+        if let Some(anim_clip_state) = self
+            .active_animations
+            .get_mut(node_index)
+            .and_then(|node_state| {
+                node_state
+                    .node_state
+                    .as_any_mut()
+                    .downcast_mut::<AnimationClipNodeState>()
+            })
+        {
+            anim_clip_state.play(anim_clip);
+        }
+    }
+
+    pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32)
+    {
+        if let Some(active_anim) = self.active_animations.get_mut(node_index){
+            active_anim.weight = weight;
+        }
     }
 }
 
 #[derive(Component)]
 pub struct AnimationHandleComponent {
-    pub handle: AssetHandle<AnimationClip>,
+    pub handle: AssetHandle<AnimationGraph>,
 }
 
 impl Deref for AnimationHandleComponent {
-    type Target = AssetHandle<AnimationClip>;
+    type Target = AssetHandle<AnimationGraph>;
 
     fn deref(&self) -> &Self::Target {
         &self.handle

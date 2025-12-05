@@ -1,4 +1,5 @@
 pub mod clip;
+pub mod evaluation;
 pub mod graph;
 pub mod node;
 pub mod player;

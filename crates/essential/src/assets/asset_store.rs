@@ -41,12 +41,6 @@ impl<A: Asset + 'static> AssetStore<A> {
         self.assets.get(&handle.id()).map(|entry| &entry.asset)
     }
 
-    pub fn get_mut(&mut self, handle: &AssetHandle<A>) -> Option<&mut A> {
-        self.assets
-            .get_mut(&handle.id())
-            .map(|entry| &mut entry.asset)
-    }
-
     pub fn insert(&mut self, id: AssetId, asset: A)
     where
         A: 'static,

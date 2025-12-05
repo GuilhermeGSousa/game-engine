@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     component::{bundle::ComponentBundle, Component},
     entity::{entity_store::EntityStore, Entity},
+    resource::Resource,
     system::system_input::SystemInput,
     world::World,
 };
@@ -43,6 +44,11 @@ impl<'w, 's> CommandQueue<'w, 's> {
 
     pub fn add_child(&mut self, parent: Entity, child: Entity) {
         self.queue_state.add_command(AddChild::new(parent, child));
+    }
+
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) {
+        self.queue_state
+            .add_command(InsertResource::<T>::new(resource));
     }
 }
 
@@ -174,5 +180,21 @@ impl AddChild {
 impl Command for AddChild {
     fn execute(self: Box<Self>, world: &mut World) {
         world.add_child(self.parent, self.child);
+    }
+}
+
+pub(crate) struct InsertResource<T: Resource> {
+    resource: T,
+}
+
+impl<T: Resource> InsertResource<T> {
+    fn new(resource: T) -> Self {
+        Self { resource }
+    }
+}
+
+impl<T: Resource> Command for InsertResource<T> {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.insert_resource(self.resource);
     }
 }

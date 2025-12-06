@@ -2,8 +2,6 @@ pub mod access;
 pub mod schedule;
 pub mod system_input;
 
-use std::marker::PhantomData;
-
 use system_input::SystemInput;
 use typle::typle;
 
@@ -56,7 +54,6 @@ impl System for ScheduledSystem {
 pub struct FunctionSystem<F, Input: SystemInput> {
     pub func: F,
     system_state: Input::State,
-    _marker: PhantomData<Input>,
 }
 
 impl<F, Input> FunctionSystem<F, Input>
@@ -67,21 +64,19 @@ where
         Self {
             func,
             system_state: Input::init_state(),
-            _marker: PhantomData,
         }
     }
 }
 
-#[allow(unused_variables)]
+#[allow(unused_variables, unused_mut)]
 #[typle(Tuple for 0..=12)]
 impl<F, T> System for FunctionSystem<F, T>
 where
-    F: Send + Sync,
+    F: Send + Sync + 'static,
     T: Tuple,
-    T<_>: SystemInput + Send + Sync + 'static,
-    for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
-        + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
-        + 'static,
+    T<_>: SystemInput + 'static,
+    for<'w, 's> F:
+        FnMut(typle_args!(i in .. => T<{i}>)) + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>)),
 {
     fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {}
 
@@ -113,12 +108,11 @@ pub trait IntoSystem<Marker> {
 #[typle(Tuple for 0..=12)]
 impl<F, T> IntoSystem<T> for F
 where
-    F: Send + Sync,
+    F: Send + Sync + 'static,
     T: Tuple,
-    T<_>: SystemInput + Send + Sync + 'static,
-    for<'w, 's> F: FnMut(typle_args!(i in .. => T<{i}>))
-        + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>))
-        + 'static,
+    T<_>: SystemInput + 'static,
+    for<'w, 's> F:
+        FnMut(typle_args!(i in .. => T<{i}>)) + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>)),
 {
     fn into_system(self) -> ScheduledSystem {
         ScheduledSystem::new(FunctionSystem::new(self))

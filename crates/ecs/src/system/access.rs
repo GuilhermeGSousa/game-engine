@@ -29,18 +29,15 @@ impl SystemAccess {
         self.resource_writes.insert(TypeId::of::<T>());
     }
 
-    pub fn read_world(&mut self)
-    {
+    pub fn read_world(&mut self) {
         self.reads_all = true;
     }
 
-    pub fn write_world(&mut self)
-    {
+    pub fn write_world(&mut self) {
         self.writes_all = true;
     }
 
-    pub fn is_compatible(other: &Self) -> bool
-    {
+    pub fn is_compatible(_other: &Self) -> bool {
         todo!()
     }
 }

@@ -32,6 +32,9 @@ pub struct World {
     current_tick: u32,
 }
 
+unsafe impl Send for World {}
+unsafe impl Sync for World {}
+
 impl World {
     pub fn new() -> World {
         Self {
@@ -418,6 +421,9 @@ pub struct UnsafeWorldCell<'w> {
     _marker: PhantomData<(&'w World, &'w UnsafeCell<World>)>,
 }
 
+unsafe impl Send for UnsafeWorldCell<'_> {}
+unsafe impl Sync for UnsafeWorldCell<'_> {}
+
 impl<'w> From<&'w mut World> for UnsafeWorldCell<'w> {
     fn from(value: &'w mut World) -> Self {
         value.as_unsafe_world_cell_mut()
@@ -444,6 +450,10 @@ unsafe impl SystemInput for &World {
     ) -> Self::Data<'world, 'state> {
         world.world()
     }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.read_world();
+    }
 }
 
 unsafe impl SystemInput for &mut World {
@@ -459,6 +469,10 @@ unsafe impl SystemInput for &mut World {
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
         world.world_mut()
+    }
+
+    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+        access.write_world();
     }
 }
 

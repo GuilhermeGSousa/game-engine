@@ -60,26 +60,26 @@ pub struct AnimationClipNodeState {
     time: f32,
     is_paused: bool,
     play_rate: f32,
-    animation_clip: Option<AssetHandle<AnimationClip>>,
+    animation_clip: AssetHandle<AnimationClip>,
 }
 
 impl AnimationClipNodeState {
-    pub fn new() -> Self {
+    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
         Self {
             time: 0.0,
             is_paused: false,
             play_rate: 1.0,
-            animation_clip: None,
+            animation_clip: clip,
         }
     }
 
     pub fn play(&mut self, anim_clip: AssetHandle<AnimationClip>) {
         self.time = 0.0;
         self.is_paused = false;
-        self.animation_clip = Some(anim_clip);
+        self.animation_clip = anim_clip;
     }
 
-    pub fn current_animation(&self) -> &Option<AssetHandle<AnimationClip>> {
+    pub fn current_animation(&self) -> &AssetHandle<AnimationClip> {
         &self.animation_clip
     }
 
@@ -104,11 +104,7 @@ impl AnimationNodeState for AnimationClipNodeState {
     }
 
     fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
-        let Some(clip) = self
-            .animation_clip
-            .as_ref()
-            .and_then(|clip_handle| animation_clips.get(clip_handle))
-        else {
+        let Some(clip) = animation_clips.get(&self.animation_clip) else {
             return;
         };
 
@@ -124,28 +120,35 @@ impl AnimationNodeState for AnimationClipNodeState {
     }
 }
 
-pub struct AnimationClipNode;
+pub struct AnimationClipNode {
+    clip: AssetHandle<AnimationClip>,
+}
+
+impl AnimationClipNode {
+    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
+        Self { clip }
+    }
+}
 
 impl AnimationNode for AnimationClipNode {
     fn create_state(&self) -> Box<dyn AnimationNodeState> {
-        Box::new(AnimationClipNodeState::new())
+        let clip = self.clip.clone();
+        Box::new(AnimationClipNodeState::new(clip))
     }
 
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
         let Some(clip_anim_state) = context
-            .node_state
-            .node_state
+            .current_node_state()
             .as_any()
             .downcast_ref::<AnimationClipNodeState>()
         else {
             return Transform::IDENTITY;
         };
 
-        let Some(current_anim) = clip_anim_state.current_animation() else {
-            return Transform::IDENTITY;
-        };
-
-        let Some(animation_clip) = context.animation_clips.get(current_anim) else {
+        let Some(animation_clip) = context
+            .animation_clips
+            .get(clip_anim_state.current_animation())
+        else {
             return Transform::IDENTITY;
         };
 

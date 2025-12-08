@@ -50,13 +50,14 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 
 use crate::{
     game_ui::render_ui,
-    movement_animation::{
-        setup_animations, setup_state_machine, spawn_on_button_press,
-    },
+    movement_animation::{setup_animations, setup_state_machine, spawn_on_button_press},
 };
 
-pub mod game_ui;
-pub mod movement_animation;
+mod animation_state_machine;
+mod fsm;
+mod game_ui;
+mod movement_animation;
+mod movement_fsm;
 
 #[allow(dead_code)]
 

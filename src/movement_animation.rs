@@ -76,6 +76,18 @@ pub(crate) fn setup_state_machine(
         };
 
         if let Some(anim_root) = spawned_gltf.animation_roots().first() {
+            // {
+            //     let mut graph_idle = AnimationGraph::new();
+            //     let root = graph_idle.root();
+            //     graph_idle.add_node(AnimationClipNode::new(clip), *root)
+            // }
+
+            // {
+            //     let mut graph_walk = AnimationGraph::new();
+            //     let root = graph_idle.root();
+            //     graph_idle.add_node(AnimationClipNode, *root)
+            // }
+
             let anim_store = AnimationStore {
                 idle: idle.animations()[0].clone(),
                 walk: walk.animations()[0].clone(),
@@ -107,14 +119,18 @@ pub(crate) fn setup_animations(
 
             // Add nodes
             let anim_blend_node = anim_graph.add_node(AnimationBlendNode, *anim_graph.root());
-            let idle_node = anim_graph.add_node(AnimationClipNode, anim_blend_node);
-            let walk_node = anim_graph.add_node(AnimationClipNode, anim_blend_node);
+            let idle_node = anim_graph.add_node(
+                AnimationClipNode::new(anim_store.idle.clone()),
+                anim_blend_node,
+            );
+            let walk_node = anim_graph.add_node(
+                AnimationClipNode::new(anim_store.walk.clone()),
+                anim_blend_node,
+            );
 
             animation_player.initialize_states(&anim_graph);
             animation_player.set_node_weight(&idle_node, 0.5);
             animation_player.set_node_weight(&walk_node, 0.5);
-            animation_player.play_animation(&idle_node, anim_store.idle.clone());
-            animation_player.play_animation(&walk_node, anim_store.walk.clone());
 
             cmd.insert(
                 AnimationHandleComponent {

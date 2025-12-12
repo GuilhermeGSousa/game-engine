@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use essential::{
-    assets::{asset_store::AssetStore, handle::AssetHandle},
+    assets::{handle::AssetHandle},
     blend::Blendable,
     transform::Transform,
 };
@@ -16,19 +16,20 @@ pub trait AnimationNodeState: Any + Sync + Send {
 
     fn reset(&mut self);
 
-    fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>);
+    fn update(&mut self, delta_time: f32, clip_duration: f32);
 }
 
 pub trait AnimationNode: Sync + Send {
     fn create_state(&self) -> Box<dyn AnimationNodeState>;
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform;
+    fn animation_clip(&self) -> Option<&AssetHandle<AnimationClip>> { None }
 }
 
 pub struct NoneState;
 impl AnimationNodeState for NoneState {
     fn reset(&mut self) {}
 
-    fn update(&mut self, _delta_time: f32, _animation_clips: &AssetStore<AnimationClip>) {}
+    fn update(&mut self, _delta_time: f32, _clip_duration: f32) {}
 
     fn as_any(&self) -> &dyn Any {
         self
@@ -60,27 +61,20 @@ pub struct AnimationClipNodeState {
     time: f32,
     is_paused: bool,
     play_rate: f32,
-    animation_clip: AssetHandle<AnimationClip>,
 }
 
 impl AnimationClipNodeState {
-    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
+    pub fn new() -> Self {
         Self {
             time: 0.0,
             is_paused: false,
             play_rate: 1.0,
-            animation_clip: clip,
         }
     }
 
-    pub fn play(&mut self, anim_clip: AssetHandle<AnimationClip>) {
+    pub fn play(&mut self) {
         self.time = 0.0;
         self.is_paused = false;
-        self.animation_clip = anim_clip;
-    }
-
-    pub fn current_animation(&self) -> &AssetHandle<AnimationClip> {
-        &self.animation_clip
     }
 
     pub fn current_time(&self) -> f32 {
@@ -103,18 +97,14 @@ impl AnimationNodeState for AnimationClipNodeState {
         self.is_paused = false;
     }
 
-    fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
-        let Some(clip) = animation_clips.get(&self.animation_clip) else {
-            return;
-        };
-
+    fn update(&mut self, delta_time: f32, clip_duration: f32) {
         if self.is_paused {
             return;
         }
 
         self.time += delta_time * self.play_rate;
 
-        if self.time > clip.duration() {
+        if self.time > clip_duration {
             self.time = 0.0;
         }
     }
@@ -132,28 +122,24 @@ impl AnimationClipNode {
 
 impl AnimationNode for AnimationClipNode {
     fn create_state(&self) -> Box<dyn AnimationNodeState> {
-        let clip = self.clip.clone();
-        Box::new(AnimationClipNodeState::new(clip))
+        Box::new(AnimationClipNodeState::new())
     }
 
     fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
-        let Some(clip_anim_state) = context
-            .current_node_state()
-            .as_any()
-            .downcast_ref::<AnimationClipNodeState>()
-        else {
-            return Transform::IDENTITY;
-        };
-
-        let Some(animation_clip) = context
-            .animation_clips
-            .get(clip_anim_state.current_animation())
-        else {
+        let Some(animation_clip) = context.animation_clips.get(&self.clip) else {
             return Transform::IDENTITY;
         };
 
         // Find the channel for this animation target
         let Some(animation_channels) = animation_clip.get_channels(&context.target_id) else {
+            return Transform::IDENTITY;
+        };
+
+        let Some(clip_anim_state) = context
+            .current_node_state()
+            .as_any()
+            .downcast_ref::<AnimationClipNodeState>()
+        else {
             return Transform::IDENTITY;
         };
 
@@ -166,6 +152,8 @@ impl AnimationNode for AnimationClipNode {
 
         target_transform
     }
+
+    fn animation_clip(&self) -> Option<&AssetHandle<AnimationClip>> { Some(&self.clip) }
 }
 
 pub struct AnimationBlendNode;

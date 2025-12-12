@@ -87,7 +87,7 @@ impl Archetype {
     pub(crate) unsafe fn get_component_unsafe_mut<T: 'static>(
         &mut self,
         row: TableRowIndex,
-    ) -> Option<MutableCellAccessor<T>> {
+    ) -> Option<MutableCellAccessor<'_, T>> {
         let column = self.data_table.get_column_mut(ComponentId::of::<T>())?;
         column.get_mut_unsafe(row)
     }

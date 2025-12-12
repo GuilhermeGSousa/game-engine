@@ -292,7 +292,7 @@ impl World {
     pub(crate) fn get_component_accessor_for_entity_mut<T: Component>(
         &mut self,
         entity: Entity,
-    ) -> Option<MutableCellAccessor<T>> {
+    ) -> Option<MutableCellAccessor<'_, T>> {
         self.entity_store
             .find_location(entity)
             .map(|location| self.get_component_for_entity_location_mut(location))
@@ -312,7 +312,7 @@ impl World {
     pub(crate) fn get_component_for_entity_location_mut<T: Component>(
         &mut self,
         entity_location: EntityLocation,
-    ) -> Option<MutableCellAccessor<T>> {
+    ) -> Option<MutableCellAccessor<'_, T>> {
         self.archetypes
             .get_mut(entity_location.archetype_index as usize)
             .map(|archetype| unsafe { archetype.get_component_unsafe_mut(entity_location.row) })

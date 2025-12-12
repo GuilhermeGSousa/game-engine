@@ -15,12 +15,8 @@ pub struct ActiveNodeState {
 }
 
 impl ActiveNodeState {
-    pub fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
-        self.node_state.update(delta_time, animation_clips);
-    }
-
-    pub fn reset(&mut self) {
-        self.node_state.reset();
+    pub(crate) fn update(&mut self, delta_time: f32, duration: f32) {
+        self.node_state.update(delta_time, duration);
     }
 }
 
@@ -59,16 +55,9 @@ impl AnimationPlayer {
         }
     }
 
-    pub fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
-        self.active_animations
-            .iter_mut()
-            .for_each(|(_, node_state)| node_state.update(delta_time, animation_clips));
-    }
-
-    pub fn play_animation(
+    pub fn play(
         &mut self,
         node_index: &AnimationNodeIndex,
-        anim_clip: AssetHandle<AnimationClip>,
     ) {
         if let Some(anim_clip_state) = self
             .active_animations
@@ -80,8 +69,26 @@ impl AnimationPlayer {
                     .downcast_mut::<AnimationClipNodeState>()
             })
         {
-            anim_clip_state.play(anim_clip);
+            anim_clip_state.play();
         }
+    }
+
+    pub(crate) fn update(&mut self, delta_time: f32, graph: &AnimationGraph, animation_clips: &AssetStore<AnimationClip>) {
+        self.active_animations
+            .iter_mut()
+            .for_each(|(node_index, node_state)| {
+                let Some(node) = graph.get_node(*node_index) else
+                {
+                    return;
+                };
+                
+                let Some(clip) = node.animation_clip().and_then(|clip_handle| animation_clips.get(clip_handle))
+                else {
+                    return;
+                };
+
+                node_state.update(delta_time, clip.duration());
+            });
     }
 
     pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32)

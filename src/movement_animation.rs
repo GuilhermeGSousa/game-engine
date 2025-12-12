@@ -69,28 +69,28 @@ pub(crate) fn setup_state_machine(
 ) {
     for (entity, loading_anim_store, spawned_gltf) in animated_entities.iter() {
         let (Some(idle), Some(walk)) = (
-            gltf_scenes.get(&loading_anim_store.idle),
-            gltf_scenes.get(&loading_anim_store.walk),
+            gltf_scenes.get(&loading_anim_store.idle).and_then(|idle_scene|idle_scene.animations().first()).map(|clip| clip.clone()),
+            gltf_scenes.get(&loading_anim_store.walk).and_then(|walk_scene|walk_scene.animations().first()).map(|clip| clip.clone()),
         ) else {
             continue;
         };
 
         if let Some(anim_root) = spawned_gltf.animation_roots().first() {
-            // {
-            //     let mut graph_idle = AnimationGraph::new();
-            //     let root = graph_idle.root();
-            //     graph_idle.add_node(AnimationClipNode::new(clip), *root)
-            // }
+            let mut graph_idle = AnimationGraph::new();
+            {
+                let root = graph_idle.root();
+                graph_idle.add_node(AnimationClipNode::new(idle.clone()), *root);
+            }
 
-            // {
-            //     let mut graph_walk = AnimationGraph::new();
-            //     let root = graph_idle.root();
-            //     graph_idle.add_node(AnimationClipNode, *root)
-            // }
+            let mut graph_walk = AnimationGraph::new();
+            {
+                let root = graph_walk.root();
+                graph_walk.add_node(AnimationClipNode::new(walk.clone()), *root);
+            }
 
             let anim_store = AnimationStore {
-                idle: idle.animations()[0].clone(),
-                walk: walk.animations()[0].clone(),
+                idle,
+                walk
             };
             cmd.insert(anim_store, *anim_root);
             cmd.remove::<LoadingAnimationStore>(entity);

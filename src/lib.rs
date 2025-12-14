@@ -53,11 +53,9 @@ use crate::{
     movement_animation::{setup_animations, setup_state_machine, spawn_on_button_press},
 };
 
-mod animation_state_machine;
 mod fsm;
 mod game_ui;
 mod movement_animation;
-mod movement_fsm;
 
 #[allow(dead_code)]
 

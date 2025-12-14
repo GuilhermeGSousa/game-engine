@@ -5,6 +5,7 @@ use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
 
 use crate::{
     clip::AnimationClip,
+    evaluation::AnimationGraphUpdateContext,
     graph::{AnimationGraph, AnimationNodeIndex},
     node::{AnimationClipNodeState, AnimationNodeState},
 };
@@ -15,8 +16,8 @@ pub struct ActiveNodeState {
 }
 
 impl ActiveNodeState {
-    pub(crate) fn update(&mut self, delta_time: f32, duration: f32) {
-        self.node_state.update(delta_time, duration);
+    pub(crate) fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
+        self.node_state.update(context);
     }
 }
 
@@ -55,45 +56,46 @@ impl AnimationPlayer {
         }
     }
 
-    pub fn play(
-        &mut self,
-        node_index: &AnimationNodeIndex,
-    ) {
-        if let Some(anim_clip_state) = self
-            .active_animations
-            .get_mut(node_index)
-            .and_then(|node_state| {
-                node_state
-                    .node_state
-                    .as_any_mut()
-                    .downcast_mut::<AnimationClipNodeState>()
-            })
+    pub fn play(&mut self, node_index: &AnimationNodeIndex) {
+        if let Some(anim_clip_state) =
+            self.active_animations
+                .get_mut(node_index)
+                .and_then(|node_state| {
+                    node_state
+                        .node_state
+                        .as_any_mut()
+                        .downcast_mut::<AnimationClipNodeState>()
+                })
         {
             anim_clip_state.play();
         }
     }
 
-    pub(crate) fn update(&mut self, delta_time: f32, graph: &AnimationGraph, animation_clips: &AssetStore<AnimationClip>) {
+    pub(crate) fn update(
+        &mut self,
+        delta_time: f32,
+        graph: &AnimationGraph,
+        animation_clips: &AssetStore<AnimationClip>,
+    ) {
         self.active_animations
             .iter_mut()
             .for_each(|(node_index, node_state)| {
-                let Some(node) = graph.get_node(*node_index) else
-                {
-                    return;
-                };
-                
-                let Some(clip) = node.animation_clip().and_then(|clip_handle| animation_clips.get(clip_handle))
-                else {
+                let Some(node) = graph.get_node(*node_index) else {
                     return;
                 };
 
-                node_state.update(delta_time, clip.duration());
+                let context = AnimationGraphUpdateContext {
+                    animation_node: node,
+                    animation_clips: animation_clips,
+                    delta_time,
+                };
+
+                node_state.update(context);
             });
     }
 
-    pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32)
-    {
-        if let Some(active_anim) = self.active_animations.get_mut(node_index){
+    pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32) {
+        if let Some(active_anim) = self.active_animations.get_mut(node_index) {
             active_anim.weight = weight;
         }
     }

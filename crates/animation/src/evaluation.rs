@@ -1,7 +1,11 @@
 use essential::{assets::asset_store::AssetStore, transform::Transform};
 use uuid::Uuid;
 
-use crate::{clip::AnimationClip, node::AnimationNodeState, player::ActiveNodeState};
+use crate::{
+    clip::AnimationClip,
+    node::{AnimationNode, AnimationNodeState},
+    player::ActiveNodeState,
+};
 
 pub struct EvaluatedNode {
     pub transform: Transform,
@@ -51,4 +55,10 @@ impl<'a> AnimationGraphEvaluationContext<'a> {
     pub fn target_id(&self) -> &Uuid {
         self.target_id
     }
+}
+
+pub struct AnimationGraphUpdateContext<'a> {
+    pub(crate) animation_node: &'a Box<dyn AnimationNode>,
+    pub(crate) delta_time: f32,
+    pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
 }

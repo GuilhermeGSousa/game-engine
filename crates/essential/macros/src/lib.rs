@@ -5,7 +5,7 @@ extern crate syn;
 extern crate quote;
 
 use proc_macro::TokenStream;
-use syn::{Data, DeriveInput, Fields, parse_macro_input};
+use syn::{parse_macro_input, Data, DeriveInput, Fields};
 
 #[proc_macro_derive(Asset)]
 pub fn asset(input: TokenStream) -> TokenStream {
@@ -47,7 +47,7 @@ pub fn lerp_derive(input: TokenStream) -> TokenStream {
                 quote! {
                     { #(#recurse),* }
                 }
-            },
+            }
             // Case B: Unnamed/Tuple fields (e.g., struct Point(f32, f32))
             Fields::Unnamed(fields) => {
                 let recurse = fields.unnamed.iter().enumerate().map(|(i, _)| {
@@ -60,7 +60,7 @@ pub fn lerp_derive(input: TokenStream) -> TokenStream {
                 quote! {
                     ( #(#recurse),* )
                 }
-            },
+            }
             // Case C: Unit structs (e.g., struct Unit;)
             Fields::Unit => quote! { {} },
         },
@@ -77,5 +77,27 @@ pub fn lerp_derive(input: TokenStream) -> TokenStream {
     };
 
     // 4. Return the generated code
+    gen.into()
+}
+
+#[proc_macro_derive(AsAny)]
+pub fn any_derive(input: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(input).unwrap();
+    let name = &ast.ident;
+    let gen = quote! {
+
+        impl AsAny for #name {
+            fn as_any(&self) -> &dyn Any
+            {
+                self
+            }
+
+            fn as_any_mut(&mut self) -> &mut dyn Any
+            {
+                self
+            }
+        }
+
+    };
     gen.into()
 }

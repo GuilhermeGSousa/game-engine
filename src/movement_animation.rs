@@ -69,8 +69,14 @@ pub(crate) fn setup_state_machine(
 ) {
     for (entity, loading_anim_store, spawned_gltf) in animated_entities.iter() {
         let (Some(idle), Some(walk)) = (
-            gltf_scenes.get(&loading_anim_store.idle).and_then(|idle_scene|idle_scene.animations().first()).map(|clip| clip.clone()),
-            gltf_scenes.get(&loading_anim_store.walk).and_then(|walk_scene|walk_scene.animations().first()).map(|clip| clip.clone()),
+            gltf_scenes
+                .get(&loading_anim_store.idle)
+                .and_then(|idle_scene| idle_scene.animations().first())
+                .map(|clip| clip.clone()),
+            gltf_scenes
+                .get(&loading_anim_store.walk)
+                .and_then(|walk_scene| walk_scene.animations().first())
+                .map(|clip| clip.clone()),
         ) else {
             continue;
         };
@@ -88,10 +94,7 @@ pub(crate) fn setup_state_machine(
                 graph_walk.add_node(AnimationClipNode::new(walk.clone()), *root);
             }
 
-            let anim_store = AnimationStore {
-                idle,
-                walk
-            };
+            let anim_store = AnimationStore { idle, walk };
             cmd.insert(anim_store, *anim_root);
             cmd.remove::<LoadingAnimationStore>(entity);
         }

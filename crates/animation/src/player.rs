@@ -2,12 +2,14 @@ use std::{collections::HashMap, ops::Deref};
 
 use ecs::component::Component;
 use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
+use log::info;
 
 use crate::{
     clip::AnimationClip,
     evaluation::AnimationGraphUpdateContext,
     graph::{AnimationGraph, AnimationNodeIndex},
     node::{AnimationClipNodeState, AnimationNodeState},
+    state_machine::{AnimationFSMNodeState, AnimationFSMVariableType},
 };
 
 pub struct ActiveNodeState {
@@ -98,6 +100,28 @@ impl AnimationPlayer {
         if let Some(active_anim) = self.active_animations.get_mut(node_index) {
             active_anim.weight = weight;
         }
+    }
+
+    pub fn set_fsm_param(
+        &mut self,
+        node_index: &AnimationNodeIndex,
+        param_name: String,
+        param_value: AnimationFSMVariableType,
+    ) {
+        let Some(active_anim) = self.active_animations.get_mut(node_index) else {
+            info!("No animation node found when setting FSM parameters");
+            return;
+        };
+
+        let Some(fsm_state) = active_anim
+            .node_state
+            .as_any_mut()
+            .downcast_mut::<AnimationFSMNodeState>()
+        else {
+            return;
+        };
+
+        fsm_state.set_param(param_name, param_value);
     }
 }
 

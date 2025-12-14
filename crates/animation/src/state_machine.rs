@@ -8,8 +8,8 @@ use crate::{
 };
 use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
 
-pub struct AnimationFSMStateDefinition {
-    pub name: String,
+pub struct AnimationFSMStateDefinition<'a> {
+    pub name: &'a str,
     pub clip: AssetHandle<AnimationClip>,
 }
 
@@ -18,19 +18,28 @@ pub(crate) struct AnimationFSMState {
 }
 
 pub enum AnimationFSMVariableType {
-    Bool,
-    Int,
+    Bool(bool),
+    Int(u32),
 }
 
 pub type AnimationFSMParameters = HashMap<String, AnimationFSMVariableType>;
 
-pub(crate) enum AnimationFSMTrigger {
+pub enum AnimationFSMTrigger {
     Instant,
     Condition(Arc<dyn Fn(&AnimationFSMParameters) -> bool + Send + Sync>),
 }
 
-pub struct AnimationFSMTransitionDefinition {
-    pub target_state: String,
+impl AnimationFSMTrigger {
+    pub fn from_condition<F>(condition: F) -> Self
+    where
+        F: Fn(&AnimationFSMParameters) -> bool + Send + Sync + 'static,
+    {
+        Self::Condition(Arc::new(condition))
+    }
+}
+
+pub struct AnimationFSMTransitionDefinition<'a> {
+    pub target_state: &'a str,
     pub trigger: AnimationFSMTrigger,
 }
 
@@ -40,7 +49,7 @@ pub(crate) struct AnimationFSMTransition {
 }
 
 #[derive(AsAny)]
-pub(crate) struct AnimationFSM {
+pub struct AnimationFSM {
     initial_state: usize,
     states: Vec<AnimationFSMState>,
     transitions: Vec<Vec<AnimationFSMTransition>>,
@@ -48,9 +57,9 @@ pub(crate) struct AnimationFSM {
 
 impl AnimationFSM {
     pub fn new(
-        initial_state: String,
+        initial_state: &str,
         states_definition: Vec<AnimationFSMStateDefinition>,
-        transitions_definition: HashMap<String, Vec<AnimationFSMTransitionDefinition>>,
+        transitions_definition: HashMap<&str, Vec<AnimationFSMTransitionDefinition>>,
     ) -> Self {
         let mut name_to_index = HashMap::new();
         let mut transitions = Vec::new();
@@ -58,7 +67,7 @@ impl AnimationFSM {
             .iter()
             .enumerate()
             .map(|(index, state_def)| {
-                name_to_index.insert(state_def.name.clone(), index);
+                name_to_index.insert(state_def.name, index);
                 transitions.push(Vec::new());
                 AnimationFSMState {
                     clip: state_def.clip.clone(),
@@ -69,22 +78,20 @@ impl AnimationFSM {
         transitions_definition
             .into_iter()
             .for_each(|(from, transition_defs)| {
-                let Some(from_index) = name_to_index.get(&from) else {
+                let Some(from_index) = name_to_index.get(from) else {
                     return;
                 };
 
                 transition_defs.into_iter().for_each(|transition_def| {
                     transitions[*from_index].push(AnimationFSMTransition {
-                        next_state: *name_to_index
-                            .get(&transition_def.target_state)
-                            .unwrap_or(&0),
+                        next_state: *name_to_index.get(transition_def.target_state).unwrap_or(&0),
                         trigger: transition_def.trigger,
                     });
                 });
             });
 
         Self {
-            initial_state: *name_to_index.get(&initial_state).unwrap_or(&0),
+            initial_state: *name_to_index.get(initial_state).unwrap_or(&0),
             states,
             transitions,
         }
@@ -116,6 +123,10 @@ impl AnimationFSMNodeState {
             time: 0.0,
             params: HashMap::new(),
         }
+    }
+
+    pub(crate) fn set_param(&mut self, param_name: String, param_value: AnimationFSMVariableType) {
+        self.params.insert(param_name, param_value);
     }
 
     pub(crate) fn current_state(&self) -> usize {

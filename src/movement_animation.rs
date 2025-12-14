@@ -1,8 +1,14 @@
+use std::collections::HashMap;
+
 use animation::{
     clip::AnimationClip,
     graph::AnimationGraph,
-    node::{AnimationBlendNode, AnimationClipNode},
+    node::AnimationClipNode,
     player::{AnimationHandleComponent, AnimationPlayer},
+    state_machine::{
+        AnimationFSM, AnimationFSMStateDefinition, AnimationFSMTransitionDefinition,
+        AnimationFSMTrigger,
+    },
 };
 use ecs::{
     command::CommandQueue,
@@ -120,20 +126,58 @@ pub(crate) fn setup_animations(
 
             let mut anim_graph = AnimationGraph::new();
 
-            // Add nodes
-            let anim_blend_node = anim_graph.add_node(AnimationBlendNode, *anim_graph.root());
-            let idle_node = anim_graph.add_node(
-                AnimationClipNode::new(anim_store.idle.clone()),
-                anim_blend_node,
-            );
-            let walk_node = anim_graph.add_node(
-                AnimationClipNode::new(anim_store.walk.clone()),
-                anim_blend_node,
-            );
+            let states_definition = vec![
+                AnimationFSMStateDefinition {
+                    name: "idle",
+                    clip: anim_store.idle.clone(),
+                },
+                AnimationFSMStateDefinition {
+                    name: "walk",
+                    clip: anim_store.walk.clone(),
+                },
+            ];
+
+            let transitions_definition = HashMap::from([
+                (
+                    "idle",
+                    vec![AnimationFSMTransitionDefinition {
+                        target_state: "walk",
+                        trigger: AnimationFSMTrigger::from_condition(|params| {
+                            params
+                                .get("has_moved")
+                                .map(|param| match param {
+                                    animation::state_machine::AnimationFSMVariableType::Bool(
+                                        val,
+                                    ) => *val,
+                                    _ => false,
+                                })
+                                .unwrap_or(false)
+                        }),
+                    }],
+                ),
+                (
+                    "walk",
+                    vec![AnimationFSMTransitionDefinition {
+                        target_state: "idle",
+                        trigger: AnimationFSMTrigger::from_condition(|params| {
+                            params
+                                .get("has_moved")
+                                .map(|param| match param {
+                                    animation::state_machine::AnimationFSMVariableType::Bool(
+                                        val,
+                                    ) => !*val,
+                                    _ => false,
+                                })
+                                .unwrap_or(false)
+                        }),
+                    }],
+                ),
+            ]);
+            let anim_fsm = AnimationFSM::new("idle", states_definition, transitions_definition);
+
+            anim_graph.add_node(anim_fsm, *anim_graph.root());
 
             animation_player.initialize_states(&anim_graph);
-            animation_player.set_node_weight(&idle_node, 0.5);
-            animation_player.set_node_weight(&walk_node, 0.5);
 
             cmd.insert(
                 AnimationHandleComponent {

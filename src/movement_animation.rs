@@ -2,12 +2,11 @@ use std::collections::HashMap;
 
 use animation::{
     clip::AnimationClip,
-    graph::AnimationGraph,
-    node::AnimationClipNode,
+    graph::{AnimationGraph, AnimationNodeIndex},
     player::{AnimationHandleComponent, AnimationPlayer},
     state_machine::{
         AnimationFSM, AnimationFSMStateDefinition, AnimationFSMTransitionDefinition,
-        AnimationFSMTrigger,
+        AnimationFSMTrigger, AnimationFSMVariableType,
     },
 };
 use ecs::{
@@ -40,6 +39,11 @@ pub(crate) struct LoadingAnimationStore {
 pub(crate) struct AnimationStore {
     pub(crate) idle: AssetHandle<AnimationClip>,
     pub(crate) walk: AssetHandle<AnimationClip>,
+}
+
+#[derive(Component)]
+pub(crate) struct AnimationFSMData {
+    pub(crate) fsm_node: AnimationNodeIndex,
 }
 
 pub(crate) fn spawn_on_button_press(
@@ -88,19 +92,7 @@ pub(crate) fn setup_state_machine(
         };
 
         if let Some(anim_root) = spawned_gltf.animation_roots().first() {
-            let mut graph_idle = AnimationGraph::new();
-            {
-                let root = graph_idle.root();
-                graph_idle.add_node(AnimationClipNode::new(idle.clone()), *root);
-            }
-
-            let mut graph_walk = AnimationGraph::new();
-            {
-                let root = graph_walk.root();
-                graph_walk.add_node(AnimationClipNode::new(walk.clone()), *root);
-            }
-
-            let anim_store = AnimationStore { idle, walk };
+            let anim_store: AnimationStore = AnimationStore { idle, walk };
             cmd.insert(anim_store, *anim_root);
             cmd.remove::<LoadingAnimationStore>(entity);
         }
@@ -175,7 +167,7 @@ pub(crate) fn setup_animations(
             ]);
             let anim_fsm = AnimationFSM::new("idle", states_definition, transitions_definition);
 
-            anim_graph.add_node(anim_fsm, *anim_graph.root());
+            let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
 
             animation_player.initialize_states(&anim_graph);
 
@@ -184,6 +176,31 @@ pub(crate) fn setup_animations(
                     handle: asset_server.add(anim_graph),
                 },
                 entity,
+            );
+
+            cmd.insert(AnimationFSMData { fsm_node }, entity);
+        }
+    }
+}
+
+pub(crate) fn update_movement_fsm(
+    anim_players: Query<(&mut AnimationPlayer, &AnimationFSMData)>,
+    input: Res<Input>,
+) {
+    for (mut anim_player, data) in anim_players.iter() {
+        let key_state = input.get_key_state(PhysicalKey::Code(KeyCode::KeyO));
+
+        if matches!(key_state, InputState::Pressed) {
+            anim_player.set_fsm_param(
+                &data.fsm_node,
+                "has_moved",
+                AnimationFSMVariableType::Bool(true),
+            );
+        } else if matches!(key_state, InputState::Released) {
+            anim_player.set_fsm_param(
+                &data.fsm_node,
+                "has_moved",
+                AnimationFSMVariableType::Bool(false),
             );
         }
     }

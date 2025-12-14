@@ -150,6 +150,23 @@ impl AnimationNodeState for AnimationFSMNodeState {
             return;
         };
 
+        for transition in transitions {
+            match &transition.trigger {
+                AnimationFSMTrigger::Instant => {
+                    self.current_state = transition.next_state;
+                    self.time = 0.0;
+                    return;
+                }
+                AnimationFSMTrigger::Condition(cond_fn) => {
+                    if cond_fn(&self.params) {
+                        self.current_state = transition.next_state;
+                        self.time = 0.0;
+                        return;
+                    }
+                }
+            }
+        }
+
         let Some(current_state_data) = fsm.get_current_state(self.current_state) else {
             return;
         };
@@ -162,20 +179,6 @@ impl AnimationNodeState for AnimationFSMNodeState {
 
         if self.time > clip.duration() {
             self.time = 0.0;
-        }
-        for transition in transitions {
-            match &transition.trigger {
-                AnimationFSMTrigger::Instant => {
-                    self.current_state = transition.next_state;
-                    return;
-                }
-                AnimationFSMTrigger::Condition(cond_fn) => {
-                    if cond_fn(&self.params) {
-                        self.current_state = transition.next_state;
-                        return;
-                    }
-                }
-            }
         }
     }
 }

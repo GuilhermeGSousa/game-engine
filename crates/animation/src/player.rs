@@ -102,10 +102,10 @@ impl AnimationPlayer {
         }
     }
 
-    pub fn set_fsm_param(
+    pub fn set_fsm_param<T: Into<String>>(
         &mut self,
         node_index: &AnimationNodeIndex,
-        param_name: String,
+        param_name: T,
         param_value: AnimationFSMVariableType,
     ) {
         let Some(active_anim) = self.active_animations.get_mut(node_index) else {
@@ -121,7 +121,7 @@ impl AnimationPlayer {
             return;
         };
 
-        fsm_state.set_param(param_name, param_value);
+        fsm_state.set_param(param_name.into(), param_value);
     }
 }
 

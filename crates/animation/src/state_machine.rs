@@ -1,20 +1,27 @@
 use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
+use crate::evaluation::{
+    AnimationGraphCreationContext, AnimationGraphEvaluator, AnimationGraphUpdateContext,
+    EvaluatedNode,
+};
+use crate::graph::{AnimationGraph, AnimationNodeIndex};
+use crate::player::ActiveNodeState;
+use crate::target::AnimationTarget;
 use crate::{
-    clip::AnimationClip,
     evaluation::AnimationGraphEvaluationContext,
     node::{AnimationNode, AnimationNodeState},
 };
 use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
+use log::warn;
 
 pub struct AnimationFSMStateDefinition<'a> {
     pub name: &'a str,
-    pub clip: AssetHandle<AnimationClip>,
+    pub graph: AssetHandle<AnimationGraph>,
 }
 
 pub(crate) struct AnimationFSMState {
-    clip: AssetHandle<AnimationClip>,
+    graph: AssetHandle<AnimationGraph>,
 }
 
 pub enum AnimationFSMVariableType {
@@ -64,13 +71,13 @@ impl AnimationFSM {
         let mut name_to_index = HashMap::new();
         let mut transitions = Vec::new();
         let states = states_definition
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(index, state_def)| {
                 name_to_index.insert(state_def.name, index);
                 transitions.push(Vec::new());
                 AnimationFSMState {
-                    clip: state_def.clip.clone(),
+                    graph: state_def.graph,
                 }
             })
             .collect();
@@ -111,14 +118,19 @@ impl AnimationFSM {
 
 #[derive(AsAny)]
 pub(crate) struct AnimationFSMNodeState {
+    graph_state: HashMap<AnimationNodeIndex, ActiveNodeState>,
     current_state: usize,
     time: f32,
     params: AnimationFSMParameters,
 }
 
 impl AnimationFSMNodeState {
-    pub(crate) fn new(initial_state: usize) -> Self {
+    pub(crate) fn new(
+        initial_state: usize,
+        graph_state: HashMap<AnimationNodeIndex, ActiveNodeState>,
+    ) -> Self {
         Self {
+            graph_state,
             current_state: initial_state,
             time: 0.0,
             params: HashMap::new(),
@@ -135,8 +147,6 @@ impl AnimationFSMNodeState {
 }
 
 impl AnimationNodeState for AnimationFSMNodeState {
-    fn reset(&mut self) {}
-
     fn update(&mut self, context: crate::evaluation::AnimationGraphUpdateContext<'_>) {
         let Some(fsm) = context
             .animation_node
@@ -171,27 +181,66 @@ impl AnimationNodeState for AnimationFSMNodeState {
             return;
         };
 
-        let Some(clip) = context.animation_clips.get(&current_state_data.clip) else {
+        let Some(graph) = context.animation_graphs.get(&current_state_data.graph) else {
             return;
         };
 
-        self.time += context.delta_time;
+        self.graph_state
+            .iter_mut()
+            .for_each(|(node_idx, node_state)| {
+                let Some(node) = graph.get_node(*node_idx) else {
+                    return;
+                };
 
-        if self.time > clip.duration() {
-            self.time = 0.0;
-        }
+                let context = AnimationGraphUpdateContext {
+                    animation_node: node,
+                    delta_time: context.delta_time,
+                    animation_clips: context.animation_clips,
+                    animation_graphs: context.animation_graphs,
+                };
+
+                node_state.update(context);
+            });
     }
 }
 
 impl AnimationNode for AnimationFSM {
-    fn create_state(&self) -> Box<dyn AnimationNodeState> {
-        Box::new(AnimationFSMNodeState::new(self.initial_state))
+    fn create_state(
+        &self,
+        creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeState> {
+        let mut internal_graph_state = HashMap::new();
+        for state in &self.states {
+            let Some(state_graph) = creation_context.animation_graphs.get(&state.graph) else {
+                continue;
+            };
+
+            for state_fsm_index in state_graph.iter() {
+                let Some(state_fsm_node) = state_graph.get_node(state_fsm_index) else {
+                    continue;
+                };
+
+                let node_animation_state = state_fsm_node.create_state(creation_context);
+                internal_graph_state.insert(
+                    state_fsm_index,
+                    ActiveNodeState {
+                        weight: 1.0,
+                        node_state: node_animation_state,
+                    },
+                );
+            }
+        }
+        Box::new(AnimationFSMNodeState::new(
+            self.initial_state,
+            internal_graph_state,
+        ))
     }
 
     fn evaluate(
         &self,
+        target: &AnimationTarget,
         context: AnimationGraphEvaluationContext<'_>,
-    ) -> essential::transform::Transform {
+    ) -> Transform {
         let Some(node_state) = context
             .current_node_state()
             .as_any()
@@ -200,22 +249,50 @@ impl AnimationNode for AnimationFSM {
             return Transform::IDENTITY;
         };
 
-        let Some(current_state) = self.get_current_state(node_state.current_state()) else {
+        let Some(current_fsm_state) = self.get_current_state(node_state.current_state()) else {
             return Transform::IDENTITY;
         };
 
-        let Some(animation_clip) = context.animation_clips().get(&current_state.clip) else {
+        let Some(animation_graph) = context.animation_graphs().get(&current_fsm_state.graph) else {
             return Transform::IDENTITY;
         };
 
-        let Some(animation_channels) = animation_clip.get_channels(&context.target_id()) else {
-            return Transform::IDENTITY;
-        };
+        let mut graph_evaluator = AnimationGraphEvaluator::new();
 
-        let mut transform = Transform::IDENTITY;
-        for animation_channel in animation_channels {
-            animation_channel.sample_transform(node_state.time, &mut transform);
+        for node_index in animation_graph.iter_post_order() {
+            let Some(node) = animation_graph.get_node(node_index) else {
+                continue;
+            };
+
+            let Some(node_state) = node_state.graph_state.get(&node_index) else {
+                warn!(
+                    "No node state found for node, make sure the animation player has been correctly initialized"
+                );
+                continue;
+            };
+
+            let evaluated_inputs = animation_graph
+                .get_node_inputs(node_index)
+                .map(|_| graph_evaluator.pop_evaluation())
+                .filter_map(|transform| transform)
+                .collect::<Vec<_>>();
+
+            let context = AnimationGraphEvaluationContext {
+                node_state,
+                animation_clips: &context.animation_clips,
+                animation_graphs: &context.animation_graphs,
+                evaluated_inputs: &evaluated_inputs,
+            };
+
+            graph_evaluator.push_evaluation(EvaluatedNode {
+                transform: node.evaluate(&target, context),
+                weight: node_state.weight,
+            });
         }
-        transform
+
+        graph_evaluator
+            .pop_evaluation()
+            .map(|evaluated_node| evaluated_node.transform)
+            .unwrap_or(Transform::IDENTITY)
     }
 }

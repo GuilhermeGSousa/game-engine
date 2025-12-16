@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use animation::{
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeIndex},
+    node::AnimationClipNode,
     player::{AnimationHandleComponent, AnimationPlayer},
     state_machine::{
         AnimationFSM, AnimationFSMStateDefinition, AnimationFSMTransitionDefinition,
@@ -100,32 +101,39 @@ pub(crate) fn setup_state_machine(
 }
 
 pub(crate) fn setup_animations(
-    animation_roots: Query<
-        (Entity, &mut AnimationPlayer, &AnimationStore),
-        Without<AnimationHandleComponent>,
-    >,
+    animation_roots: Query<(Entity, &AnimationStore), Without<AnimationHandleComponent>>,
     gltf_comps: Query<&GLTFSpawnedMarker>,
     asset_server: Res<AssetServer>,
     mut cmd: CommandQueue,
 ) {
     for gltf_marker in gltf_comps.iter() {
         for anim_root in gltf_marker.animation_roots() {
-            let Some((entity, mut animation_player, anim_store)) =
-                animation_roots.get_entity(*anim_root)
-            else {
+            let Some((entity, anim_store)) = animation_roots.get_entity(*anim_root) else {
                 continue;
             };
 
             let mut anim_graph = AnimationGraph::new();
+            let mut idle_graph = AnimationGraph::new();
+            let mut walk_graph = AnimationGraph::new();
+
+            idle_graph.add_node(
+                AnimationClipNode::new(anim_store.idle.clone()),
+                *idle_graph.root(),
+            );
+
+            walk_graph.add_node(
+                AnimationClipNode::new(anim_store.walk.clone()),
+                *walk_graph.root(),
+            );
 
             let states_definition = vec![
                 AnimationFSMStateDefinition {
                     name: "idle",
-                    clip: anim_store.idle.clone(),
+                    graph: asset_server.add(idle_graph),
                 },
                 AnimationFSMStateDefinition {
                     name: "walk",
-                    clip: anim_store.walk.clone(),
+                    graph: asset_server.add(walk_graph),
                 },
             ];
 
@@ -168,8 +176,6 @@ pub(crate) fn setup_animations(
             let anim_fsm = AnimationFSM::new("idle", states_definition, transitions_definition);
 
             let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
-
-            animation_player.initialize_states(&anim_graph);
 
             cmd.insert(
                 AnimationHandleComponent {

@@ -1,11 +1,19 @@
-use ecs::{component::Component, entity::Entity, query::Query, resource::Res};
+use ecs::{
+    component::Component,
+    entity::Entity,
+    query::{Query, query_filter::Changed},
+    resource::Res,
+};
 use essential::{assets::asset_store::AssetStore, time::Time, transform::Transform};
 use log::warn;
 use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphEvaluationContext, AnimationGraphEvaluator, EvaluatedNode},
+    evaluation::{
+        AnimationGraphCreationContext, AnimationGraphEvaluationContext, AnimationGraphEvaluator,
+        EvaluatedNode,
+    },
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
 };
@@ -54,14 +62,14 @@ pub(crate) fn animate_targets(
                 .collect::<Vec<_>>();
 
             let context = AnimationGraphEvaluationContext {
-                target_id: &animation_target.id,
                 node_state,
                 animation_clips: &animation_clips,
+                animation_graphs: &animation_graphs,
                 evaluated_inputs: &evaluated_inputs,
             };
 
             graph_evaluator.push_evaluation(EvaluatedNode {
-                transform: node.evaluate(context),
+                transform: node.evaluate(&animation_target, context),
                 weight: node_state.weight,
             });
         }
@@ -86,11 +94,33 @@ pub(crate) fn update_animation_players(
 ) {
     let delta_time = time.delta().as_secs_f32();
     for (mut animation_player, graph_handle) in animation_players.iter() {
-
         let Some(graph) = animation_graphs.get(&graph_handle) else {
             continue;
         };
 
-        animation_player.update(delta_time, graph, &animation_clips);
+        animation_player.update(delta_time, graph, &animation_clips, &animation_graphs);
+    }
+}
+
+pub(crate) fn initialize_animation_players(
+    animation_players: Query<
+        (&mut AnimationPlayer, &AnimationHandleComponent),
+        Changed<AnimationHandleComponent>,
+    >,
+    animation_graphs: Res<AssetStore<AnimationGraph>>,
+    animation_clips: Res<AssetStore<AnimationClip>>,
+) {
+    for (mut animation_player, graph_handle) in animation_players.iter() {
+        let Some(graph) = animation_graphs.get(&graph_handle) else {
+            continue;
+        };
+
+        animation_player.initialize_states(
+            graph,
+            &AnimationGraphCreationContext {
+                animation_clips: &animation_clips,
+                animation_graphs: &animation_graphs,
+            },
+        );
     }
 }

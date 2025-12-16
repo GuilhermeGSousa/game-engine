@@ -7,26 +7,32 @@ use glam::{Quat, Vec3};
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphEvaluationContext, AnimationGraphUpdateContext},
+    evaluation::{
+        AnimationGraphCreationContext, AnimationGraphEvaluationContext, AnimationGraphUpdateContext,
+    },
+    target::AnimationTarget,
 };
 
 pub trait AnimationNodeState: AsAny + Sync + Send {
-    fn reset(&mut self);
-
     fn update(&mut self, context: AnimationGraphUpdateContext<'_>);
 }
 
 pub trait AnimationNode: AsAny + Sync + Send {
-    fn create_state(&self) -> Box<dyn AnimationNodeState>;
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform;
+    fn create_state(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeState>;
+    fn evaluate(
+        &self,
+        target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform;
 }
 
 #[derive(AsAny)]
 pub struct NoneState;
 
 impl AnimationNodeState for NoneState {
-    fn reset(&mut self) {}
-
     fn update(&mut self, _context: AnimationGraphUpdateContext<'_>) {}
 }
 
@@ -34,7 +40,11 @@ impl AnimationNodeState for NoneState {
 pub struct AnimationRootNode;
 
 impl AnimationNode for AnimationRootNode {
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
+    fn evaluate(
+        &self,
+        _target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform {
         context
             .evaluated_inputs
             .first()
@@ -43,7 +53,10 @@ impl AnimationNode for AnimationRootNode {
             .clone()
     }
 
-    fn create_state(&self) -> Box<dyn AnimationNodeState> {
+    fn create_state(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeState> {
         Box::new(NoneState)
     }
 }
@@ -75,12 +88,6 @@ impl AnimationClipNodeState {
 }
 
 impl AnimationNodeState for AnimationClipNodeState {
-    fn reset(&mut self) {
-        self.time = 0.0;
-        self.play_rate = 1.0;
-        self.is_paused = false;
-    }
-
     fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
         if self.is_paused {
             return;
@@ -118,17 +125,24 @@ impl AnimationClipNode {
 }
 
 impl AnimationNode for AnimationClipNode {
-    fn create_state(&self) -> Box<dyn AnimationNodeState> {
+    fn create_state(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeState> {
         Box::new(AnimationClipNodeState::new())
     }
 
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
+    fn evaluate(
+        &self,
+        target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform {
         let Some(animation_clip) = context.animation_clips.get(&self.clip) else {
             return Transform::IDENTITY;
         };
 
         // Find the channel for this animation target
-        let Some(animation_channels) = animation_clip.get_channels(&context.target_id) else {
+        let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
             return Transform::IDENTITY;
         };
 
@@ -155,11 +169,18 @@ impl AnimationNode for AnimationClipNode {
 pub struct AnimationBlendNode;
 
 impl AnimationNode for AnimationBlendNode {
-    fn create_state(&self) -> Box<dyn AnimationNodeState> {
+    fn create_state(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeState> {
         Box::new(NoneState)
     }
 
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
+    fn evaluate(
+        &self,
+        _target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform {
         let mut translation = Vec3::ZERO;
         let mut rotation = Quat::IDENTITY;
         let mut scale = Vec3::ZERO;

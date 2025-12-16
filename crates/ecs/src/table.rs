@@ -180,7 +180,7 @@ impl Table {
         current_tick: u32,
     ) -> bool {
         if let Some(column) = self.columns.get(&component_id) {
-            *column.changed_ticks[*row] == current_tick
+            *column.changed_ticks[*row] == current_tick || *column.added_ticks[*row] == current_tick
         } else {
             false
         }

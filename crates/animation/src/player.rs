@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::ops::Deref;
 
 use ecs::component::Component;
 use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
@@ -7,70 +7,51 @@ use log::info;
 use crate::{
     clip::AnimationClip,
     evaluation::{AnimationGraphCreationContext, AnimationGraphUpdateContext},
-    graph::{AnimationGraph, AnimationNodeIndex},
-    node::{AnimationClipNodeState, AnimationNodeState},
-    state_machine::{AnimationFSMNodeState, AnimationFSMVariableType},
+    graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
+    node::{AnimationClipNodeInstance, AnimationNodeInstance},
+    state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
-pub struct ActiveNodeState {
+pub struct ActiveNodeInstance {
     pub weight: f32,
-    pub(crate) node_state: Box<dyn AnimationNodeState>,
+    pub(crate) node_instance: Box<dyn AnimationNodeInstance>,
 }
 
-impl ActiveNodeState {
+impl ActiveNodeInstance {
     pub(crate) fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
-        self.node_state.update(context);
+        self.node_instance.update(context);
     }
 }
 
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
-    graph_state: HashMap<AnimationNodeIndex, ActiveNodeState>,
+    graph_instance: AnimationGraphInstance,
 }
 
 impl AnimationPlayer {
-    pub fn get_node_state(&self, node_index: &AnimationNodeIndex) -> Option<&ActiveNodeState> {
-        self.graph_state.get(node_index)
-    }
-
-    pub fn get_node_state_mut(
-        &mut self,
-        node_index: &AnimationNodeIndex,
-    ) -> Option<&mut ActiveNodeState> {
-        self.graph_state.get_mut(node_index)
-    }
-
     pub fn play(&mut self, node_index: &AnimationNodeIndex) {
-        if let Some(anim_clip_state) = self.graph_state.get_mut(node_index).and_then(|node_state| {
-            node_state
-                .node_state
-                .as_any_mut()
-                .downcast_mut::<AnimationClipNodeState>()
-        }) {
-            anim_clip_state.play();
+        if let Some(anim_clip_instance) = self
+            .graph_instance
+            .get_instance_mut::<AnimationClipNodeInstance>(node_index)
+        {
+            anim_clip_instance.play();
         }
     }
 
-    pub(crate) fn initialize_states(
+    pub(crate) fn get_node_instance(
+        &self,
+        node_index: &AnimationNodeIndex,
+    ) -> Option<&ActiveNodeInstance> {
+        self.graph_instance.get_active_node_instance(node_index)
+    }
+
+    pub(crate) fn initialize_graph(
         &mut self,
         animation_graph: &AnimationGraph,
         creation_context: &AnimationGraphCreationContext,
     ) {
-        self.graph_state.clear();
-        for node_index in animation_graph.iter() {
-            let Some(anim_node) = animation_graph.get_node(node_index) else {
-                continue;
-            };
-
-            let node_state = anim_node.create_state(creation_context);
-            self.graph_state.insert(
-                node_index,
-                ActiveNodeState {
-                    node_state,
-                    weight: 1.0,
-                },
-            );
-        }
+        self.graph_instance
+            .initialize(animation_graph, creation_context);
     }
 
     pub(crate) fn update(
@@ -80,28 +61,12 @@ impl AnimationPlayer {
         animation_clips: &AssetStore<AnimationClip>,
         animation_graphs: &AssetStore<AnimationGraph>,
     ) {
-        self.graph_state
-            .iter_mut()
-            .for_each(|(node_index, node_state)| {
-                let Some(node) = graph.get_node(*node_index) else {
-                    return;
-                };
-
-                let context = AnimationGraphUpdateContext {
-                    animation_node: node,
-                    animation_clips,
-                    animation_graphs,
-                    delta_time,
-                };
-
-                node_state.update(context);
-            });
+        self.graph_instance
+            .update(delta_time, graph, animation_clips, animation_graphs);
     }
 
     pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32) {
-        if let Some(active_anim) = self.graph_state.get_mut(node_index) {
-            active_anim.weight = weight;
-        }
+        self.graph_instance.set_node_weight(node_index, weight);
     }
 
     pub fn set_fsm_param<T: Into<String>>(
@@ -110,20 +75,15 @@ impl AnimationPlayer {
         param_name: T,
         param_value: AnimationFSMVariableType,
     ) {
-        let Some(active_anim) = self.graph_state.get_mut(node_index) else {
+        let Some(fsm_instance) = self
+            .graph_instance
+            .get_instance_mut::<AnimationStateMachineInstance>(node_index)
+        else {
             info!("No animation node found when setting FSM parameters");
             return;
         };
 
-        let Some(fsm_state) = active_anim
-            .node_state
-            .as_any_mut()
-            .downcast_mut::<AnimationFSMNodeState>()
-        else {
-            return;
-        };
-
-        fsm_state.set_param(param_name.into(), param_value);
+        fsm_instance.set_param(param_name.into(), param_value);
     }
 }
 

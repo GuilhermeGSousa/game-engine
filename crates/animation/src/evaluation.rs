@@ -3,8 +3,8 @@ use essential::{assets::asset_store::AssetStore, transform::Transform};
 use crate::{
     clip::AnimationClip,
     graph::AnimationGraph,
-    node::{AnimationNode, AnimationNodeState},
-    player::ActiveNodeState,
+    node::{AnimationNode, AnimationNodeInstance},
+    player::ActiveNodeInstance,
 };
 
 pub struct EvaluatedNode {
@@ -33,19 +33,19 @@ impl AnimationGraphEvaluator {
 }
 
 pub struct AnimationGraphEvaluationContext<'a> {
-    pub(crate) node_state: &'a ActiveNodeState,
+    pub(crate) node_instance: &'a ActiveNodeInstance,
     pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
     pub(crate) animation_graphs: &'a AssetStore<AnimationGraph>,
     pub(crate) evaluated_inputs: &'a Vec<EvaluatedNode>,
 }
 
 impl<'a> AnimationGraphEvaluationContext<'a> {
-    pub fn current_node_state(&self) -> &Box<dyn AnimationNodeState> {
-        &self.node_state.node_state
+    pub fn current_node_state(&self) -> &Box<dyn AnimationNodeInstance> {
+        &self.node_instance.node_instance
     }
 
     pub fn current_node_weight(&self) -> f32 {
-        self.node_state.weight
+        self.node_instance.weight
     }
 
     pub fn animation_clips(&self) -> &AssetStore<AnimationClip> {

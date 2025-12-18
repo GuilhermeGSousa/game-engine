@@ -6,8 +6,8 @@ use animation::{
     node::AnimationClipNode,
     player::{AnimationHandleComponent, AnimationPlayer},
     state_machine::{
-        AnimationFSM, AnimationFSMStateDefinition, AnimationFSMTransitionDefinition,
-        AnimationFSMTrigger, AnimationFSMVariableType,
+        AnimationFSMStateDefinition, AnimationFSMTransitionDefinition, AnimationFSMTrigger,
+        AnimationFSMVariableType, AnimationStateMachine,
     },
 };
 use ecs::{
@@ -173,7 +173,8 @@ pub(crate) fn setup_animations(
                     }],
                 ),
             ]);
-            let anim_fsm = AnimationFSM::new("idle", states_definition, transitions_definition);
+            let anim_fsm =
+                AnimationStateMachine::new("idle", states_definition, transitions_definition);
 
             let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
 

@@ -48,7 +48,7 @@ pub(crate) fn animate_targets(
                 continue;
             };
 
-            let Some(node_state) = animation_player.get_node_state(&node_index) else {
+            let Some(node_instance) = animation_player.get_node_instance(&node_index) else {
                 warn!(
                     "No node state found for node, make sure the animation player has been correctly initialized"
                 );
@@ -62,7 +62,7 @@ pub(crate) fn animate_targets(
                 .collect::<Vec<_>>();
 
             let context = AnimationGraphEvaluationContext {
-                node_state,
+                node_instance,
                 animation_clips: &animation_clips,
                 animation_graphs: &animation_graphs,
                 evaluated_inputs: &evaluated_inputs,
@@ -70,7 +70,7 @@ pub(crate) fn animate_targets(
 
             graph_evaluator.push_evaluation(EvaluatedNode {
                 transform: node.evaluate(&animation_target, context),
-                weight: node_state.weight,
+                weight: node_instance.weight,
             });
         }
 
@@ -115,7 +115,7 @@ pub(crate) fn initialize_animation_players(
             continue;
         };
 
-        animation_player.initialize_states(
+        animation_player.initialize_graph(
             graph,
             &AnimationGraphCreationContext {
                 animation_clips: &animation_clips,

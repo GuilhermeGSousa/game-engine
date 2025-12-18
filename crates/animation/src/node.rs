@@ -13,15 +13,15 @@ use crate::{
     target::AnimationTarget,
 };
 
-pub trait AnimationNodeState: AsAny + Sync + Send {
+pub trait AnimationNodeInstance: AsAny + Sync + Send {
     fn update(&mut self, context: AnimationGraphUpdateContext<'_>);
 }
 
 pub trait AnimationNode: AsAny + Sync + Send {
-    fn create_state(
+    fn create_instance(
         &self,
         _creation_context: &AnimationGraphCreationContext,
-    ) -> Box<dyn AnimationNodeState>;
+    ) -> Box<dyn AnimationNodeInstance>;
     fn evaluate(
         &self,
         target: &AnimationTarget,
@@ -30,9 +30,9 @@ pub trait AnimationNode: AsAny + Sync + Send {
 }
 
 #[derive(AsAny)]
-pub struct NoneState;
+pub struct NoneInstance;
 
-impl AnimationNodeState for NoneState {
+impl AnimationNodeInstance for NoneInstance {
     fn update(&mut self, _context: AnimationGraphUpdateContext<'_>) {}
 }
 
@@ -53,22 +53,22 @@ impl AnimationNode for AnimationRootNode {
             .clone()
     }
 
-    fn create_state(
+    fn create_instance(
         &self,
         _creation_context: &AnimationGraphCreationContext,
-    ) -> Box<dyn AnimationNodeState> {
-        Box::new(NoneState)
+    ) -> Box<dyn AnimationNodeInstance> {
+        Box::new(NoneInstance)
     }
 }
 
 #[derive(AsAny)]
-pub struct AnimationClipNodeState {
+pub struct AnimationClipNodeInstance {
     time: f32,
     is_paused: bool,
     play_rate: f32,
 }
 
-impl AnimationClipNodeState {
+impl AnimationClipNodeInstance {
     pub fn new() -> Self {
         Self {
             time: 0.0,
@@ -87,7 +87,7 @@ impl AnimationClipNodeState {
     }
 }
 
-impl AnimationNodeState for AnimationClipNodeState {
+impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
         if self.is_paused {
             return;
@@ -125,11 +125,11 @@ impl AnimationClipNode {
 }
 
 impl AnimationNode for AnimationClipNode {
-    fn create_state(
+    fn create_instance(
         &self,
         _creation_context: &AnimationGraphCreationContext,
-    ) -> Box<dyn AnimationNodeState> {
-        Box::new(AnimationClipNodeState::new())
+    ) -> Box<dyn AnimationNodeInstance> {
+        Box::new(AnimationClipNodeInstance::new())
     }
 
     fn evaluate(
@@ -149,7 +149,7 @@ impl AnimationNode for AnimationClipNode {
         let Some(clip_anim_state) = context
             .current_node_state()
             .as_any()
-            .downcast_ref::<AnimationClipNodeState>()
+            .downcast_ref::<AnimationClipNodeInstance>()
         else {
             return Transform::IDENTITY;
         };
@@ -169,11 +169,11 @@ impl AnimationNode for AnimationClipNode {
 pub struct AnimationBlendNode;
 
 impl AnimationNode for AnimationBlendNode {
-    fn create_state(
+    fn create_instance(
         &self,
         _creation_context: &AnimationGraphCreationContext,
-    ) -> Box<dyn AnimationNodeState> {
-        Box::new(NoneState)
+    ) -> Box<dyn AnimationNodeInstance> {
+        Box::new(NoneInstance)
     }
 
     fn evaluate(

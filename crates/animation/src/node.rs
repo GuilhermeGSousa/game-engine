@@ -14,6 +14,8 @@ use crate::{
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
+    fn reset(&mut self);
+
     fn update(&mut self, context: AnimationGraphUpdateContext<'_>);
 }
 
@@ -33,6 +35,8 @@ pub trait AnimationNode: AsAny + Sync + Send {
 pub struct NoneInstance;
 
 impl AnimationNodeInstance for NoneInstance {
+    fn reset(&mut self) {}
+
     fn update(&mut self, _context: AnimationGraphUpdateContext<'_>) {}
 }
 
@@ -88,6 +92,10 @@ impl AnimationClipNodeInstance {
 }
 
 impl AnimationNodeInstance for AnimationClipNodeInstance {
+    fn reset(&mut self) {
+        self.time = 0.0;
+    }
+
     fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
         if self.is_paused {
             return;

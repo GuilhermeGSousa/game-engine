@@ -226,6 +226,8 @@ impl AnimationStateMachineInstance {
 }
 
 impl AnimationNodeInstance for AnimationStateMachineInstance {
+    fn reset(&mut self) {}
+
     fn update(&mut self, context: crate::evaluation::AnimationGraphUpdateContext<'_>) {
         let Some(fsm) = context
             .animation_node
@@ -242,11 +244,13 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
+                    self.state_graph_instances[self.current_state].reset_nodes();
                     self.current_state = transition.next_state;
                     return;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(&self.params) {
+                        self.state_graph_instances[self.current_state].reset_nodes();
                         self.current_state = transition.next_state;
                         return;
                     }

@@ -143,6 +143,12 @@ impl AnimationGraphInstance {
         }
     }
 
+    pub(crate) fn reset_nodes(&mut self) {
+        for (_, active_node_instance) in &mut self.0 {
+            active_node_instance.node_instance.reset();
+        }
+    }
+
     pub(crate) fn update(
         &mut self,
         delta_time: f32,

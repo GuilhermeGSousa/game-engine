@@ -43,7 +43,7 @@ pub struct AssetManagerPlugin;
 impl Plugin for AssetManagerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(AssetServer::new());
-        app.add_system(UpdateGroup::Update, handle_asset_load_events);
+        app.add_system(UpdateGroup::LateUpdate, handle_asset_load_events);
     }
 }
 

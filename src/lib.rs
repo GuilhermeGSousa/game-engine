@@ -51,12 +51,13 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use crate::{
     game_ui::render_ui,
     movement_animation::{
-        setup_animations, setup_state_machine, spawn_on_button_press,
+        setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
     },
 };
 
-pub mod game_ui;
-pub mod movement_animation;
+mod fsm;
+mod game_ui;
+mod movement_animation;
 
 #[allow(dead_code)]
 
@@ -98,6 +99,7 @@ pub fn run_game() {
         )
         .add_system(app::update_group::UpdateGroup::Update, setup_state_machine)
         .add_system(app::update_group::UpdateGroup::Update, setup_animations)
+        .add_system(app::update_group::UpdateGroup::Update, update_movement_fsm)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
         .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)

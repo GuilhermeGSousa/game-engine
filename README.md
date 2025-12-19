@@ -12,7 +12,9 @@ A small 3D data-driven game engine, for learning and research about game engine 
     - Point/Directinal/Spot lights
     - Skyboxes
 - OBJ and GLTF support
-- Skeletal animations
-    - Animation graphs (WIP)
+- Animation graphs for skeletal animations that include
+    - Animation Clip nodes
+    - Blend nodes
+    - State machine nodes
 - Physics (Rapier engine)
 - WASM support.

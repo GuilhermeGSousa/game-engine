@@ -18,7 +18,7 @@ impl<'w, T: Event> EventReader<'w, T> {
         }
     }
 
-    pub fn read(&self) -> EventIterator<T> {
+    pub fn read(&self) -> EventIterator<'_, T> {
         EventIterator::new(&self.channel)
     }
 }

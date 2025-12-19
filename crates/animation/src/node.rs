@@ -1,48 +1,54 @@
 use std::any::Any;
 
 use essential::{
-    assets::{asset_store::AssetStore, handle::AssetHandle},
-    blend::Blendable,
-    transform::Transform,
+    assets::handle::AssetHandle, blend::Blendable, transform::Transform, utils::AsAny,
 };
 use glam::{Quat, Vec3};
 
-use crate::{clip::AnimationClip, evaluation::AnimationGraphEvaluationContext};
+use crate::{
+    clip::AnimationClip,
+    evaluation::{
+        AnimationGraphCreationContext, AnimationGraphEvaluationContext, AnimationGraphUpdateContext,
+    },
+    target::AnimationTarget,
+};
 
-pub trait AnimationNodeState: Any + Sync + Send {
-    fn as_any(&self) -> &dyn Any;
-
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-
+pub trait AnimationNodeInstance: AsAny + Sync + Send {
     fn reset(&mut self);
 
-    fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>);
+    fn update(&mut self, context: AnimationGraphUpdateContext<'_>);
 }
 
-pub trait AnimationNode: Sync + Send {
-    fn create_state(&self) -> Box<dyn AnimationNodeState>;
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform;
+pub trait AnimationNode: AsAny + Sync + Send {
+    fn create_instance(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeInstance>;
+    fn evaluate(
+        &self,
+        target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform;
 }
 
-pub struct NoneState;
-impl AnimationNodeState for NoneState {
+#[derive(AsAny)]
+pub struct NoneInstance;
+
+impl AnimationNodeInstance for NoneInstance {
     fn reset(&mut self) {}
 
-    fn update(&mut self, _delta_time: f32, _animation_clips: &AssetStore<AnimationClip>) {}
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
+    fn update(&mut self, _context: AnimationGraphUpdateContext<'_>) {}
 }
 
+#[derive(AsAny)]
 pub struct AnimationRootNode;
 
 impl AnimationNode for AnimationRootNode {
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
+    fn evaluate(
+        &self,
+        _target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform {
         context
             .evaluated_inputs
             .first()
@@ -51,36 +57,33 @@ impl AnimationNode for AnimationRootNode {
             .clone()
     }
 
-    fn create_state(&self) -> Box<dyn AnimationNodeState> {
-        Box::new(NoneState)
+    fn create_instance(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeInstance> {
+        Box::new(NoneInstance)
     }
 }
 
-pub struct AnimationClipNodeState {
+#[derive(AsAny)]
+pub struct AnimationClipNodeInstance {
     time: f32,
     is_paused: bool,
     play_rate: f32,
-    animation_clip: Option<AssetHandle<AnimationClip>>,
 }
 
-impl AnimationClipNodeState {
+impl AnimationClipNodeInstance {
     pub fn new() -> Self {
         Self {
             time: 0.0,
             is_paused: false,
             play_rate: 1.0,
-            animation_clip: None,
         }
     }
 
-    pub fn play(&mut self, anim_clip: AssetHandle<AnimationClip>) {
+    pub fn play(&mut self) {
         self.time = 0.0;
         self.is_paused = false;
-        self.animation_clip = Some(anim_clip);
-    }
-
-    pub fn current_animation(&self) -> &Option<AssetHandle<AnimationClip>> {
-        &self.animation_clip
     }
 
     pub fn current_time(&self) -> f32 {
@@ -88,35 +91,29 @@ impl AnimationClipNodeState {
     }
 }
 
-impl AnimationNodeState for AnimationClipNodeState {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
+impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn reset(&mut self) {
         self.time = 0.0;
-        self.play_rate = 1.0;
-        self.is_paused = false;
     }
 
-    fn update(&mut self, delta_time: f32, animation_clips: &AssetStore<AnimationClip>) {
-        let Some(clip) = self
-            .animation_clip
-            .as_ref()
-            .and_then(|clip_handle| animation_clips.get(clip_handle))
-        else {
-            return;
-        };
-
+    fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
         if self.is_paused {
             return;
         }
 
-        self.time += delta_time * self.play_rate;
+        let Some(clip_node) = context
+            .animation_node
+            .as_any()
+            .downcast_ref::<AnimationClipNode>()
+        else {
+            return;
+        };
+
+        let Some(clip) = context.animation_clips.get(&clip_node.clip) else {
+            return;
+        };
+
+        self.time += context.delta_time * self.play_rate;
 
         if self.time > clip.duration() {
             self.time = 0.0;
@@ -124,33 +121,44 @@ impl AnimationNodeState for AnimationClipNodeState {
     }
 }
 
-pub struct AnimationClipNode;
+#[derive(AsAny)]
+pub struct AnimationClipNode {
+    clip: AssetHandle<AnimationClip>,
+}
+
+impl AnimationClipNode {
+    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
+        Self { clip }
+    }
+}
 
 impl AnimationNode for AnimationClipNode {
-    fn create_state(&self) -> Box<dyn AnimationNodeState> {
-        Box::new(AnimationClipNodeState::new())
+    fn create_instance(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeInstance> {
+        Box::new(AnimationClipNodeInstance::new())
     }
 
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
-        let Some(clip_anim_state) = context
-            .node_state
-            .node_state
-            .as_any()
-            .downcast_ref::<AnimationClipNodeState>()
-        else {
-            return Transform::IDENTITY;
-        };
-
-        let Some(current_anim) = clip_anim_state.current_animation() else {
-            return Transform::IDENTITY;
-        };
-
-        let Some(animation_clip) = context.animation_clips.get(current_anim) else {
+    fn evaluate(
+        &self,
+        target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform {
+        let Some(animation_clip) = context.animation_clips.get(&self.clip) else {
             return Transform::IDENTITY;
         };
 
         // Find the channel for this animation target
-        let Some(animation_channels) = animation_clip.get_channels(&context.target_id) else {
+        let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
+            return Transform::IDENTITY;
+        };
+
+        let Some(clip_anim_state) = context
+            .current_node_state()
+            .as_any()
+            .downcast_ref::<AnimationClipNodeInstance>()
+        else {
             return Transform::IDENTITY;
         };
 
@@ -165,14 +173,22 @@ impl AnimationNode for AnimationClipNode {
     }
 }
 
+#[derive(AsAny)]
 pub struct AnimationBlendNode;
 
 impl AnimationNode for AnimationBlendNode {
-    fn create_state(&self) -> Box<dyn AnimationNodeState> {
-        Box::new(NoneState)
+    fn create_instance(
+        &self,
+        _creation_context: &AnimationGraphCreationContext,
+    ) -> Box<dyn AnimationNodeInstance> {
+        Box::new(NoneInstance)
     }
 
-    fn evaluate(&self, context: AnimationGraphEvaluationContext<'_>) -> Transform {
+    fn evaluate(
+        &self,
+        _target: &AnimationTarget,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform {
         let mut translation = Vec3::ZERO;
         let mut rotation = Quat::IDENTITY;
         let mut scale = Vec3::ZERO;

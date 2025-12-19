@@ -43,11 +43,11 @@ impl Column {
         self.data.len()
     }
 
-    pub unsafe fn as_vec_unchecked<T: 'static>(&self) -> AnyVecRef<T, Heap> {
+    pub unsafe fn as_vec_unchecked<T: 'static>(&self) -> AnyVecRef<'_, T, Heap> {
         self.data.downcast_ref_unchecked::<T>()
     }
 
-    pub unsafe fn as_vec_mut_unchecked<T: 'static>(&mut self) -> AnyVecMut<T, Heap> {
+    pub unsafe fn as_vec_mut_unchecked<T: 'static>(&mut self) -> AnyVecMut<'_, T, Heap> {
         self.data.downcast_mut_unchecked::<T>()
     }
 
@@ -58,7 +58,7 @@ impl Column {
     pub(crate) unsafe fn get_mut_unsafe<T: 'static>(
         &mut self,
         row: TableRowIndex,
-    ) -> Option<MutableCellAccessor<T>> {
+    ) -> Option<MutableCellAccessor<'_, T>> {
         self.data
             .get_unchecked_mut(*row)
             .downcast_mut()
@@ -180,7 +180,7 @@ impl Table {
         current_tick: u32,
     ) -> bool {
         if let Some(column) = self.columns.get(&component_id) {
-            *column.changed_ticks[*row] == current_tick
+            *column.changed_ticks[*row] == current_tick || *column.added_ticks[*row] == current_tick
         } else {
             false
         }

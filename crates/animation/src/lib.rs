@@ -1,3 +1,4 @@
+pub mod state_machine;
 pub mod clip;
 pub mod evaluation;
 pub mod graph;

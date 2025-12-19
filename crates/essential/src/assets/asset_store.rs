@@ -62,7 +62,7 @@ impl<A: Asset + 'static> AssetStore<A> {
         }
     }
 
-    pub fn clone_drop_sender(&self) -> Sender<AssetLifetimeEvent> {
+    pub(crate) fn clone_drop_sender(&self) -> Sender<AssetLifetimeEvent> {
         self.drop_sender.clone()
     }
 }

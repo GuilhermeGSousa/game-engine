@@ -153,6 +153,7 @@ pub(crate) fn setup_animations(
                                 })
                                 .unwrap_or(false)
                         }),
+                        blend_time: 1.0,
                     }],
                 ),
                 (
@@ -170,6 +171,7 @@ pub(crate) fn setup_animations(
                                 })
                                 .unwrap_or(false)
                         }),
+                        blend_time: 1.0,
                     }],
                 ),
             ]);

@@ -8,7 +8,7 @@ use crate::{
     evaluation::AnimationGraphEvaluationContext,
     node::{AnimationNode, AnimationNodeInstance},
 };
-use essential::blend::Blendable;
+
 use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
 
 pub struct AnimationFSMStateDefinition<'a> {
@@ -23,6 +23,7 @@ pub(crate) struct AnimationFSMState {
 pub enum AnimationFSMVariableType {
     Bool(bool),
     Int(u32),
+    Float(f32),
 }
 
 pub type AnimationFSMParameters = HashMap<String, AnimationFSMVariableType>;
@@ -41,30 +42,28 @@ impl AnimationFSMTrigger {
     }
 }
 
-pub struct AnimationFSMTransitionDefinition<'a> {
+pub struct AnimationStateMachineTransitionDefinition<'a> {
     pub target_state: &'a str,
     pub trigger: AnimationFSMTrigger,
-    pub blend_time: f32,
 }
 
-pub(crate) struct AnimationFSMTransition {
+pub(crate) struct AnimationStateMachineTransition {
     next_state: usize,
     trigger: AnimationFSMTrigger,
-    blend_time: f32,
 }
 
 #[derive(AsAny)]
 pub struct AnimationStateMachine {
     initial_state: usize,
     states: Vec<AnimationFSMState>,
-    transitions: Vec<Vec<AnimationFSMTransition>>,
+    transitions: Vec<Vec<AnimationStateMachineTransition>>,
 }
 
 impl AnimationStateMachine {
     pub fn new(
         initial_state: &str,
         states_definition: Vec<AnimationFSMStateDefinition>,
-        transitions_definition: HashMap<&str, Vec<AnimationFSMTransitionDefinition>>,
+        transitions_definition: HashMap<&str, Vec<AnimationStateMachineTransitionDefinition>>,
     ) -> Self {
         let mut name_to_index = HashMap::new();
         let mut transitions = Vec::new();
@@ -88,10 +87,9 @@ impl AnimationStateMachine {
                 };
 
                 transition_defs.into_iter().for_each(|transition_def| {
-                    transitions[*from_index].push(AnimationFSMTransition {
+                    transitions[*from_index].push(AnimationStateMachineTransition {
                         next_state: *name_to_index.get(transition_def.target_state).unwrap_or(&0),
                         trigger: transition_def.trigger,
-                        blend_time: transition_def.blend_time,
                     });
                 });
             });
@@ -110,17 +108,9 @@ impl AnimationStateMachine {
     pub(crate) fn get_state_transitions(
         &self,
         state_index: usize,
-    ) -> Option<&Vec<AnimationFSMTransition>> {
+    ) -> Option<&Vec<AnimationStateMachineTransition>> {
         self.transitions.get(state_index)
     }
-}
-
-#[derive(AsAny)]
-pub(crate) struct AnimationStateMachineInstance {
-    state_graph_instances: Vec<AnimationGraphInstance>,
-    current_state: usize,
-    previous_state: Option<usize>,
-    params: AnimationFSMParameters,
 }
 
 impl AnimationNode for AnimationStateMachine {
@@ -159,30 +149,6 @@ impl AnimationNode for AnimationStateMachine {
             return Transform::IDENTITY;
         };
 
-        let previous_state_graph = fsm_instance
-            .previous_state()
-            .and_then(|previous_state_index| self.get_state(previous_state_index))
-            .and_then(|current_fsm_state| context.animation_graphs().get(&current_fsm_state.graph));
-
-        let previous_state_graph_instance =
-            fsm_instance
-                .previous_state()
-                .and_then(|previous_state_index| {
-                    fsm_instance.state_graph_instances.get(previous_state_index)
-                });
-
-        let previous_evaluated_state = match (previous_state_graph, previous_state_graph_instance) {
-            (Some(previous_state_graph), Some(previous_state_graph_instance)) => {
-                Some(previous_state_graph.evaluate_target(
-                    target,
-                    previous_state_graph_instance,
-                    context.animation_clips,
-                    context.animation_graphs,
-                ))
-            }
-            _ => None,
-        };
-
         let Some(current_state_graph) = self
             .get_state(fsm_instance.current_state())
             .and_then(|current_fsm_state| context.animation_graphs().get(&current_fsm_state.graph))
@@ -204,13 +170,15 @@ impl AnimationNode for AnimationStateMachine {
             context.animation_graphs,
         );
 
-        match previous_evaluated_state {
-            Some(previous_evaluated_state) => {
-                Transform::interpolate(current_evaluated_state, previous_evaluated_state, 0.5)
-            }
-            None => current_evaluated_state,
-        }
+        current_evaluated_state
     }
+}
+
+#[derive(AsAny)]
+pub(crate) struct AnimationStateMachineInstance {
+    state_graph_instances: Vec<AnimationGraphInstance>,
+    current_state: usize,
+    params: AnimationFSMParameters,
 }
 
 impl AnimationStateMachineInstance {
@@ -218,7 +186,7 @@ impl AnimationStateMachineInstance {
         Self {
             state_graph_instances: graph_instance,
             current_state: initial_state,
-            previous_state: None,
+
             params: HashMap::new(),
         }
     }
@@ -229,10 +197,6 @@ impl AnimationStateMachineInstance {
 
     pub(crate) fn current_state(&self) -> usize {
         self.current_state
-    }
-
-    pub(crate) fn previous_state(&self) -> Option<usize> {
-        self.previous_state
     }
 }
 
@@ -252,18 +216,17 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
             return;
         };
 
+        // Right now, we do not support transitioning states is a transition is ongoing
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
                     self.state_graph_instances[self.current_state].reset_nodes();
-                    self.previous_state = Some(self.current_state);
                     self.current_state = transition.next_state;
                     return;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(&self.params) {
                         self.state_graph_instances[self.current_state].reset_nodes();
-                        self.previous_state = Some(self.current_state);
                         self.current_state = transition.next_state;
                         return;
                     }
@@ -284,7 +247,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
                 current_state_graph,
                 context.animation_clips,
                 context.animation_graphs,
-            )
+            );
         };
     }
 }

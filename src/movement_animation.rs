@@ -6,8 +6,8 @@ use animation::{
     node::AnimationClipNode,
     player::{AnimationHandleComponent, AnimationPlayer},
     state_machine::{
-        AnimationFSMStateDefinition, AnimationFSMTransitionDefinition, AnimationFSMTrigger,
-        AnimationFSMVariableType, AnimationStateMachine,
+        AnimationFSMStateDefinition, AnimationFSMTrigger, AnimationFSMVariableType,
+        AnimationStateMachine, AnimationStateMachineTransitionDefinition,
     },
 };
 use ecs::{
@@ -140,7 +140,7 @@ pub(crate) fn setup_animations(
             let transitions_definition = HashMap::from([
                 (
                     "idle",
-                    vec![AnimationFSMTransitionDefinition {
+                    vec![AnimationStateMachineTransitionDefinition {
                         target_state: "walk",
                         trigger: AnimationFSMTrigger::from_condition(|params| {
                             params
@@ -153,12 +153,11 @@ pub(crate) fn setup_animations(
                                 })
                                 .unwrap_or(false)
                         }),
-                        blend_time: 1.0,
                     }],
                 ),
                 (
                     "walk",
-                    vec![AnimationFSMTransitionDefinition {
+                    vec![AnimationStateMachineTransitionDefinition {
                         target_state: "idle",
                         trigger: AnimationFSMTrigger::from_condition(|params| {
                             params
@@ -171,7 +170,6 @@ pub(crate) fn setup_animations(
                                 })
                                 .unwrap_or(false)
                         }),
-                        blend_time: 1.0,
                     }],
                 ),
             ]);

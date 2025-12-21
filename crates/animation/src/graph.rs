@@ -1,6 +1,10 @@
 use std::{collections::HashMap, ops::Deref};
 
-use essential::assets::{Asset, asset_store::AssetStore};
+use essential::{
+    assets::{Asset, asset_store::AssetStore},
+    transform::Transform,
+};
+use log::warn;
 use petgraph::{
     Direction::Outgoing,
     graph::{DiGraph, Neighbors, NodeIndex},
@@ -9,9 +13,13 @@ use petgraph::{
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphCreationContext, AnimationGraphUpdateContext},
+    evaluation::{
+        AnimationGraphCreationContext, AnimationGraphEvaluationContext, AnimationGraphEvaluator,
+        AnimationGraphUpdateContext, EvaluatedNode,
+    },
     node::{AnimationNode, AnimationNodeInstance, AnimationRootNode},
     player::ActiveNodeInstance,
+    target::AnimationTarget,
 };
 
 type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
@@ -82,6 +90,52 @@ impl AnimationGraph {
 
     pub fn get_node_inputs(&self, node_index: AnimationNodeIndex) -> Neighbors<'_, (), u32> {
         self.graph.neighbors_directed(*node_index, Outgoing)
+    }
+
+    pub(crate) fn evaluate_target(
+        &self,
+        target: &AnimationTarget,
+        graph_instance: &AnimationGraphInstance,
+        animation_clips: &AssetStore<AnimationClip>,
+        animation_graphs: &AssetStore<AnimationGraph>,
+    ) -> Transform {
+        let mut graph_evaluator = AnimationGraphEvaluator::new();
+
+        for node_index in self.iter_post_order() {
+            let Some(node) = self.get_node(node_index) else {
+                continue;
+            };
+
+            let Some(node_state) = graph_instance.get_active_node_instance(&node_index) else {
+                warn!(
+                    "No node state found for node, make sure the animation player has been correctly initialized"
+                );
+                continue;
+            };
+
+            let evaluated_inputs = self
+                .get_node_inputs(node_index)
+                .map(|_| graph_evaluator.pop_evaluation())
+                .filter_map(|transform| transform)
+                .collect::<Vec<_>>();
+
+            let state_context = AnimationGraphEvaluationContext {
+                node_instance: node_state,
+                animation_clips: &animation_clips,
+                animation_graphs: &animation_graphs,
+                evaluated_inputs: &evaluated_inputs,
+            };
+
+            graph_evaluator.push_evaluation(EvaluatedNode {
+                transform: node.evaluate(&target, state_context),
+                weight: node_state.weight,
+            });
+        }
+
+        graph_evaluator
+            .pop_evaluation()
+            .map(|evaluated_node| evaluated_node.transform)
+            .unwrap_or(Transform::IDENTITY)
     }
 }
 

@@ -38,11 +38,25 @@ impl AnimationPlayer {
         }
     }
 
-    pub(crate) fn get_node_instance(
-        &self,
+    pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32) {
+        self.graph_instance.set_node_weight(node_index, weight);
+    }
+
+    pub fn set_fsm_param<T: Into<String>>(
+        &mut self,
         node_index: &AnimationNodeIndex,
-    ) -> Option<&ActiveNodeInstance> {
-        self.graph_instance.get_active_node_instance(node_index)
+        param_name: T,
+        param_value: AnimationFSMVariableType,
+    ) {
+        let Some(fsm_instance) = self
+            .graph_instance
+            .get_instance_mut::<AnimationStateMachineInstance>(node_index)
+        else {
+            info!("No animation node found when setting FSM parameters");
+            return;
+        };
+
+        fsm_instance.set_param(param_name.into(), param_value);
     }
 
     pub(crate) fn initialize_graph(
@@ -65,25 +79,8 @@ impl AnimationPlayer {
             .update(delta_time, graph, animation_clips, animation_graphs);
     }
 
-    pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32) {
-        self.graph_instance.set_node_weight(node_index, weight);
-    }
-
-    pub fn set_fsm_param<T: Into<String>>(
-        &mut self,
-        node_index: &AnimationNodeIndex,
-        param_name: T,
-        param_value: AnimationFSMVariableType,
-    ) {
-        let Some(fsm_instance) = self
-            .graph_instance
-            .get_instance_mut::<AnimationStateMachineInstance>(node_index)
-        else {
-            info!("No animation node found when setting FSM parameters");
-            return;
-        };
-
-        fsm_instance.set_param(param_name.into(), param_value);
+    pub(crate) fn graph_instance(&self) -> &AnimationGraphInstance {
+        &self.graph_instance
     }
 }
 

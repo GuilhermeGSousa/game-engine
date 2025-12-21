@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::evaluation::{AnimationGraphCreationContext, AnimationGraphEvaluator, EvaluatedNode};
+use crate::evaluation::AnimationGraphCreationContext;
 use crate::graph::{AnimationGraph, AnimationGraphInstance};
 use crate::target::AnimationTarget;
 use crate::{
@@ -9,7 +9,6 @@ use crate::{
     node::{AnimationNode, AnimationNodeInstance},
 };
 use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
-use log::warn;
 
 pub struct AnimationFSMStateDefinition<'a> {
     pub name: &'a str,
@@ -155,6 +154,13 @@ impl AnimationNode for AnimationStateMachine {
             return Transform::IDENTITY;
         };
 
+        let Some(current_state_graph_instance) = fsm_instance
+            .state_graph_instances
+            .get(fsm_instance.current_state)
+        else {
+            return Transform::IDENTITY;
+        };
+
         let Some(current_fsm_state) = self.get_state(fsm_instance.current_state()) else {
             return Transform::IDENTITY;
         };
@@ -163,47 +169,12 @@ impl AnimationNode for AnimationStateMachine {
             return Transform::IDENTITY;
         };
 
-        let mut graph_evaluator = AnimationGraphEvaluator::new();
-
-        for node_index in animation_graph.iter_post_order() {
-            let Some(node) = animation_graph.get_node(node_index) else {
-                continue;
-            };
-
-            let Some(node_state) = fsm_instance
-                .state_graph_instances
-                .get(fsm_instance.current_state)
-                .and_then(|graph_instance| graph_instance.get_active_node_instance(&node_index))
-            else {
-                warn!(
-                    "No node state found for node, make sure the animation player has been correctly initialized"
-                );
-                continue;
-            };
-
-            let evaluated_inputs = animation_graph
-                .get_node_inputs(node_index)
-                .map(|_| graph_evaluator.pop_evaluation())
-                .filter_map(|transform| transform)
-                .collect::<Vec<_>>();
-
-            let context = AnimationGraphEvaluationContext {
-                node_instance: node_state,
-                animation_clips: &context.animation_clips,
-                animation_graphs: &context.animation_graphs,
-                evaluated_inputs: &evaluated_inputs,
-            };
-
-            graph_evaluator.push_evaluation(EvaluatedNode {
-                transform: node.evaluate(&target, context),
-                weight: node_state.weight,
-            });
-        }
-
-        graph_evaluator
-            .pop_evaluation()
-            .map(|evaluated_node| evaluated_node.transform)
-            .unwrap_or(Transform::IDENTITY)
+        animation_graph.evaluate_target(
+            target,
+            current_state_graph_instance,
+            context.animation_clips,
+            context.animation_graphs,
+        )
     }
 }
 

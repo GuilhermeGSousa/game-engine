@@ -4,7 +4,7 @@ use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny}
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphEvaluationContext, EvaluatedNode},
+    evaluation::{AnimationGraphContext, EvaluatedNode},
     target::AnimationTarget,
 };
 
@@ -16,21 +16,21 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         node: &Box<dyn AnimationNode>,
         target: &AnimationTarget,
         evaluated_inputs: &Vec<EvaluatedNode>,
-        context: AnimationGraphEvaluationContext<'_>,
+        context: AnimationGraphContext<'_>,
     ) -> Transform;
 
     fn update(
         &mut self,
         node: &Box<dyn AnimationNode>,
         delta_time: f32,
-        context: AnimationGraphEvaluationContext<'_>,
+        context: &AnimationGraphContext<'_>,
     );
 }
 
 pub trait AnimationNode: AsAny + Sync + Send {
     fn create_instance(
         &self,
-        _creation_context: &AnimationGraphEvaluationContext,
+        _creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance>;
 }
 
@@ -44,7 +44,7 @@ impl AnimationNodeInstance for NoneInstance {
         &mut self,
         _node: &Box<dyn AnimationNode>,
         _delta_time: f32,
-        _context: AnimationGraphEvaluationContext<'_>,
+        _context: &AnimationGraphContext<'_>,
     ) {
     }
 
@@ -53,7 +53,7 @@ impl AnimationNodeInstance for NoneInstance {
         _node: &Box<dyn AnimationNode>,
         _target: &AnimationTarget,
         evaluated_inputs: &Vec<EvaluatedNode>,
-        _context: AnimationGraphEvaluationContext<'_>,
+        _context: AnimationGraphContext<'_>,
     ) -> Transform {
         evaluated_inputs
             .first()
@@ -69,7 +69,7 @@ pub struct AnimationRootNode;
 impl AnimationNode for AnimationRootNode {
     fn create_instance(
         &self,
-        _creation_context: &AnimationGraphEvaluationContext,
+        _creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
         Box::new(NoneInstance)
     }
@@ -111,7 +111,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         node: &Box<dyn AnimationNode>,
         target: &AnimationTarget,
         _evaluated_inputs: &Vec<EvaluatedNode>,
-        context: AnimationGraphEvaluationContext<'_>,
+        context: AnimationGraphContext<'_>,
     ) -> Transform {
         let Some(animation_clip) = node
             .as_any()
@@ -139,7 +139,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         &mut self,
         node: &Box<dyn AnimationNode>,
         delta_time: f32,
-        context: AnimationGraphEvaluationContext<'_>,
+        context: &AnimationGraphContext<'_>,
     ) {
         if self.is_paused {
             return;
@@ -175,7 +175,7 @@ impl AnimationClipNode {
 impl AnimationNode for AnimationClipNode {
     fn create_instance(
         &self,
-        _creation_context: &AnimationGraphEvaluationContext,
+        _creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
         Box::new(AnimationClipNodeInstance::new())
     }
@@ -187,7 +187,7 @@ pub struct AnimationBlendNode;
 impl AnimationNode for AnimationBlendNode {
     fn create_instance(
         &self,
-        _creation_context: &AnimationGraphEvaluationContext,
+        _creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
         Box::new(NoneInstance)
     }

@@ -1,12 +1,11 @@
 use std::ops::Deref;
 
 use ecs::component::Component;
-use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
+use essential::assets::handle::AssetHandle;
 use log::info;
 
 use crate::{
-    clip::AnimationClip,
-    evaluation::AnimationGraphEvaluationContext,
+    evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
@@ -22,7 +21,7 @@ impl ActiveNodeInstance {
         &mut self,
         node: &Box<dyn AnimationNode>,
         delta_time: f32,
-        context: AnimationGraphEvaluationContext<'_>,
+        context: &AnimationGraphContext<'_>,
     ) {
         self.node_instance.update(node, delta_time, context);
     }
@@ -66,21 +65,14 @@ impl AnimationPlayer {
 
     pub(crate) fn initialize_graph(
         &mut self,
-        animation_graph: &AnimationGraph,
-        context: &AnimationGraphEvaluationContext,
+        animation_graph: AssetHandle<AnimationGraph>,
+        context: &AnimationGraphContext,
     ) {
         self.graph_instance.initialize(animation_graph, context);
     }
 
-    pub(crate) fn update(
-        &mut self,
-        delta_time: f32,
-        graph: &AnimationGraph,
-        animation_clips: &AssetStore<AnimationClip>,
-        animation_graphs: &AssetStore<AnimationGraph>,
-    ) {
-        self.graph_instance
-            .update(delta_time, graph, animation_clips, animation_graphs);
+    pub(crate) fn update(&mut self, delta_time: f32, context: &AnimationGraphContext) {
+        self.graph_instance.update(delta_time, context);
     }
 
     pub(crate) fn graph_instance(&self) -> &AnimationGraphInstance {

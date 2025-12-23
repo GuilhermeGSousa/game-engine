@@ -27,12 +27,12 @@ impl AnimationGraphEvaluator {
     }
 }
 
-pub struct AnimationGraphEvaluationContext<'a> {
+pub struct AnimationGraphContext<'a> {
     pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
     pub(crate) animation_graphs: &'a AssetStore<AnimationGraph>,
 }
 
-impl<'a> AnimationGraphEvaluationContext<'a> {
+impl<'a> AnimationGraphContext<'a> {
     pub fn animation_clips(&self) -> &AssetStore<AnimationClip> {
         self.animation_clips
     }

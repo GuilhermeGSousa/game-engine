@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::AnimationGraphEvaluationContext,
+    evaluation::AnimationGraphContext,
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
 };
@@ -21,46 +21,43 @@ pub struct AnimationTarget {
 }
 
 pub(crate) fn animate_targets(
-    animation_players: Query<(&AnimationPlayer, &AnimationHandleComponent)>,
+    animation_players: Query<&AnimationPlayer>,
     animation_targets: Query<(&mut Transform, &AnimationTarget)>,
     animation_graphs: Res<AssetStore<AnimationGraph>>,
     animation_clips: Res<AssetStore<AnimationClip>>,
 ) {
     for (mut target_transform, animation_target) in animation_targets.iter() {
-        let Some((animation_player, animation_handle)) =
-            animation_players.get_entity(animation_target.animator)
-        else {
-            continue;
-        };
-
-        let Some(animation_graph) = animation_graphs.get(&animation_handle) else {
+        let Some(animation_player) = animation_players.get_entity(animation_target.animator) else {
             continue;
         };
 
         let graph_instance = animation_player.graph_instance();
 
-        **target_transform = animation_graph.evaluate_target(
+        **target_transform = graph_instance.evaluate(
             animation_target,
-            graph_instance,
-            &animation_clips,
-            &animation_graphs,
+            &AnimationGraphContext {
+                animation_clips: &animation_clips,
+                animation_graphs: &animation_graphs,
+            },
         );
     }
 }
 
 pub(crate) fn update_animation_players(
-    animation_players: Query<(&mut AnimationPlayer, &AnimationHandleComponent)>,
+    animation_players: Query<&mut AnimationPlayer>,
     animation_clips: Res<AssetStore<AnimationClip>>,
     animation_graphs: Res<AssetStore<AnimationGraph>>,
     time: Res<Time>,
 ) {
     let delta_time = time.delta().as_secs_f32();
-    for (mut animation_player, graph_handle) in animation_players.iter() {
-        let Some(graph) = animation_graphs.get(&graph_handle) else {
-            continue;
-        };
-
-        animation_player.update(delta_time, graph, &animation_clips, &animation_graphs);
+    for mut animation_player in animation_players.iter() {
+        animation_player.update(
+            delta_time,
+            &AnimationGraphContext {
+                animation_clips: &animation_clips,
+                animation_graphs: &animation_graphs,
+            },
+        );
     }
 }
 
@@ -73,13 +70,9 @@ pub(crate) fn initialize_animation_players(
     animation_clips: Res<AssetStore<AnimationClip>>,
 ) {
     for (mut animation_player, graph_handle) in animation_players.iter() {
-        let Some(graph) = animation_graphs.get(&graph_handle) else {
-            continue;
-        };
-
         animation_player.initialize_graph(
-            graph,
-            &AnimationGraphEvaluationContext {
+            (*graph_handle).clone(),
+            &AnimationGraphContext {
                 animation_clips: &animation_clips,
                 animation_graphs: &animation_graphs,
             },

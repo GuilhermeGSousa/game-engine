@@ -3,11 +3,12 @@ use std::ops::Deref;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::evaluation::EvaluatedNode;
-use crate::graph::{AnimationGraph, AnimationGraphInstance};
+use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
 use crate::target::AnimationTarget;
+use crate::transition::AnimationTransitionBlender;
 use crate::transition::blend_stack::BlendStack;
 use crate::{
-    evaluation::AnimationGraphEvaluationContext,
+    evaluation::AnimationGraphContext,
     node::{AnimationNode, AnimationNodeInstance},
 };
 
@@ -71,6 +72,12 @@ impl From<usize> for StateId {
     }
 }
 
+impl StateId {
+    fn as_graph_id(&self) -> GraphId {
+        self.0.into()
+    }
+}
+
 #[derive(AsAny)]
 pub struct AnimationStateMachine {
     initial_state: StateId,
@@ -122,10 +129,6 @@ impl AnimationStateMachine {
         }
     }
 
-    pub(crate) fn get_state(&self, state_index: StateId) -> Option<&AnimationFSMState> {
-        self.states.get(*state_index)
-    }
-
     pub(crate) fn get_state_transitions(
         &self,
         state_index: StateId,
@@ -137,17 +140,12 @@ impl AnimationStateMachine {
 impl AnimationNode for AnimationStateMachine {
     fn create_instance(
         &self,
-        creation_context: &AnimationGraphEvaluationContext,
+        creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
         let mut instanced_internal_graphs = Vec::new();
         for fsm_state in &self.states {
-            let Some(fsm_state_graph) = creation_context.animation_graphs.get(&fsm_state.graph)
-            else {
-                continue;
-            };
-
             let mut instanced_internal_graph = AnimationGraphInstance::default();
-            instanced_internal_graph.initialize(fsm_state_graph, creation_context);
+            instanced_internal_graph.initialize(fsm_state.graph.clone(), creation_context);
             instanced_internal_graphs.push(instanced_internal_graph);
         }
 
@@ -160,7 +158,7 @@ impl AnimationNode for AnimationStateMachine {
 
 #[derive(AsAny)]
 pub(crate) struct AnimationStateMachineInstance {
-    state_graph_instances: Vec<AnimationGraphInstance>,
+    state_graph_instances: AnimationGraphInstances,
     current_state: StateId,
     params: AnimationFSMParameters,
     blend_stack: BlendStack,
@@ -169,7 +167,7 @@ pub(crate) struct AnimationStateMachineInstance {
 impl AnimationStateMachineInstance {
     pub(crate) fn new(initial_state: StateId, graph_instance: Vec<AnimationGraphInstance>) -> Self {
         Self {
-            state_graph_instances: graph_instance,
+            state_graph_instances: AnimationGraphInstances::new(graph_instance),
             current_state: initial_state,
             params: HashMap::new(),
             blend_stack: BlendStack::new(),
@@ -192,7 +190,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         &mut self,
         node: &Box<dyn AnimationNode>,
         delta_time: f32,
-        context: AnimationGraphEvaluationContext<'_>,
+        context: &AnimationGraphContext<'_>,
     ) {
         let Some(fsm) = node.as_any().downcast_ref::<AnimationStateMachine>() else {
             return;
@@ -206,68 +204,47 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
-                    self.state_graph_instances[*self.current_state].reset_nodes();
+                    // self.state_graph_instances[*self.current_state].reset_nodes();
                     self.current_state = transition.next_state;
                     return;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(&self.params) {
-                        self.state_graph_instances[*self.current_state].reset_nodes();
+                        // self.state_graph_instances[*self.current_state].reset_nodes();
                         self.current_state = transition.next_state;
+
+                        // self.blend_stack.transition(
+                        //     transition.next_state.as_graph_id(),
+                        //     &self.state_graph_instances,
+                        // );
                         return;
                     }
                 }
             }
         }
 
-        let Some(current_state_graph) = fsm
-            .get_state(self.current_state)
-            .and_then(|current_state_data| context.animation_graphs.get(&current_state_data.graph))
-        else {
-            return;
-        };
-
-        if let Some(graph_instance) = self.state_graph_instances.get_mut(*self.current_state) {
-            graph_instance.update(
-                delta_time,
-                current_state_graph,
-                context.animation_clips,
-                context.animation_graphs,
-            );
+        if let Some(graph_instance) = self
+            .state_graph_instances
+            .get_mut(self.current_state().as_graph_id())
+        {
+            graph_instance.update(delta_time, context);
         };
     }
 
     fn evaluate(
         &self,
-        node: &Box<dyn AnimationNode>,
+        _node: &Box<dyn AnimationNode>,
         target: &AnimationTarget,
         _evaluated_inputs: &Vec<EvaluatedNode>,
-        context: AnimationGraphEvaluationContext<'_>,
+        context: AnimationGraphContext<'_>,
     ) -> Transform {
-        let Some(fsm) = node.as_any().downcast_ref::<AnimationStateMachine>() else {
-            return Transform::IDENTITY;
-        };
-
-        let Some(current_state_graph) = fsm
-            .get_state(self.current_state())
-            .and_then(|current_fsm_state| context.animation_graphs().get(&current_fsm_state.graph))
+        let Some(current_state_graph_instance) = self
+            .state_graph_instances
+            .get(self.current_state().as_graph_id())
         else {
             return Transform::IDENTITY;
         };
 
-        let Some(current_state_graph_instance) =
-            self.state_graph_instances.get(*self.current_state())
-        else {
-            return Transform::IDENTITY;
-        };
-
-        let current_evaluated_state = current_state_graph.evaluate_target(
-            target,
-            current_state_graph_instance,
-            context.animation_clips,
-            context.animation_graphs,
-        );
-
-        current_evaluated_state
+        current_state_graph_instance.evaluate(target, &context)
     }
 }

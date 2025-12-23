@@ -13,10 +13,7 @@ use petgraph::{
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{
-        AnimationGraphCreationContext, AnimationGraphEvaluationContext, AnimationGraphEvaluator,
-        AnimationGraphUpdateContext, EvaluatedNode,
-    },
+    evaluation::{AnimationGraphEvaluationContext, AnimationGraphEvaluator, EvaluatedNode},
     node::{AnimationNode, AnimationNodeInstance, AnimationRootNode},
     player::ActiveNodeInstance,
     target::AnimationTarget,
@@ -120,14 +117,17 @@ impl AnimationGraph {
                 .collect::<Vec<_>>();
 
             let state_context = AnimationGraphEvaluationContext {
-                node_instance: node_state,
                 animation_clips: &animation_clips,
                 animation_graphs: &animation_graphs,
-                evaluated_inputs: &evaluated_inputs,
             };
 
             graph_evaluator.push_evaluation(EvaluatedNode {
-                transform: node.evaluate(&target, state_context),
+                transform: node_state.node_instance.evaluate(
+                    &node,
+                    &target,
+                    &evaluated_inputs,
+                    state_context,
+                ),
                 weight: node_state.weight,
             });
         }
@@ -178,7 +178,7 @@ impl AnimationGraphInstance {
     pub(crate) fn initialize(
         &mut self,
         animation_graph: &AnimationGraph,
-        creation_context: &AnimationGraphCreationContext,
+        creation_context: &AnimationGraphEvaluationContext,
     ) {
         self.0.clear();
         for node_index in animation_graph.iter() {
@@ -215,14 +215,12 @@ impl AnimationGraphInstance {
                 return;
             };
 
-            let context = AnimationGraphUpdateContext {
-                animation_node: node,
+            let context = AnimationGraphEvaluationContext {
                 animation_clips,
                 animation_graphs,
-                delta_time,
             };
 
-            node_state.update(context);
+            node_state.update(node, delta_time, context);
         });
     }
 }

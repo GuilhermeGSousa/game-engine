@@ -6,9 +6,9 @@ use log::info;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphCreationContext, AnimationGraphUpdateContext},
+    evaluation::AnimationGraphEvaluationContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
-    node::{AnimationClipNodeInstance, AnimationNodeInstance},
+    node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
@@ -18,8 +18,13 @@ pub struct ActiveNodeInstance {
 }
 
 impl ActiveNodeInstance {
-    pub(crate) fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
-        self.node_instance.update(context);
+    pub(crate) fn update(
+        &mut self,
+        node: &Box<dyn AnimationNode>,
+        delta_time: f32,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) {
+        self.node_instance.update(node, delta_time, context);
     }
 }
 
@@ -62,10 +67,9 @@ impl AnimationPlayer {
     pub(crate) fn initialize_graph(
         &mut self,
         animation_graph: &AnimationGraph,
-        creation_context: &AnimationGraphCreationContext,
+        context: &AnimationGraphEvaluationContext,
     ) {
-        self.graph_instance
-            .initialize(animation_graph, creation_context);
+        self.graph_instance.initialize(animation_graph, context);
     }
 
     pub(crate) fn update(

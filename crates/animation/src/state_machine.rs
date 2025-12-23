@@ -1,9 +1,11 @@
 use std::any::Any;
+use std::ops::Deref;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::evaluation::AnimationGraphCreationContext;
+use crate::evaluation::EvaluatedNode;
 use crate::graph::{AnimationGraph, AnimationGraphInstance};
 use crate::target::AnimationTarget;
+use crate::transition::blend_stack::BlendStack;
 use crate::{
     evaluation::AnimationGraphEvaluationContext,
     node::{AnimationNode, AnimationNodeInstance},
@@ -48,13 +50,30 @@ pub struct AnimationStateMachineTransitionDefinition<'a> {
 }
 
 pub(crate) struct AnimationStateMachineTransition {
-    next_state: usize,
+    next_state: StateId,
     trigger: AnimationFSMTrigger,
+}
+
+#[derive(Clone, Copy)]
+pub struct StateId(usize);
+
+impl Deref for StateId {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<usize> for StateId {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
 }
 
 #[derive(AsAny)]
 pub struct AnimationStateMachine {
-    initial_state: usize,
+    initial_state: StateId,
     states: Vec<AnimationFSMState>,
     transitions: Vec<Vec<AnimationStateMachineTransition>>,
 }
@@ -65,13 +84,13 @@ impl AnimationStateMachine {
         states_definition: Vec<AnimationFSMStateDefinition>,
         transitions_definition: HashMap<&str, Vec<AnimationStateMachineTransitionDefinition>>,
     ) -> Self {
-        let mut name_to_index = HashMap::new();
+        let mut name_to_index: HashMap<&str, StateId> = HashMap::new();
         let mut transitions = Vec::new();
         let states = states_definition
             .into_iter()
             .enumerate()
             .map(|(index, state_def)| {
-                name_to_index.insert(state_def.name, index);
+                name_to_index.insert(state_def.name, index.into());
                 transitions.push(Vec::new());
                 AnimationFSMState {
                     graph: state_def.graph,
@@ -87,36 +106,38 @@ impl AnimationStateMachine {
                 };
 
                 transition_defs.into_iter().for_each(|transition_def| {
-                    transitions[*from_index].push(AnimationStateMachineTransition {
-                        next_state: *name_to_index.get(transition_def.target_state).unwrap_or(&0),
+                    transitions[**from_index].push(AnimationStateMachineTransition {
+                        next_state: *name_to_index
+                            .get(transition_def.target_state)
+                            .unwrap_or(&0.into()),
                         trigger: transition_def.trigger,
                     });
                 });
             });
 
         Self {
-            initial_state: *name_to_index.get(initial_state).unwrap_or(&0),
+            initial_state: *name_to_index.get(initial_state).unwrap_or(&0.into()),
             states,
             transitions,
         }
     }
 
-    pub(crate) fn get_state(&self, state_index: usize) -> Option<&AnimationFSMState> {
-        self.states.get(state_index)
+    pub(crate) fn get_state(&self, state_index: StateId) -> Option<&AnimationFSMState> {
+        self.states.get(*state_index)
     }
 
     pub(crate) fn get_state_transitions(
         &self,
-        state_index: usize,
+        state_index: StateId,
     ) -> Option<&Vec<AnimationStateMachineTransition>> {
-        self.transitions.get(state_index)
+        self.transitions.get(*state_index)
     }
 }
 
 impl AnimationNode for AnimationStateMachine {
     fn create_instance(
         &self,
-        creation_context: &AnimationGraphCreationContext,
+        creation_context: &AnimationGraphEvaluationContext,
     ) -> Box<dyn AnimationNodeInstance> {
         let mut instanced_internal_graphs = Vec::new();
         for fsm_state in &self.states {
@@ -135,59 +156,23 @@ impl AnimationNode for AnimationStateMachine {
             instanced_internal_graphs,
         ))
     }
-
-    fn evaluate(
-        &self,
-        target: &AnimationTarget,
-        context: AnimationGraphEvaluationContext<'_>,
-    ) -> Transform {
-        let Some(fsm_instance) = context
-            .current_node_state()
-            .as_any()
-            .downcast_ref::<AnimationStateMachineInstance>()
-        else {
-            return Transform::IDENTITY;
-        };
-
-        let Some(current_state_graph) = self
-            .get_state(fsm_instance.current_state())
-            .and_then(|current_fsm_state| context.animation_graphs().get(&current_fsm_state.graph))
-        else {
-            return Transform::IDENTITY;
-        };
-
-        let Some(current_state_graph_instance) = fsm_instance
-            .state_graph_instances
-            .get(fsm_instance.current_state())
-        else {
-            return Transform::IDENTITY;
-        };
-
-        let current_evaluated_state = current_state_graph.evaluate_target(
-            target,
-            current_state_graph_instance,
-            context.animation_clips,
-            context.animation_graphs,
-        );
-
-        current_evaluated_state
-    }
 }
 
 #[derive(AsAny)]
 pub(crate) struct AnimationStateMachineInstance {
     state_graph_instances: Vec<AnimationGraphInstance>,
-    current_state: usize,
+    current_state: StateId,
     params: AnimationFSMParameters,
+    blend_stack: BlendStack,
 }
 
 impl AnimationStateMachineInstance {
-    pub(crate) fn new(initial_state: usize, graph_instance: Vec<AnimationGraphInstance>) -> Self {
+    pub(crate) fn new(initial_state: StateId, graph_instance: Vec<AnimationGraphInstance>) -> Self {
         Self {
             state_graph_instances: graph_instance,
             current_state: initial_state,
-
             params: HashMap::new(),
+            blend_stack: BlendStack::new(),
         }
     }
 
@@ -195,7 +180,7 @@ impl AnimationStateMachineInstance {
         self.params.insert(param_name, param_value);
     }
 
-    pub(crate) fn current_state(&self) -> usize {
+    pub(crate) fn current_state(&self) -> StateId {
         self.current_state
     }
 }
@@ -203,12 +188,13 @@ impl AnimationStateMachineInstance {
 impl AnimationNodeInstance for AnimationStateMachineInstance {
     fn reset(&mut self) {}
 
-    fn update(&mut self, context: crate::evaluation::AnimationGraphUpdateContext<'_>) {
-        let Some(fsm) = context
-            .animation_node
-            .as_any()
-            .downcast_ref::<AnimationStateMachine>()
-        else {
+    fn update(
+        &mut self,
+        node: &Box<dyn AnimationNode>,
+        delta_time: f32,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) {
+        let Some(fsm) = node.as_any().downcast_ref::<AnimationStateMachine>() else {
             return;
         };
 
@@ -220,13 +206,13 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
-                    self.state_graph_instances[self.current_state].reset_nodes();
+                    self.state_graph_instances[*self.current_state].reset_nodes();
                     self.current_state = transition.next_state;
                     return;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(&self.params) {
-                        self.state_graph_instances[self.current_state].reset_nodes();
+                        self.state_graph_instances[*self.current_state].reset_nodes();
                         self.current_state = transition.next_state;
                         return;
                     }
@@ -241,13 +227,47 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
             return;
         };
 
-        if let Some(graph_instance) = self.state_graph_instances.get_mut(self.current_state) {
+        if let Some(graph_instance) = self.state_graph_instances.get_mut(*self.current_state) {
             graph_instance.update(
-                context.delta_time,
+                delta_time,
                 current_state_graph,
                 context.animation_clips,
                 context.animation_graphs,
             );
         };
+    }
+
+    fn evaluate(
+        &self,
+        node: &Box<dyn AnimationNode>,
+        target: &AnimationTarget,
+        _evaluated_inputs: &Vec<EvaluatedNode>,
+        context: AnimationGraphEvaluationContext<'_>,
+    ) -> Transform {
+        let Some(fsm) = node.as_any().downcast_ref::<AnimationStateMachine>() else {
+            return Transform::IDENTITY;
+        };
+
+        let Some(current_state_graph) = fsm
+            .get_state(self.current_state())
+            .and_then(|current_fsm_state| context.animation_graphs().get(&current_fsm_state.graph))
+        else {
+            return Transform::IDENTITY;
+        };
+
+        let Some(current_state_graph_instance) =
+            self.state_graph_instances.get(*self.current_state())
+        else {
+            return Transform::IDENTITY;
+        };
+
+        let current_evaluated_state = current_state_graph.evaluate_target(
+            target,
+            current_state_graph_instance,
+            context.animation_clips,
+            context.animation_graphs,
+        );
+
+        current_evaluated_state
     }
 }

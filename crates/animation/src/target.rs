@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::AnimationGraphCreationContext,
+    evaluation::AnimationGraphEvaluationContext,
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
 };
@@ -79,7 +79,7 @@ pub(crate) fn initialize_animation_players(
 
         animation_player.initialize_graph(
             graph,
-            &AnimationGraphCreationContext {
+            &AnimationGraphEvaluationContext {
                 animation_clips: &animation_clips,
                 animation_graphs: &animation_graphs,
             },

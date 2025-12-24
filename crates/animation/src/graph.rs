@@ -212,7 +212,7 @@ impl AnimationGraphInstance {
                     &node,
                     &target,
                     &evaluated_inputs,
-                    state_context,
+                    &state_context,
                 ),
                 weight: node_state.weight,
             });

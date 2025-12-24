@@ -16,7 +16,7 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         node: &Box<dyn AnimationNode>,
         target: &AnimationTarget,
         evaluated_inputs: &Vec<EvaluatedNode>,
-        context: AnimationGraphContext<'_>,
+        context: &AnimationGraphContext<'_>,
     ) -> Transform;
 
     fn update(
@@ -53,7 +53,7 @@ impl AnimationNodeInstance for NoneInstance {
         _node: &Box<dyn AnimationNode>,
         _target: &AnimationTarget,
         evaluated_inputs: &Vec<EvaluatedNode>,
-        _context: AnimationGraphContext<'_>,
+        _context: &AnimationGraphContext<'_>,
     ) -> Transform {
         evaluated_inputs
             .first()
@@ -111,7 +111,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         node: &Box<dyn AnimationNode>,
         target: &AnimationTarget,
         _evaluated_inputs: &Vec<EvaluatedNode>,
-        context: AnimationGraphContext<'_>,
+        context: &AnimationGraphContext<'_>,
     ) -> Transform {
         let Some(animation_clip) = node
             .as_any()

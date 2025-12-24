@@ -170,7 +170,7 @@ impl AnimationStateMachineInstance {
             state_graph_instances: AnimationGraphInstances::new(graph_instance),
             current_state: initial_state,
             params: HashMap::new(),
-            blend_stack: BlendStack::new(),
+            blend_stack: BlendStack::new(initial_state.as_graph_id()),
         }
     }
 
@@ -213,22 +213,19 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
                         // self.state_graph_instances[*self.current_state].reset_nodes();
                         self.current_state = transition.next_state;
 
-                        // self.blend_stack.transition(
-                        //     transition.next_state.as_graph_id(),
-                        //     &self.state_graph_instances,
-                        // );
+                        self.blend_stack.transition(
+                            transition.next_state.as_graph_id(),
+                            &self.state_graph_instances,
+                            context,
+                        );
                         return;
                     }
                 }
             }
         }
 
-        if let Some(graph_instance) = self
-            .state_graph_instances
-            .get_mut(self.current_state().as_graph_id())
-        {
-            graph_instance.update(delta_time, context);
-        };
+        self.blend_stack
+            .update(delta_time, &mut self.state_graph_instances, context);
     }
 
     fn evaluate(
@@ -236,15 +233,9 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         _node: &Box<dyn AnimationNode>,
         target: &AnimationTarget,
         _evaluated_inputs: &Vec<EvaluatedNode>,
-        context: AnimationGraphContext<'_>,
+        context: &AnimationGraphContext<'_>,
     ) -> Transform {
-        let Some(current_state_graph_instance) = self
-            .state_graph_instances
-            .get(self.current_state().as_graph_id())
-        else {
-            return Transform::IDENTITY;
-        };
-
-        current_state_graph_instance.evaluate(target, &context)
+        self.blend_stack
+            .sample(target, &self.state_graph_instances, context)
     }
 }

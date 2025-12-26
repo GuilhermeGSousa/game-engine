@@ -157,6 +157,12 @@ impl AnimationGraphInstance {
         }
     }
 
+    pub(crate) fn reset(&mut self) {
+        self.graph_state.iter_mut().for_each(|(_, node_state)| {
+            node_state.node_instance.reset();
+        });
+    }
+
     pub(crate) fn update(&mut self, delta_time: f32, context: &AnimationGraphContext<'_>) {
         let Some(graph) = self.get_animation_graph(context) else {
             return;

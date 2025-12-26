@@ -28,6 +28,7 @@ pub(crate) trait AnimationTransitionBlender {
         &mut self,
         next_graph: GraphId,
         graph_instances: &AnimationGraphInstances,
+        transition_time: f32,
         context: &AnimationGraphContext<'_>,
     );
 }

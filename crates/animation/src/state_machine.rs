@@ -48,11 +48,13 @@ impl AnimationFSMTrigger {
 pub struct AnimationStateMachineTransitionDefinition<'a> {
     pub target_state: &'a str,
     pub trigger: AnimationFSMTrigger,
+    pub transition_time: f32,
 }
 
 pub(crate) struct AnimationStateMachineTransition {
     next_state: StateId,
     trigger: AnimationFSMTrigger,
+    transition_time: f32,
 }
 
 #[derive(Clone, Copy)]
@@ -118,6 +120,7 @@ impl AnimationStateMachine {
                             .get(transition_def.target_state)
                             .unwrap_or(&0.into()),
                         trigger: transition_def.trigger,
+                        transition_time: transition_def.transition_time,
                     });
                 });
             });
@@ -177,10 +180,6 @@ impl AnimationStateMachineInstance {
     pub(crate) fn set_param(&mut self, param_name: String, param_value: AnimationFSMVariableType) {
         self.params.insert(param_name, param_value);
     }
-
-    pub(crate) fn current_state(&self) -> StateId {
-        self.current_state
-    }
 }
 
 impl AnimationNodeInstance for AnimationStateMachineInstance {
@@ -204,18 +203,22 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
-                    // self.state_graph_instances[*self.current_state].reset_nodes();
                     self.current_state = transition.next_state;
+                    self.blend_stack.transition(
+                        transition.next_state.as_graph_id(),
+                        &self.state_graph_instances,
+                        transition.transition_time,
+                        context,
+                    );
                     return;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(&self.params) {
-                        // self.state_graph_instances[*self.current_state].reset_nodes();
                         self.current_state = transition.next_state;
-
                         self.blend_stack.transition(
                             transition.next_state.as_graph_id(),
                             &self.state_graph_instances,
+                            transition.transition_time,
                             context,
                         );
                         return;

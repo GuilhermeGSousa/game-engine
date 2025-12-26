@@ -12,6 +12,7 @@ use crate::{
     evaluation::AnimationGraphContext,
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
+    root::AnimationRootBone,
 };
 
 #[derive(Component)]
@@ -22,24 +23,32 @@ pub struct AnimationTarget {
 
 pub(crate) fn animate_targets(
     animation_players: Query<&AnimationPlayer>,
-    animation_targets: Query<(&mut Transform, &AnimationTarget)>,
+    animation_targets: Query<(
+        &mut Transform,
+        &AnimationTarget,
+        Option<&mut AnimationRootBone>,
+    )>,
     animation_graphs: Res<AssetStore<AnimationGraph>>,
     animation_clips: Res<AssetStore<AnimationClip>>,
 ) {
-    for (mut target_transform, animation_target) in animation_targets.iter() {
+    for (mut target_transform, animation_target, animation_root) in animation_targets.iter() {
         let Some(animation_player) = animation_players.get_entity(animation_target.animator) else {
             continue;
         };
 
         let graph_instance = animation_player.graph_instance();
 
-        **target_transform = graph_instance.evaluate(
-            animation_target,
-            &AnimationGraphContext {
-                animation_clips: &animation_clips,
-                animation_graphs: &animation_graphs,
-            },
-        );
+        if let Some(_animation_root) = animation_root {
+            // TODO: Accumulate root motion and store it in animation_root
+        } else {
+            **target_transform = graph_instance.evaluate(
+                animation_target,
+                &AnimationGraphContext {
+                    animation_clips: &animation_clips,
+                    animation_graphs: &animation_graphs,
+                },
+            );
+        }
     }
 }
 

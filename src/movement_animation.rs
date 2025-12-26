@@ -21,7 +21,7 @@ use essential::{
     assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
     transform::Transform,
 };
-use gltf::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent};
+use gltf::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings};
 use render::components::camera::Camera;
 use window::input::{Input, InputState};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -61,9 +61,14 @@ pub(crate) fn spawn_on_button_press(
     if key_p == InputState::Pressed {
         let idle_anim = asset_server.load::<GLTFScene>(IDLE_ANIM);
         let walk_anim = asset_server.load::<GLTFScene>(WALK_ANIM);
-
+        let model = asset_server.load_with_usage_settings::<GLTFScene>(
+            GLB_ASSET,
+            GLTFUsageSettings {
+                root_bone: Some("mixamorig:Hips"),
+            },
+        );
         cmd.spawn((
-            GLTFSpawnerComponent(asset_server.load::<GLTFScene>(GLB_ASSET)),
+            GLTFSpawnerComponent(model),
             LoadingAnimationStore {
                 idle: idle_anim,
                 walk: walk_anim,
@@ -153,6 +158,7 @@ pub(crate) fn setup_animations(
                                 })
                                 .unwrap_or(false)
                         }),
+                        transition_time: 0.5,
                     }],
                 ),
                 (
@@ -170,6 +176,7 @@ pub(crate) fn setup_animations(
                                 })
                                 .unwrap_or(false)
                         }),
+                        transition_time: 0.5,
                     }],
                 ),
             ]);

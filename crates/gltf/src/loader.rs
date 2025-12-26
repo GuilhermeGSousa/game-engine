@@ -7,6 +7,7 @@ use std::{
 use animation::{
     clip::{AnimationChanelOutput, AnimationChannel, AnimationClip},
     player::AnimationPlayer,
+    root::AnimationRootBone,
     target::AnimationTarget,
 };
 use async_trait::async_trait;
@@ -74,6 +75,7 @@ pub struct GLTFNode {
 pub struct GLTFSkeleton {
     pub(crate) bones: Vec<usize>,
     pub(crate) skeleton: AssetHandle<Skeleton>,
+    pub(crate) root_bone: Option<usize>,
 }
 
 pub(crate) struct GLTFNodePathInfo {
@@ -86,15 +88,20 @@ pub(crate) struct GLTFAnimationTargetInfo {
     pub(crate) root_index: usize,
 }
 
+#[derive(Default)]
+pub struct GLTFUsageSettings {
+    pub root_bone: Option<&'static str>,
+}
+
 impl LoadableAsset for GLTFScene {
-    type UsageSettings = ();
+    type UsageSettings = GLTFUsageSettings;
 
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
         Box::new(GLTFLoader)
     }
 
     fn default_usage_settings() -> Self::UsageSettings {
-        ()
+        GLTFUsageSettings::default()
     }
 }
 
@@ -107,7 +114,7 @@ impl AssetLoader for GLTFLoader {
         &self,
         path: essential::assets::AssetPath<'static>,
         load_context: &mut essential::assets::asset_server::AssetLoadContext,
-        _usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
+        usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let (document, buffers, images) = gltf::import(path.to_path()).unwrap();
 
@@ -188,7 +195,28 @@ impl AssetLoader for GLTFLoader {
             {
                 let skeleton = load_context.asset_server().add(inverse_bind_matrices);
                 let bones: Vec<usize> = skin.joints().map(|j| j.index()).collect();
-                skeletons.push(GLTFSkeleton { bones, skeleton });
+
+                let root_bone = usage_setting
+                    .root_bone
+                    .as_ref()
+                    .map(|root_bone_name| {
+                        skin.joints().find_map(|join_node| match join_node.name() {
+                            Some(joint_name) => {
+                                if joint_name == *root_bone_name {
+                                    Some(join_node.index())
+                                } else {
+                                    None
+                                }
+                            }
+                            None => None,
+                        })
+                    })
+                    .flatten();
+                skeletons.push(GLTFSkeleton {
+                    bones,
+                    skeleton,
+                    root_bone,
+                });
             }
         }
 
@@ -196,6 +224,7 @@ impl AssetLoader for GLTFLoader {
         for scene in document.scenes() {
             for root_node in scene.nodes() {
                 let root_index = root_node.index();
+
                 collect_paths(
                     &root_node,
                     &[],
@@ -481,6 +510,10 @@ pub(crate) fn spawn_gltf_components(
                             .map(|bone_index| node_entities[*bone_index])
                             .collect::<Vec<_>>(),
                     );
+
+                    if let Some(root_bone_index) = gltf_skeleton.root_bone {
+                        cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
+                    }
                     cmd.insert(skeleton_component, node_entities[node_index]);
                 }
 

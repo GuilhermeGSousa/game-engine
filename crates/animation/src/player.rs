@@ -1,14 +1,13 @@
 use std::ops::Deref;
 
 use ecs::component::Component;
-use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
+use essential::assets::handle::AssetHandle;
 use log::info;
 
 use crate::{
-    clip::AnimationClip,
-    evaluation::{AnimationGraphCreationContext, AnimationGraphUpdateContext},
+    evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
-    node::{AnimationClipNodeInstance, AnimationNodeInstance},
+    node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
@@ -18,8 +17,13 @@ pub struct ActiveNodeInstance {
 }
 
 impl ActiveNodeInstance {
-    pub(crate) fn update(&mut self, context: AnimationGraphUpdateContext<'_>) {
-        self.node_instance.update(context);
+    pub(crate) fn update(
+        &mut self,
+        node: &Box<dyn AnimationNode>,
+        delta_time: f32,
+        context: &AnimationGraphContext<'_>,
+    ) {
+        self.node_instance.update(node, delta_time, context);
     }
 }
 
@@ -36,33 +40,6 @@ impl AnimationPlayer {
         {
             anim_clip_instance.play();
         }
-    }
-
-    pub(crate) fn get_node_instance(
-        &self,
-        node_index: &AnimationNodeIndex,
-    ) -> Option<&ActiveNodeInstance> {
-        self.graph_instance.get_active_node_instance(node_index)
-    }
-
-    pub(crate) fn initialize_graph(
-        &mut self,
-        animation_graph: &AnimationGraph,
-        creation_context: &AnimationGraphCreationContext,
-    ) {
-        self.graph_instance
-            .initialize(animation_graph, creation_context);
-    }
-
-    pub(crate) fn update(
-        &mut self,
-        delta_time: f32,
-        graph: &AnimationGraph,
-        animation_clips: &AssetStore<AnimationClip>,
-        animation_graphs: &AssetStore<AnimationGraph>,
-    ) {
-        self.graph_instance
-            .update(delta_time, graph, animation_clips, animation_graphs);
     }
 
     pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32) {
@@ -84,6 +61,22 @@ impl AnimationPlayer {
         };
 
         fsm_instance.set_param(param_name.into(), param_value);
+    }
+
+    pub(crate) fn initialize_graph(
+        &mut self,
+        animation_graph: AssetHandle<AnimationGraph>,
+        context: &AnimationGraphContext,
+    ) {
+        self.graph_instance.initialize(animation_graph, context);
+    }
+
+    pub(crate) fn update(&mut self, delta_time: f32, context: &AnimationGraphContext) {
+        self.graph_instance.update(delta_time, context);
+    }
+
+    pub(crate) fn graph_instance(&self) -> &AnimationGraphInstance {
+        &self.graph_instance
     }
 }
 

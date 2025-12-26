@@ -39,9 +39,10 @@ pub fn lerp_derive(input: TokenStream) -> TokenStream {
             Fields::Named(fields) => {
                 let recurse = fields.named.iter().map(|f| {
                     let field_name = &f.ident;
+                    let field_type = &f.ty;
                     // Generate: field_name: self.field_name.lerp(other.field_name, t)
                     quote! {
-                        #field_name: self.#field_name.lerp(other.#field_name, t)
+                        #field_name: #field_type::interpolate(from.#field_name, other.#field_name, t)
                     }
                 });
                 quote! {
@@ -50,11 +51,11 @@ pub fn lerp_derive(input: TokenStream) -> TokenStream {
             }
             // Case B: Unnamed/Tuple fields (e.g., struct Point(f32, f32))
             Fields::Unnamed(fields) => {
-                let recurse = fields.unnamed.iter().enumerate().map(|(i, _)| {
+                let recurse = fields.unnamed.iter().enumerate().map(|(i, field)| {
                     let index = syn::Index::from(i);
-                    // Generate: self.0.lerp(other.0, t)
+                    let field_type = &field.ty;
                     quote! {
-                        self.#index.lerp(other.#index, t)
+                        #field_type::interpolate(from.#index, other.#index, t)
                     }
                 });
                 quote! {
@@ -70,7 +71,7 @@ pub fn lerp_derive(input: TokenStream) -> TokenStream {
     // 3. Generate the implementation
     let gen = quote! {
         impl Blendable for #name {
-            fn interpolate(self, other: Self, t: f32) -> Self {
+            fn interpolate(from: Self, other: Self, t: f32) -> Self {
                 #name #fields_processing
             }
         }

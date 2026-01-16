@@ -36,7 +36,6 @@ use render::{
     plugin::RenderPlugin,
 };
 
-use ui::plugin::UIPlugin;
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -49,14 +48,12 @@ use window::{
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use crate::{
-    game_ui::render_ui,
     movement_animation::{
         setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
     },
 };
 
 mod fsm;
-mod game_ui;
 mod movement_animation;
 
 #[allow(dead_code)]
@@ -83,7 +80,6 @@ pub fn run_game() {
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
         .register_plugin(TransformPlugin)
-        .register_plugin(UIPlugin)
         .register_plugin(PhysicsPlugin)
         .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
@@ -101,7 +97,6 @@ pub fn run_game() {
         .add_system(app::update_group::UpdateGroup::Update, setup_animations)
         .add_system(app::update_group::UpdateGroup::Update, update_movement_fsm)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
-        .add_system(app::update_group::UpdateGroup::Render, render_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
 

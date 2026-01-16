@@ -21,7 +21,6 @@ app = { path = "crates/app" }
 animation = { path = "crates/animation" }
 essential = { path = "crates/essential" }
 render = { path = "crates/render" }
-ui = { path = "crates/ui" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 physics = { path = "crates/physics" }

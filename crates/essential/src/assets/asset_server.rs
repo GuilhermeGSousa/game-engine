@@ -5,7 +5,10 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
-use ecs::{resource::Resource, world};
+use ecs::{
+    resource::Resource,
+    world::{self, World},
+};
 
 use crate::{
     assets::{handle::StrongAssetHandle, AssetPath, LoadableAsset},
@@ -148,7 +151,7 @@ impl AssetServer {
         self.data.handle_provider.request_handle(id, Some(path))
     }
 
-    pub fn process_handle_drop(&mut self, id: &AssetId, path: Option<AssetPath<'static>>) {
+    pub(crate) fn process_handle_drop(&mut self, id: &AssetId, path: Option<AssetPath<'static>>) {
         self.data.loaded_assets.write().unwrap().remove(id);
 
         if let Some(path) = path {
@@ -187,36 +190,36 @@ impl AssetServer {
 
         self.data.pending_tasks.write().unwrap().insert(id, task);
     }
+
+    pub fn flush(&self, world: &mut World) {
+        self.data
+            .asset_load_event_receiver
+            .try_iter()
+            .for_each(|event| match event {
+                AssetLoadEvent::Loaded(loaded_asset) => {
+                    self.data
+                        .pending_tasks
+                        .write()
+                        .unwrap()
+                        .remove(&loaded_asset.id);
+                    self.data
+                        .loaded_assets
+                        .write()
+                        .unwrap()
+                        .insert(loaded_asset.id);
+                    loaded_asset.value.insert(loaded_asset.id, world);
+                }
+                AssetLoadEvent::LoadFailed(id) => {
+                    self.data.pending_tasks.write().unwrap().remove(&id);
+                    self.data.loaded_assets.write().unwrap().remove(&id);
+                }
+            });
+    }
 }
 
 pub fn handle_asset_load_events(world: &mut world::World) {
     let server = world.remove_resource::<AssetServer>().unwrap();
-
-    server
-        .data
-        .asset_load_event_receiver
-        .try_iter()
-        .for_each(|event| match event {
-            AssetLoadEvent::Loaded(loaded_asset) => {
-                server
-                    .data
-                    .pending_tasks
-                    .write()
-                    .unwrap()
-                    .remove(&loaded_asset.id);
-                server
-                    .data
-                    .loaded_assets
-                    .write()
-                    .unwrap()
-                    .insert(loaded_asset.id);
-                loaded_asset.value.insert(loaded_asset.id, world);
-            }
-            AssetLoadEvent::LoadFailed(id) => {
-                server.data.pending_tasks.write().unwrap().remove(&id);
-                server.data.loaded_assets.write().unwrap().remove(&id);
-            }
-        });
+    server.flush(world);
     world.insert_resource(server);
 }
 
@@ -233,7 +236,7 @@ impl AssetHandleProvider {
         }
     }
 
-    pub fn register_asset<A: Asset>(&self, lifetime_sender: Sender<AssetLifetimeEvent>) {
+    pub(crate) fn register_asset<A: Asset>(&self, lifetime_sender: Sender<AssetLifetimeEvent>) {
         let type_id = TypeId::of::<A>();
         self.asset_lifetime_send_map
             .write()

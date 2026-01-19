@@ -29,17 +29,23 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 const GLB_ASSET: &str = "res/girl.glb";
 const IDLE_ANIM: &str = "res/idle.glb";
 const WALK_ANIM: &str = "res/walk.glb";
+const STRAFE_LEFT_ANIM: &str = "res/left_strafe.glb";
+const STRAFE_RIGHT_ANIM: &str = "res/right_strafe.glb";
 
 #[derive(Component)]
 pub(crate) struct LoadingAnimationStore {
     pub(crate) idle: AssetHandle<GLTFScene>,
     pub(crate) walk: AssetHandle<GLTFScene>,
+    pub(crate) left_strafe: AssetHandle<GLTFScene>,
+    pub(crate) right_strafe: AssetHandle<GLTFScene>,
 }
 
 #[derive(Component)]
 pub(crate) struct AnimationStore {
     pub(crate) idle: AssetHandle<AnimationClip>,
     pub(crate) walk: AssetHandle<AnimationClip>,
+    pub(crate) left_strafe: AssetHandle<AnimationClip>,
+    pub(crate) right_strafe: AssetHandle<AnimationClip>,
 }
 
 #[derive(Component)]
@@ -61,10 +67,20 @@ pub(crate) fn spawn_on_button_press(
     if key_p == InputState::Pressed {
         let idle_anim = asset_server.load::<GLTFScene>(IDLE_ANIM);
         let walk_anim = asset_server.load::<GLTFScene>(WALK_ANIM);
+        let strafe_left = asset_server.load::<GLTFScene>(STRAFE_LEFT_ANIM);
+        let strafe_right = asset_server.load_with_usage_settings::<GLTFScene>(
+            STRAFE_RIGHT_ANIM,
+            GLTFUsageSettings {
+                flip_x: true,
+                flip_z: false,
+                ..Default::default()
+            },
+        );
         let model = asset_server.load_with_usage_settings::<GLTFScene>(
             GLB_ASSET,
             GLTFUsageSettings {
                 root_bone: Some("mixamorig:Hips"),
+                ..Default::default()
             },
         );
         cmd.spawn((
@@ -72,6 +88,8 @@ pub(crate) fn spawn_on_button_press(
             LoadingAnimationStore {
                 idle: idle_anim,
                 walk: walk_anim,
+                left_strafe: strafe_left,
+                right_strafe: strafe_right,
             },
             mesh_transform,
         ));
@@ -84,21 +102,34 @@ pub(crate) fn setup_state_machine(
     mut cmd: CommandQueue,
 ) {
     for (entity, loading_anim_store, spawned_gltf) in animated_entities.iter() {
-        let (Some(idle), Some(walk)) = (
+        let (Some(idle), Some(walk), Some(left_strafe), Some(right_strafe)) = (
             gltf_scenes
                 .get(&loading_anim_store.idle)
-                .and_then(|idle_scene| idle_scene.animations().first())
+                .and_then(|scene| scene.animations().first())
                 .map(|clip| clip.clone()),
             gltf_scenes
                 .get(&loading_anim_store.walk)
-                .and_then(|walk_scene| walk_scene.animations().first())
+                .and_then(|scene| scene.animations().first())
+                .map(|clip| clip.clone()),
+            gltf_scenes
+                .get(&loading_anim_store.left_strafe)
+                .and_then(|scene| scene.animations().first())
+                .map(|clip| clip.clone()),
+            gltf_scenes
+                .get(&loading_anim_store.right_strafe)
+                .and_then(|scene| scene.animations().first())
                 .map(|clip| clip.clone()),
         ) else {
             continue;
         };
 
         if let Some(anim_root) = spawned_gltf.animation_roots().first() {
-            let anim_store: AnimationStore = AnimationStore { idle, walk };
+            let anim_store: AnimationStore = AnimationStore {
+                idle,
+                walk,
+                left_strafe,
+                right_strafe,
+            };
             cmd.insert(anim_store, *anim_root);
             cmd.remove::<LoadingAnimationStore>(entity);
         }
@@ -122,12 +153,12 @@ pub(crate) fn setup_animations(
             let mut walk_graph = AnimationGraph::new();
 
             idle_graph.add_node(
-                AnimationClipNode::new(anim_store.idle.clone()),
+                AnimationClipNode::new(anim_store.left_strafe.clone()),
                 *idle_graph.root(),
             );
 
             walk_graph.add_node(
-                AnimationClipNode::new(anim_store.walk.clone()),
+                AnimationClipNode::new(anim_store.right_strafe.clone()),
                 *walk_graph.root(),
             );
 

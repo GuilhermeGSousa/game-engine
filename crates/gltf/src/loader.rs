@@ -91,6 +91,8 @@ pub(crate) struct GLTFAnimationTargetInfo {
 #[derive(Default)]
 pub struct GLTFUsageSettings {
     pub root_bone: Option<&'static str>,
+    pub flip_x: bool,
+    pub flip_z: bool,
 }
 
 impl LoadableAsset for GLTFScene {
@@ -114,7 +116,7 @@ impl AssetLoader for GLTFLoader {
         &self,
         path: essential::assets::AssetPath<'static>,
         load_context: &mut essential::assets::asset_server::AssetLoadContext,
-        usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
+        usage_settings: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
     ) -> Result<Self::Asset, ()> {
         let (document, buffers, images) = gltf::import(path.to_path()).unwrap();
 
@@ -196,7 +198,7 @@ impl AssetLoader for GLTFLoader {
                 let skeleton = load_context.asset_server().add(inverse_bind_matrices);
                 let bones: Vec<usize> = skin.joints().map(|j| j.index()).collect();
 
-                let root_bone = usage_setting
+                let root_bone = usage_settings
                     .root_bone
                     .as_ref()
                     .map(|root_bone_name| {
@@ -253,7 +255,11 @@ impl AssetLoader for GLTFLoader {
 
                 let output_samples = channel_reader.read_outputs().map(|outputs| match outputs {
                     gltf::animation::util::ReadOutputs::Translations(iter) => {
-                        AnimationChanelOutput::from_translation(iter)
+                        AnimationChanelOutput::from_translation(
+                            iter,
+                            usage_settings.flip_x,
+                            usage_settings.flip_z,
+                        )
                     }
                     gltf::animation::util::ReadOutputs::Rotations(rotations) => match rotations {
                         gltf::animation::util::Rotations::I8(_) => todo!(),
@@ -261,7 +267,11 @@ impl AssetLoader for GLTFLoader {
                         gltf::animation::util::Rotations::I16(_) => todo!(),
                         gltf::animation::util::Rotations::U16(_) => todo!(),
                         gltf::animation::util::Rotations::F32(iter) => {
-                            AnimationChanelOutput::from_rotation(iter)
+                            AnimationChanelOutput::from_rotation(
+                                iter,
+                                usage_settings.flip_x,
+                                usage_settings.flip_z,
+                            )
                         }
                     },
                     gltf::animation::util::ReadOutputs::Scales(iter) => {

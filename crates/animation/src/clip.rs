@@ -11,18 +11,38 @@ pub enum AnimationChanelOutput {
 }
 
 impl AnimationChanelOutput {
-    pub fn from_translation(translations: impl Iterator<Item = [f32; 3]>) -> Self {
+    pub fn from_translation(
+        translations: impl Iterator<Item = [f32; 3]>,
+        flip_x: bool,
+        flip_z: bool,
+    ) -> Self {
         Self::Translation(
             translations
-                .map(|val| Vec3::from_array(val))
+                .map(|val| {
+                    let mut translation = Vec3::from_array(val);
+                    if flip_x {
+                        translation = translation.reflect(Vec3::Y);
+                    }
+                    if flip_z {
+                        translation = translation.reflect(Vec3::Z);
+                    }
+                    translation
+                })
                 .collect::<Vec<_>>(),
         )
     }
 
-    pub fn from_rotation(rotations: impl Iterator<Item = [f32; 4]>) -> Self {
+    pub fn from_rotation(
+        rotations: impl Iterator<Item = [f32; 4]>,
+        flip_x: bool,
+        flip_z: bool,
+    ) -> Self {
         Self::Rotation(
             rotations
-                .map(|val| Quat::from_array(val))
+                .map(|val| {
+                    let mut quat = Quat::from_array(val);
+                    quat.normalize()
+                })
                 .collect::<Vec<_>>(),
         )
     }

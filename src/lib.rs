@@ -8,14 +8,14 @@ use essential::{
 };
 
 use app::{
-    plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
     App,
+    plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
 };
 use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{query_filter::With, Query},
+    query::{Query, query_filter::With},
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec3, Vec4};
@@ -36,6 +36,7 @@ use render::{
     plugin::RenderPlugin,
 };
 
+use ui::plugin::UIPlugin;
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -47,10 +48,8 @@ use window::{
 
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-use crate::{
-    movement_animation::{
-        setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
-    },
+use crate::movement_animation::{
+    setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
 };
 
 mod fsm;
@@ -84,6 +83,7 @@ pub fn run_game() {
         .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
+        .register_plugin(UIPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
             app::update_group::UpdateGroup::Update,

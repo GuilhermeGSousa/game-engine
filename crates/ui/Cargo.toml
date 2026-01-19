@@ -1,0 +1,21 @@
+[package]
+name = "ui"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+app = { path = "../app" }
+essential = { path = "../essential" }
+ecs = { path = "../ecs" }
+render = { path = "../render" }
+window = { path = "../window" }
+wgpu = { version = "24.0.1", default-features = false, features = [
+    "wgsl",
+    "metal",
+    "naga-ir",
+    "fragile-send-sync-non-atomic-wasm",
+] }
+wgpu-types = { version = "24", default-features = false }

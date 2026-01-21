@@ -1,8 +1,8 @@
 use app::plugins::Plugin;
-use render::{device::RenderDevice, resources::RenderContext};
+use render::{assets::vertex::VertexBufferLayout, device::RenderDevice, resources::RenderContext};
 use wgpu::PipelineLayoutDescriptor;
 
-use crate::resources::UIRenderPipeline;
+use crate::{render::ui_renderpass, resources::UIRenderPipeline, vertex::UIVertex};
 
 pub struct UIPlugin;
 
@@ -32,7 +32,7 @@ impl Plugin for UIPlugin {
             vertex: wgpu::VertexState {
                 module: &ui_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[],
+                buffers: &[UIVertex::describe()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -71,5 +71,6 @@ impl Plugin for UIPlugin {
         });
 
         app.insert_resource(UIRenderPipeline::new(ui_render_pipeline));
+        app.add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
     }
 }

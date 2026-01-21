@@ -30,7 +30,7 @@ pub struct MeshComponent {
 pub(crate) struct RenderMeshInstance {
     pub(crate) mesh_asset_id: AssetId,
     pub(crate) material_asset_id: AssetId,
-    pub(crate) buffer: wgpu::Buffer,
+    pub(crate) transform: wgpu::Buffer,
 }
 
 pub(crate) fn mesh_added(
@@ -57,7 +57,7 @@ pub(crate) fn mesh_added(
         let instance: RenderMeshInstance = RenderMeshInstance {
             mesh_asset_id: mesh.handle.id(),
             material_asset_id: material.handle.id(),
-            buffer: instance_buffer,
+            transform: instance_buffer,
         };
 
         match render_entity {
@@ -78,7 +78,7 @@ pub(crate) fn mesh_changed(
     for (_, transform, render_entity) in meshes.iter() {
         if let Some((render_mesh,)) = render_meshes.get_entity(**render_entity) {
             queue.write_buffer(
-                &render_mesh.buffer,
+                &render_mesh.transform,
                 0,
                 bytemuck::cast_slice(&[transform.to_raw()]),
             );

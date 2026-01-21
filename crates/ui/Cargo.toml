@@ -19,3 +19,4 @@ wgpu = { version = "24.0.1", default-features = false, features = [
     "fragile-send-sync-non-atomic-wasm",
 ] }
 wgpu-types = { version = "24", default-features = false }
+bytemuck = { version = "1.22.0", features = ["derive"] }

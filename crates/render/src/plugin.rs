@@ -155,7 +155,7 @@ impl Plugin for RenderPlugin {
                 render::main_renderpass,
             )
             .add_system(
-                app::update_group::UpdateGroup::Render,
+                app::update_group::UpdateGroup::LateRender,
                 render::finish_render,
             )
             .add_system(app::update_group::UpdateGroup::LateRender, present_window);

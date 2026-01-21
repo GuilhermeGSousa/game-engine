@@ -17,7 +17,7 @@ use crate::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
         RenderAssets,
     },
-    resources::{MainRenderPipeline, RenderContext, SkyboxRenderPipeline},
+    resources::{MainRenderPipeline, SkyboxRenderPipeline},
 };
 
 pub(crate) fn main_renderpass(
@@ -79,7 +79,7 @@ pub(crate) fn main_renderpass(
                     render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
 
-                    render_pass.set_vertex_buffer(1, mesh_instance.buffer.slice(..));
+                    render_pass.set_vertex_buffer(1, mesh_instance.transform.slice(..));
                     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }

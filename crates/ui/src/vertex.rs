@@ -5,7 +5,7 @@ use render::assets::vertex::VertexBufferLayout;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct UIVertex {
-    pub pos_coords: [f32; 3],
+    pub pos_coords: [f32; 2],
 }
 
 impl VertexBufferLayout for UIVertex {
@@ -16,7 +16,7 @@ impl VertexBufferLayout for UIVertex {
             attributes: &[wgpu::VertexAttribute {
                 offset: 0,
                 shader_location: 0,
-                format: wgpu::VertexFormat::Float32x3,
+                format: wgpu::VertexFormat::Float32x2,
             }],
         }
     }

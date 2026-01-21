@@ -146,14 +146,14 @@ impl Plugin for RenderPlugin {
                 app::update_group::UpdateGroup::Render,
                 prepare_lights_buffer,
             )
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                render::skybox_renderpass,
-            )
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                render::main_renderpass,
-            )
+            // .add_system(
+            //     app::update_group::UpdateGroup::Render,
+            //     render::skybox_renderpass,
+            // )
+            // .add_system(
+            //     app::update_group::UpdateGroup::Render,
+            //     render::main_renderpass,
+            // )
             .add_system(
                 app::update_group::UpdateGroup::LateRender,
                 render::finish_render,

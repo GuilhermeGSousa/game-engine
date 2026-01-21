@@ -7,7 +7,9 @@ use crate::{render::ui_renderpass, resources::UIRenderPipeline, vertex::UIVertex
 pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
-    fn build(&self, _app: &mut app::App) {}
+    fn build(&self, app: &mut app::App) {
+        app.add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
+    }
 
     fn finish(&self, app: &mut app::App) {
         let device = app
@@ -54,13 +56,7 @@ impl Plugin for UIPlugin {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth16Unorm,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -71,6 +67,5 @@ impl Plugin for UIPlugin {
         });
 
         app.insert_resource(UIRenderPipeline::new(ui_render_pipeline));
-        app.add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
     }
 }

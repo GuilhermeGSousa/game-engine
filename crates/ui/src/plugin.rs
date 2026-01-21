@@ -1,8 +1,17 @@
 use app::plugins::Plugin;
-use render::{assets::vertex::VertexBufferLayout, device::RenderDevice, resources::RenderContext};
-use wgpu::PipelineLayoutDescriptor;
+use glyphon::{Cache, FontSystem, SwashCache, TextAtlas, Viewport};
+use render::{
+    assets::vertex::VertexBufferLayout, device::RenderDevice, queue::RenderQueue,
+    resources::RenderContext,
+};
+use wgpu::{MultisampleState, PipelineLayoutDescriptor};
 
-use crate::{render::ui_renderpass, resources::UIRenderPipeline, vertex::UIVertex};
+use crate::{
+    render::ui_renderpass,
+    resources::UIRenderPipeline,
+    text::resources::{TextCache, TextRenderer, TextViewport},
+    vertex::UIVertex,
+};
 
 pub struct UIPlugin;
 
@@ -19,6 +28,21 @@ impl Plugin for UIPlugin {
         let context = app
             .get_resource::<RenderContext>()
             .expect("RenderContext resource not found");
+
+        let queue = app
+            .get_resource::<RenderQueue>()
+            .expect("RenderQueue resource not found");
+
+        // Text rendering
+        let mut font_system = FontSystem::new();
+        let swash_cache = SwashCache::new();
+        let cache = Cache::new(&device);
+        let mut viewport = Viewport::new(&device, &cache);
+        // TODO: Update Viewport on resize!
+
+        let mut atlas = TextAtlas::new(&device, &queue, &cache, context.surface_config.format);
+        let text_renderer =
+            glyphon::TextRenderer::new(&mut atlas, &device, MultisampleState::default(), None);
 
         let ui_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\ui.wgsl"));
 
@@ -66,6 +90,9 @@ impl Plugin for UIPlugin {
             cache: None,
         });
 
-        app.insert_resource(UIRenderPipeline::new(ui_render_pipeline));
+        app.insert_resource(UIRenderPipeline::new(ui_render_pipeline))
+            .insert_resource(TextRenderer(text_renderer))
+            .insert_resource(TextCache(cache))
+            .insert_resource(TextViewport(viewport));
     }
 }

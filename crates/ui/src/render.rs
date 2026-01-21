@@ -4,13 +4,14 @@ use render::{
 };
 use wgpu::util::DeviceExt;
 
-use crate::{resources::UIRenderPipeline, vertex::UIVertex};
+use crate::{resources::UIRenderPipeline, text::resources::TextRenderer, vertex::UIVertex};
 
 pub(crate) fn ui_renderpass(
     context: Res<RenderContext>,
     pipeline: Res<UIRenderPipeline>,
     mut device: ResMut<RenderDevice>,
     render_window: Res<RenderWindow>,
+    text_renderer: ResMut<TextRenderer>,
 ) {
     let mut vertices = Vec::new();
     vertices.push(UIVertex {
@@ -22,7 +23,7 @@ pub(crate) fn ui_renderpass(
     vertices.push(UIVertex {
         pos_coords: [0.0, 1.0],
     });
-    
+
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("UI Vertex Buffer"),
         contents: bytemuck::cast_slice(&vertices),

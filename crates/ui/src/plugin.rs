@@ -47,6 +47,8 @@ impl Plugin for UIPlugin {
         let text_renderer =
             glyphon::TextRenderer::new(&mut atlas, &device, MultisampleState::default(), None);
 
+
+        // UI rendering
         let ui_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\ui.wgsl"));
 
         let ui_render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {

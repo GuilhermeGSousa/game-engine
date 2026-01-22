@@ -1,4 +1,5 @@
 use ecs::resource::{Res, ResMut};
+use glyphon::{Buffer, Color, Metrics, TextArea, TextBounds};
 use render::{
     device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow,
     resources::RenderContext,
@@ -17,11 +18,11 @@ pub(crate) fn ui_renderpass(
     mut device: ResMut<RenderDevice>,
     render_window: Res<RenderWindow>,
     queue: Res<RenderQueue>,
-    text_renderer: ResMut<TextRenderer>,
-    font_system: ResMut<TextFontSystem>,
-    text_atlas: ResMut<TextAtlas>,
+    mut text_renderer: ResMut<TextRenderer>,
+    mut font_system: ResMut<TextFontSystem>,
+    mut text_atlas: ResMut<TextAtlas>,
     text_viewport: Res<TextViewport>,
-    text_swash_cache: ResMut<TextSwashCache>,
+    mut text_swash_cache: ResMut<TextSwashCache>,
 ) {
     let mut vertices = Vec::new();
     vertices.push(UIVertex {
@@ -39,6 +40,32 @@ pub(crate) fn ui_renderpass(
         contents: bytemuck::cast_slice(&vertices),
         usage: wgpu::BufferUsages::VERTEX,
     });
+
+    let mut test_text_buffer = Buffer::new(&mut font_system, Metrics::new(30.0, 42.0));
+    text_renderer
+        .prepare(
+            &device,
+            &queue,
+            &mut font_system,
+            &mut text_atlas,
+            &text_viewport,
+            [TextArea {
+                buffer: &test_text_buffer,
+                left: 10.0,
+                top: 10.0,
+                scale: 1.0,
+                bounds: TextBounds {
+                    left: 0,
+                    top: 0,
+                    right: 600,
+                    bottom: 160,
+                },
+                default_color: Color::rgb(255, 255, 255),
+                custom_glyphs: &[],
+            }],
+            &mut text_swash_cache,
+        )
+        .expect("Failed preparing for rendering text");
 
     let encoder = device.command_encoder();
 
@@ -59,17 +86,6 @@ pub(crate) fn ui_renderpass(
         });
 
         // Text Rendering (in the same pass)
-        text_renderer
-            .prepare(
-                &device,
-                &queue,
-                &mut font_system,
-                &mut text_atlas,
-                &text_viewport,
-                text_areas,
-                &mut text_swash_cache,
-            )
-            .expect("Failed preparing for rendering text");
 
         render_pass.set_pipeline(&pipeline);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));

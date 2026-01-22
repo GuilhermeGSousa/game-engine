@@ -9,7 +9,7 @@ pub(crate) struct TextRenderer(pub(crate) glyphon::TextRenderer);
 #[derive(Resource, Deref)]
 pub(crate) struct TextCache(pub(crate) glyphon::Cache);
 
-#[derive(Resource, Deref)]
+#[derive(Resource, Deref, DerefMut)]
 pub(crate) struct TextSwashCache(pub(crate) glyphon::SwashCache);
 
 #[derive(Resource, Deref)]

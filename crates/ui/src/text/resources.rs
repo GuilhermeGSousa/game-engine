@@ -12,7 +12,7 @@ pub(crate) struct TextCache(pub(crate) glyphon::Cache);
 #[derive(Resource, Deref, DerefMut)]
 pub(crate) struct TextSwashCache(pub(crate) glyphon::SwashCache);
 
-#[derive(Resource, Deref)]
+#[derive(Resource, Deref, DerefMut)]
 pub(crate) struct TextViewport(pub(crate) glyphon::Viewport);
 
 #[derive(Resource, Deref, DerefMut)]

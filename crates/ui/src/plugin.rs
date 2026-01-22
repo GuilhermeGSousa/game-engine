@@ -7,7 +7,7 @@ use render::{
 use wgpu::{MultisampleState, PipelineLayoutDescriptor};
 
 use crate::{
-    render::ui_renderpass,
+    render::{ui_renderpass, update_text_viewport},
     resources::UIRenderPipeline,
     text::resources::{
         TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
@@ -19,7 +19,8 @@ pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut app::App) {
-        app.add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
+        app.add_system(app::update_group::UpdateGroup::Render, update_text_viewport)
+            .add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
     }
 
     fn finish(&self, app: &mut app::App) {
@@ -46,7 +47,6 @@ impl Plugin for UIPlugin {
             glyphon::TextAtlas::new(&device, &queue, &cache, context.surface_config.format);
         let text_renderer =
             glyphon::TextRenderer::new(&mut atlas, &device, MultisampleState::default(), None);
-
 
         // UI rendering
         let ui_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\ui.wgsl"));

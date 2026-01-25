@@ -8,9 +8,7 @@ use wgpu::util::DeviceExt;
 use window::plugin::Window;
 
 use crate::{
-    resources::UIRenderPipeline,
-    text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport},
-    vertex::UIVertex,
+    resources::UIRenderPipeline, text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport}, transform::UIGlobalTransform, vertex::UIVertex
 };
 
 pub(crate) fn update_text_viewport(
@@ -27,7 +25,6 @@ pub(crate) fn update_text_viewport(
 }
 
 pub(crate) fn ui_renderpass(
-    context: Res<RenderContext>,
     pipeline: Res<UIRenderPipeline>,
     mut device: ResMut<RenderDevice>,
     render_window: Res<RenderWindow>,
@@ -43,15 +40,21 @@ pub(crate) fn ui_renderpass(
         pos_coords: [0.0, 0.0],
     });
     vertices.push(UIVertex {
-        pos_coords: [1.0, 1.0],
+        pos_coords: [0.5, 0.5],
     });
     vertices.push(UIVertex {
-        pos_coords: [0.0, 1.0],
+        pos_coords: [0.0, 0.5],
     });
 
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("UI Vertex Buffer"),
         contents: bytemuck::cast_slice(&vertices),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("UI Vertex Buffer"),
+        contents: bytemuck::cast_slice(&[*UIGlobalTransform::default()]),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
@@ -110,6 +113,7 @@ pub(crate) fn ui_renderpass(
 
         render_pass.set_pipeline(&pipeline);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, transform_buffer.slice(..));
         render_pass.draw(0..3, 0..1);
 
         text_renderer.render(&text_atlas, &text_viewport, &mut render_pass).unwrap();

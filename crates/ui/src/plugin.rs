@@ -12,6 +12,7 @@ use crate::{
     text::resources::{
         TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
     },
+    transform::UIGlobalTransform,
     vertex::UIVertex,
 };
 
@@ -63,7 +64,7 @@ impl Plugin for UIPlugin {
             vertex: wgpu::VertexState {
                 module: &ui_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[UIVertex::describe()],
+                buffers: &[UIVertex::describe(), UIGlobalTransform::describe()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {

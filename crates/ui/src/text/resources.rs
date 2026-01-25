@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use derive_more::{Deref, DerefMut};
 use ecs::resource::Resource;
 

@@ -10,8 +10,3 @@ pub struct UINode {
 
 #[derive(Component)]
 pub(crate) struct UIComputedNode;
-
-#[derive(Component)]
-pub(crate) struct RenderUINode {
-    mesh: wgpu::Buffer,
-}

@@ -7,6 +7,7 @@ pub mod transform;
 mod layouts;
 mod resources;
 mod vertex;
+mod layout;
 
 #[cfg(test)]
 mod tests {

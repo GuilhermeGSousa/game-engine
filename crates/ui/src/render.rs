@@ -2,7 +2,6 @@ use ecs::{query::change_detection::DetectChanges, resource::{Res, ResMut}};
 use glyphon::{Attrs, Buffer, Color, Family, Metrics, Resolution, Shaping, TextArea, TextBounds};
 use render::{
     device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow,
-    resources::RenderContext,
 };
 use wgpu::util::DeviceExt;
 use window::plugin::Window;

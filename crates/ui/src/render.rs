@@ -1,4 +1,5 @@
 use ecs::{query::change_detection::DetectChanges, resource::{Res, ResMut}};
+use glam::Mat4;
 use glyphon::{Attrs, Buffer, Color, Family, Metrics, Resolution, Shaping, TextArea, TextBounds};
 use render::{
     device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow,
@@ -9,6 +10,25 @@ use window::plugin::Window;
 use crate::{
     resources::UIRenderPipeline, text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport}, transform::UIGlobalTransform, vertex::UIVertex
 };
+
+// pub(crate) fn camera_added(
+//     cameras: Query<(Entity, &Camera, &GlobalTranform, Option<&RenderEntity>), Added<(Camera,)>>,
+//     mut cmd: CommandQueue,
+//     device: Res<RenderDevice>,
+//     context: Res<RenderContext>,
+// )
+// {
+//     let projection_matrix = Mat4::orthographic_rh(
+//                 0.0,
+//                 physical_viewport_rect.width() as f32,
+//                 physical_viewport_rect.height() as f32,
+//                 0.0,
+//                 0.0,
+//                 1.0,
+//             );
+
+// }
+
 
 pub(crate) fn update_text_viewport(
     window: Res<Window>,
@@ -34,6 +54,7 @@ pub(crate) fn ui_renderpass(
     text_viewport: Res<TextViewport>,
     mut text_swash_cache: ResMut<TextSwashCache>,
 ) {
+
     let mut vertices = Vec::new();
     vertices.push(UIVertex {
         pos_coords: [0.0, 0.0],

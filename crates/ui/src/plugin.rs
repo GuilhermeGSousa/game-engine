@@ -7,13 +7,9 @@ use render::{
 use wgpu::{MultisampleState, PipelineLayoutDescriptor};
 
 use crate::{
-    render::{ui_renderpass, update_text_viewport},
-    resources::UIRenderPipeline,
-    text::resources::{
+    layout::UICameraLayout, render::{ui_renderpass, update_text_viewport}, resources::UIRenderPipeline, text::resources::{
         TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
-    },
-    transform::UIGlobalTransform,
-    vertex::UIVertex,
+    }, transform::UIGlobalTransform, vertex::UIVertex
 };
 
 pub struct UIPlugin;
@@ -102,6 +98,7 @@ impl Plugin for UIPlugin {
             .insert_resource(TextSwashCache(swash_cache))
             .insert_resource(TextViewport(viewport))
             .insert_resource(TextFontSystem(font_system))
-            .insert_resource(TextAtlas(atlas));
+            .insert_resource(TextAtlas(atlas))
+            .insert_resource(UICameraLayout::new(device));
     }
 }

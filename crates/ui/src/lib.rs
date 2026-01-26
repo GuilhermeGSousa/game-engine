@@ -11,7 +11,7 @@ mod layout;
 
 #[cfg(test)]
 mod tests {
-    use taffy::{Style, TaffyTree};
+    use taffy::{AvailableSpace, Size, Style, TaffyTree};
 
     #[test]
     fn test_taffy() {

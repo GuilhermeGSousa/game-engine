@@ -4,31 +4,12 @@ use glyphon::{Attrs, Buffer, Color, Family, Metrics, Resolution, Shaping, TextAr
 use render::{
     device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow,
 };
-use wgpu::util::DeviceExt;
+use wgpu::{ util::{BufferInitDescriptor, DeviceExt}};
 use window::plugin::Window;
 
 use crate::{
-    resources::UIRenderPipeline, text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport}, transform::UIGlobalTransform, vertex::UIVertex
+    layout::UICameraLayout, resources::UIRenderPipeline, text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport}, transform::UIGlobalTransform, vertex::UIVertex
 };
-
-// pub(crate) fn camera_added(
-//     cameras: Query<(Entity, &Camera, &GlobalTranform, Option<&RenderEntity>), Added<(Camera,)>>,
-//     mut cmd: CommandQueue,
-//     device: Res<RenderDevice>,
-//     context: Res<RenderContext>,
-// )
-// {
-//     let projection_matrix = Mat4::orthographic_rh(
-//                 0.0,
-//                 physical_viewport_rect.width() as f32,
-//                 physical_viewport_rect.height() as f32,
-//                 0.0,
-//                 0.0,
-//                 1.0,
-//             );
-
-// }
-
 
 pub(crate) fn update_text_viewport(
     window: Res<Window>,
@@ -47,25 +28,51 @@ pub(crate) fn ui_renderpass(
     pipeline: Res<UIRenderPipeline>,
     mut device: ResMut<RenderDevice>,
     render_window: Res<RenderWindow>,
+    window: Res<Window>,
     queue: Res<RenderQueue>,
     mut text_renderer: ResMut<TextRenderer>,
     mut font_system: ResMut<TextFontSystem>,
     mut text_atlas: ResMut<TextAtlas>,
     text_viewport: Res<TextViewport>,
     mut text_swash_cache: ResMut<TextSwashCache>,
+    ui_camera_layout: Res<UICameraLayout>,
 ) {
 
     let mut vertices = Vec::new();
     vertices.push(UIVertex {
-        pos_coords: [0.0, 0.0],
+        pos_coords: [-1000.0, -1000.0],
     });
     vertices.push(UIVertex {
-        pos_coords: [0.5, 0.5],
+        pos_coords: [1000.0, 1000.0],
     });
     vertices.push(UIVertex {
-        pos_coords: [0.0, 0.5],
+        pos_coords: [-1000.0, 1000.0],
     });
 
+    let projection_matrix = Mat4::orthographic_rh(
+        0.0,
+        window.width() as f32,
+        window.height() as f32,
+        0.0,
+        0.0,
+        1.0,
+    );
+
+    let ui_view = device.create_buffer_init(
+    &BufferInitDescriptor{ 
+        label: Some("UI Projection"), 
+        contents: bytemuck::cast_slice(&[projection_matrix]), 
+        usage: wgpu::BufferUsages::UNIFORM 
+    });
+
+    let ui_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &ui_camera_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: ui_view.as_entire_binding(),
+        }],
+        label: Some("UI Camera Bind Group"),
+    });
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("UI Vertex Buffer"),
         contents: bytemuck::cast_slice(&vertices),
@@ -132,6 +139,7 @@ pub(crate) fn ui_renderpass(
         // Text Rendering (in the same pass)
 
         render_pass.set_pipeline(&pipeline);
+        render_pass.set_bind_group(0, &ui_camera_bind_group, &[]);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, transform_buffer.slice(..));
         render_pass.draw(0..3, 0..1);

@@ -4,10 +4,9 @@ pub mod render;
 pub mod text;
 pub mod transform;
 
-mod layouts;
+mod layout;
 mod resources;
 mod vertex;
-mod layout;
 
 #[cfg(test)]
 mod tests {
@@ -41,6 +40,5 @@ mod tests {
         );
 
         let parent_layout = taffy.layout(parent).unwrap();
-
     }
 }

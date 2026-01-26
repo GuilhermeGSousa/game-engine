@@ -2,12 +2,12 @@ use ecs::{
     events::event_reader::EventReader,
     resource::{Res, ResMut},
 };
-use window::{plugin::Window, winit_events::WinitEvent};
+use window::{plugin::Window, winit_events::WindowEvent};
 
 use crate::resources::UIRenderer;
 
 pub(crate) fn handle_window_events(
-    window_events: EventReader<WinitEvent>,
+    window_events: EventReader<WindowEvent>,
     mut ui_renderer: ResMut<UIRenderer>,
     window: Res<Window>,
 ) {

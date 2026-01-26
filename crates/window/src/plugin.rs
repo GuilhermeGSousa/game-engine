@@ -1,7 +1,7 @@
 use ecs::resource::{ResMut, Resource};
 use std::sync::Arc;
 
-use crate::{input::Input, winit_events::WinitEvent, ApplicationWindowHandler};
+use crate::{input::Input, winit_events::WindowEvent, ApplicationWindowHandler};
 use app::{
     plugins::{Plugin, PluginsState},
     runner::AppExit,
@@ -21,7 +21,6 @@ use winit::{
 #[derive(Resource)]
 pub struct Window {
     pub window_handle: Arc<WinitWindow>,
-    size: (u32, u32),
 }
 
 #[allow(dead_code)]
@@ -32,7 +31,6 @@ impl Window {
     pub fn new(window: WinitWindow) -> Self {
         Self {
             window_handle: Arc::new(window),
-            size: (0, 0),
         }
     }
 
@@ -45,8 +43,14 @@ impl Window {
         (size.width, size.height)
     }
 
-    pub fn request_resize(&mut self, size: (u32, u32)) {
-        self.size = size;
+    pub fn request_resize(&mut self, size: (u32, u32)) {}
+
+    pub fn width(&self) -> u32 {
+        self.window_handle.inner_size().width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.window_handle.inner_size().height
     }
 }
 
@@ -96,7 +100,7 @@ fn update_input(mut input: ResMut<Input>) {
 #[allow(deprecated)]
 impl Plugin for WindowPlugin {
     fn build(&self, app: &mut App) {
-        app.register_event::<WinitEvent>();
+        app.register_event::<WindowEvent>();
 
         let mut event_loop_builder = EventLoop::builder();
 

@@ -40,15 +40,15 @@ pub(crate) fn ui_renderpass(
 
     let mut vertices = Vec::new();
     vertices.push(UIVertex {
-        pos_coords: [-1000.0, -1000.0],
+        pos_coords: [0.0, 0.0],
     });
     vertices.push(UIVertex {
-        pos_coords: [1000.0, 1000.0],
+        pos_coords: [0.0, 600.0],
     });
     vertices.push(UIVertex {
-        pos_coords: [-1000.0, 1000.0],
+        pos_coords: [800.0, 600.0],
     });
-
+    
     let projection_matrix = Mat4::orthographic_rh(
         0.0,
         window.width() as f32,

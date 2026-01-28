@@ -10,7 +10,7 @@ pub(crate) const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [
     Vec2::new(-0.5, 0.5),
 ];
 
-pub(crate) const QUAD_INDICES: [usize; 6] = [0, 2, 3, 0, 1, 2];
+pub(crate) const QUAD_INDICES: [u16; 6] = [0, 2, 3, 0, 1, 2];
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]

@@ -8,7 +8,7 @@ use wgpu::{ util::{BufferInitDescriptor, DeviceExt}};
 use window::plugin::Window;
 
 use crate::{
-    layout::UICameraLayout, resources::UIRenderPipeline, text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport}, transform::UIGlobalTransform, vertex::UIVertex
+    layout::UICameraLayout, resources::UIRenderPipeline, text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport}, transform::UIGlobalTransform, vertex::{QUAD_INDICES, QUAD_VERTEX_POSITIONS, UIVertex}
 };
 
 pub(crate) fn update_text_viewport(
@@ -37,18 +37,6 @@ pub(crate) fn ui_renderpass(
     mut text_swash_cache: ResMut<TextSwashCache>,
     ui_camera_layout: Res<UICameraLayout>,
 ) {
-
-    let mut vertices = Vec::new();
-    vertices.push(UIVertex {
-        pos_coords: [0.0, 0.0],
-    });
-    vertices.push(UIVertex {
-        pos_coords: [0.0, 600.0],
-    });
-    vertices.push(UIVertex {
-        pos_coords: [800.0, 600.0],
-    });
-    
     let projection_matrix = Mat4::orthographic_rh(
         0.0,
         window.width() as f32,
@@ -57,6 +45,17 @@ pub(crate) fn ui_renderpass(
         0.0,
         1.0,
     );
+
+    let inverse_projection= projection_matrix.inverse(); 
+
+    let ui_vertices = QUAD_VERTEX_POSITIONS.map(|point| -> UIVertex {
+            UIVertex {
+            pos_coords: {
+                let arr = inverse_projection.transform_point3(point.extend(0.0)).to_array();
+                [arr[0], arr[1]]
+            },
+        }
+    });
 
     let ui_view = device.create_buffer_init(
     &BufferInitDescriptor{ 
@@ -75,8 +74,14 @@ pub(crate) fn ui_renderpass(
     });
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("UI Vertex Buffer"),
-        contents: bytemuck::cast_slice(&vertices),
+        contents: bytemuck::cast_slice(&ui_vertices),
         usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("UI Index Buffer"),
+        contents: bytemuck::cast_slice(&QUAD_INDICES),
+        usage: wgpu::BufferUsages::INDEX,
     });
 
     let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -142,8 +147,8 @@ pub(crate) fn ui_renderpass(
         render_pass.set_bind_group(0, &ui_camera_bind_group, &[]);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, transform_buffer.slice(..));
-        render_pass.draw(0..3, 0..1);
-
+        render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(0..(QUAD_INDICES.len() as u32), 0, 0..1);
         text_renderer.render(&text_atlas, &text_viewport, &mut render_pass).unwrap();
     }
 }

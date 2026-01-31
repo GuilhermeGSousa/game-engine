@@ -8,14 +8,14 @@ use essential::{
 };
 
 use app::{
-    App,
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
+    App,
 };
 use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{Query, query_filter::With},
+    query::{query_filter::With, Query},
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec3, Vec4};
@@ -36,7 +36,7 @@ use render::{
     plugin::RenderPlugin,
 };
 
-use ui::plugin::UIPlugin;
+use ui::{node::UINode, plugin::UIPlugin, transform::UIValue};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -97,10 +97,18 @@ pub fn run_game() {
         .add_system(app::update_group::UpdateGroup::Update, setup_animations)
         .add_system(app::update_group::UpdateGroup::Update, update_movement_fsm)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
+        .add_system(app::update_group::UpdateGroup::Startup, spawn_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
 
     app.run();
+}
+
+fn spawn_ui(mut cmd: CommandQueue) {
+    cmd.spawn(UINode {
+        width: UIValue::Percent(100.0),
+        height: UIValue::Percent(10.0),
+    });
 }
 
 fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {

@@ -1,26 +1,32 @@
-use ecs::{query::change_detection::DetectChanges, resource::{Res, ResMut}};
-use glam::Mat4;
-use glyphon::{Attrs, Buffer, Color, Family, Metrics, Resolution, Shaping, TextArea, TextBounds};
-use render::{
-    device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow,
+use ecs::{
+    query::{Query, change_detection::DetectChanges},
+    resource::{Res, ResMut},
 };
-use wgpu::{ util::{BufferInitDescriptor, DeviceExt}};
+use glam::Mat4;
+use glyphon::Resolution;
+use render::{device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow};
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use window::plugin::Window;
 
 use crate::{
-    layout::UICameraLayout, resources::UIRenderPipeline, text::resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport}, transform::UIGlobalTransform, vertex::{QUAD_INDICES, QUAD_VERTEX_POSITIONS, UIVertex}
+    layout::UICameraLayout, node::RenderUINode, resources::UIRenderPipeline,
+    text::resources::TextViewport,
 };
 
 pub(crate) fn update_text_viewport(
     window: Res<Window>,
     queue: Res<RenderQueue>,
-    mut text_viewport: ResMut<TextViewport>,)
-{
-    if window.has_changed()
-    {
+    mut text_viewport: ResMut<TextViewport>,
+) {
+    if window.has_changed() {
         let size = window.size();
-        text_viewport.update(&queue, 
-            Resolution { width: size.0, height: size.1 });
+        text_viewport.update(
+            &queue,
+            Resolution {
+                width: size.0,
+                height: size.1,
+            },
+        );
     }
 }
 
@@ -29,13 +35,8 @@ pub(crate) fn ui_renderpass(
     mut device: ResMut<RenderDevice>,
     render_window: Res<RenderWindow>,
     window: Res<Window>,
-    queue: Res<RenderQueue>,
-    mut text_renderer: ResMut<TextRenderer>,
-    mut font_system: ResMut<TextFontSystem>,
-    mut text_atlas: ResMut<TextAtlas>,
-    text_viewport: Res<TextViewport>,
-    mut text_swash_cache: ResMut<TextSwashCache>,
     ui_camera_layout: Res<UICameraLayout>,
+    ui_nodes: Query<&RenderUINode>,
 ) {
     let projection_matrix = Mat4::orthographic_rh(
         0.0,
@@ -46,22 +47,10 @@ pub(crate) fn ui_renderpass(
         1.0,
     );
 
-    let inverse_projection= projection_matrix.inverse(); 
-
-    let ui_vertices = QUAD_VERTEX_POSITIONS.map(|point| -> UIVertex {
-            UIVertex {
-            pos_coords: {
-                let arr = inverse_projection.transform_point3(point.extend(0.0)).to_array();
-                [arr[0], arr[1]]
-            },
-        }
-    });
-
-    let ui_view = device.create_buffer_init(
-    &BufferInitDescriptor{ 
-        label: Some("UI Projection"), 
-        contents: bytemuck::cast_slice(&[projection_matrix]), 
-        usage: wgpu::BufferUsages::UNIFORM 
+    let ui_view = device.create_buffer_init(&BufferInitDescriptor {
+        label: Some("UI Projection"),
+        contents: bytemuck::cast_slice(&[projection_matrix]),
+        usage: wgpu::BufferUsages::UNIFORM,
     });
 
     let ui_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -72,56 +61,6 @@ pub(crate) fn ui_renderpass(
         }],
         label: Some("UI Camera Bind Group"),
     });
-    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("UI Vertex Buffer"),
-        contents: bytemuck::cast_slice(&ui_vertices),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-
-    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("UI Index Buffer"),
-        contents: bytemuck::cast_slice(&QUAD_INDICES),
-        usage: wgpu::BufferUsages::INDEX,
-    });
-
-    let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("UI Vertex Buffer"),
-        contents: bytemuck::cast_slice(&[*UIGlobalTransform::default()]),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-
-    let mut test_text_buffer = Buffer::new(&mut font_system, Metrics::new(30.0, 42.0));
-    test_text_buffer.set_size(&mut font_system, Some(1000.0), Some(1000.0));
-    test_text_buffer.set_text(
-        &mut font_system, 
-        "Hello world! 👋\nThis is rendered with 🦅 glyphon 🦁\nThe text below should be partially clipped.\na b c d e f g h i j k l m n o p q r s t u v w x y z", 
-        Attrs::new().family(Family::SansSerif), 
-        Shaping::Advanced);
-    test_text_buffer.shape_until_scroll(&mut font_system, false);
-    text_renderer
-        .prepare(
-            &device,
-            &queue,
-            &mut font_system,
-            &mut text_atlas,
-            &text_viewport,
-            [TextArea {
-                buffer: &test_text_buffer,
-                left: 10.0,
-                top: 10.0,
-                scale: 1.0,
-                bounds: TextBounds {
-                    left: 0,
-                    top: 0,
-                    right: 600,
-                    bottom: 160,
-                },
-                default_color: Color::rgb(255, 255, 255),
-                custom_glyphs: &[],
-            }],
-            &mut text_swash_cache,
-        )
-        .expect("Failed preparing for rendering text");
 
     let encoder = device.command_encoder();
 
@@ -141,14 +80,60 @@ pub(crate) fn ui_renderpass(
             timestamp_writes: None,
         });
 
-        // Text Rendering (in the same pass)
-
         render_pass.set_pipeline(&pipeline);
         render_pass.set_bind_group(0, &ui_camera_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, transform_buffer.slice(..));
-        render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.draw_indexed(0..(QUAD_INDICES.len() as u32), 0, 0..1);
-        text_renderer.render(&text_atlas, &text_viewport, &mut render_pass).unwrap();
+
+        for render_node in ui_nodes.iter() {
+            render_pass.set_index_buffer(
+                render_node.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint16,
+            );
+            render_pass.set_vertex_buffer(0, render_node.vertex_buffer.slice(..));
+            render_pass.draw_indexed(0..render_node.index_count, 0, 0..1);
+        }
     }
 }
+
+// Text render stuff
+
+// queue: Res<RenderQueue>,
+// mut text_renderer: ResMut<TextRenderer>,
+// mut font_system: ResMut<TextFontSystem>,
+// mut text_atlas: ResMut<TextAtlas>,
+// text_viewport: Res<TextViewport>,
+// mut text_swash_cache: ResMut<TextSwashCache>,
+// let mut test_text_buffer = Buffer::new(&mut font_system, Metrics::new(30.0, 42.0));
+//     test_text_buffer.set_size(&mut font_system, Some(1000.0), Some(1000.0));
+//     test_text_buffer.set_text(
+//         &mut font_system,
+//         "Hello world! 👋\nThis is rendered with 🦅 glyphon 🦁\nThe text below should be partially clipped.\na b c d e f g h i j k l m n o p q r s t u v w x y z",
+//         Attrs::new().family(Family::SansSerif),
+//         Shaping::Advanced);
+//     test_text_buffer.shape_until_scroll(&mut font_system, false);
+//     text_renderer
+//         .prepare(
+//             &device,
+//             &queue,
+//             &mut font_system,
+//             &mut text_atlas,
+//             &text_viewport,
+//             [TextArea {
+//                 buffer: &test_text_buffer,
+//                 left: 10.0,
+//                 top: 10.0,
+//                 scale: 1.0,
+//                 bounds: TextBounds {
+//                     left: 0,
+//                     top: 0,
+//                     right: 600,
+//                     bottom: 160,
+//                 },
+//                 default_color: Color::rgb(255, 255, 255),
+//                 custom_glyphs: &[],
+//             }],
+//             &mut text_swash_cache,
+//         )
+//         .expect("Failed preparing for rendering text");
+//   text_renderer
+//         .render(&text_atlas, &text_viewport, &mut render_pass)
+//         .unwrap();

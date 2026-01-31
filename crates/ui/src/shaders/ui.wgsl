@@ -7,17 +7,11 @@ struct VertexInput {
     // @location(1) tex_coords: vec2<f32>,
 };
 
-struct UITransformInput {
-    @location(1) matrix: vec4<f32>,
-    @location(2) translation: vec2<f32>
-}
-
 @group(0) @binding(0) var<uniform> proj_view: mat4x4<f32>;
 
 @vertex
 fn vs_main(
     model: VertexInput,
-    transform: UITransformInput
 ) -> VertexOutput
 {
     var out: VertexOutput;

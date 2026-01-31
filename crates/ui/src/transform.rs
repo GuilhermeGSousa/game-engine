@@ -7,21 +7,29 @@ use render::assets::vertex::VertexBufferLayout;
 use wgpu::VertexFormat;
 
 pub enum UIValue {
+    Auto,
     Px(f32),
-    Percernt(f32),
+    Percent(f32),
 }
 
+impl Default for UIValue {
+    fn default() -> Self {
+        UIValue::Auto
+    }
+}
+
+#[derive(Default)]
 pub struct UIValue2 {
     pub x: UIValue,
     pub y: UIValue,
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct UITransform {
     pub translation: UIValue2,
 }
 
-#[derive(Deref)]
+#[derive(Component, Deref)]
 pub struct UIGlobalTransform(glam::Affine2);
 
 impl Default for UIGlobalTransform {

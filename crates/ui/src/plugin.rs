@@ -7,21 +7,18 @@ use render::{
 use wgpu::{MultisampleState, PipelineLayoutDescriptor};
 
 use crate::{
-    layout::UICameraLayout,
-    render::{ui_renderpass, update_text_viewport},
-    resources::UIRenderPipeline,
-    text::resources::{
+    layout::UICameraLayout, node::compute_ui_nodes, render::{ui_renderpass, update_text_viewport}, resources::UIRenderPipeline, text::resources::{
         TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
-    },
-    transform::UIGlobalTransform,
-    vertex::UIVertex,
+    }, transform::UIGlobalTransform, vertex::UIVertex
 };
 
 pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut app::App) {
-        app.add_system(app::update_group::UpdateGroup::Render, update_text_viewport)
+        app
+            .add_system(app::update_group::UpdateGroup::LateUpdate, compute_ui_nodes)
+            .add_system(app::update_group::UpdateGroup::Render, update_text_viewport)
             .add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
     }
 

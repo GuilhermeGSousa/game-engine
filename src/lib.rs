@@ -36,7 +36,7 @@ use render::{
     plugin::RenderPlugin,
 };
 
-use ui::{node::UINode, plugin::UIPlugin, transform::UIValue};
+use ui::{material::UIMaterialComponent, node::UINode, plugin::UIPlugin, transform::UIValue};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -105,10 +105,21 @@ pub fn run_game() {
 }
 
 fn spawn_ui(mut cmd: CommandQueue) {
-    cmd.spawn(UINode {
-        width: UIValue::Percent(100.0),
-        height: UIValue::Percent(10.0),
-    });
+    cmd.spawn((
+        UINode {
+            width: UIValue::Percent(100.0),
+            height: UIValue::Percent(100.0),
+        },
+        UIMaterialComponent {
+            color: wgpu_types::Color::BLUE,
+        },
+    ));
+
+    // let child_pannel = cmd.spawn(UINode {
+    //     width: UIValue::Percent(100.0),
+    //     height: UIValue::Percent(10.0),
+    // });
+    // cmd.add_child(root_pannel, child_pannel);
 }
 
 fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {

@@ -7,7 +7,7 @@ use render::{
 use wgpu::{MultisampleState, PipelineLayoutDescriptor};
 
 use crate::{
-    layout::UICameraLayout,
+    layout::{UICameraLayout, UIMaterialLayout},
     node::{compute_ui_nodes, extract_added_ui_nodes},
     render::{ui_renderpass, update_text_viewport},
     resources::UIRenderPipeline,
@@ -59,9 +59,10 @@ impl Plugin for UIPlugin {
         // UI rendering
         let ui_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\ui.wgsl"));
         let ui_camera_layout = UICameraLayout::new(&device);
+        let ui_material_layout = UIMaterialLayout::new(&device);
         let ui_render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("UI Render Pipeline Layout"),
-            bind_group_layouts: &[&ui_camera_layout],
+            bind_group_layouts: &[&ui_camera_layout, &ui_material_layout],
             push_constant_ranges: &[],
         });
 
@@ -110,6 +111,7 @@ impl Plugin for UIPlugin {
             .insert_resource(TextViewport(viewport))
             .insert_resource(TextFontSystem(font_system))
             .insert_resource(TextAtlas(atlas))
-            .insert_resource(ui_camera_layout);
+            .insert_resource(ui_camera_layout)
+            .insert_resource(ui_material_layout);
     }
 }

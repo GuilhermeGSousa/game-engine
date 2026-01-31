@@ -89,6 +89,7 @@ pub(crate) fn ui_renderpass(
                 wgpu::IndexFormat::Uint16,
             );
             render_pass.set_vertex_buffer(0, render_node.vertex_buffer.slice(..));
+            render_pass.set_bind_group(1, &render_node.material_bind_group, &[]);
             render_pass.draw_indexed(0..render_node.index_count, 0, 0..1);
         }
     }

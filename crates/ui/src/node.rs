@@ -18,7 +18,6 @@ use log::warn;
 use render::{components::render_entity::RenderEntity, device::RenderDevice};
 use taffy::{
     AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree,
-    prelude::{FromLength, FromPercent},
 };
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages,
@@ -48,13 +47,13 @@ impl UINode {
         Size {
             width: match self.width {
                 UIValue::Auto => Dimension::auto(),
-                UIValue::Px(value) => Dimension::from_length(value),
-                UIValue::Percent(value) => Dimension::from_percent(value),
+                UIValue::Px(value) => Dimension::length(value),
+                UIValue::Percent(value) => Dimension::percent(value),
             },
             height: match self.height {
                 UIValue::Auto => Dimension::auto(),
-                UIValue::Px(value) => Dimension::from_length(value),
-                UIValue::Percent(value) => Dimension::from_percent(value),
+                UIValue::Px(value) => Dimension::length(value),
+                UIValue::Percent(value) => Dimension::percent(value),
             },
         }
     }
@@ -156,11 +155,6 @@ pub(crate) fn compute_ui_nodes(
             continue;
         };
 
-        if let Err(error) = taffy.compute_layout(*node_id, window_size) {
-            warn!("Error computing UI node: {}", error);
-            continue;
-        }
-
         let node_layout = match taffy.layout(*node_id) {
             Ok(layout) => layout,
             Err(error) => {
@@ -224,7 +218,7 @@ pub(crate) fn extract_added_ui_nodes(
         (
             Entity,
             &UIComputedNode,
-            Option<&UIMaterialComponent>,
+            &UIMaterialComponent,
             Option<&RenderEntity>,
         ),
         Changed<UIComputedNode>,
@@ -235,10 +229,7 @@ pub(crate) fn extract_added_ui_nodes(
 ) {
     for (computed_node_entity, computed_node, node_material, render_entity) in computed_nodes.iter()
     {
-        if node_material.is_none() {
-            warn!("UI Node missing a material");
-        }
-        let color = node_material.map(|m| m.color).unwrap_or(wgpu::Color::GREEN);
+        let color = node_material.color;
 
         let color_array = [
             color.r as f32,

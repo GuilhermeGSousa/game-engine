@@ -107,13 +107,10 @@ pub fn run_game() {
 fn spawn_ui(mut cmd: CommandQueue) {
     let root_pannel = cmd.spawn((
         UINode {
-            width: UIValue::Percent(100.0),
-            height: UIValue::Percent(100.0),
+            width: UIValue::Percent(1.0),
+            height: UIValue::Percent(1.0),
             flex_direction: FlexDirection::Column,
             ..Default::default()
-        },
-        UIMaterialComponent {
-            color: wgpu_types::Color::BLUE,
         },
     ));
 
@@ -122,15 +119,12 @@ fn spawn_ui(mut cmd: CommandQueue) {
             flex_grow: 1.0,
             ..Default::default()
         },
-        UIMaterialComponent {
-            color: wgpu_types::Color::GREEN,
-        },
     ));
 
     let bottom_pannel = cmd.spawn((
         UINode {
-            width: UIValue::Percent(100.0),
-            height: UIValue::Percent(10.0),
+            width: UIValue::Percent(1.0),
+            height: UIValue::Percent(0.1),
             ..Default::default()
         },
         UIMaterialComponent {

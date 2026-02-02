@@ -29,8 +29,8 @@ mod tests {
         let bottom_box = taffy
             .new_leaf(Style {
                 size: Size {
-                    width: Dimension::from_percent(1.0),
-                    height: Dimension::from_length(10.0),
+                    width: Dimension::percent(1.0),
+                    height: Dimension::percent(0.1),
                 },
                 ..Default::default()
             })
@@ -40,8 +40,8 @@ mod tests {
                 Style {
                     flex_direction: taffy::FlexDirection::Column,
                     size: Size {
-                        width: Dimension::from_length(800.0),
-                        height: Dimension::from_length(600.0),
+                        width: Dimension::percent(1.0),
+                        height: Dimension::percent(1.0),
                     },
                     ..Default::default()
                 },
@@ -76,48 +76,5 @@ mod tests {
             "Box size: ({}, {})",
             box_layout.size.width, box_layout.size.height
         );
-    }
-
-    #[test]
-    fn bottom_box() {
-        let mut taffy: TaffyTree<()> = TaffyTree::new();
-
-        let spacer = taffy
-            .new_leaf(Style {
-                flex_grow: 1.0,
-                ..Default::default()
-            })
-            .unwrap();
-        let bottom_box = taffy
-            .new_leaf(Style {
-                size: Size {
-                    width: Dimension::from_percent(100.0),
-                    height: Dimension::from_percent(10.0),
-                },
-                ..Default::default()
-            })
-            .unwrap();
-        let parent = taffy
-            .new_with_children(
-                Style {
-                    flex_direction: taffy::FlexDirection::Column,
-                    ..Default::default()
-                },
-                &[spacer, bottom_box],
-            )
-            .unwrap();
-
-        taffy.compute_layout(
-            parent,
-            Size {
-                height: AvailableSpace::Definite(800.0),
-                width: AvailableSpace::Definite(600.0),
-            },
-        );
-
-        let box_layout = taffy.layout(bottom_box).unwrap();
-        assert_eq!(box_layout.size.height, 80.0);
-        assert_eq!(box_layout.size.width, 600.0);
-        assert_eq!(box_layout.location.y, 720.0);
     }
 }

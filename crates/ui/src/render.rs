@@ -83,7 +83,9 @@ pub(crate) fn ui_renderpass(
         render_pass.set_pipeline(&pipeline);
         render_pass.set_bind_group(0, &ui_camera_bind_group, &[]);
 
-        for render_node in ui_nodes.iter() {
+        let mut render_nodes = ui_nodes.iter().collect::<Vec<_>>();
+        render_nodes.sort_by_key(|render_node| render_node.z_index);
+        for render_node in render_nodes {
             render_pass.set_index_buffer(
                 render_node.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint16,

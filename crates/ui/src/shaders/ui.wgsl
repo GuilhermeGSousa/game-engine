@@ -15,12 +15,11 @@ fn vs_main(
 ) -> VertexOutput
 {
     var out: VertexOutput;
-    out.position = proj_view *  vec4<f32>(model.position, 0.0, 1.0);
+    out.position = proj_view * vec4<f32>(model.position, 0.0, 1.0);
     return out;
 }
 
-@group(1) @binding(0)
-var<uniform> color: vec4<f32>;
+@group(1) @binding(0) var<uniform> color: vec4<f32>;
 
 @fragment
 fn fs_main() -> @location(0) vec4<f32>

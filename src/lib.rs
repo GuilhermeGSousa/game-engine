@@ -36,6 +36,7 @@ use render::{
     plugin::RenderPlugin,
 };
 
+use taffy::FlexDirection;
 use ui::{material::UIMaterialComponent, node::UINode, plugin::UIPlugin, transform::UIValue};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
@@ -52,7 +53,6 @@ use crate::movement_animation::{
     setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
 };
 
-mod fsm;
 mod movement_animation;
 
 #[allow(dead_code)]
@@ -105,21 +105,41 @@ pub fn run_game() {
 }
 
 fn spawn_ui(mut cmd: CommandQueue) {
-    cmd.spawn((
+    let root_pannel = cmd.spawn((
         UINode {
             width: UIValue::Percent(100.0),
             height: UIValue::Percent(100.0),
+            flex_direction: FlexDirection::Column,
+            ..Default::default()
         },
         UIMaterialComponent {
             color: wgpu_types::Color::BLUE,
         },
     ));
 
-    // let child_pannel = cmd.spawn(UINode {
-    //     width: UIValue::Percent(100.0),
-    //     height: UIValue::Percent(10.0),
-    // });
-    // cmd.add_child(root_pannel, child_pannel);
+    let spacer_pannel = cmd.spawn((
+        UINode {
+            flex_grow: 1.0,
+            ..Default::default()
+        },
+        UIMaterialComponent {
+            color: wgpu_types::Color::GREEN,
+        },
+    ));
+
+    let bottom_pannel = cmd.spawn((
+        UINode {
+            width: UIValue::Percent(100.0),
+            height: UIValue::Percent(10.0),
+            ..Default::default()
+        },
+        UIMaterialComponent {
+            color: wgpu_types::Color::GREEN,
+        },
+    ));
+
+    cmd.add_child(root_pannel, spacer_pannel);
+    cmd.add_child(root_pannel, bottom_pannel);
 }
 
 fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {

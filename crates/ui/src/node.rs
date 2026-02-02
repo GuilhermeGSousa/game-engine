@@ -1,15 +1,23 @@
+use std::collections::HashMap;
+
 use ecs::{
     command::CommandQueue,
     component::Component,
-    entity::{Entity, hierarchy::Children},
-    query::{Query, query_filter::Changed},
+    entity::{
+        Entity,
+        hierarchy::{ChildOf, Children},
+    },
+    query::{
+        Query,
+        query_filter::{Changed, Without},
+    },
     resource::Res,
 };
 use glam::Vec2;
 use log::warn;
 use render::{components::render_entity::RenderEntity, device::RenderDevice};
 use taffy::{
-    AvailableSpace, Dimension, Size, Style, TaffyTree,
+    AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree,
     prelude::{FromLength, FromPercent},
 };
 use wgpu::{
@@ -30,6 +38,9 @@ use crate::{
 pub struct UINode {
     pub width: UIValue,
     pub height: UIValue,
+    pub flex_direction: FlexDirection,
+    pub flex_grow: f32,
+    pub flex_shrink: f32,
 }
 
 impl UINode {
@@ -47,12 +58,36 @@ impl UINode {
             },
         }
     }
+
+    fn style(&self) -> Style {
+        Style {
+            size: self.size(),
+            flex_direction: self.flex_direction,
+            flex_grow: self.flex_grow,
+            flex_shrink: self.flex_shrink,
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for UINode {
+    fn default() -> Self {
+        Self {
+            width: Default::default(),
+            height: Default::default(),
+            flex_direction: Default::default(),
+            flex_grow: 0.0,
+            flex_shrink: 1.0,
+        }
+    }
 }
 
 // Post taffy computed layout data
 #[derive(Component)]
 pub(crate) struct UIComputedNode {
+    pub(crate) location: Vec2,
     pub(crate) size: Vec2,
+    pub(crate) z_index: i32,
 }
 
 #[derive(Component)]
@@ -61,10 +96,12 @@ pub(crate) struct RenderUINode {
     pub(crate) index_count: u32,
     pub(crate) vertex_buffer: Buffer,
     pub(crate) material_bind_group: wgpu::BindGroup,
+    pub(crate) z_index: i32,
 }
 
 pub(crate) fn compute_ui_nodes(
-    ui_nodes: Query<(Entity, &UINode, Option<&Children>), Changed<UINode>>,
+    ui_nodes: Query<(Entity, &UINode, Option<&Children>)>,
+    ui_roots: Query<(Entity, &UINode, Option<&Children>), Without<ChildOf>>,
     window: Res<Window>,
     mut cmd: CommandQueue,
 ) {
@@ -78,36 +115,53 @@ pub(crate) fn compute_ui_nodes(
         height: AvailableSpace::Definite(window_height),
     };
 
-    let root_node = taffy
-        .new_leaf(Style {
-            size: Size {
-                width: Dimension::from_length(window_width),
-                height: Dimension::from_length(window_height),
-            },
-            ..Default::default()
-        })
-        .expect("Error creating root UI node");
+    let mut entity_to_taffy = HashMap::new();
+    let mut entity_to_z_index = HashMap::new();
 
-    for (entity, node, children) in ui_nodes.iter() {
-        let style = Style {
-            size: node.size(),
-            ..Default::default()
-        };
-
-        let node_id = match taffy.new_leaf(style) {
+    for (entity, node, children) in ui_roots.iter() {
+        let node_id = match taffy.new_leaf(node.style()) {
             Ok(node_id) => node_id,
             Err(error) => {
                 warn!("Error adding UI node: {}", error);
                 continue;
             }
         };
+        let z_index = 0;
+        entity_to_taffy.insert(entity, node_id);
+        entity_to_z_index.insert(entity, z_index);
+        if let Some(children) = children {
+            generate_taffy_children_recursive(
+                &mut taffy,
+                node_id,
+                z_index,
+                children,
+                &ui_nodes,
+                &mut entity_to_taffy,
+                &mut entity_to_z_index,
+            );
+        }
 
         if let Err(error) = taffy.compute_layout(node_id, window_size) {
+            warn!("Error computing UI layout: {}", error);
+            continue;
+        }
+    }
+
+    for (node_entity, _, _) in ui_nodes.iter() {
+        let Some(node_id) = entity_to_taffy.get(&node_entity) else {
+            continue;
+        };
+
+        let Some(z_index) = entity_to_z_index.get(&node_entity) else {
+            continue;
+        };
+
+        if let Err(error) = taffy.compute_layout(*node_id, window_size) {
             warn!("Error computing UI node: {}", error);
             continue;
         }
 
-        let node_layout = match taffy.layout(node_id) {
+        let node_layout = match taffy.layout(*node_id) {
             Ok(layout) => layout,
             Err(error) => {
                 warn!("Error computing UI node: {}", error);
@@ -115,23 +169,53 @@ pub(crate) fn compute_ui_nodes(
             }
         };
 
-        println!(
-            "x: {} y: {}",
-            node_layout.location.x, node_layout.location.y
-        );
-        println!(
-            "width: {} height: {}",
-            node_layout.size.width, node_layout.size.height
-        );
         cmd.insert(
             UIComputedNode {
-                size: Vec2::new(
-                    node_layout.size.width / 100.0,
-                    node_layout.size.height / 100.0,
-                ),
+                location: Vec2::new(node_layout.location.x, node_layout.location.y),
+                size: Vec2::new(node_layout.size.width, node_layout.size.height),
+                z_index: *z_index,
             },
-            entity,
+            node_entity,
         );
+    }
+}
+
+fn generate_taffy_children_recursive(
+    taffy: &mut TaffyTree<()>,
+    parent_node: NodeId,
+    current_z_index: i32,
+    children: &Children,
+    ui_nodes: &Query<(Entity, &UINode, Option<&Children>)>,
+    entity_to_taffy: &mut HashMap<Entity, NodeId>,
+    entity_to_z_index: &mut HashMap<Entity, i32>,
+) {
+    let next_z_index = current_z_index + 1;
+    for child in children {
+        let Some((_, child_node, grand_children)) = ui_nodes.get_entity(*child) else {
+            continue;
+        };
+
+        let Ok(child_node_id) = taffy.new_leaf(child_node.style()) else {
+            continue;
+        };
+
+        if !taffy.add_child(parent_node, child_node_id).is_ok() {
+            continue;
+        }
+
+        entity_to_taffy.insert(*child, child_node_id);
+        entity_to_z_index.insert(*child, next_z_index);
+        if let Some(grand_children) = grand_children {
+            generate_taffy_children_recursive(
+                taffy,
+                child_node_id,
+                next_z_index,
+                grand_children,
+                ui_nodes,
+                entity_to_taffy,
+                entity_to_z_index,
+            );
+        }
     }
 }
 
@@ -156,7 +240,12 @@ pub(crate) fn extract_added_ui_nodes(
         }
         let color = node_material.map(|m| m.color).unwrap_or(wgpu::Color::GREEN);
 
-        let color_array = [color.r, color.g, color.b, color.a];
+        let color_array = [
+            color.r as f32,
+            color.g as f32,
+            color.b as f32,
+            color.a as f32,
+        ];
 
         let material_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("UI Material Buffer"),
@@ -180,16 +269,22 @@ pub(crate) fn extract_added_ui_nodes(
 
         let vertices = [
             UIVertex {
-                pos_coords: [0.0, 0.0],
+                pos_coords: [computed_node.location.x, computed_node.location.y],
             },
             UIVertex {
-                pos_coords: [0.0, computed_node.size.y],
+                pos_coords: [
+                    computed_node.location.x,
+                    computed_node.location.y + computed_node.size.y,
+                ],
             },
             UIVertex {
-                pos_coords: computed_node.size.to_array(),
+                pos_coords: (computed_node.location + computed_node.size).to_array(),
             },
             UIVertex {
-                pos_coords: [computed_node.size.x, 0.0],
+                pos_coords: [
+                    computed_node.location.x + computed_node.size.x,
+                    computed_node.location.y,
+                ],
             },
         ];
 
@@ -204,6 +299,7 @@ pub(crate) fn extract_added_ui_nodes(
             index_count: QUAD_INDICES.len() as u32,
             vertex_buffer: vertex_buffer,
             material_bind_group,
+            z_index: computed_node.z_index,
         };
 
         match render_entity {

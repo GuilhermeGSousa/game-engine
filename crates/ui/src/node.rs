@@ -16,9 +16,7 @@ use ecs::{
 use glam::Vec2;
 use log::warn;
 use render::{components::render_entity::RenderEntity, device::RenderDevice};
-use taffy::{
-    AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree,
-};
+use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree, prelude::TaffyZero};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages,
     util::{BufferInitDescriptor, DeviceExt},
@@ -140,7 +138,14 @@ pub(crate) fn compute_ui_nodes(
             );
         }
 
-        if let Err(error) = taffy.compute_layout(node_id, window_size) {
+        if let Err(error) =
+            taffy.compute_layout_with_measure(
+                node_id,
+                window_size, 
+                |known_dimensions, available_space, node_id, context, style| -> Size<f32> {
+                    Size::ZERO
+            })
+        {
             warn!("Error computing UI layout: {}", error);
             continue;
         }

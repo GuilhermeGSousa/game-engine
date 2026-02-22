@@ -9,7 +9,7 @@ use wgpu::{MultisampleState, PipelineLayoutDescriptor};
 use crate::{
     layout::{UICameraLayout, UIMaterialLayout},
     node::{compute_ui_nodes, extract_added_ui_nodes},
-    render::{ui_renderpass, update_text_viewport},
+    render::{prepare_text_renderer, ui_renderpass, update_text_viewport},
     resources::UIRenderPipeline,
     text::resources::{
         TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
@@ -28,6 +28,10 @@ impl Plugin for UIPlugin {
                 extract_added_ui_nodes,
             )
             .add_system(app::update_group::UpdateGroup::Render, update_text_viewport)
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                prepare_text_renderer,
+            )
             .add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
     }
 

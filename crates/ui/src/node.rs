@@ -16,7 +16,9 @@ use ecs::{
 use glam::Vec2;
 use log::warn;
 use render::{components::render_entity::RenderEntity, device::RenderDevice};
-use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree, prelude::TaffyZero};
+use taffy::{
+    AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree, prelude::TaffyZero,
+};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages,
     util::{BufferInitDescriptor, DeviceExt},
@@ -93,6 +95,8 @@ pub(crate) struct RenderUINode {
     pub(crate) index_count: u32,
     pub(crate) vertex_buffer: Buffer,
     pub(crate) material_bind_group: wgpu::BindGroup,
+    pub(crate) location: Vec2,
+    pub(crate) size: Vec2,
     pub(crate) z_index: i32,
 }
 
@@ -138,14 +142,13 @@ pub(crate) fn compute_ui_nodes(
             );
         }
 
-        if let Err(error) =
-            taffy.compute_layout_with_measure(
-                node_id,
-                window_size, 
-                |known_dimensions, available_space, node_id, context, style| -> Size<f32> {
-                    Size::ZERO
-            })
-        {
+        if let Err(error) = taffy.compute_layout_with_measure(
+            node_id,
+            window_size,
+            |known_dimensions, available_space, node_id, context, style| -> Size<f32> {
+                Size::ZERO
+            },
+        ) {
             warn!("Error computing UI layout: {}", error);
             continue;
         }
@@ -295,6 +298,8 @@ pub(crate) fn extract_added_ui_nodes(
             index_count: QUAD_INDICES.len() as u32,
             vertex_buffer: vertex_buffer,
             material_bind_group,
+            location: computed_node.location,
+            size: computed_node.size,
             z_index: computed_node.z_index,
         };
 

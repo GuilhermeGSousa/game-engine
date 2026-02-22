@@ -3,14 +3,19 @@ use ecs::{
     resource::{Res, ResMut},
 };
 use glam::Mat4;
-use glyphon::Resolution;
+use glyphon::{Color, Resolution, TextArea, TextBounds};
 use render::{device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use window::plugin::Window;
 
 use crate::{
-    layout::UICameraLayout, node::RenderUINode, resources::UIRenderPipeline,
-    text::resources::TextViewport,
+    layout::UICameraLayout,
+    node::RenderUINode,
+    resources::UIRenderPipeline,
+    text::{
+        RenderTextComponent,
+        resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport},
+    },
 };
 
 pub(crate) fn update_text_viewport(
@@ -30,6 +35,44 @@ pub(crate) fn update_text_viewport(
     }
 }
 
+pub(crate) fn prepare_text_renderer(
+    mut text_renderer: ResMut<TextRenderer>,
+    mut font_system: ResMut<TextFontSystem>,
+    mut text_atlas: ResMut<TextAtlas>,
+    mut text_swash_cache: ResMut<TextSwashCache>,
+    text_viewport: Res<TextViewport>,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
+    text_nodes: Query<(&RenderUINode, &RenderTextComponent)>,
+) {
+    text_renderer
+        .prepare(
+            &device,
+            &queue,
+            &mut font_system,
+            &mut text_atlas,
+            &text_viewport,
+            text_nodes
+                .iter()
+                .map(|(render_node, render_text)| TextArea {
+                    buffer: &render_text.buffer,
+                    left: render_node.location.x,
+                    top: render_node.location.y,
+                    scale: 1.0,
+                    bounds: TextBounds {
+                        left: 0,
+                        top: 0,
+                        right: render_node.size.x as i32,
+                        bottom: render_node.size.y as i32,
+                    },
+                    default_color: Color::rgb(255, 255, 255),
+                    custom_glyphs: &[],
+                }),
+            &mut text_swash_cache,
+        )
+        .expect("Failed preparing for rendering text");
+}
+
 pub(crate) fn ui_renderpass(
     pipeline: Res<UIRenderPipeline>,
     mut device: ResMut<RenderDevice>,
@@ -37,6 +80,10 @@ pub(crate) fn ui_renderpass(
     window: Res<Window>,
     ui_camera_layout: Res<UICameraLayout>,
     ui_nodes: Query<&RenderUINode>,
+    // Texture inputs
+    text_renderer: ResMut<TextRenderer>,
+    text_viewport: Res<TextViewport>,
+    text_atlas: Res<TextAtlas>,
 ) {
     let projection_matrix = Mat4::orthographic_rh(
         0.0,
@@ -94,6 +141,11 @@ pub(crate) fn ui_renderpass(
             render_pass.set_bind_group(1, &render_node.material_bind_group, &[]);
             render_pass.draw_indexed(0..render_node.index_count, 0, 0..1);
         }
+
+        // Render Text
+        text_renderer
+            .render(&text_atlas, &text_viewport, &mut render_pass)
+            .expect("Error rendering text");
     }
 }
 
@@ -113,6 +165,8 @@ pub(crate) fn ui_renderpass(
 //         Attrs::new().family(Family::SansSerif),
 //         Shaping::Advanced);
 //     test_text_buffer.shape_until_scroll(&mut font_system, false);
+
+// DONE
 //     text_renderer
 //         .prepare(
 //             &device,

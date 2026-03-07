@@ -37,7 +37,10 @@ use render::{
 };
 
 use taffy::FlexDirection;
-use ui::{material::UIMaterialComponent, node::UINode, plugin::UIPlugin, transform::UIValue};
+use ui::{
+    material::UIMaterialComponent, node::UINode, plugin::UIPlugin, text::TextComponent,
+    transform::UIValue,
+};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -105,19 +108,22 @@ pub fn run_game() {
 }
 
 fn spawn_ui(mut cmd: CommandQueue) {
-    let root_pannel = cmd.spawn((
-        UINode {
-            width: UIValue::Percent(1.0),
-            height: UIValue::Percent(1.0),
-            flex_direction: FlexDirection::Column,
-            ..Default::default()
-        },
-    ));
+    let root_pannel = cmd.spawn((UINode {
+        width: UIValue::Percent(1.0),
+        height: UIValue::Percent(1.0),
+        flex_direction: FlexDirection::Column,
+        ..Default::default()
+    },));
 
     let spacer_pannel = cmd.spawn((
         UINode {
             flex_grow: 1.0,
             ..Default::default()
+        },
+        TextComponent {
+            text: "Hello I am text".to_string(),
+            font_size: 20.0,
+            line_height: 30.0,
         },
     ));
 

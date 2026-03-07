@@ -11,10 +11,12 @@ use crate::{
     node::{compute_ui_nodes, extract_added_ui_nodes},
     render::{prepare_text_renderer, ui_renderpass, update_text_viewport},
     resources::UIRenderPipeline,
-    text::resources::{
-        TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
+    text::{
+        extract_added_text_nodes,
+        resources::{
+            TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
+        },
     },
-    transform::UIGlobalTransform,
     vertex::UIVertex,
 };
 
@@ -26,6 +28,10 @@ impl Plugin for UIPlugin {
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 extract_added_ui_nodes,
+            )
+            .add_system(
+                app::update_group::UpdateGroup::Render,
+                extract_added_text_nodes,
             )
             .add_system(app::update_group::UpdateGroup::Render, update_text_viewport)
             .add_system(

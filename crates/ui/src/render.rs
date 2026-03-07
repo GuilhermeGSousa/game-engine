@@ -4,6 +4,7 @@ use ecs::{
 };
 use glam::Mat4;
 use glyphon::{Color, Resolution, TextArea, TextBounds};
+use log::warn;
 use render::{device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use window::plugin::Window;
@@ -45,6 +46,9 @@ pub(crate) fn prepare_text_renderer(
     queue: Res<RenderQueue>,
     text_nodes: Query<(&RenderUINode, &RenderTextComponent)>,
 ) {
+    if text_nodes.iter().count() == 0 {
+        warn!("No text found to render :(");
+    }
     text_renderer
         .prepare(
             &device,

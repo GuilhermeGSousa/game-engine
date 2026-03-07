@@ -3,13 +3,6 @@ use std::mem;
 use glam::Vec2;
 use render::assets::vertex::VertexBufferLayout;
 
-pub(crate) const QUAD_VERTEX_POSITIONS: [Vec2; 4] = [
-    Vec2::new(-0.5, -0.5),
-    Vec2::new(0.5, -0.5),
-    Vec2::new(0.5, 0.5),
-    Vec2::new(-0.5, 0.5),
-];
-
 pub(crate) const QUAD_INDICES: [u16; 6] = [0, 2, 3, 0, 1, 2];
 
 #[repr(C)]

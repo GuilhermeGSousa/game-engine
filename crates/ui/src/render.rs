@@ -4,7 +4,7 @@ use ecs::{
 };
 use glam::Mat4;
 use glyphon::{Color, Resolution, TextArea, TextBounds};
-use log::warn;
+use log::{info, warn};
 use render::{device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use window::plugin::Window;
@@ -46,9 +46,13 @@ pub(crate) fn prepare_text_renderer(
     queue: Res<RenderQueue>,
     text_nodes: Query<(&RenderUINode, &RenderTextComponent)>,
 ) {
-    if text_nodes.iter().count() == 0 {
-        warn!("No text found to render :(");
+    for (render_node, render_text) in text_nodes.iter() {
+        println!(
+            "Text Node: width {} height {}",
+            render_node.size.x, render_node.size.y
+        );
     }
+
     text_renderer
         .prepare(
             &device,
@@ -67,7 +71,7 @@ pub(crate) fn prepare_text_renderer(
                         left: 0,
                         top: 0,
                         right: render_node.size.x as i32,
-                        bottom: render_node.size.y as i32,
+                        bottom: 600 as i32,
                     },
                     default_color: Color::rgb(255, 255, 255),
                     custom_glyphs: &[],
@@ -152,49 +156,3 @@ pub(crate) fn ui_renderpass(
             .expect("Error rendering text");
     }
 }
-
-// Text render stuff
-
-// queue: Res<RenderQueue>,
-// mut text_renderer: ResMut<TextRenderer>,
-// mut font_system: ResMut<TextFontSystem>,
-// mut text_atlas: ResMut<TextAtlas>,
-// text_viewport: Res<TextViewport>,
-// mut text_swash_cache: ResMut<TextSwashCache>,
-// let mut test_text_buffer = Buffer::new(&mut font_system, Metrics::new(30.0, 42.0));
-//     test_text_buffer.set_size(&mut font_system, Some(1000.0), Some(1000.0));
-//     test_text_buffer.set_text(
-//         &mut font_system,
-//         "Hello world! 👋\nThis is rendered with 🦅 glyphon 🦁\nThe text below should be partially clipped.\na b c d e f g h i j k l m n o p q r s t u v w x y z",
-//         Attrs::new().family(Family::SansSerif),
-//         Shaping::Advanced);
-//     test_text_buffer.shape_until_scroll(&mut font_system, false);
-
-// DONE
-//     text_renderer
-//         .prepare(
-//             &device,
-//             &queue,
-//             &mut font_system,
-//             &mut text_atlas,
-//             &text_viewport,
-//             [TextArea {
-//                 buffer: &test_text_buffer,
-//                 left: 10.0,
-//                 top: 10.0,
-//                 scale: 1.0,
-//                 bounds: TextBounds {
-//                     left: 0,
-//                     top: 0,
-//                     right: 600,
-//                     bottom: 160,
-//                 },
-//                 default_color: Color::rgb(255, 255, 255),
-//                 custom_glyphs: &[],
-//             }],
-//             &mut text_swash_cache,
-//         )
-//         .expect("Failed preparing for rendering text");
-//   text_renderer
-//         .render(&text_atlas, &text_viewport, &mut render_pass)
-//         .unwrap();

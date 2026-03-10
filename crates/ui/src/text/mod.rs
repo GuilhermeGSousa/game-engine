@@ -9,7 +9,8 @@ use ecs::{
     resource::{Res, ResMut},
 };
 use glyphon::{Attrs, Buffer, Family, Metrics, Shaping};
-use render::{components::render_entity::RenderEntity, device::RenderDevice};
+use render::components::render_entity::RenderEntity;
+use window::plugin::Window;
 
 use crate::{node::UIComputedNode, text::resources::TextFontSystem};
 
@@ -28,19 +29,12 @@ pub struct RenderTextComponent {
 }
 
 pub(crate) fn extract_added_text_nodes(
-    changed_nodes: Query<
-        (
-            Entity,
-            &UIComputedNode,
-            &TextComponent,
-            Option<&RenderEntity>,
-        ),
-        Or<(Changed<UIComputedNode>, Changed<TextComponent>)>,
-    >,
+    changed_nodes: Query<(Entity, &TextComponent, Option<&RenderEntity>), Changed<TextComponent>>,
+    window: Res<Window>,
     mut font_system: ResMut<TextFontSystem>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, computed_node, text_component, render_entity) in changed_nodes.iter() {
+    for (entity, text_component, render_entity) in changed_nodes.iter() {
         let mut text_buffer = Buffer::new(
             &mut font_system,
             Metrics {
@@ -51,8 +45,8 @@ pub(crate) fn extract_added_text_nodes(
 
         text_buffer.set_size(
             &mut font_system,
-            Some(computed_node.size.x),
-            Some(computed_node.size.y),
+            Some(window.width() as f32),
+            Some(window.height() as f32),
         );
 
         text_buffer.set_text(

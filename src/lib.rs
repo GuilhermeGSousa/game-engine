@@ -115,17 +115,10 @@ fn spawn_ui(mut cmd: CommandQueue) {
         ..Default::default()
     },));
 
-    let spacer_pannel = cmd.spawn((
-        UINode {
-            flex_grow: 1.0,
-            ..Default::default()
-        },
-        TextComponent {
-            text: "Hello I am text".to_string(),
-            font_size: 20.0,
-            line_height: 30.0,
-        },
-    ));
+    let spacer_pannel = cmd.spawn((UINode {
+        flex_grow: 1.0,
+        ..Default::default()
+    },));
 
     let bottom_pannel = cmd.spawn((
         UINode {
@@ -135,6 +128,11 @@ fn spawn_ui(mut cmd: CommandQueue) {
         },
         UIMaterialComponent {
             color: wgpu_types::Color::GREEN,
+        },
+        TextComponent {
+            text: "Hello I am text".to_string(),
+            font_size: 20.0,
+            line_height: 30.0,
         },
     ));
 

@@ -4,7 +4,6 @@ use ecs::{
 };
 use glam::Mat4;
 use glyphon::{Color, Resolution, TextArea, TextBounds};
-use log::{info, warn};
 use render::{device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use window::plugin::Window;
@@ -46,13 +45,6 @@ pub(crate) fn prepare_text_renderer(
     queue: Res<RenderQueue>,
     text_nodes: Query<(&RenderUINode, &RenderTextComponent)>,
 ) {
-    for (render_node, render_text) in text_nodes.iter() {
-        println!(
-            "Text Node: width {} height {}",
-            render_node.size.x, render_node.size.y
-        );
-    }
-
     text_renderer
         .prepare(
             &device,

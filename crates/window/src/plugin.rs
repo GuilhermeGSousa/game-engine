@@ -43,8 +43,6 @@ impl Window {
         (size.width, size.height)
     }
 
-    pub fn request_resize(&mut self, size: (u32, u32)) {}
-
     pub fn width(&self) -> u32 {
         self.window_handle.inner_size().width
     }

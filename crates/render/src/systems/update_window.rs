@@ -21,8 +21,8 @@ pub(crate) fn request_window_resize(
 ) {
     for event in window_events.read() {
         match event.deref() {
-            winit::event::WindowEvent::Resized(physical_size) => {
-                window.request_resize((physical_size.width, physical_size.height));
+            winit::event::WindowEvent::Resized(_) => {
+                window.mark_changed();
             }
             _ => {}
         }

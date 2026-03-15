@@ -2,17 +2,14 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{
-        Query,
-        query_filter::{Changed, Or},
-    },
+    query::{Query, query_filter::Changed},
     resource::{Res, ResMut},
 };
 use glyphon::{Attrs, Buffer, Family, Metrics, Shaping};
 use render::components::render_entity::RenderEntity;
 use window::plugin::Window;
 
-use crate::{node::UIComputedNode, text::resources::TextFontSystem};
+use crate::text::resources::TextFontSystem;
 
 pub(crate) mod resources;
 

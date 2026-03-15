@@ -116,6 +116,10 @@ impl<'world, T: Resource> ResMut<'world, T> {
             has_changed: false,
         }
     }
+
+    pub fn mark_changed(&mut self) {
+        self.deref_mut();
+    }
 }
 
 unsafe impl<T> SystemInput for ResMut<'_, T>

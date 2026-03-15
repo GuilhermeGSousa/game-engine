@@ -92,10 +92,14 @@ pub(crate) struct RenderUINode {
     pub(crate) index_buffer: Buffer,
     pub(crate) index_count: u32,
     pub(crate) vertex_buffer: Buffer,
-    pub(crate) material_bind_group: wgpu::BindGroup,
     pub(crate) location: Vec2,
     pub(crate) size: Vec2,
     pub(crate) z_index: i32,
+}
+
+#[derive(Component)]
+pub(crate) struct RenderUIMaterial {
+    pub(crate) material_bind_group: wgpu::BindGroup,
 }
 
 pub(crate) fn compute_ui_nodes(
@@ -215,43 +219,13 @@ fn generate_taffy_children_recursive(
 
 pub(crate) fn extract_added_ui_nodes(
     computed_nodes: Query<
-        (
-            Entity,
-            &UIComputedNode,
-            &UIMaterialComponent,
-            Option<&RenderEntity>,
-        ),
+        (Entity, &UIComputedNode, Option<&RenderEntity>),
         Changed<UIComputedNode>,
     >,
-    ui_material_layout: Res<UIMaterialLayout>,
     device: Res<RenderDevice>,
     mut cmd: CommandQueue,
 ) {
-    for (computed_node_entity, computed_node, node_material, render_entity) in computed_nodes.iter()
-    {
-        let color = node_material.color;
-
-        let color_array = [
-            color.r as f32,
-            color.g as f32,
-            color.b as f32,
-            color.a as f32,
-        ];
-
-        let material_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("UI Material Buffer"),
-            contents: bytemuck::cast_slice(&color_array),
-            usage: BufferUsages::UNIFORM,
-        });
-
-        let material_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("UI Material Bind Group"),
-            layout: &ui_material_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: material_buffer.as_entire_binding(),
-            }],
-        });
+    for (computed_node_entity, computed_node, render_entity) in computed_nodes.iter() {
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("UI Index Buffer"),
             contents: bytemuck::cast_slice(&QUAD_INDICES),
@@ -289,7 +263,6 @@ pub(crate) fn extract_added_ui_nodes(
             index_buffer: index_buffer,
             index_count: QUAD_INDICES.len() as u32,
             vertex_buffer: vertex_buffer,
-            material_bind_group,
             location: computed_node.location,
             size: computed_node.size,
             z_index: computed_node.z_index,
@@ -301,6 +274,56 @@ pub(crate) fn extract_added_ui_nodes(
             }
             None => {
                 let render_entity = cmd.spawn(render_ui_node);
+                cmd.insert(RenderEntity::new(render_entity), computed_node_entity);
+            }
+        }
+    }
+}
+
+pub(crate) fn extract_added_ui_materials(
+    computed_nodes: Query<
+        (Entity, &UIMaterialComponent, Option<&RenderEntity>),
+        Changed<UIMaterialComponent>,
+    >,
+    ui_material_layout: Res<UIMaterialLayout>,
+    device: Res<RenderDevice>,
+    mut cmd: CommandQueue,
+) {
+    for (computed_node_entity, node_material, render_entity) in computed_nodes.iter() {
+        let color = node_material.color;
+
+        let color_array = [
+            color.r as f32,
+            color.g as f32,
+            color.b as f32,
+            color.a as f32,
+        ];
+
+        let material_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("UI Material Buffer"),
+            contents: bytemuck::cast_slice(&color_array),
+            usage: BufferUsages::UNIFORM,
+        });
+
+        let material_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("UI Material Bind Group"),
+            layout: &ui_material_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: material_buffer.as_entire_binding(),
+            }],
+        });
+
+        let render_ui_material = RenderUIMaterial {
+            material_bind_group,
+        };
+
+        match render_entity {
+            Some(render_entity) => {
+                cmd.insert(render_ui_material, **render_entity);
+            }
+            None => {
+                let render_entity = cmd.spawn(render_ui_material);
                 cmd.insert(RenderEntity::new(render_entity), computed_node_entity);
             }
         }

@@ -10,7 +10,7 @@ use window::plugin::Window;
 
 use crate::{
     layout::UICameraLayout,
-    node::RenderUINode,
+    node::{RenderUIMaterial, RenderUINode},
     resources::UIRenderPipeline,
     text::{
         RenderTextComponent,
@@ -79,7 +79,7 @@ pub(crate) fn ui_renderpass(
     render_window: Res<RenderWindow>,
     window: Res<Window>,
     ui_camera_layout: Res<UICameraLayout>,
-    ui_nodes: Query<&RenderUINode>,
+    ui_nodes: Query<(&RenderUINode, &RenderUIMaterial)>,
     // Texture inputs
     text_renderer: ResMut<TextRenderer>,
     text_viewport: Res<TextViewport>,
@@ -131,14 +131,14 @@ pub(crate) fn ui_renderpass(
         render_pass.set_bind_group(0, &ui_camera_bind_group, &[]);
 
         let mut render_nodes = ui_nodes.iter().collect::<Vec<_>>();
-        render_nodes.sort_by_key(|render_node| render_node.z_index);
-        for render_node in render_nodes {
+        render_nodes.sort_by_key(|(render_node, _)| render_node.z_index);
+        for (render_node, render_material) in render_nodes {
             render_pass.set_index_buffer(
                 render_node.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint16,
             );
             render_pass.set_vertex_buffer(0, render_node.vertex_buffer.slice(..));
-            render_pass.set_bind_group(1, &render_node.material_bind_group, &[]);
+            render_pass.set_bind_group(1, &render_material.material_bind_group, &[]);
             render_pass.draw_indexed(0..render_node.index_count, 0, 0..1);
         }
 

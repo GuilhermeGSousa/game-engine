@@ -2,13 +2,11 @@ use app::{plugins::PluginsState, App};
 use ecs::events::event_channel::EventChannel;
 use input::Input;
 use plugin::Window;
-use winit::{
-    application::ApplicationHandler,
-    event::{KeyEvent, WindowEvent},
-    keyboard::PhysicalKey,
-};
+use winit::{application::ApplicationHandler, event::KeyEvent, keyboard::PhysicalKey};
 
-use crate::winit_events::WinitEvent;
+use winit::event::WindowEvent as WinitWindowEvent;
+
+use crate::winit_events::WindowEvent;
 
 pub mod input;
 pub mod plugin;
@@ -46,19 +44,19 @@ impl ApplicationHandler for ApplicationWindowHandler {
         self.winit_events.push(event.clone());
 
         match event {
-            WindowEvent::CloseRequested => {
+            WinitWindowEvent::CloseRequested => {
                 event_loop.exit();
             }
-            WindowEvent::RedrawRequested => {
+            WinitWindowEvent::RedrawRequested => {
                 let event_channel = self
                     .app
-                    .get_mut_resource::<EventChannel<WinitEvent>>()
+                    .get_mut_resource::<EventChannel<WindowEvent>>()
                     .unwrap();
 
                 self.winit_events
                     .drain(..)
-                    .for_each(|e| event_channel.push_event(WinitEvent::new(e.clone())));
-                
+                    .for_each(|e| event_channel.push_event(WindowEvent::new(e.clone())));
+
                 if self.app.plugin_state() == PluginsState::Finished {
                     self.app.update();
                 }
@@ -66,7 +64,7 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();
             }
-            WindowEvent::KeyboardInput {
+            WinitWindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
                         state,

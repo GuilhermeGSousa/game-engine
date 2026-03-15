@@ -54,11 +54,6 @@ struct TransformInput {
     @location(8) model_matrix_1: vec4<f32>,
     @location(9) model_matrix_2: vec4<f32>,
     @location(10) model_matrix_3: vec4<f32>,
-
-    // Rotation Matrix
-    @location(11) rotation_matrix_0: vec3<f32>,
-    @location(12) rotation_matrix_1: vec3<f32>,
-    @location(13) rotation_matrix_2: vec3<f32>,
 };
 
 struct VertexOutput {
@@ -83,9 +78,9 @@ fn vs_main(
     );
 
     let rotation_matrix = mat3x3<f32>(
-        instance.rotation_matrix_0,
-        instance.rotation_matrix_1,
-        instance.rotation_matrix_2,
+        instance.model_matrix_0.xyz,
+        instance.model_matrix_1.xyz,
+        instance.model_matrix_2.xyz,
     );
 
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);

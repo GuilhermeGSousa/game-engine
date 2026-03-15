@@ -11,7 +11,7 @@ use ecs::{
     query::{query_filter::Added, Query},
     resource::{Res, Resource},
 };
-use encase::{ShaderType, UniformBuffer};
+use encase::{UniformBuffer};
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
     transform::GlobalTranform,
@@ -147,9 +147,4 @@ pub(crate) fn update_skeletons(
             _ => continue,
         };
     }
-}
-
-#[derive(ShaderType)]
-pub(crate) struct SkeletonUniform {
-    pub(crate) bones: [Mat4; MAX_SKELETON_BONES],
 }

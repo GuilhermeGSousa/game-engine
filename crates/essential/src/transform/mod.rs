@@ -134,7 +134,6 @@ impl GlobalTranform {
     pub fn to_raw(&self) -> GlobalTransformRaw {
         GlobalTransformRaw {
             matrix: self.matrix().to_cols_array_2d(),
-            rotation_matrix: self.0.matrix3.to_cols_array_2d(),
         }
     }
 
@@ -179,5 +178,4 @@ impl GlobalTranform {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GlobalTransformRaw {
     matrix: [[f32; 4]; 4],
-    rotation_matrix: [[f32; 3]; 3],
 }

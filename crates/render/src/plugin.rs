@@ -25,7 +25,7 @@ use crate::{
         render_window::RenderWindow,
         RenderAssetPlugin,
     },
-    resources::RenderContext,
+    resources::{MainRenderPipeline, RenderContext, SkyboxRenderPipeline},
     systems::{
         render::{self, present_window},
         update_window,
@@ -155,7 +155,7 @@ impl Plugin for RenderPlugin {
                 render::main_renderpass,
             )
             .add_system(
-                app::update_group::UpdateGroup::Render,
+                app::update_group::UpdateGroup::LateRender,
                 render::finish_render,
             )
             .add_system(app::update_group::UpdateGroup::LateRender, present_window);
@@ -330,9 +330,9 @@ impl Plugin for RenderPlugin {
             .insert_resource(RenderContext {
                 surface: surface,
                 surface_config: config,
-                main_pipeline: main_render_pipeline,
-                skybox_pipeline: skybox_render_pipeline,
             })
+            .insert_resource(MainRenderPipeline::new(main_render_pipeline))
+            .insert_resource(SkyboxRenderPipeline::new(skybox_render_pipeline))
             .insert_resource(RenderDevice {
                 device,
                 encoder: None,

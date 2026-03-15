@@ -1,11 +1,12 @@
 use std::ops::Deref;
 
 use ecs::{
-    events::event_reader::EventReader, query::{change_detection::DetectChanges, Query}, resource::{Res, ResMut}
+    events::event_reader::EventReader,
+    query::{change_detection::DetectChanges, Query},
+    resource::{Res, ResMut},
 };
 
-use window::{plugin::Window, winit_events::WinitEvent};
-use winit::event::WindowEvent;
+use window::{plugin::Window, winit_events::WindowEvent};
 
 use crate::{
     components::camera::RenderCamera,
@@ -15,17 +16,13 @@ use crate::{
 };
 
 pub(crate) fn request_window_resize(
-    window_events: EventReader<WinitEvent>,
+    window_events: EventReader<WindowEvent>,
     mut window: ResMut<Window>,
-)
-{
-    for event in window_events.read()
-    {
-        match event.deref()
-        {
-            WindowEvent::Resized(physical_size) => 
-            {
-                window.request_resize((physical_size.width, physical_size.height));
+) {
+    for event in window_events.read() {
+        match event.deref() {
+            winit::event::WindowEvent::Resized(_) => {
+                window.mark_changed();
             }
             _ => {}
         }

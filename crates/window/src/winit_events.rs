@@ -3,15 +3,15 @@ use std::ops::{Deref, DerefMut};
 use ecs::events::Event;
 
 #[derive(Event)]
-pub struct WinitEvent(winit::event::WindowEvent);
+pub struct WindowEvent(winit::event::WindowEvent);
 
-impl WinitEvent {
+impl WindowEvent {
     pub fn new(event: winit::event::WindowEvent) -> Self {
         Self(event)
     }
 }
 
-impl Deref for WinitEvent {
+impl Deref for WindowEvent {
     type Target = winit::event::WindowEvent;
 
     fn deref(&self) -> &Self::Target {
@@ -19,7 +19,7 @@ impl Deref for WinitEvent {
     }
 }
 
-impl DerefMut for WinitEvent {
+impl DerefMut for WindowEvent {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

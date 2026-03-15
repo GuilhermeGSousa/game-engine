@@ -17,11 +17,11 @@ use crate::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
         RenderAssets,
     },
-    resources::RenderContext,
+    resources::{MainRenderPipeline, SkyboxRenderPipeline},
 };
 
 pub(crate) fn main_renderpass(
-    context: Res<RenderContext>,
+    pipeline: Res<MainRenderPipeline>,
     mut device: ResMut<RenderDevice>,
     render_mesh_query: Query<(&RenderMeshInstance, Option<&RenderSkeletonComponent>)>,
     render_cameras: Query<&RenderCamera>,
@@ -56,7 +56,7 @@ pub(crate) fn main_renderpass(
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            render_pass.set_pipeline(&context.main_pipeline);
+            render_pass.set_pipeline(&pipeline);
 
             render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
             render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
@@ -79,7 +79,7 @@ pub(crate) fn main_renderpass(
                     render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                     render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
 
-                    render_pass.set_vertex_buffer(1, mesh_instance.buffer.slice(..));
+                    render_pass.set_vertex_buffer(1, mesh_instance.transform.slice(..));
                     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }
@@ -92,7 +92,7 @@ pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
 }
 
 pub(crate) fn skybox_renderpass(
-    context: Res<RenderContext>,
+    pipeline: Res<SkyboxRenderPipeline>,
     mut device: ResMut<RenderDevice>,
     render_cameras: Query<(&RenderCamera, &RenderSkyboxBindGroup)>,
     render_window: Res<RenderWindow>,
@@ -117,7 +117,7 @@ pub(crate) fn skybox_renderpass(
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&context.skybox_pipeline);
+            render_pass.set_pipeline(&pipeline);
 
             render_pass.set_bind_group(0, &camera.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &skybox_bind_group.bind_group, &[]);

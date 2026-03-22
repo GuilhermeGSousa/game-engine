@@ -1,3 +1,4 @@
+pub mod button;
 pub mod material;
 pub mod node;
 pub mod plugin;

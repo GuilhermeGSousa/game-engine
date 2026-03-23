@@ -259,21 +259,19 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
             BindingKind::Uniform { index } => {
                 let buf_label = format!("{}_{}_uniform", struct_name, field_name);
                 entry_stmts.push(quote! {
-                    {
-                        let uniform_buf = device.create_buffer_init(
-                            &wgpu::util::BufferInitDescriptor {
-                                label: Some(#buf_label),
-                                contents: bytemuck::cast_slice(&[self.#field_name]),
-                                usage: wgpu::BufferUsages::UNIFORM,
-                            },
-                        );
-                        entries.push(wgpu::BindGroupEntry {
-                            binding: #index,
-                            resource: wgpu::BindingResource::Buffer(
-                                uniform_buf.as_entire_buffer_binding(),
-                            ),
-                        });
-                    }
+                    let uniform_buf = device.create_buffer_init(
+                        &wgpu::util::BufferInitDescriptor {
+                            label: Some(#buf_label),
+                            contents: bytemuck::cast_slice(&[self.#field_name]),
+                            usage: wgpu::BufferUsages::UNIFORM,
+                        },
+                    );
+                    entries.push(wgpu::BindGroupEntry {
+                        binding: #index,
+                        resource: wgpu::BindingResource::Buffer(
+                            uniform_buf.as_entire_buffer_binding(),
+                        ),
+                    });
                 });
             }
         }

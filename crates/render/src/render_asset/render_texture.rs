@@ -12,10 +12,10 @@ use ecs::{
 };
 
 #[allow(dead_code)]
-pub(crate) struct RenderTexture {
+pub struct RenderTexture {
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
     pub(crate) texture: wgpu::Texture,
-    pub(crate) view: wgpu::TextureView,
-    pub(crate) sampler: wgpu::Sampler,
 }
 
 impl RenderTexture {
@@ -118,10 +118,10 @@ impl RenderAsset for RenderTexture {
 }
 
 #[derive(Resource)]
-pub(crate) struct DummyRenderTexture(pub(crate) RenderTexture);
+pub struct DummyRenderTexture(pub(crate) RenderTexture);
 
 impl DummyRenderTexture {
-    pub(crate) fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device) -> Self {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("RenderTexture Sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,

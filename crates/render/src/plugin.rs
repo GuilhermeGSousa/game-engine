@@ -1,6 +1,6 @@
 use crate::{
     assets::{
-        material::Material,
+        material::StandardMaterial,
         mesh::Mesh,
         skeleton::Skeleton,
         texture::Texture,
@@ -122,7 +122,7 @@ impl Plugin for RenderPlugin {
 
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
-            .register_asset::<Material>()
+            .register_asset::<StandardMaterial>()
             .register_asset::<Skeleton>();
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)

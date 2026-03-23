@@ -11,6 +11,7 @@ app = { path = "../app" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 window = { path = "../window" }
+render-macros = { path = "macros" }
 bitflags = "2.9.1"
 encase = { version = "0.11.1", features = ["glam"] }
 glam = { version = "0.30.1" }

@@ -4,10 +4,12 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    parse_macro_input, DeriveInput, Field, Ident, Lit, LitStr, Meta, Type,
+    parse_macro_input, DeriveInput, Expr, Field, Ident, Lit, Meta, Type,
 };
 
-/// Describes how a field is bound in the shader.
+/// Represents the different types of shader resource bindings supported by the
+/// `#[derive(AsBindGroup)]` macro.  Each variant corresponds to one
+/// `@group(0)` entry in the generated `wgpu::BindGroupLayout`.
 #[derive(Debug)]
 enum BindingKind {
     /// A 2D texture (`Option<AssetHandle<Texture>>`). The sampler is placed at binding `index + 1`.
@@ -18,6 +20,8 @@ enum BindingKind {
     Uniform { index: u32 },
 }
 
+/// Associates a struct field with its shader binding metadata extracted from
+/// the `#[texture(N)]`, `#[sampler(N)]`, or `#[uniform(N)]` attributes.
 struct BindingField<'a> {
     field: &'a Field,
     kind: BindingKind,
@@ -71,9 +75,12 @@ fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
 }
 
 /// Parse `vertex_shader` / `fragment_shader` from the struct-level `#[material(...)]` attribute.
-fn parse_material_attr(attrs: &[syn::Attribute]) -> (Option<LitStr>, Option<LitStr>) {
-    let mut vertex = None;
-    let mut fragment = None;
+///
+/// Each value may be a string literal (`"..."`) or any Rust expression that
+/// evaluates to `&'static str` at compile time, such as `include_str!(...)`.
+fn parse_material_attr(attrs: &[syn::Attribute]) -> (Option<Expr>, Option<Expr>) {
+    let mut vertex: Option<Expr> = None;
+    let mut fragment: Option<Expr> = None;
     for attr in attrs {
         if !attr.path().is_ident("material") {
             continue;
@@ -81,12 +88,12 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> (Option<LitStr>, Option<LitS
         let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("vertex_shader") {
                 let value = meta.value()?;
-                let lit: LitStr = value.parse()?;
-                vertex = Some(lit);
+                let expr: Expr = value.parse()?;
+                vertex = Some(expr);
             } else if meta.path.is_ident("fragment_shader") {
                 let value = meta.value()?;
-                let lit: LitStr = value.parse()?;
-                fragment = Some(lit);
+                let expr: Expr = value.parse()?;
+                fragment = Some(expr);
             }
             Ok(())
         });
@@ -317,11 +324,11 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let (vertex_shader_lit, fragment_shader_lit) = parse_material_attr(&input.attrs);
 
     let vertex_shader_expr = match vertex_shader_lit {
-        Some(lit) => quote! { render::assets::material::ShaderRef::Source(#lit) },
+        Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
     let fragment_shader_expr = match fragment_shader_lit {
-        Some(lit) => quote! { render::assets::material::ShaderRef::Source(#lit) },
+        Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
 

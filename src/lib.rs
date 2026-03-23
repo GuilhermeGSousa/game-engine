@@ -30,10 +30,11 @@ use render::{
     components::{
         camera::Camera,
         light::{LighType, Light, SpotLight},
+        material_component::MaterialComponent,
         mesh_component::MeshComponent,
         skybox::Skybox,
     },
-    material_plugin::{CustomMaterialComponent, MaterialPlugin},
+    material_plugin::MaterialPlugin,
     plugin::RenderPlugin,
 };
 
@@ -259,7 +260,7 @@ fn spawn_unlit_obj(
                         handle: obj_mesh.handle.clone(),
                     },
                     Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-                    CustomMaterialComponent::<UnlitMaterial> {
+                    MaterialComponent::<UnlitMaterial> {
                         handle: spawner.material.clone(),
                     },
                 ));

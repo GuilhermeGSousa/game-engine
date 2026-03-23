@@ -42,7 +42,10 @@ impl Plugin for UIPlugin {
                 app::update_group::UpdateGroup::Render,
                 prepare_text_renderer,
             )
-            .add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
+            // The UI pass must run in LateRender so it draws on top of all 3-D
+            // scene passes (skybox, main mesh, custom material passes) which are
+            // scheduled in the Render group.
+            .add_system(app::update_group::UpdateGroup::LateRender, ui_renderpass);
     }
 
     fn finish(&self, app: &mut app::App) {

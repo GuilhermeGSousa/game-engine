@@ -300,11 +300,90 @@ impl MaterialFlags {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Backward-compatibility alias
+// Material — high-level trait that unifies all material types
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Backward-compatible alias for [`StandardMaterial`].
+/// High-level material trait.
 ///
-/// New code should prefer `StandardMaterial` directly.
-#[deprecated(since = "0.1.0", note = "Use `StandardMaterial` instead")]
-pub type Material = StandardMaterial;
+/// Every renderable material type implements `Material`.  The trait extends
+/// [`AsBindGroup`] with a set of optional *engine bind-group* flags that tell
+/// [`crate::material_plugin::MaterialPlugin`] which built-in uniform groups
+/// (`@group(1)` camera, `@group(2)` lighting, `@group(3)` skeleton) to include
+/// in the pipeline layout and bind before each draw call.
+///
+/// Shaders only need to declare the `@group(N)` bindings that their material
+/// actually uses.  Any group not requested via these flags is absent from the
+/// pipeline layout entirely, so the WGSL source never has to reference it.
+///
+/// # Default flag values
+///
+/// | Flag              | Default  | Standard material |
+/// |-------------------|----------|--------------------|
+/// | `needs_camera()`  | `true`   | `true`             |
+/// | `needs_lighting()`| `false`  | `true`             |
+/// | `needs_skeleton()`| `false`  | `true`             |
+///
+/// The built-in group indices follow this fixed assignment:
+///
+/// | `@group(0)` | always the material's own bind group                             |
+/// | `@group(1)` | camera uniform (present when `needs_camera()` is `true`)         |
+/// | `@group(2)` | lighting uniform (present when `needs_lighting()` is `true`)     |
+/// | `@group(3)` | skeleton/bone uniform (present when `needs_skeleton()` is `true`)|
+///
+/// The flags are *independent* — each can be toggled on or off without implying
+/// the others.  However, skipping an intermediate group creates a gap in the
+/// bind-group slot numbering, which is not supported by wgpu.  To avoid this,
+/// only declare a higher-numbered group active if all lower-numbered engine
+/// groups are also active (e.g. `needs_skeleton = true` implies
+/// `needs_lighting = true` and `needs_camera = true`).
+pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
+    /// Whether this material's vertex shader reads the built-in camera uniform
+    /// at `@group(1) @binding(0)`.
+    ///
+    /// Almost all 3-D materials need this for the view-projection matrix.
+    /// Defaults to `true`.
+    fn needs_camera() -> bool
+    where
+        Self: Sized,
+    {
+        true
+    }
+
+    /// Whether this material's shaders use the built-in lighting uniform at
+    /// `@group(2)`.
+    ///
+    /// Defaults to `false`.  Enable for Phong / PBR materials.
+    fn needs_lighting() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    /// Whether this material's vertex shader reads the built-in skeleton
+    /// (bone) uniform at `@group(3) @binding(0)`.
+    ///
+    /// Defaults to `false`.  Enable only for skinned-mesh materials.
+    fn needs_skeleton() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+}
+
+impl Material for StandardMaterial {
+    fn needs_lighting() -> bool {
+        true
+    }
+    fn needs_skeleton() -> bool {
+        true
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Backward-compatibility note:
+//
+// The `Material` type alias (for StandardMaterial) has been removed.  The name
+// `Material` now refers to the trait above.  Use `StandardMaterial` directly.
+// ────────────────────────────────────────────────────────────────────────────

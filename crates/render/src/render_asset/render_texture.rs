@@ -13,8 +13,12 @@ use ecs::{
 
 #[allow(dead_code)]
 pub struct RenderTexture {
+    /// The GPU texture view (used for bind groups).
     pub view: wgpu::TextureView,
+    /// The GPU sampler associated with this texture.
     pub sampler: wgpu::Sampler,
+    /// The underlying GPU texture.  Kept crate-private since callers interact
+    /// with `view` and `sampler`; expose via a getter if broader access is needed.
     pub(crate) texture: wgpu::Texture,
 }
 
@@ -155,6 +159,14 @@ impl DummyRenderTexture {
             view: view,
             sampler: sampler,
         })
+    }
+
+    /// Access the inner [`RenderTexture`].
+    ///
+    /// In most cases the `Deref` impl is sufficient (use `dummy.view` or
+    /// `dummy.sampler`); use this getter when you need the full `RenderTexture`.
+    pub fn inner(&self) -> &RenderTexture {
+        &self.0
     }
 }
 

@@ -99,18 +99,16 @@ impl<M: 'static> Resource for MaterialPipeline<M> {
     }
 }
 
-// ─── RenderCustomMaterial ─────────────────────────────────────────────────────
-
 /// GPU-side representation of a prepared `M` instance.
 ///
 /// Stores the `wgpu::BindGroup` built from the material's data and ready to be
 /// bound at `@group(0)` during the material render pass.
-pub struct RenderCustomMaterial<M: 'static> {
+pub struct RenderMaterial<M: 'static> {
     pub bind_group: wgpu::BindGroup,
     _marker: PhantomData<fn() -> M>,
 }
 
-impl<M: Material + 'static> RenderAsset for RenderCustomMaterial<M> {
+impl<M: Material + 'static> RenderAsset for RenderMaterial<M> {
     type SourceAsset = M;
     type PreparationParams = (
         Res<'static, RenderDevice>,
@@ -130,7 +128,7 @@ impl<M: Material + 'static> RenderAsset for RenderCustomMaterial<M> {
             dummy_texture,
             &pipeline.bind_group_layout,
         )?;
-        Ok(RenderCustomMaterial {
+        Ok(RenderMaterial {
             bind_group,
             _marker: PhantomData,
         })
@@ -196,7 +194,7 @@ pub(crate) fn material_renderpass<M: Material>(
     )>,
     render_cameras: Query<&RenderCamera>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
-    render_materials: Res<RenderAssets<RenderCustomMaterial<M>>>,
+    render_materials: Res<RenderAssets<RenderMaterial<M>>>,
     render_window: Res<RenderWindow>,
     render_lights: Res<RenderLights>,
     empty_skeleton: Res<EmptySkeletonBuffer>,
@@ -299,7 +297,7 @@ impl<M: Material> MaterialPlugin<M> {
 impl<M: Material> Plugin for MaterialPlugin<M> {
     fn build(&self, app: &mut app::App) {
         app.register_asset::<M>();
-        app.register_plugin(RenderAssetPlugin::<RenderCustomMaterial<M>>::new());
+        app.register_plugin(RenderAssetPlugin::<RenderMaterial<M>>::new());
 
         // mesh_added<M> must be per-material so we know which material handle to store
         // in RenderMaterialComponent<M>.  Transform updates, however, are handled by the

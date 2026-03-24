@@ -1,6 +1,6 @@
 use crate::{
     assets::{
-        material::StandardMaterial,
+        material::{AsBindGroup, StandardMaterial},
         mesh::Mesh,
         skeleton::Skeleton,
         skybox_material::SkyboxMaterial,
@@ -9,22 +9,18 @@ use crate::{
     },
     components::{
         camera::{camera_added, camera_changed},
-        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
+        light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
         mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
-        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
-        skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex},
+        skeleton_component::{EmptySkeletonBuffer, skeleton_added, update_skeletons},
+        skybox::{RenderSkyboxCube, SkyboxVertex, prepare_skybox},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
     queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial,
-        render_mesh::RenderMesh,
-        render_texture::{DummyRenderTexture, RenderTexture},
-        render_window::RenderWindow,
-        RenderAssetPlugin,
+        RenderAssetPlugin, render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
     },
     resources::{MainRenderPipeline, RenderContext, SkyboxRenderPipeline},
     systems::{

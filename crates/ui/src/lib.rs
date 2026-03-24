@@ -55,7 +55,7 @@ mod tests {
                 height: AvailableSpace::Definite(800.0),
                 width: AvailableSpace::Definite(600.0),
             },
-        );
+        ).expect("Error computing layout");
 
         let spacer_layout = taffy.layout(spacer).unwrap();
         println!(

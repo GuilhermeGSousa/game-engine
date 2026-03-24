@@ -3,6 +3,7 @@ use crate::{
         material::StandardMaterial,
         mesh::Mesh,
         skeleton::Skeleton,
+        skybox_material::SkyboxMaterial,
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
     },
@@ -281,12 +282,14 @@ impl Plugin for RenderPlugin {
             cache: None,
         });
 
+        let skybox_material_layout = SkyboxMaterial::bind_group_layout(&device);
+
         let skybox_render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Skybox Pipeline Layout"),
                 bind_group_layouts: &[
+                    &skybox_material_layout,
                     &camera_layouts.camera_layout,
-                    &material_layouts.skybox_material_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -332,7 +335,7 @@ impl Plugin for RenderPlugin {
                 surface_config: config,
             })
             .insert_resource(MainRenderPipeline::new(main_render_pipeline))
-            .insert_resource(SkyboxRenderPipeline::new(skybox_render_pipeline))
+            .insert_resource(SkyboxRenderPipeline::new(skybox_render_pipeline, skybox_material_layout))
             .insert_resource(RenderDevice {
                 device,
                 encoder: None,

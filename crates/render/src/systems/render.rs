@@ -126,8 +126,10 @@ pub(crate) fn skybox_renderpass(
 
             render_pass.set_pipeline(&pipeline);
 
-            render_pass.set_bind_group(0, &camera.camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &skybox_bind_group.bind_group, &[]);
+            // group(0) = SkyboxMaterial (cube texture + sampler)
+            // group(1) = camera
+            render_pass.set_bind_group(0, &skybox_bind_group.bind_group, &[]);
+            render_pass.set_bind_group(1, &camera.camera_bind_group, &[]);
 
             render_pass.set_vertex_buffer(0, skybox_cube.vertices.slice(..));
             render_pass.set_index_buffer(skybox_cube.indices.slice(..), wgpu::IndexFormat::Uint16);

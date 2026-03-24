@@ -1,13 +1,16 @@
 use app::plugins::Plugin;
 use glyphon::{Cache, FontSystem, SwashCache, Viewport};
 use render::{
-    assets::vertex::VertexBufferLayout, device::RenderDevice, queue::RenderQueue,
+    assets::{material::AsBindGroup, vertex::VertexBufferLayout},
+    device::RenderDevice,
+    queue::RenderQueue,
     resources::RenderContext,
 };
 use wgpu::{MultisampleState, PipelineLayoutDescriptor};
 
 use crate::{
-    layout::{UICameraLayout, UIMaterialLayout},
+    layout::UICameraLayout,
+    material::UIMaterial,
     node::{compute_ui_nodes, extract_added_ui_materials, extract_added_ui_nodes},
     render::{prepare_text_renderer, ui_renderpass, update_text_viewport},
     resources::UIRenderPipeline,
@@ -73,10 +76,10 @@ impl Plugin for UIPlugin {
         let text_renderer =
             glyphon::TextRenderer::new(&mut atlas, &device, MultisampleState::default(), None);
 
-        // UI rendering
+        // UI rendering — material bind-group layout is derived from UIMaterial via the macro.
         let ui_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\ui.wgsl"));
         let ui_camera_layout = UICameraLayout::new(&device);
-        let ui_material_layout = UIMaterialLayout::new(&device);
+        let ui_material_layout = UIMaterial::bind_group_layout(&device);
         let ui_render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("UI Render Pipeline Layout"),
             bind_group_layouts: &[&ui_camera_layout, &ui_material_layout],
@@ -121,14 +124,13 @@ impl Plugin for UIPlugin {
             cache: None,
         });
 
-        app.insert_resource(UIRenderPipeline::new(ui_render_pipeline))
+        app.insert_resource(UIRenderPipeline::new(ui_render_pipeline, ui_material_layout))
             .insert_resource(TextRenderer(text_renderer))
             .insert_resource(TextCache(cache))
             .insert_resource(TextSwashCache(swash_cache))
             .insert_resource(TextViewport(viewport))
             .insert_resource(TextFontSystem(font_system))
             .insert_resource(TextAtlas(atlas))
-            .insert_resource(ui_camera_layout)
-            .insert_resource(ui_material_layout);
+            .insert_resource(ui_camera_layout);
     }
 }

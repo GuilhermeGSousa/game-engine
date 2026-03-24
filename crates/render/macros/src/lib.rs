@@ -5,13 +5,21 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Expr, Field, Ident, Lit, Meta, Type};
 
+/// Texture dimension for the `#[texture(N)]` attribute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextureViewDimension {
+    D2,
+    Cube,
+}
+
 /// Represents the different types of shader resource bindings supported by the
 /// `#[derive(AsBindGroup)]` macro.  Each variant corresponds to one
 /// `@group(0)` entry in the generated `wgpu::BindGroupLayout`.
 #[derive(Debug)]
 enum BindingKind {
-    /// A 2D texture (`Option<AssetHandle<Texture>>`). The sampler is placed at binding `index + 1`.
-    Texture { index: u32 },
+    /// A texture binding.  `dimension` controls whether it is a 2-D texture
+    /// (the default) or a cube-map texture (`#[texture(N, dimension = "cube")]`).
+    Texture { index: u32, dimension: TextureViewDimension },
     /// A sampler linked to the texture at `texture_index`.
     Sampler { index: u32 },
     /// A plain `bytemuck::Pod + bytemuck::Zeroable` value uploaded as a uniform buffer.
@@ -40,16 +48,50 @@ fn parse_index_from_attr(attr: &syn::Attribute) -> Option<u32> {
     }
 }
 
+/// Parse `#[texture(N)]` or `#[texture(N, dimension = "cube")]`.
+///
+/// Returns `(index, dimension)` on success, or `None` if the attribute does
+/// not match the expected syntax.
+fn parse_texture_attr(attr: &syn::Attribute) -> Option<(u32, TextureViewDimension)> {
+    let Meta::List(ref list) = attr.meta else {
+        return None;
+    };
+
+    // Use a manual syn parser that handles both forms:
+    //   #[texture(N)]
+    //   #[texture(N, dimension = "cube")]
+    use syn::parse::Parser;
+    let parser = |input: syn::parse::ParseStream<'_>| -> syn::Result<(u32, TextureViewDimension)> {
+        let idx_lit: syn::LitInt = input.parse()?;
+        let idx = idx_lit.base10_parse::<u32>()?;
+        let mut dim = TextureViewDimension::D2;
+        if input.peek(syn::Token![,]) {
+            let _: syn::Token![,] = input.parse()?;
+            let key: syn::Ident = input.parse()?;
+            let _: syn::Token![=] = input.parse()?;
+            let val: syn::LitStr = input.parse()?;
+            if key == "dimension" {
+                dim = match val.value().as_str() {
+                    "cube" => TextureViewDimension::Cube,
+                    _ => TextureViewDimension::D2,
+                };
+            }
+        }
+        Ok((idx, dim))
+    };
+    parser.parse2(list.tokens.clone()).ok()
+}
+
 /// Extract binding fields from a struct's named fields.
 fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
     let mut bindings = Vec::new();
     for field in &fields.named {
         for attr in &field.attrs {
             if attr.path().is_ident("texture") {
-                if let Some(index) = parse_index_from_attr(attr) {
+                if let Some((index, dimension)) = parse_texture_attr(attr) {
                     bindings.push(BindingField {
                         field,
-                        kind: BindingKind::Texture { index },
+                        kind: BindingKind::Texture { index, dimension },
                     });
                 }
             } else if attr.path().is_ident("sampler") {
@@ -105,14 +147,18 @@ fn gen_bind_group_layout(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
     let entries: Vec<TokenStream2> = bindings
         .iter()
         .map(|b| match &b.kind {
-            BindingKind::Texture { index } => {
+            BindingKind::Texture { index, dimension } => {
+                let view_dim = match dimension {
+                    TextureViewDimension::D2 => quote! { wgpu::TextureViewDimension::D2 },
+                    TextureViewDimension::Cube => quote! { wgpu::TextureViewDimension::Cube },
+                };
                 quote! {
                     wgpu::BindGroupLayoutEntry {
                         binding: #index,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
+                            view_dimension: #view_dim,
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         },
                         count: None,
@@ -182,7 +228,7 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
     for b in bindings {
         let field_name = b.field.ident.as_ref().unwrap();
         match &b.kind {
-            BindingKind::Texture { index } => {
+            BindingKind::Texture { index, .. } => {
                 // If the type is Option<AssetHandle<…>> we do a lookup in render_textures.
                 if is_option_asset_handle(&b.field.ty) {
                     entry_stmts.push(quote! {
@@ -212,7 +258,7 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
                 let paired_texture: Option<(&Field, u32)> = bindings
                     .iter()
                     .filter_map(|b2| {
-                        if let BindingKind::Texture { index: ti } = b2.kind {
+                        if let BindingKind::Texture { index: ti, .. } = b2.kind {
                             Some((b2.field, ti))
                         } else {
                             None

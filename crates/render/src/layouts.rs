@@ -8,41 +8,14 @@ use crate::assets::material::{AsBindGroup, StandardMaterial};
 #[derive(Resource)]
 pub(crate) struct MaterialLayouts {
     pub main_material_layout: wgpu::BindGroupLayout,
-    pub skybox_material_layout: wgpu::BindGroupLayout,
 }
 
 impl MaterialLayouts {
     pub fn new(device: &wgpu::Device) -> Self {
         let main_material_layout = StandardMaterial::bind_group_layout(device);
 
-        let skybox_material_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::Cube,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        // This should match the filterable field of the
-                        // corresponding Texture entry above.
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-                label: Some("mesh_bind_group_layout"),
-            });
-
         Self {
             main_material_layout,
-            skybox_material_layout,
         }
     }
 }

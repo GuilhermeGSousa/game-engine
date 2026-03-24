@@ -15,17 +15,22 @@ use ecs::{
 };
 use glam::Vec2;
 use log::warn;
-use render::{components::render_entity::RenderEntity, device::RenderDevice};
-use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree};
-use wgpu::{
-    BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages,
-    util::{BufferInitDescriptor, DeviceExt},
+use render::{
+    assets::material::AsBindGroup,
+    components::render_entity::RenderEntity,
+    device::RenderDevice,
+    render_asset::{
+        render_texture::{DummyRenderTexture, RenderTexture},
+        RenderAssets,
+    },
 };
+use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree};
+use wgpu::Buffer;
 use window::plugin::Window;
 
 use crate::{
-    layout::UIMaterialLayout,
-    material::UIMaterialComponent,
+    material::UIMaterial,
+    resources::UIRenderPipeline,
     transform::UIValue,
     vertex::{QUAD_INDICES, UIVertex},
 };
@@ -280,43 +285,34 @@ pub(crate) fn extract_added_ui_nodes(
     }
 }
 
+/// Extracts [`UIMaterial`] changes into GPU-side [`RenderUIMaterial`] bind groups.
+///
+/// The bind group is created via [`UIMaterial::create_bind_group`] — the same
+/// macro-generated method that is used to verify bind-group layout compatibility
+/// — so the layout used here is always consistent with the one used to build the
+/// UI render pipeline.
 pub(crate) fn extract_added_ui_materials(
     computed_nodes: Query<
-        (Entity, &UIMaterialComponent, Option<&RenderEntity>),
-        Changed<UIMaterialComponent>,
+        (Entity, &UIMaterial, Option<&RenderEntity>),
+        Changed<UIMaterial>,
     >,
-    ui_material_layout: Res<UIMaterialLayout>,
     device: Res<RenderDevice>,
+    render_textures: Res<RenderAssets<RenderTexture>>,
+    dummy_texture: Res<DummyRenderTexture>,
+    ui_pipeline: Res<UIRenderPipeline>,
     mut cmd: CommandQueue,
 ) {
     for (computed_node_entity, node_material, render_entity) in computed_nodes.iter() {
-        let color = node_material.color;
-
-        let color_array = [
-            color.r as f32,
-            color.g as f32,
-            color.b as f32,
-            color.a as f32,
-        ];
-
-        let material_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("UI Material Buffer"),
-            contents: bytemuck::cast_slice(&color_array),
-            usage: BufferUsages::UNIFORM,
-        });
-
-        let material_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("UI Material Bind Group"),
-            layout: &ui_material_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: material_buffer.as_entire_binding(),
-            }],
-        });
-
-        let render_ui_material = RenderUIMaterial {
-            material_bind_group,
+        let Ok(material_bind_group) = node_material.create_bind_group(
+            &device,
+            &render_textures,
+            &dummy_texture,
+            &ui_pipeline.material_layout,
+        ) else {
+            continue;
         };
+
+        let render_ui_material = RenderUIMaterial { material_bind_group };
 
         match render_entity {
             Some(render_entity) => {

@@ -1,3 +1,7 @@
+// Allow the `render_macros`-generated code (which uses `render::` paths) to
+// work when the derive is applied inside this crate itself.
+extern crate self as render;
+
 pub mod assets;
 pub mod components;
 pub mod device;

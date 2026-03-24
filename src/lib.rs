@@ -40,7 +40,7 @@ use render::{
 
 use taffy::FlexDirection;
 use ui::{
-    material::UIMaterialComponent, node::UINode, plugin::UIPlugin, text::TextComponent,
+    material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent,
     transform::UIValue,
 };
 use wgpu_types::{
@@ -141,8 +141,8 @@ fn spawn_ui(mut cmd: CommandQueue) {
             height: UIValue::Percent(0.1),
             ..Default::default()
         },
-        UIMaterialComponent {
-            color: wgpu_types::Color::GREEN,
+        UIMaterial {
+            color: [0.0, 1.0, 0.0, 1.0],
         },
     ));
 

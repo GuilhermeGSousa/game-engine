@@ -369,6 +369,19 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
     {
         false
     }
+
+    /// The cull mode to use when rendering this material.
+    ///
+    /// Defaults to `Some(wgpu::Face::Back)` (back-face culling, suitable for
+    /// all standard outward-facing meshes).  Override with
+    /// `Some(wgpu::Face::Front)` for materials that must cull front faces
+    /// (e.g. skybox cube interiors), or `None` to disable culling.
+    fn cull_mode() -> Option<wgpu::Face>
+    where
+        Self: Sized,
+    {
+        Some(wgpu::Face::Back)
+    }
 }
 
 impl Material for StandardMaterial {

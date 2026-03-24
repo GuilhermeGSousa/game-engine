@@ -54,13 +54,13 @@ use window::{
 
 use winit::keyboard::{KeyCode, PhysicalKey};
 
+use crate::custom_material::{TintUniform, UnlitMaterial};
 use crate::movement_animation::{
     setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
 };
-use crate::custom_material::{TintUniform, UnlitMaterial};
 
-mod movement_animation;
 mod custom_material;
+mod movement_animation;
 
 #[allow(dead_code)]
 
@@ -229,7 +229,10 @@ fn spawn_floor(
     });
 
     cmd.spawn((
-        UnlitOBJSpawner { mesh: ground_mesh, material: unlit_mat },
+        UnlitOBJSpawner {
+            mesh: ground_mesh,
+            material: unlit_mat,
+        },
         ground_colider,
         ground_transform,
     ));

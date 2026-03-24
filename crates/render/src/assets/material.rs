@@ -238,16 +238,15 @@ impl AsBindGroup for StandardMaterial {
         }
 
         let flags = MaterialFlags::from_material(self);
-        let material_flags_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("StandardMaterial_flags"),
-                contents: bytemuck::cast_slice(&[MaterialUniform {
-                    flags,
-                    _padding: [0; 3],
-                    _padding2: [0; 4],
-                }]),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+        let material_flags_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("StandardMaterial_flags"),
+            contents: bytemuck::cast_slice(&[MaterialUniform {
+                flags,
+                _padding: [0; 3],
+                _padding2: [0; 4],
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
         entries.push(wgpu::BindGroupEntry {
             binding: 4,
             resource: wgpu::BindingResource::Buffer(

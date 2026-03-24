@@ -32,7 +32,8 @@ use image::ImageBuffer;
 use log::warn;
 use render::{
     assets::{
-        material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture, vertex::Vertex,
+        material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture,
+        vertex::Vertex,
     },
     components::{
         material_component::MaterialComponent, mesh_component::MeshComponent,

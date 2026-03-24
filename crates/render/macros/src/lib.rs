@@ -3,9 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{
-    parse_macro_input, DeriveInput, Expr, Field, Ident, Lit, Meta, Type,
-};
+use syn::{parse_macro_input, DeriveInput, Expr, Field, Ident, Lit, Meta, Type};
 
 /// Represents the different types of shader resource bindings supported by the
 /// `#[derive(AsBindGroup)]` macro.  Each variant corresponds to one
@@ -164,9 +162,7 @@ fn is_option_asset_handle(ty: &Type) -> bool {
         if let Some(seg) = type_path.path.segments.last() {
             if seg.ident == "Option" {
                 if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                    if let Some(syn::GenericArgument::Type(Type::Path(inner))) =
-                        args.args.first()
-                    {
+                    if let Some(syn::GenericArgument::Type(Type::Path(inner))) = args.args.first() {
                         if let Some(inner_seg) = inner.path.segments.last() {
                             return inner_seg.ident == "AssetHandle";
                         }

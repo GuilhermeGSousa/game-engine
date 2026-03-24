@@ -17,8 +17,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     assets::{material::StandardMaterial, mesh::Mesh},
     components::{
-        material_component::MaterialComponent,
-        render_entity::RenderEntity,
+        material_component::MaterialComponent, render_entity::RenderEntity,
         render_material_component::RenderMaterialComponent,
     },
     device::RenderDevice,
@@ -61,8 +60,7 @@ pub(crate) fn mesh_added(
             mesh_asset_id: mesh.handle.id(),
             transform: instance_buffer,
         };
-        let render_mat =
-            RenderMaterialComponent::<StandardMaterial>::new(material.handle.id());
+        let render_mat = RenderMaterialComponent::<StandardMaterial>::new(material.handle.id());
 
         match render_entity {
             Some(render_entity) => {

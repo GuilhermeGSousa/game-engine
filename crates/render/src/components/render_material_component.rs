@@ -15,6 +15,7 @@ use essential::assets::AssetId;
 /// The type parameter `M` ensures that `material_renderpass<M>` only picks up
 /// entities belonging to pipeline `M`, so multiple `MaterialPlugin` instances
 /// for different material types coexist without interfering with each other.
+#[derive(Component)]
 pub(crate) struct RenderMaterialComponent<M: 'static> {
     pub(crate) material_asset_id: AssetId,
     _marker: PhantomData<fn() -> M>,
@@ -26,11 +27,5 @@ impl<M: 'static> RenderMaterialComponent<M> {
             material_asset_id,
             _marker: PhantomData,
         }
-    }
-}
-
-impl<M: Send + Sync + 'static> Component for RenderMaterialComponent<M> {
-    fn name() -> &'static str {
-        std::any::type_name::<RenderMaterialComponent<M>>()
     }
 }

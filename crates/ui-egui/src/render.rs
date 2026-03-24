@@ -56,15 +56,14 @@ pub(crate) fn end_ui_frame(
             pixels_per_point: window.window_handle.scale_factor() as f32,
         };
 
-        device.scoped_encoder(|device, mut encoder|
-        {
+        device.scoped_encoder(|device, mut encoder| {
             ui_renderer.renderer.update_buffers(
-                        &device,
-                        &queue,
-                        &mut encoder,
-                        &tris,
-                        &screen_descriptor,
-                    );
+                &device,
+                &queue,
+                &mut encoder,
+                &tris,
+                &screen_descriptor,
+            );
         });
 
         let encoder = device.command_encoder();

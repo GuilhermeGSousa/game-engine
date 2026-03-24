@@ -18,4 +18,4 @@ pub use render_macros::AsBindGroup;
 /// Re-export the `Material` trait and plugin types for convenience.
 pub use assets::material::Material;
 pub use components::material_component::MaterialComponent;
-pub use material_plugin::{MaterialPlugin, MaterialPipeline, RenderCustomMaterial};
+pub use material_plugin::{MaterialPipeline, MaterialPlugin, RenderCustomMaterial};

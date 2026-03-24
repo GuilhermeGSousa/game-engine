@@ -9,12 +9,7 @@ use crate::{assets::material::StandardMaterial, Material};
 /// The type parameter `M` defaults to [`StandardMaterial`] so existing code that writes
 /// `MaterialComponent { handle: … }` with a `StandardMaterial` handle continues to work
 /// without any change.  Custom materials use `MaterialComponent::<MyMaterial> { handle: … }`.
+#[derive(Component)]
 pub struct MaterialComponent<M: Material + Send + Sync + 'static = StandardMaterial> {
     pub handle: AssetHandle<M>,
-}
-
-impl<M: Material + Send + Sync + 'static> Component for MaterialComponent<M> {
-    fn name() -> &'static str {
-        std::any::type_name::<MaterialComponent<M>>()
-    }
 }

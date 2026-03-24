@@ -34,17 +34,11 @@ use app::plugins::Plugin;
 use ecs::{
     command::CommandQueue,
     entity::Entity,
-    query::{
-        query_filter::Added,
-        Query,
-    },
+    query::{query_filter::Added, Query},
     resource::{Res, ResMut, Resource},
     system::system_input::SystemInputData,
 };
-use essential::{
-    assets::Asset,
-    transform::{GlobalTranform, GlobalTransformRaw},
-};
+use essential::transform::{GlobalTranform, GlobalTransformRaw};
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -264,10 +258,7 @@ pub(crate) fn material_renderpass<M: Material>(
                     }
 
                     render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                    render_pass.set_index_buffer(
-                        mesh.indices.slice(..),
-                        wgpu::IndexFormat::Uint32,
-                    );
+                    render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.set_vertex_buffer(1, mesh_instance.transform.slice(..));
                     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
@@ -293,7 +284,9 @@ pub struct MaterialPlugin<M: Material> {
 
 impl<M: Material> Default for MaterialPlugin<M> {
     fn default() -> Self {
-        Self { _marker: PhantomData }
+        Self {
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -337,17 +330,26 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         // Using the exact same BGL objects stored in resources ensures the
         // bind groups created from them are compatible with the pipeline.
         let camera_layout_res = if M::needs_camera() {
-            Some(app.get_resource::<CameraLayout>().expect("CameraLayout not found"))
+            Some(
+                app.get_resource::<CameraLayout>()
+                    .expect("CameraLayout not found"),
+            )
         } else {
             None
         };
         let light_layout_res = if M::needs_lighting() {
-            Some(app.get_resource::<LightLayout>().expect("LightLayout not found"))
+            Some(
+                app.get_resource::<LightLayout>()
+                    .expect("LightLayout not found"),
+            )
         } else {
             None
         };
         let skeleton_layout_res = if M::needs_skeleton() {
-            Some(app.get_resource::<SkeletonLayout>().expect("SkeletonLayout not found"))
+            Some(
+                app.get_resource::<SkeletonLayout>()
+                    .expect("SkeletonLayout not found"),
+            )
         } else {
             None
         };
@@ -363,12 +365,11 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
             all_layouts.push(sl);
         }
 
-        let pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Material Pipeline Layout"),
-                bind_group_layouts: &all_layouts,
-                push_constant_ranges: &[],
-            });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Material Pipeline Layout"),
+            bind_group_layouts: &all_layouts,
+            push_constant_ranges: &[],
+        });
 
         // Resolve shader sources (fall back to the built-in Phong shader).
         let vs_src: &str = match M::vertex_shader() {

@@ -25,7 +25,7 @@ use render::{
     },
 };
 use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree};
-use wgpu::Buffer;
+use wgpu::{Buffer, util::DeviceExt};
 use window::plugin::Window;
 
 use crate::{

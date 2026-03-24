@@ -90,9 +90,9 @@ pub fn run_game() {
         .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
-        .register_plugin(UIPlugin)
         // Register the custom unlit material so the engine knows how to render it.
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
+        .register_plugin(UIPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
             app::update_group::UpdateGroup::Update,

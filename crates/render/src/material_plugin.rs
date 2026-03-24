@@ -33,7 +33,6 @@ use std::marker::PhantomData;
 use app::plugins::Plugin;
 use ecs::{
     command::CommandQueue,
-    component::Component,
     entity::Entity,
     query::{
         query_filter::Added,
@@ -59,6 +58,7 @@ use crate::{
         material_component::MaterialComponent,
         mesh_component::{MeshComponent, RenderMeshInstance},
         render_entity::RenderEntity,
+        render_material_component::RenderMaterialComponent,
         skeleton_component::{EmptySkeletonBuffer, RenderSkeletonComponent},
     },
     device::RenderDevice,
@@ -102,27 +102,6 @@ impl<M: 'static> MaterialPipeline<M> {
 impl<M: 'static> Resource for MaterialPipeline<M> {
     fn name() -> &'static str {
         std::any::type_name::<MaterialPipeline<M>>()
-    }
-}
-
-// ─── MaterialInstanceTag ──────────────────────────────────────────────────────
-
-/// Internal marker placed on *render-world* entities so that
-/// `material_renderpass<M>` can filter to only the instances belonging to
-/// material `M`, ignoring those managed by other pipelines.
-pub(crate) struct MaterialInstanceTag<M: 'static> {
-    _marker: PhantomData<fn() -> M>,
-}
-
-impl<M: 'static> MaterialInstanceTag<M> {
-    fn new() -> Self {
-        Self { _marker: PhantomData }
-    }
-}
-
-impl<M: Send + Sync + 'static> Component for MaterialInstanceTag<M> {
-    fn name() -> &'static str {
-        std::any::type_name::<MaterialInstanceTag<M>>()
     }
 }
 
@@ -191,17 +170,17 @@ pub(crate) fn mesh_added<M: Material>(
 
         let instance = RenderMeshInstance {
             mesh_asset_id: mesh.handle.id(),
-            material_asset_id: material.handle.id(),
             transform: instance_buffer,
         };
+        let render_mat = RenderMaterialComponent::<M>::new(material.handle.id());
 
         match render_entity {
             Some(re) => {
                 cmd.insert(instance, **re);
-                cmd.insert(MaterialInstanceTag::<M>::new(), **re);
+                cmd.insert(render_mat, **re);
             }
             None => {
-                let new_re = cmd.spawn((instance, MaterialInstanceTag::<M>::new()));
+                let new_re = cmd.spawn((instance, render_mat));
                 cmd.insert(RenderEntity::new(new_re), entity);
             }
         }
@@ -210,16 +189,16 @@ pub(crate) fn mesh_added<M: Material>(
 
 /// Render pass for meshes that use material `M`.
 ///
-/// Only processes entities tagged with [`MaterialInstanceTag<M>`] so multiple
-/// `MaterialPlugin` instantiations for different material types can coexist
-/// without interfering with each other.
+/// Only processes entities tagged with [`RenderMaterialComponent<M>`] so
+/// multiple `MaterialPlugin` instantiations for different material types can
+/// coexist without interfering with each other.
 pub(crate) fn material_renderpass<M: Material>(
     pipeline: Res<MaterialPipeline<M>>,
     mut device: ResMut<RenderDevice>,
     render_mesh_query: Query<(
         &RenderMeshInstance,
         Option<&RenderSkeletonComponent>,
-        &MaterialInstanceTag<M>,
+        &RenderMaterialComponent<M>,
     )>,
     render_cameras: Query<&RenderCamera>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
@@ -266,10 +245,10 @@ pub(crate) fn material_renderpass<M: Material>(
                 render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
             }
 
-            for (mesh_instance, skeleton, _tag) in render_mesh_query.iter() {
+            for (mesh_instance, skeleton, render_mat_comp) in render_mesh_query.iter() {
                 if let Some(mesh) = render_meshes.get(&mesh_instance.mesh_asset_id) {
                     if let Some(render_mat) =
-                        render_materials.get(&mesh_instance.material_asset_id)
+                        render_materials.get(&render_mat_comp.material_asset_id)
                     {
                         render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
                     } else {
@@ -330,7 +309,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         app.register_plugin(RenderAssetPlugin::<RenderCustomMaterial<M>>::new());
 
         // mesh_added<M> must be per-material so we know which material handle to store
-        // in the RenderMeshInstance.  Transform updates, however, are handled by the
+        // in RenderMaterialComponent<M>.  Transform updates, however, are handled by the
         // shared mesh_changed system already registered by RenderPlugin, which iterates
         // over all entities with RenderEntity regardless of material type.
         app.add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added::<M>)

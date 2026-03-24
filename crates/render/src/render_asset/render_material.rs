@@ -41,6 +41,3 @@ impl RenderAsset for RenderMaterial {
         Ok(RenderMaterial { bind_group })
     }
 }
-
-impl RenderMaterial {}
-

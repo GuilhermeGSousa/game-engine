@@ -382,6 +382,39 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
     {
         Some(wgpu::Face::Back)
     }
+
+    /// The vertex buffer layouts used by this material's render pipeline.
+    ///
+    /// Defaults to the standard mesh layout (`Vertex` + `GlobalTransformRaw`
+    /// instance data).  Override for materials that use a different vertex
+    /// format – for example, the skybox uses `SkyboxVertex` and the UI uses
+    /// `UIVertex`.
+    fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>>
+    where
+        Self: Sized,
+    {
+        use crate::assets::vertex::{Vertex, VertexBufferLayout};
+        use essential::transform::GlobalTransformRaw;
+        vec![Vertex::describe(), GlobalTransformRaw::describe()]
+    }
+
+    /// The depth/stencil state to use when rendering this material.
+    ///
+    /// Defaults to depth testing and writing with `Depth32Float`.  Override
+    /// with `None` for materials that must not interact with the depth buffer
+    /// (e.g. skybox and UI render passes).
+    fn depth_stencil() -> Option<wgpu::DepthStencilState>
+    where
+        Self: Sized,
+    {
+        Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        })
+    }
 }
 
 impl Material for StandardMaterial {

@@ -30,7 +30,6 @@ use window::plugin::Window;
 
 use crate::{
     material::UIMaterial,
-    resources::UIRenderPipeline,
     transform::UIValue,
     vertex::{QUAD_INDICES, UIVertex},
 };
@@ -228,8 +227,22 @@ pub(crate) fn extract_added_ui_nodes(
         Changed<UIComputedNode>,
     >,
     device: Res<RenderDevice>,
+    window: Res<Window>,
     mut cmd: CommandQueue,
 ) {
+    let win_w = window.width() as f32;
+    let win_h = window.height() as f32;
+
+    // Convert pixel coordinates to Normalized Device Coordinates (NDC).
+    // Screen space: (0,0) = top-left corner, Y increases downward.
+    // NDC space:    (-1,-1) = bottom-left, (+1,+1) = top-right, Y increases upward.
+    let to_ndc = |px: f32, py: f32| -> [f32; 2] {
+        [
+            (px / win_w) * 2.0 - 1.0,  // map [0, width]  → [-1, +1]
+            1.0 - (py / win_h) * 2.0,  // map [0, height] → [+1, -1] (flip Y)
+        ]
+    };
+
     for (computed_node_entity, computed_node, render_entity) in computed_nodes.iter() {
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("UI Index Buffer"),
@@ -237,25 +250,16 @@ pub(crate) fn extract_added_ui_nodes(
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        let x = computed_node.location.x;
+        let y = computed_node.location.y;
+        let w = computed_node.size.x;
+        let h = computed_node.size.y;
+
         let vertices = [
-            UIVertex {
-                pos_coords: [computed_node.location.x, computed_node.location.y],
-            },
-            UIVertex {
-                pos_coords: [
-                    computed_node.location.x,
-                    computed_node.location.y + computed_node.size.y,
-                ],
-            },
-            UIVertex {
-                pos_coords: (computed_node.location + computed_node.size).to_array(),
-            },
-            UIVertex {
-                pos_coords: [
-                    computed_node.location.x + computed_node.size.x,
-                    computed_node.location.y,
-                ],
-            },
+            UIVertex { pos_coords: to_ndc(x,     y    ) }, // top-left
+            UIVertex { pos_coords: to_ndc(x,     y + h) }, // bottom-left
+            UIVertex { pos_coords: to_ndc(x + w, y + h) }, // bottom-right
+            UIVertex { pos_coords: to_ndc(x + w, y    ) }, // top-right
         ];
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -299,7 +303,7 @@ pub(crate) fn extract_added_ui_materials(
     device: Res<RenderDevice>,
     render_textures: Res<RenderAssets<RenderTexture>>,
     dummy_texture: Res<DummyRenderTexture>,
-    ui_pipeline: Res<UIRenderPipeline>,
+    ui_pipeline: Res<render::MaterialPipeline<UIMaterial>>,
     mut cmd: CommandQueue,
 ) {
     for (computed_node_entity, node_material, render_entity) in computed_nodes.iter() {
@@ -307,7 +311,7 @@ pub(crate) fn extract_added_ui_materials(
             &device,
             &render_textures,
             &dummy_texture,
-            &ui_pipeline.material_layout,
+            &ui_pipeline.bind_group_layout,
         ) else {
             continue;
         };

@@ -4,7 +4,7 @@ use ecs::{
 };
 
 use crate::{
-    assets::material::StandardMaterial,
+    assets::{material::StandardMaterial, skybox_material::SkyboxMaterial},
     components::{
         camera::RenderCamera,
         light::RenderLights,
@@ -14,12 +14,13 @@ use crate::{
         skybox::{RenderSkyboxBindGroup, RenderSkyboxCube, SKYBOX_INDICES},
     },
     device::RenderDevice,
+    material_plugin::MaterialPipeline,
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
         RenderAssets,
     },
-    resources::{MainRenderPipeline, SkyboxRenderPipeline},
+    resources::MainRenderPipeline,
 };
 
 pub(crate) fn main_renderpass(
@@ -99,7 +100,7 @@ pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
 }
 
 pub(crate) fn skybox_renderpass(
-    pipeline: Res<SkyboxRenderPipeline>,
+    pipeline: Res<MaterialPipeline<SkyboxMaterial>>,
     mut device: ResMut<RenderDevice>,
     render_cameras: Query<(&RenderCamera, &RenderSkyboxBindGroup)>,
     render_window: Res<RenderWindow>,
@@ -124,7 +125,7 @@ pub(crate) fn skybox_renderpass(
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&pipeline);
+            render_pass.set_pipeline(&pipeline.pipeline);
 
             // group(0) = SkyboxMaterial (cube texture + sampler)
             // group(1) = camera

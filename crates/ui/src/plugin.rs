@@ -1,26 +1,23 @@
 use app::plugins::Plugin;
 use glyphon::{Cache, FontSystem, SwashCache, Viewport};
 use render::{
-    assets::{material::AsBindGroup, vertex::VertexBufferLayout},
     device::RenderDevice,
+    material_plugin::MaterialPlugin,
     queue::RenderQueue,
     resources::RenderContext,
 };
-use wgpu::{MultisampleState, PipelineLayoutDescriptor};
+use wgpu::MultisampleState;
 
 use crate::{
-    layout::UICameraLayout,
     material::UIMaterial,
     node::{compute_ui_nodes, extract_added_ui_materials, extract_added_ui_nodes},
     render::{prepare_text_renderer, ui_renderpass, update_text_viewport},
-    resources::UIRenderPipeline,
     text::{
         extract_added_text_nodes,
         resources::{
             TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
         },
     },
-    vertex::UIVertex,
 };
 
 pub struct UIPlugin;
@@ -76,61 +73,16 @@ impl Plugin for UIPlugin {
         let text_renderer =
             glyphon::TextRenderer::new(&mut atlas, &device, MultisampleState::default(), None);
 
-        // UI rendering — material bind-group layout is derived from UIMaterial via the macro.
-        let ui_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\ui.wgsl"));
-        let ui_camera_layout = UICameraLayout::new(&device);
-        let ui_material_layout = UIMaterial::bind_group_layout(&device);
-        let ui_render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("UI Render Pipeline Layout"),
-            bind_group_layouts: &[&ui_camera_layout, &ui_material_layout],
-            push_constant_ranges: &[],
-        });
+        // Use MaterialPlugin to build the UI render pipeline from UIMaterial's
+        // trait methods (vertex_layouts, depth_stencil, shader sources).
+        // pipeline_only() skips asset registration and mesh rendering systems.
+        MaterialPlugin::<UIMaterial>::pipeline_only().finish(app);
 
-        let ui_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("UI Pipeline"),
-            layout: Some(&ui_render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &ui_shader,
-                entry_point: Some("vs_main"),
-                buffers: &[UIVertex::describe()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &ui_shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: context.surface_config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
-
-        app.insert_resource(UIRenderPipeline::new(ui_render_pipeline, ui_material_layout))
-            .insert_resource(TextRenderer(text_renderer))
+        app.insert_resource(TextRenderer(text_renderer))
             .insert_resource(TextCache(cache))
             .insert_resource(TextSwashCache(swash_cache))
             .insert_resource(TextViewport(viewport))
             .insert_resource(TextFontSystem(font_system))
-            .insert_resource(TextAtlas(atlas))
-            .insert_resource(ui_camera_layout);
+            .insert_resource(TextAtlas(atlas));
     }
 }

@@ -24,11 +24,11 @@ use crate::{
         render_entity::RenderEntity,
     },
     device::RenderDevice,
+    material_plugin::MaterialPipeline,
     render_asset::{
         render_texture::{DummyRenderTexture, RenderTexture},
         RenderAssets,
     },
-    resources::SkyboxRenderPipeline,
 };
 
 pub(crate) const SKYBOX_VERTICES: [SkyboxVertex; 8] = [
@@ -136,7 +136,7 @@ pub(crate) fn prepare_skybox(
     mut cmd: CommandQueue,
     render_textures: Res<RenderAssets<RenderTexture>>,
     device: Res<RenderDevice>,
-    skybox_pipeline: Res<SkyboxRenderPipeline>,
+    skybox_pipeline: Res<MaterialPipeline<SkyboxMaterial>>,
     dummy_texture: Res<DummyRenderTexture>,
 ) {
     for (skybox, render_entity) in cameras.iter() {
@@ -152,7 +152,7 @@ pub(crate) fn prepare_skybox(
             &device,
             &render_textures,
             &dummy_texture,
-            &skybox_pipeline.material_layout,
+            &skybox_pipeline.bind_group_layout,
         ) {
             cmd.insert(RenderSkyboxBindGroup { bind_group }, **render_entity);
         }

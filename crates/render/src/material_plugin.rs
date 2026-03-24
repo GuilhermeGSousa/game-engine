@@ -38,13 +38,12 @@ use ecs::{
     resource::{Res, ResMut, Resource},
     system::system_input::SystemInputData,
 };
-use essential::transform::{GlobalTranform, GlobalTransformRaw};
+use essential::transform::GlobalTranform;
 use wgpu::util::DeviceExt;
 
 use crate::{
     assets::{
         material::{Material, ShaderRef},
-        vertex::{Vertex, VertexBufferLayout},
     },
     components::{
         camera::RenderCamera,
@@ -276,26 +275,58 @@ pub(crate) fn material_renderpass<M: Material>(
 /// The plugin uses `M`'s [`Material`] flags to build a pipeline layout that
 /// contains only the bind groups the shaders actually need.  Shader code
 /// therefore never has to declare unused `@group(N)` bindings.
+///
+/// # Pipeline-only mode
+///
+/// For materials that have their own custom render pass (e.g. skybox, UI)
+/// you can use [`MaterialPlugin::pipeline_only`] to create just the
+/// [`MaterialPipeline<M>`] resource without registering the generic mesh
+/// rendering systems.
 pub struct MaterialPlugin<M: Material> {
+    /// When `true`, only the [`MaterialPipeline<M>`] resource is set up.
+    /// No asset registration and no mesh rendering systems are added.
+    pipeline_only: bool,
     _marker: PhantomData<fn() -> M>,
 }
 
 impl<M: Material> Default for MaterialPlugin<M> {
     fn default() -> Self {
         Self {
+            pipeline_only: false,
             _marker: PhantomData,
         }
     }
 }
 
 impl<M: Material> MaterialPlugin<M> {
+    /// Full material plugin: registers the asset type, the render-asset
+    /// pipeline, and the generic mesh rendering systems.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Pipeline-only mode: only creates the [`MaterialPipeline<M>`] resource.
+    ///
+    /// Use this when the material has its own custom render pass (e.g. skybox,
+    /// UI) and you only need the wgpu pipeline to be built from the material's
+    /// trait methods without the generic mesh rendering systems.
+    pub fn pipeline_only() -> Self {
+        Self {
+            pipeline_only: true,
+            _marker: PhantomData,
+        }
     }
 }
 
 impl<M: Material> Plugin for MaterialPlugin<M> {
     fn build(&self, app: &mut app::App) {
+        if self.pipeline_only {
+            // Pipeline-only: no asset store, no render-asset preparation, no
+            // mesh rendering systems.  Only the pipeline resource is created
+            // in `finish`.
+            return;
+        }
+
         app.register_asset::<M>();
         app.register_plugin(RenderAssetPlugin::<RenderMaterial<M>>::new());
 
@@ -388,13 +419,16 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
             source: wgpu::ShaderSource::Wgsl(fs_src.into()),
         });
 
+        // Use the vertex layouts from the material trait.
+        let vertex_layouts = M::vertex_layouts();
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Material Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::describe(), GlobalTransformRaw::describe()],
+                buffers: &vertex_layouts,
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -416,13 +450,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            depth_stencil: M::depth_stencil(),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,

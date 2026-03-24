@@ -1,7 +1,8 @@
 use essential::assets::{handle::AssetHandle, Asset};
 
 use crate::{
-    assets::{material::Material, texture::Texture},
+    assets::{material::Material, texture::Texture, vertex::VertexBufferLayout},
+    components::skybox::SkyboxVertex,
     AsBindGroup,
 };
 
@@ -18,8 +19,14 @@ use crate::{
 ///
 /// * `cull_mode` is [`wgpu::Face::Front`] instead of the default
 ///   `wgpu::Face::Back` – necessary for rendering the inside of a cube.
-/// * This material is intended for use with the engine's built-in skybox
-///   render pass, not through [`crate::material_plugin::MaterialPlugin`].
+/// * `depth_stencil` returns `None` – the skybox does not interact with the
+///   depth buffer.
+/// * `vertex_layouts` returns only [`SkyboxVertex`] – the skybox cube uses a
+///   single position-only vertex buffer with no per-instance transform.
+/// * This material is intended to be registered via
+///   [`crate::material_plugin::MaterialPlugin::pipeline_only`] which creates
+///   the [`crate::material_plugin::MaterialPipeline`] resource without adding
+///   the generic mesh rendering systems.
 #[derive(Asset, AsBindGroup)]
 #[material(
     vertex_shader = include_str!("../shaders/skybox.wgsl"),
@@ -47,5 +54,13 @@ impl Material for SkyboxMaterial {
 
     fn cull_mode() -> Option<wgpu::Face> {
         Some(wgpu::Face::Front)
+    }
+
+    fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>> {
+        vec![SkyboxVertex::describe()]
+    }
+
+    fn depth_stencil() -> Option<wgpu::DepthStencilState> {
+        None
     }
 }

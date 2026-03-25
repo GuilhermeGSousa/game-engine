@@ -6,7 +6,7 @@ use ecs::{
 use crate::{
     assets::{material::StandardMaterial, skybox_material::SkyboxMaterial},
     components::{
-        camera::RenderCamera,
+        camera::{CameraTextureTarget, RenderCamera},
         light::RenderLights,
         mesh_component::RenderMeshInstance,
         render_material_component::RenderMaterialComponent,
@@ -17,8 +17,8 @@ use crate::{
     material_plugin::MaterialPipeline,
     queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
-        RenderAssets,
+        render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::RenderTexture,
+        render_window::RenderWindow, RenderAssets,
     },
     resources::MainRenderPipeline,
 };
@@ -31,34 +31,40 @@ pub(crate) fn main_renderpass(
         Option<&RenderSkeletonComponent>,
         &RenderMaterialComponent<StandardMaterial>,
     )>,
-    render_cameras: Query<(&RenderCamera, Option<&RenderSkyboxBindGroup>)>,
+    render_cameras: Query<(
+        &RenderCamera,
+        Option<&CameraTextureTarget>,
+        Option<&RenderSkyboxBindGroup>,
+    )>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_materials: Res<RenderAssets<RenderMaterial>>,
+    render_textures: Res<RenderAssets<RenderTexture>>,
     render_window: Res<RenderWindow>,
     render_lights: Res<RenderLights>,
     empty_skeleton: Res<EmptySkeletonBuffer>,
 ) {
     let encoder = device.command_encoder();
 
-    for (render_camera, skybox_bind_group) in render_cameras.iter() {
-        // Resolve the colour attachment view: texture render targets own their
-        // view directly; window cameras borrow the current swapchain view.
-        let view = match &render_camera.texture_render_target {
-            Some(rt) => &rt.view,
+    for (render_camera, texture_target, skybox_bind_group) in render_cameras.iter() {
+        // Resolve the colour attachment view: texture render targets use the
+        // GPU texture from the asset system; window cameras borrow the swapchain view.
+        let view = match texture_target {
+            Some(ct) => match render_textures.get(&ct.texture_handle.id()) {
+                Some(rt) => &rt.view,
+                None => continue, // texture not ready yet
+            },
             None => match render_window.get_view() {
                 Some(v) => v,
                 None => continue,
             },
         };
 
-        // Texture render target cameras that have no skybox pass must perform
-        // their own clear; window cameras are handled by the swapchain / skybox.
-        let load_op =
-            if render_camera.texture_render_target.is_some() && skybox_bind_group.is_none() {
-                wgpu::LoadOp::Clear(render_camera.clear_color)
-            } else {
-                wgpu::LoadOp::Load
-            };
+        // Texture render target cameras that have no skybox pass must clear on entry.
+        let load_op = if texture_target.is_some() && skybox_bind_group.is_none() {
+            wgpu::LoadOp::Clear(render_camera.clear_color)
+        } else {
+            wgpu::LoadOp::Load
+        };
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Main Pass"),
@@ -117,17 +123,25 @@ pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
 pub(crate) fn skybox_renderpass(
     pipeline: Res<MaterialPipeline<SkyboxMaterial>>,
     mut device: ResMut<RenderDevice>,
-    render_cameras: Query<(&RenderCamera, &RenderSkyboxBindGroup)>,
+    render_cameras: Query<(
+        &RenderCamera,
+        &RenderSkyboxBindGroup,
+        Option<&CameraTextureTarget>,
+    )>,
+    render_textures: Res<RenderAssets<RenderTexture>>,
     render_window: Res<RenderWindow>,
     skybox_cube: Res<RenderSkyboxCube>,
 ) {
     let encoder = device.command_encoder();
 
-    for (camera, skybox_bind_group) in render_cameras.iter() {
+    for (camera, skybox_bind_group, texture_target) in render_cameras.iter() {
         // Use the camera's own texture view for texture render targets, otherwise
         // borrow the current swapchain view from the window.
-        let view = match &camera.texture_render_target {
-            Some(rt) => &rt.view,
+        let view = match texture_target {
+            Some(ct) => match render_textures.get(&ct.texture_handle.id()) {
+                Some(rt) => &rt.view,
+                None => continue, // texture not ready yet
+            },
             None => match render_window.get_view() {
                 Some(v) => v,
                 None => continue,

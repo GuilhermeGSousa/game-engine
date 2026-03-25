@@ -26,9 +26,9 @@ use obj::{
 };
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
-    assets::texture::TextureUsageSettings,
+    assets::texture::{Texture, TextureUsageSettings},
     components::{
-        camera::{Camera, RenderCamera, RenderTarget},
+        camera::{Camera, CameraTextureTarget, RenderTarget},
         light::{LighType, Light, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
@@ -42,7 +42,6 @@ use taffy::FlexDirection;
 use ui::{
     material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent, transform::UIValue,
 };
-use wgpu::Color as WgpuColor;
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -366,45 +365,41 @@ fn despawn_on_button_press(
 /// Spawn a secondary camera that renders the scene into a 512×512 off-screen
 /// texture instead of the main window.
 ///
-/// The resulting texture is accessible each frame via
-/// [`RenderCamera::render_target_texture`] and can be used as a material
-/// texture in a UI viewport element (e.g. an editor panel).
-fn spawn_viewport_camera(mut cmd: CommandQueue) {
+/// The texture handle stored on [`CameraTextureTarget`] can be retrieved by
+/// querying [`CameraTextureTarget`] and used in a UI viewport material to
+/// display what this camera sees.
+fn spawn_viewport_camera(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
+    // Create a render-target texture asset.  It has no initial pixel data;
+    // the engine will render into it each frame.  The handle can later be
+    // passed to a material/UI system to sample from the rendered output.
+    let viewport_texture = asset_server.add(Texture::new_render_target(512, 512));
+
     cmd.spawn((
         Camera {
-            // Render to a 512×512 off-screen texture instead of the window.
-            render_target: RenderTarget::texture(512, 512),
-            clear_color: WgpuColor {
-                r: 0.05,
-                g: 0.05,
-                b: 0.1,
-                a: 1.0,
-            },
+            render_target: RenderTarget::texture(viewport_texture),
             ..Camera::default()
         },
         Transform::from_translation_rotation(Vec3::new(5.0, 3.0, 5.0), Quat::IDENTITY),
     ));
 }
 
-/// Example showing how to consume the texture produced by a
-/// [`RenderTarget::texture`] camera in a downstream system.
+/// Example showing how to consume the texture rendered by a texture-target camera.
 ///
-/// `render_camera.render_target_texture()` returns the [`RenderTexture`] that
-/// was rendered into this frame.  Its `.view` field is a `wgpu::TextureView`
-/// that can be bound as a sampled texture in a material or UI viewport panel.
+/// Query [`CameraTextureTarget`] to obtain the [`AssetHandle<Texture>`] for the
+/// camera's off-screen render target.  The same handle can be passed to a
+/// material or UI element to sample from the rendered output.
 ///
-/// Register this system in `UpdateGroup::Update` (after rendering) and add it
-/// to any project that needs to read back the off-screen render, for example:
+/// Register this system after the render group (e.g. `UpdateGroup::LateRender`)
+/// so it sees the fully rendered texture.
 ///
 /// ```ignore
-/// app.add_system(UpdateGroup::Update, use_viewport_texture);
+/// app.add_system(UpdateGroup::LateRender, use_viewport_texture);
 /// ```
 #[allow(dead_code)]
-fn log_viewport_render_target(render_cameras: Query<&RenderCamera>) {
-    for render_camera in render_cameras.iter() {
-        if let Some(_rt) = render_camera.render_target_texture() {
-            // TODO: pass `_rt.view` to a UI viewport material or copy it for
-            // use as an editor panel texture.
-        }
+fn log_viewport_render_target(texture_targets: Query<&CameraTextureTarget>) {
+    for target in texture_targets.iter() {
+        let _handle = &target.texture_handle;
+        // Pass `_handle` to a material's texture slot or a UI viewport panel to
+        // display the rendered output.
     }
 }

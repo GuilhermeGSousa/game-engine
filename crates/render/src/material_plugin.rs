@@ -44,7 +44,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     assets::material::{Material, ShaderRef},
     components::{
-        camera::RenderCamera,
+        camera::{CameraTextureTarget, RenderCamera},
         light::RenderLights,
         material_component::MaterialComponent,
         mesh_component::{MeshComponent, RenderMeshInstance},
@@ -190,32 +190,39 @@ pub(crate) fn material_renderpass<M: Material>(
         Option<&RenderSkeletonComponent>,
         &RenderMaterialComponent<M>,
     )>,
-    render_cameras: Query<(&RenderCamera, Option<&RenderSkyboxBindGroup>)>,
+    render_cameras: Query<(
+        &RenderCamera,
+        Option<&CameraTextureTarget>,
+        Option<&RenderSkyboxBindGroup>,
+    )>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_materials: Res<RenderAssets<RenderMaterial<M>>>,
+    render_textures: Res<RenderAssets<RenderTexture>>,
     render_window: Res<RenderWindow>,
     render_lights: Res<RenderLights>,
     empty_skeleton: Res<EmptySkeletonBuffer>,
 ) {
     let encoder = device.command_encoder();
 
-    for (render_camera, skybox_bind_group) in render_cameras.iter() {
+    for (render_camera, texture_target, skybox_bind_group) in render_cameras.iter() {
         // Resolve the colour attachment view.
-        let view = match &render_camera.texture_render_target {
-            Some(rt) => &rt.view,
+        let view = match texture_target {
+            Some(ct) => match render_textures.get(&ct.texture_handle.id()) {
+                Some(rt) => &rt.view,
+                None => continue, // texture not ready yet
+            },
             None => match render_window.get_view() {
                 Some(v) => v,
                 None => continue,
             },
         };
 
-        // Texture render target cameras without a skybox need to clear on first pass.
-        let load_op =
-            if render_camera.texture_render_target.is_some() && skybox_bind_group.is_none() {
-                wgpu::LoadOp::Clear(render_camera.clear_color)
-            } else {
-                wgpu::LoadOp::Load
-            };
+        // Texture render target cameras without a skybox need to clear on entry.
+        let load_op = if texture_target.is_some() && skybox_bind_group.is_none() {
+            wgpu::LoadOp::Clear(render_camera.clear_color)
+        } else {
+            wgpu::LoadOp::Load
+        };
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Material Render Pass"),

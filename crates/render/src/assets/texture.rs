@@ -80,6 +80,27 @@ impl Texture {
         }
     }
 
+    /// Creates a blank texture suitable for use as a camera render target.
+    ///
+    /// The texture has no initial pixel data.  Its GPU representation (created
+    /// by [`RenderTexture::prepare_asset`]) will have
+    /// `RENDER_ATTACHMENT | TEXTURE_BINDING` usage so it can both be rendered
+    /// into by a camera and sampled as a texture (e.g. in a UI viewport panel).
+    pub fn new_render_target(width: u32, height: u32) -> Self {
+        let mut settings = TextureUsageSettings::default();
+        settings.texture_descriptor.size = Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        settings.texture_descriptor.usage =
+            TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING;
+        Self {
+            data: Vec::new(),
+            usage_settings: settings,
+        }
+    }
+
     pub fn size(&self) -> &wgpu::Extent3d {
         &self.usage_settings.texture_descriptor.size
     }

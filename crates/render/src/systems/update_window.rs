@@ -9,7 +9,7 @@ use ecs::{
 use window::{plugin::Window, winit_events::WindowEvent};
 
 use crate::{
-    components::camera::RenderCamera,
+    components::camera::{CameraTextureTarget, RenderCamera},
     device::RenderDevice,
     render_asset::{render_texture::RenderTexture, render_window::RenderWindow},
     resources::RenderContext,
@@ -34,7 +34,7 @@ pub(crate) fn update_render_window(
     mut render_window: ResMut<RenderWindow>,
     mut context: ResMut<RenderContext>,
     device: Res<RenderDevice>,
-    render_cameras: Query<(&mut RenderCamera,)>,
+    render_cameras: Query<(&mut RenderCamera, Option<&CameraTextureTarget>)>,
 ) {
     if window.has_changed() {
         let size = window.size();
@@ -43,11 +43,11 @@ pub(crate) fn update_render_window(
         context.surface_config.height = size.1;
         surface.configure(&device, &context.surface_config);
 
-        for (mut render_camera,) in render_cameras.iter() {
+        for (mut render_camera, texture_target) in render_cameras.iter() {
             // Only resize the depth texture for window cameras; texture render
             // target cameras keep a fixed depth texture sized to their render
             // target dimensions.
-            if render_camera.texture_render_target.is_none() {
+            if texture_target.is_none() {
                 render_camera.depth_texture = RenderTexture::create_depth_texture(
                     &device,
                     &context.surface_config,

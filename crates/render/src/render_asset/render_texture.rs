@@ -38,21 +38,26 @@ impl RenderTexture {
         let usage_settings = texture.usage_settings();
         let wgpu_texture = device.create_texture(&usage_settings.texture_descriptor);
         let view = wgpu_texture.create_view(&usage_settings.texture_view_descriptor);
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                aspect: wgpu::TextureAspect::All,
-                texture: &wgpu_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            &texture.data(),
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * dimensions.width),
-                rows_per_image: Some(dimensions.height),
-            },
-            *dimensions,
-        );
+
+        // Render-target textures (created with `Texture::new_render_target`) have no
+        // initial pixel data; skip the upload in that case.
+        if !texture.data().is_empty() {
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    aspect: wgpu::TextureAspect::All,
+                    texture: &wgpu_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                },
+                &texture.data(),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * dimensions.width),
+                    rows_per_image: Some(dimensions.height),
+                },
+                *dimensions,
+            );
+        }
 
         Self {
             texture: wgpu_texture,
@@ -112,6 +117,9 @@ impl RenderTexture {
     ///
     /// `format` should match the surface/pipeline format so that the existing render
     /// pipelines can write to it without reconfiguration.
+    ///
+    /// Note: prefer using [`Texture::new_render_target`] together with the asset system
+    /// rather than calling this directly; this method is kept for convenience.
     pub fn create_color_render_target(
         device: &wgpu::Device,
         width: u32,

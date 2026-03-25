@@ -1,5 +1,8 @@
 use encase::{ShaderType, UniformBuffer};
-use essential::transform::GlobalTranform;
+use essential::{
+    assets::{asset_store::AssetStore, handle::AssetHandle},
+    transform::GlobalTranform,
+};
 
 use ecs::{
     command::CommandQueue,
@@ -12,8 +15,9 @@ use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    components::render_entity::RenderEntity, device::RenderDevice, layouts::CameraLayout,
-    queue::RenderQueue, render_asset::render_texture::RenderTexture, resources::RenderContext,
+    assets::texture::Texture, components::render_entity::RenderEntity, device::RenderDevice,
+    layouts::CameraLayout, queue::RenderQueue, render_asset::render_texture::RenderTexture,
+    resources::RenderContext,
 };
 
 #[rustfmt::skip]
@@ -36,13 +40,19 @@ pub enum WindowRef {
 pub enum RenderTarget {
     /// Render to a window surface (default: the main application window).
     Window(WindowRef),
-    /// Render to an off-screen texture with the given pixel dimensions.
+    /// Render to the off-screen texture identified by this asset handle.
     ///
-    /// The engine will allocate a colour texture (matching the surface format)
-    /// and a depth texture of the requested size and store them on the
-    /// corresponding [`RenderCamera`].  Access the result via
-    /// [`RenderCamera::render_target_texture`].
-    Texture { width: u32, height: u32 },
+    /// The texture must have been created with
+    /// [`Texture::new_render_target`] (or with
+    /// `RENDER_ATTACHMENT | TEXTURE_BINDING` usage flags set manually) so
+    /// that the GPU resource supports both rendering into it and sampling
+    /// from it in materials or UI panels.
+    ///
+    /// The engine will add a [`CameraTextureTarget`] component to the
+    /// camera's render entity once the texture asset is available, which
+    /// signals all render passes to write into this texture instead of the
+    /// main window surface.
+    Texture(AssetHandle<Texture>),
 }
 
 impl RenderTarget {
@@ -50,10 +60,12 @@ impl RenderTarget {
         RenderTarget::Window(WindowRef::MainWindow)
     }
 
-    /// Creates a render target that renders into an off-screen texture of
-    /// `width × height` pixels.
-    pub fn texture(width: u32, height: u32) -> Self {
-        RenderTarget::Texture { width, height }
+    /// Creates a render target that renders into the given off-screen texture.
+    ///
+    /// `handle` should refer to a [`Texture`] created with
+    /// [`Texture::new_render_target`].
+    pub fn texture(handle: AssetHandle<Texture>) -> Self {
+        RenderTarget::Texture(handle)
     }
 }
 
@@ -120,19 +132,19 @@ pub struct RenderCamera {
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,
     pub(crate) depth_texture: RenderTexture,
-    /// When the camera renders to an off-screen texture, this holds the
-    /// allocated colour render target.  `None` means the camera renders to
-    /// the main window surface.
-    pub texture_render_target: Option<RenderTexture>,
 }
 
-impl RenderCamera {
-    /// Returns the off-screen colour render target for this camera, if one
-    /// was allocated (i.e. the camera was created with
-    /// [`RenderTarget::texture`]).
-    pub fn render_target_texture(&self) -> Option<&RenderTexture> {
-        self.texture_render_target.as_ref()
-    }
+/// Component added to the camera's render entity when the camera renders to
+/// an off-screen texture.
+///
+/// The asset handle stored here refers to the same [`Texture`] that was
+/// passed to [`RenderTarget::texture`].  The corresponding GPU resource lives
+/// in [`RenderAssets<RenderTexture>`] and can be looked up with this handle's
+/// id to obtain the [`wgpu::TextureView`] for rendering or sampling.
+#[derive(Component)]
+pub struct CameraTextureTarget {
+    /// Asset handle for the off-screen colour texture this camera renders into.
+    pub texture_handle: AssetHandle<Texture>,
 }
 
 pub(crate) fn camera_added(
@@ -141,6 +153,7 @@ pub(crate) fn camera_added(
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayout>,
+    texture_assets: Res<AssetStore<Texture>>,
 ) {
     for (entity, camera, transform, render_entity) in cameras.iter() {
         let mut camera_uniform = CameraUniform::new();
@@ -163,7 +176,9 @@ pub(crate) fn camera_added(
             label: Some("camera_bind_group"),
         });
 
-        let (depth_texture, texture_render_target) = match &camera.render_target {
+        // For texture render targets, size the depth texture to match the colour
+        // target.  For window cameras, use the current surface dimensions.
+        let (depth_texture, texture_target) = match &camera.render_target {
             RenderTarget::Window(_) => {
                 let depth = RenderTexture::create_depth_texture(
                     &device,
@@ -172,20 +187,25 @@ pub(crate) fn camera_added(
                 );
                 (depth, None)
             }
-            RenderTarget::Texture { width, height } => {
+            RenderTarget::Texture(handle) => {
+                let (width, height) = texture_assets
+                    .get(handle)
+                    .map(|t| {
+                        let s = t.size();
+                        (s.width, s.height)
+                    })
+                    .unwrap_or((context.surface_config.width, context.surface_config.height));
+
                 let depth = RenderTexture::create_depth_texture_sized(
                     &device,
-                    *width,
-                    *height,
+                    width,
+                    height,
                     "depth_texture",
                 );
-                let color_rt = RenderTexture::create_color_render_target(
-                    &device,
-                    *width,
-                    *height,
-                    context.surface_config.format,
-                );
-                (depth, Some(color_rt))
+                let target = CameraTextureTarget {
+                    texture_handle: handle.clone(),
+                };
+                (depth, Some(target))
             }
         };
 
@@ -194,7 +214,6 @@ pub(crate) fn camera_added(
             camera_uniform,
             camera_buffer,
             depth_texture,
-            texture_render_target,
             clear_color: camera.clear_color,
         };
 
@@ -202,9 +221,17 @@ pub(crate) fn camera_added(
             None => {
                 let new_render_entity = cmd.spawn(render_cam);
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
+                if let Some(target) = texture_target {
+                    // cmd.insert on new_render_entity — need to capture it
+                    // We re-query via the stored new_render_entity handle:
+                    cmd.insert(target, new_render_entity);
+                }
             }
             Some(render_entity) => {
                 cmd.insert(render_cam, **render_entity);
+                if let Some(target) = texture_target {
+                    cmd.insert(target, **render_entity);
+                }
             }
         }
     }

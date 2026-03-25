@@ -5,15 +5,13 @@ pub mod render;
 pub mod text;
 pub mod transform;
 
-mod layout;
 mod resources;
 mod vertex;
 
 #[cfg(test)]
 mod tests {
     use taffy::{
-        AvailableSpace, Dimension, LengthPercentage, Size, Style, TaffyTree,
-        prelude::{FromLength, FromPercent},
+        AvailableSpace, Dimension, Size, Style, TaffyTree,
     };
 
     #[test]
@@ -55,7 +53,7 @@ mod tests {
                 height: AvailableSpace::Definite(800.0),
                 width: AvailableSpace::Definite(600.0),
             },
-        );
+        ).expect("Error computing layout");
 
         let spacer_layout = taffy.layout(spacer).unwrap();
         println!(

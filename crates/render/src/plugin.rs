@@ -1,31 +1,29 @@
 use crate::{
     assets::{
-        material::Material,
+        material::StandardMaterial,
         mesh::Mesh,
         skeleton::Skeleton,
+        skybox_material::SkyboxMaterial,
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
     },
     components::{
         camera::{camera_added, camera_changed},
-        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
+        light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
         mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
-        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
-        skybox::{prepare_skybox, RenderSkyboxCube, SkyboxVertex},
+        skeleton_component::{EmptySkeletonBuffer, skeleton_added, update_skeletons},
+        skybox::{RenderSkyboxCube, prepare_skybox},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
+    material_plugin::MaterialPlugin,
     queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial,
-        render_mesh::RenderMesh,
-        render_texture::{DummyRenderTexture, RenderTexture},
-        render_window::RenderWindow,
-        RenderAssetPlugin,
+        RenderAssetPlugin, render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
     },
-    resources::{MainRenderPipeline, RenderContext, SkyboxRenderPipeline},
+    resources::{MainRenderPipeline, RenderContext},
     systems::{
         render::{self, present_window},
         update_window,
@@ -36,9 +34,7 @@ use ecs::resource::Resource;
 use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};
-use wgpu::{
-    Adapter, Device, FragmentState, Instance, Limits, MemoryHints, Queue, RenderPipelineDescriptor,
-};
+use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
 use window::plugin::Window;
 use winit::window::Window as WinitWindow;
 
@@ -122,7 +118,7 @@ impl Plugin for RenderPlugin {
 
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
-            .register_asset::<Material>()
+            .register_asset::<StandardMaterial>()
             .register_asset::<Skeleton>();
 
         app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
@@ -206,8 +202,6 @@ impl Plugin for RenderPlugin {
         };
 
         let main_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
-        let skybox_shader =
-            device.create_shader_module(wgpu::include_wgsl!("shaders\\skybox.wgsl"));
 
         let camera_layouts = CameraLayout::new(&device);
 
@@ -281,46 +275,6 @@ impl Plugin for RenderPlugin {
             cache: None,
         });
 
-        let skybox_render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Skybox Pipeline Layout"),
-                bind_group_layouts: &[
-                    &camera_layouts.camera_layout,
-                    &material_layouts.skybox_material_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-        let skybox_render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("Skybox Pipeline"),
-            layout: Some(&skybox_render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &skybox_shader,
-                entry_point: Some("vs_main"),
-                buffers: &[SkyboxVertex::describe()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: Some(wgpu::Face::Front),
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(FragmentState {
-                module: &skybox_shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            multiview: None,
-            cache: None,
-        });
-
         app.register_component_lifecycle::<RenderEntity>();
 
         let render_lights = RenderLights::new(&device, &light_layout);
@@ -332,7 +286,6 @@ impl Plugin for RenderPlugin {
                 surface_config: config,
             })
             .insert_resource(MainRenderPipeline::new(main_render_pipeline))
-            .insert_resource(SkyboxRenderPipeline::new(skybox_render_pipeline))
             .insert_resource(RenderDevice {
                 device,
                 encoder: None,
@@ -347,5 +300,10 @@ impl Plugin for RenderPlugin {
             .insert_resource(skybox_cube)
             .insert_resource(empty_skeleton_buffer)
             .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
+
+        // Use MaterialPlugin to build the skybox pipeline from SkyboxMaterial's
+        // trait methods (vertex_layouts, depth_stencil, cull_mode, shader sources).
+        // pipeline_only() skips asset registration and mesh rendering systems.
+        MaterialPlugin::<SkyboxMaterial>::pipeline_only().finish(app);
     }
 }

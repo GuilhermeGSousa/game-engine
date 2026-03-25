@@ -29,6 +29,13 @@ pub struct OBJAsset {
     materials: Vec<AssetHandle<MTLMaterial>>,
 }
 
+impl OBJAsset {
+    /// Returns a slice of the meshes contained in this OBJ file.
+    pub fn meshes(&self) -> &[OBJMesh] {
+        &self.meshes
+    }
+}
+
 #[derive(Asset)]
 pub struct OBJMesh {
     pub handle: AssetHandle<Mesh>,

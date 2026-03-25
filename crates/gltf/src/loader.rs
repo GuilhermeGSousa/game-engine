@@ -32,7 +32,8 @@ use image::ImageBuffer;
 use log::warn;
 use render::{
     assets::{
-        material::Material, mesh::Mesh, skeleton::Skeleton, texture::Texture, vertex::Vertex,
+        material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture,
+        vertex::Vertex,
     },
     components::{
         material_component::MaterialComponent, mesh_component::MeshComponent,
@@ -46,7 +47,7 @@ pub(crate) struct GLTFLoader;
 #[derive(Asset)]
 pub struct GLTFScene {
     pub(crate) meshes: Vec<GLTFMesh>,
-    pub(crate) materials: Vec<AssetHandle<Material>>,
+    pub(crate) materials: Vec<AssetHandle<StandardMaterial>>,
     pub(crate) nodes: Vec<GLTFNode>,
     pub(crate) skeletons: Vec<GLTFSkeleton>,
     pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
@@ -150,7 +151,7 @@ impl AssetLoader for GLTFLoader {
 
         let mut materials = Vec::new();
         for gltf_material in document.materials() {
-            let material = Material::new(
+            let material = StandardMaterial::new(
                 gltf_material
                     .pbr_metallic_roughness()
                     .base_color_texture()

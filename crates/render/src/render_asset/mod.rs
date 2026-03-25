@@ -16,7 +16,7 @@ pub enum AssetPreparationError {
     NotReady,
 }
 
-pub(crate) trait RenderAsset: Send + Sync + Sized + 'static {
+pub trait RenderAsset: Send + Sync + Sized + 'static {
     type SourceAsset: Asset;
     type PreparationParams: SystemInput;
 
@@ -47,7 +47,7 @@ pub(crate) fn prepare_render_asset<A: RenderAsset>(
 }
 
 #[derive(Resource)]
-pub(crate) struct RenderAssets<A: RenderAsset + 'static>(HashMap<AssetId, A>);
+pub struct RenderAssets<A: RenderAsset + 'static>(HashMap<AssetId, A>);
 
 impl<A: RenderAsset + 'static> RenderAssets<A> {
     pub fn new() -> Self {
@@ -67,7 +67,7 @@ impl<A: RenderAsset + 'static> RenderAssets<A> {
     }
 }
 
-pub(crate) struct RenderAssetPlugin<A: RenderAsset> {
+pub struct RenderAssetPlugin<A: RenderAsset> {
     _marker: std::marker::PhantomData<A>,
 }
 

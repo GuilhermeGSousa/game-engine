@@ -11,7 +11,7 @@ use ecs::{
     query::{query_filter::Added, Query},
     resource::{Res, Resource},
 };
-use encase::{UniformBuffer};
+use encase::UniformBuffer;
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
     transform::GlobalTranform,

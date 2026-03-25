@@ -30,15 +30,17 @@ use render::{
     components::{
         camera::Camera,
         light::{LighType, Light, SpotLight},
+        material_component::MaterialComponent,
         mesh_component::MeshComponent,
         skybox::Skybox,
     },
+    material_plugin::MaterialPlugin,
     plugin::RenderPlugin,
 };
 
 use taffy::FlexDirection;
 use ui::{
-    material::UIMaterialComponent, node::UINode, plugin::UIPlugin, text::TextComponent,
+    material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent,
     transform::UIValue,
 };
 use wgpu_types::{
@@ -52,10 +54,12 @@ use window::{
 
 use winit::keyboard::{KeyCode, PhysicalKey};
 
+use crate::custom_material::{TintUniform, UnlitMaterial};
 use crate::movement_animation::{
     setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
 };
 
+mod custom_material;
 mod movement_animation;
 
 #[allow(dead_code)]
@@ -86,6 +90,8 @@ pub fn run_game() {
         .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
+        // Register the custom unlit material so the engine knows how to render it.
+        .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
@@ -100,6 +106,8 @@ pub fn run_game() {
         .add_system(app::update_group::UpdateGroup::Update, setup_animations)
         .add_system(app::update_group::UpdateGroup::Update, update_movement_fsm)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
+        // Async OBJ spawner for the unlit-material ground plane.
+        .add_system(app::update_group::UpdateGroup::Update, spawn_unlit_obj)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
@@ -133,8 +141,8 @@ fn spawn_ui(mut cmd: CommandQueue) {
             height: UIValue::Percent(0.1),
             ..Default::default()
         },
-        UIMaterialComponent {
-            color: wgpu_types::Color::GREEN,
+        UIMaterial {
+            color: [0.0, 1.0, 0.0, 1.0],
         },
     ));
 
@@ -205,17 +213,65 @@ fn spawn_floor(
     asset_server: Res<AssetServer>,
 ) {
     let height = 1.0;
-    let ground_mesh = asset_server.load::<OBJAsset>(GROUND_ASSET);
 
     let ground_transform =
         Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
     let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
 
+    // Use the ground OBJ geometry with a custom unlit material rendered by
+    // the user-defined `unlit.wgsl` shader (a bright cyan tint).
+    let ground_mesh = asset_server.load::<OBJAsset>(GROUND_ASSET);
+
+    // Create the UnlitMaterial asset: bright cyan so it is clearly
+    // distinguishable from the Phong-shaded spheres.
+    let unlit_mat = asset_server.add(UnlitMaterial {
+        tint: TintUniform::new(0.2, 0.8, 1.0, 1.0),
+    });
+
     cmd.spawn((
-        OBJSpawnerComponent(ground_mesh),
+        UnlitOBJSpawner {
+            mesh: ground_mesh,
+            material: unlit_mat,
+        },
         ground_colider,
         ground_transform,
     ));
+}
+
+/// Temporary component that holds the OBJ handle and custom material handle
+/// before the OBJ asset is fully loaded.  Once the OBJ finishes loading the
+/// [`spawn_unlit_obj`] system expands it into child [`MeshComponent`] entities
+/// and removes this component from the entity.
+#[derive(ecs::component::Component)]
+struct UnlitOBJSpawner {
+    mesh: essential::assets::handle::AssetHandle<OBJAsset>,
+    material: essential::assets::handle::AssetHandle<UnlitMaterial>,
+}
+
+/// System that waits for the OBJ to load and then spawns mesh children using
+/// the custom `UnlitMaterial` instead of the MTL-based `StandardMaterial`.
+fn spawn_unlit_obj(
+    mut cmd: CommandQueue,
+    spawners: ecs::query::Query<(Entity, &UnlitOBJSpawner)>,
+    obj_assets: Res<essential::assets::asset_store::AssetStore<OBJAsset>>,
+) {
+    for (entity, spawner) in spawners.iter() {
+        if let Some(asset) = obj_assets.get(&spawner.mesh) {
+            for obj_mesh in asset.meshes() {
+                let child = cmd.spawn((
+                    MeshComponent {
+                        handle: obj_mesh.handle.clone(),
+                    },
+                    Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+                    MaterialComponent::<UnlitMaterial> {
+                        handle: spawner.material.clone(),
+                    },
+                ));
+                cmd.add_child(entity, child);
+            }
+            cmd.remove::<UnlitOBJSpawner>(entity);
+        }
+    }
 }
 
 fn move_around(

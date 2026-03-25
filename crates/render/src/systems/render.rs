@@ -4,26 +4,33 @@ use ecs::{
 };
 
 use crate::{
+    assets::{material::StandardMaterial, skybox_material::SkyboxMaterial},
     components::{
         camera::RenderCamera,
         light::RenderLights,
         mesh_component::RenderMeshInstance,
+        render_material_component::RenderMaterialComponent,
         skeleton_component::{EmptySkeletonBuffer, RenderSkeletonComponent},
         skybox::{RenderSkyboxBindGroup, RenderSkyboxCube, SKYBOX_INDICES},
     },
     device::RenderDevice,
+    material_plugin::MaterialPipeline,
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
         RenderAssets,
     },
-    resources::{MainRenderPipeline, SkyboxRenderPipeline},
+    resources::MainRenderPipeline,
 };
 
 pub(crate) fn main_renderpass(
     pipeline: Res<MainRenderPipeline>,
     mut device: ResMut<RenderDevice>,
-    render_mesh_query: Query<(&RenderMeshInstance, Option<&RenderSkeletonComponent>)>,
+    render_mesh_query: Query<(
+        &RenderMeshInstance,
+        Option<&RenderSkeletonComponent>,
+        &RenderMaterialComponent<StandardMaterial>,
+    )>,
     render_cameras: Query<&RenderCamera>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_materials: Res<RenderAssets<RenderMaterial>>,
@@ -61,9 +68,10 @@ pub(crate) fn main_renderpass(
             render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
             render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
 
-            for (mesh_instance, skeleton) in render_mesh_query.iter() {
+            for (mesh_instance, skeleton, render_mat_comp) in render_mesh_query.iter() {
                 if let Some(mesh) = render_meshes.get(&mesh_instance.mesh_asset_id) {
-                    if let Some(render_mat) = render_materials.get(&mesh_instance.material_asset_id)
+                    if let Some(render_mat) =
+                        render_materials.get(&render_mat_comp.material_asset_id)
                     {
                         render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
                     } else {
@@ -92,7 +100,7 @@ pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
 }
 
 pub(crate) fn skybox_renderpass(
-    pipeline: Res<SkyboxRenderPipeline>,
+    pipeline: Res<MaterialPipeline<SkyboxMaterial>>,
     mut device: ResMut<RenderDevice>,
     render_cameras: Query<(&RenderCamera, &RenderSkyboxBindGroup)>,
     render_window: Res<RenderWindow>,
@@ -117,10 +125,12 @@ pub(crate) fn skybox_renderpass(
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&pipeline);
+            render_pass.set_pipeline(&pipeline.pipeline);
 
-            render_pass.set_bind_group(0, &camera.camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &skybox_bind_group.bind_group, &[]);
+            // group(0) = SkyboxMaterial (cube texture + sampler)
+            // group(1) = camera
+            render_pass.set_bind_group(0, &skybox_bind_group.bind_group, &[]);
+            render_pass.set_bind_group(1, &camera.camera_bind_group, &[]);
 
             render_pass.set_vertex_buffer(0, skybox_cube.vertices.slice(..));
             render_pass.set_index_buffer(skybox_cube.indices.slice(..), wgpu::IndexFormat::Uint16);

@@ -9,18 +9,26 @@ use ecs::{
 use essential::assets::handle::AssetHandle;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BufferUsages, Device, VertexAttribute,
+    BindGroup, BufferUsages, Device, VertexAttribute,
 };
 
 use crate::{
-    assets::{texture::Texture, vertex::VertexBufferLayout},
+    assets::{
+        material::AsBindGroup,
+        skybox_material::SkyboxMaterial,
+        texture::Texture,
+        vertex::VertexBufferLayout,
+    },
     components::{
         camera::{Camera, RenderCamera},
         render_entity::RenderEntity,
     },
     device::RenderDevice,
-    layouts::MaterialLayouts,
-    render_asset::{render_texture::RenderTexture, RenderAssets},
+    material_plugin::MaterialPipeline,
+    render_asset::{
+        render_texture::{DummyRenderTexture, RenderTexture},
+        RenderAssets,
+    },
 };
 
 pub(crate) const SKYBOX_VERTICES: [SkyboxVertex; 8] = [
@@ -116,37 +124,37 @@ impl RenderSkyboxCube {
     }
 }
 
+/// Creates [`RenderSkyboxBindGroup`] on render-camera entities once the
+/// skybox texture asset has been loaded into the render world.
+///
+/// The bind group is built via [`SkyboxMaterial::create_bind_group`] so the
+/// layout is derived from the same `#[derive(AsBindGroup)]` macro that
+/// produced the pipeline's `@group(0)` layout.
 pub(crate) fn prepare_skybox(
     cameras: Query<(&Skybox, &RenderEntity), With<Camera>>,
     render_cameras: Query<(&RenderCamera, &RenderSkyboxBindGroup)>,
     mut cmd: CommandQueue,
     render_textures: Res<RenderAssets<RenderTexture>>,
     device: Res<RenderDevice>,
-    skybox_layout: Res<MaterialLayouts>,
+    skybox_pipeline: Res<MaterialPipeline<SkyboxMaterial>>,
+    dummy_texture: Res<DummyRenderTexture>,
 ) {
     for (skybox, render_entity) in cameras.iter() {
         if render_cameras.contains_entity(**render_entity) {
             continue;
         }
 
-        if let Some(render_texture) = render_textures.get(&skybox.texture.id()) {
-            let bind_group = device.create_bind_group(&BindGroupDescriptor {
-                label: Some("skybox_bind_group"),
-                layout: &skybox_layout.skybox_material_layout,
-                entries: &[
-                    BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&render_texture.view),
-                    },
-                    BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&render_texture.sampler),
-                    },
-                ],
-            });
-            let skybox_bind_group = RenderSkyboxBindGroup { bind_group };
+        let skybox_mat = SkyboxMaterial {
+            texture: Some(skybox.texture.clone()),
+        };
 
-            cmd.insert(skybox_bind_group, **render_entity);
+        if let Ok(bind_group) = skybox_mat.create_bind_group(
+            &device,
+            &render_textures,
+            &dummy_texture,
+            &skybox_pipeline.bind_group_layout,
+        ) {
+            cmd.insert(RenderSkyboxBindGroup { bind_group }, **render_entity);
         }
     }
 }

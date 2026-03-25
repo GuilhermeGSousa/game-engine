@@ -1,0 +1,22 @@
+[package]
+name = "skybox"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+app = { path = "../app" }
+essential = { path = "../essential" }
+ecs = { path = "../ecs" }
+render = { path = "../render" }
+glam = { version = "0.30.1" }
+bytemuck = { version = "1.22.0", features = ["derive"] }
+env_logger = "0.11.6"
+log = "0.4.26"
+wgpu = { version = "24.0.1", default-features = false, features = [
+    "wgsl",
+    "metal",
+    "naga-ir",
+    "fragile-send-sync-non-atomic-wasm",
+    
+] }
+wgpu-types = { version = "24", default-features = false }

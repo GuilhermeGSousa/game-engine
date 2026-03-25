@@ -1,9 +1,7 @@
 use essential::assets::{handle::AssetHandle, Asset};
 
-use crate::{
-    assets::{material::Material, texture::Texture, vertex::VertexBufferLayout},
-    components::skybox::SkyboxVertex,
-    AsBindGroup,
+use render::{
+    AsBindGroup, Material, assets::{texture::Texture, vertex::{Vertex, VertexBufferLayout}},
 };
 
 /// Material used by the skybox render pass.
@@ -29,8 +27,8 @@ use crate::{
 ///   the generic mesh rendering systems.
 #[derive(Asset, AsBindGroup)]
 #[material(
-    vertex_shader = include_str!("../shaders/skybox.wgsl"),
-    fragment_shader = include_str!("../shaders/skybox.wgsl")
+    vertex_shader = include_str!("shaders/skybox.wgsl"),
+    fragment_shader = include_str!("shaders/skybox.wgsl")
 )]
 pub struct SkyboxMaterial {
     /// The cube-map texture (binding 0) and its sampler (binding 1).
@@ -50,6 +48,7 @@ impl Material for SkyboxMaterial {
 
     fn needs_skeleton() -> bool {
         false
+        
     }
 
     fn cull_mode() -> Option<wgpu::Face> {
@@ -57,7 +56,7 @@ impl Material for SkyboxMaterial {
     }
 
     fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>> {
-        vec![SkyboxVertex::describe()]
+        vec![Vertex::describe()]
     }
 
     fn depth_stencil() -> Option<wgpu::DepthStencilState> {

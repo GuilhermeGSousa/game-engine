@@ -32,12 +32,12 @@ use render::{
         light::{LighType, Light, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
-        skybox::Skybox,
     },
     material_plugin::MaterialPlugin,
     plugin::RenderPlugin,
 };
 
+use skybox::Skybox;
 use taffy::FlexDirection;
 use ui::{
     material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent,

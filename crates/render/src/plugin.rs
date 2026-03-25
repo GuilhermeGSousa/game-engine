@@ -3,31 +3,21 @@ use crate::{
         material::StandardMaterial,
         mesh::Mesh,
         skeleton::Skeleton,
-        skybox_material::SkyboxMaterial,
         texture::Texture,
         vertex::{Vertex, VertexBufferLayout},
-    },
-    components::{
+    }, components::{
         camera::{camera_added, camera_changed},
         light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
         mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
         skeleton_component::{EmptySkeletonBuffer, skeleton_added, update_skeletons},
-        skybox::{RenderSkyboxCube, prepare_skybox},
         world_environment::WorldEnvironment,
-    },
-    device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
-    material_plugin::MaterialPlugin,
-    queue::RenderQueue,
-    render_asset::{
+    }, device::RenderDevice, layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout}, material_plugin::MaterialPlugin, queue::RenderQueue, render_asset::{
         RenderAssetPlugin, render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
-    },
-    resources::{MainRenderPipeline, RenderContext},
-    systems::{
+    }, resources::{MainRenderPipeline, RenderContext}, systems::{
         render::{self, present_window},
         update_window,
-    },
+    }
 };
 use app::plugins::Plugin;
 use ecs::resource::Resource;
@@ -112,6 +102,7 @@ impl Plugin for RenderPlugin {
         #[cfg(not(target_arch = "wasm32"))]
         pollster::block_on(async_renderer_initialization);
 
+        
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
             .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
             .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
@@ -137,14 +128,9 @@ impl Plugin for RenderPlugin {
                 update_window::update_render_window,
             )
             .add_system(app::update_group::UpdateGroup::Render, update_skeletons)
-            .add_system(app::update_group::UpdateGroup::Render, prepare_skybox)
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 prepare_lights_buffer,
-            )
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                render::skybox_renderpass,
             )
             .add_system(
                 app::update_group::UpdateGroup::Render,
@@ -210,8 +196,6 @@ impl Plugin for RenderPlugin {
         let light_layout = LightLayout::new(&device);
 
         let skeleton_layout = SkeletonLayout::new(&device);
-
-        let skybox_cube = RenderSkyboxCube::new(&device);
 
         // Setup render pipeline
         let main_render_pipeline_layout =
@@ -279,7 +263,6 @@ impl Plugin for RenderPlugin {
 
         let render_lights = RenderLights::new(&device, &light_layout);
         let empty_skeleton_buffer = EmptySkeletonBuffer::new(&device, &skeleton_layout);
-
         app.insert_resource(DummyRenderTexture::new(&device))
             .insert_resource(RenderContext {
                 surface: surface,
@@ -297,13 +280,8 @@ impl Plugin for RenderPlugin {
             .insert_resource(light_layout)
             .insert_resource(skeleton_layout)
             .insert_resource(render_lights)
-            .insert_resource(skybox_cube)
+           
             .insert_resource(empty_skeleton_buffer)
             .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
-
-        // Use MaterialPlugin to build the skybox pipeline from SkyboxMaterial's
-        // trait methods (vertex_layouts, depth_stencil, cull_mode, shader sources).
-        // pipeline_only() skips asset registration and mesh rendering systems.
-        MaterialPlugin::<SkyboxMaterial>::pipeline_only().finish(app);
     }
 }

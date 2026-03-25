@@ -5,7 +5,7 @@ pub trait VertexBufferLayout {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Vertex {
     pub pos_coords: [f32; 3],
     pub uv_coords: [f32; 2],

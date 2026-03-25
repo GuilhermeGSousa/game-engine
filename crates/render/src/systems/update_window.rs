@@ -44,11 +44,16 @@ pub(crate) fn update_render_window(
         surface.configure(&device, &context.surface_config);
 
         for (mut render_camera,) in render_cameras.iter() {
-            render_camera.depth_texture = RenderTexture::create_depth_texture(
-                &device,
-                &context.surface_config,
-                "depth_texture",
-            );
+            // Only resize the depth texture for window cameras; texture render
+            // target cameras keep a fixed depth texture sized to their render
+            // target dimensions.
+            if render_camera.texture_render_target.is_none() {
+                render_camera.depth_texture = RenderTexture::create_depth_texture(
+                    &device,
+                    &context.surface_config,
+                    "depth_texture",
+                );
+            }
         }
     }
 

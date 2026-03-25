@@ -28,7 +28,7 @@ use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::Ri
 use render::{
     assets::texture::TextureUsageSettings,
     components::{
-        camera::Camera,
+        camera::{Camera, RenderCamera, RenderTarget},
         light::{LighType, Light, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
@@ -40,9 +40,9 @@ use render::{
 
 use taffy::FlexDirection;
 use ui::{
-    material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent,
-    transform::UIValue,
+    material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent, transform::UIValue,
 };
+use wgpu::Color as WgpuColor;
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -110,7 +110,15 @@ pub fn run_game() {
         .add_system(app::update_group::UpdateGroup::Update, spawn_unlit_obj)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
-        .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
+        .add_system(app::update_group::UpdateGroup::Startup, spawn_player)
+        .add_system(
+            app::update_group::UpdateGroup::Startup,
+            spawn_viewport_camera,
+        )
+        .add_system(
+            app::update_group::UpdateGroup::Update,
+            log_viewport_render_target,
+        );
 
     app.run();
 }
@@ -355,6 +363,45 @@ fn despawn_on_button_press(
     if key_d == InputState::Pressed {
         for (entity, _, _) in meshes.iter() {
             cmd.despawn(entity);
+        }
+    }
+}
+
+/// Spawn a secondary camera that renders the scene into a 512×512 off-screen
+/// texture instead of the main window.
+///
+/// The resulting texture is accessible each frame via
+/// [`RenderCamera::render_target_texture`] and can be used as a material
+/// texture in a UI viewport element (e.g. an editor panel).
+fn spawn_viewport_camera(mut cmd: CommandQueue) {
+    cmd.spawn((
+        Camera {
+            // Render to a 512×512 off-screen texture instead of the window.
+            render_target: RenderTarget::texture(512, 512),
+            clear_color: WgpuColor {
+                r: 0.05,
+                g: 0.05,
+                b: 0.1,
+                a: 1.0,
+            },
+            ..Camera::default()
+        },
+        Transform::from_translation_rotation(Vec3::new(5.0, 3.0, 5.0), Quat::IDENTITY),
+    ));
+}
+
+/// Demonstrates how to access the render target texture from the viewport
+/// camera's [`RenderCamera`].
+///
+/// In a real editor this view would be bound as a material texture in a UI
+/// panel.  Here we simply iterate render cameras that have a texture render
+/// target, making the texture view available for downstream systems.
+fn log_viewport_render_target(render_cameras: Query<&RenderCamera>) {
+    for render_camera in render_cameras.iter() {
+        if let Some(_rt) = render_camera.render_target_texture() {
+            // `_rt.view` is a `wgpu::TextureView` that can be bound as a
+            // texture in a UI viewport material.  In a real editor you would
+            // pass this view to the editor's viewport panel each frame.
         }
     }
 }

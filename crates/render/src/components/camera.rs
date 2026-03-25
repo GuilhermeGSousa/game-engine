@@ -1,5 +1,5 @@
 use encase::{ShaderType, UniformBuffer};
-use essential::{assets::handle::AssetHandle, transform::GlobalTranform};
+use essential::transform::GlobalTranform;
 
 use ecs::{
     command::CommandQueue,
@@ -12,9 +12,8 @@ use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::texture::Texture, components::render_entity::RenderEntity, device::RenderDevice,
-    layouts::CameraLayout, queue::RenderQueue, render_asset::render_texture::RenderTexture,
-    resources::RenderContext,
+    components::render_entity::RenderEntity, device::RenderDevice, layouts::CameraLayout,
+    queue::RenderQueue, render_asset::render_texture::RenderTexture, resources::RenderContext,
 };
 
 #[rustfmt::skip]
@@ -29,27 +28,32 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(
 
 pub enum WindowRef {
     MainWindow,
+    #[allow(dead_code)]
     CustomWindow(Entity),
 }
 
-#[allow(dead_code)]
+/// Where a camera renders its output.
 pub enum RenderTarget {
+    /// Render to a window surface (default: the main application window).
     Window(WindowRef),
-    Texture(AssetHandle<Texture>),
+    /// Render to an off-screen texture with the given pixel dimensions.
+    ///
+    /// The engine will allocate a colour texture (matching the surface format)
+    /// and a depth texture of the requested size and store them on the
+    /// corresponding [`RenderCamera`].  Access the result via
+    /// [`RenderCamera::render_target_texture`].
+    Texture { width: u32, height: u32 },
 }
 
-#[allow(dead_code)]
 impl RenderTarget {
     pub fn main_window() -> Self {
         RenderTarget::Window(WindowRef::MainWindow)
     }
 
-    pub fn custom_window(entity: Entity) -> Self {
-        RenderTarget::Window(WindowRef::CustomWindow(entity))
-    }
-
-    pub fn texture(handle: AssetHandle<Texture>) -> Self {
-        RenderTarget::Texture(handle)
+    /// Creates a render target that renders into an off-screen texture of
+    /// `width × height` pixels.
+    pub fn texture(width: u32, height: u32) -> Self {
+        RenderTarget::Texture { width, height }
     }
 }
 
@@ -116,6 +120,19 @@ pub struct RenderCamera {
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,
     pub(crate) depth_texture: RenderTexture,
+    /// When the camera renders to an off-screen texture, this holds the
+    /// allocated colour render target.  `None` means the camera renders to
+    /// the main window surface.
+    pub texture_render_target: Option<RenderTexture>,
+}
+
+impl RenderCamera {
+    /// Returns the off-screen colour render target for this camera, if one
+    /// was allocated (i.e. the camera was created with
+    /// [`RenderTarget::texture`]).
+    pub fn render_target_texture(&self) -> Option<&RenderTexture> {
+        self.texture_render_target.as_ref()
+    }
 }
 
 pub(crate) fn camera_added(
@@ -146,14 +163,38 @@ pub(crate) fn camera_added(
             label: Some("camera_bind_group"),
         });
 
-        let depth_texture =
-            RenderTexture::create_depth_texture(&device, &context.surface_config, "depth_texture");
+        let (depth_texture, texture_render_target) = match &camera.render_target {
+            RenderTarget::Window(_) => {
+                let depth = RenderTexture::create_depth_texture(
+                    &device,
+                    &context.surface_config,
+                    "depth_texture",
+                );
+                (depth, None)
+            }
+            RenderTarget::Texture { width, height } => {
+                let depth = RenderTexture::create_depth_texture_sized(
+                    &device,
+                    *width,
+                    *height,
+                    "depth_texture",
+                );
+                let color_rt = RenderTexture::create_color_render_target(
+                    &device,
+                    *width,
+                    *height,
+                    context.surface_config.format,
+                );
+                (depth, Some(color_rt))
+            }
+        };
 
         let render_cam = RenderCamera {
-            camera_bind_group: camera_bind_group,
-            camera_uniform: camera_uniform,
-            camera_buffer: camera_buffer,
-            depth_texture: depth_texture,
+            camera_bind_group,
+            camera_uniform,
+            camera_buffer,
+            depth_texture,
+            texture_render_target,
             clear_color: camera.clear_color,
         };
 

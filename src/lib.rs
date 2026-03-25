@@ -114,10 +114,6 @@ pub fn run_game() {
         .add_system(
             app::update_group::UpdateGroup::Startup,
             spawn_viewport_camera,
-        )
-        .add_system(
-            app::update_group::UpdateGroup::Update,
-            log_viewport_render_target,
         );
 
     app.run();
@@ -390,18 +386,25 @@ fn spawn_viewport_camera(mut cmd: CommandQueue) {
     ));
 }
 
-/// Demonstrates how to access the render target texture from the viewport
-/// camera's [`RenderCamera`].
+/// Example showing how to consume the texture produced by a
+/// [`RenderTarget::texture`] camera in a downstream system.
 ///
-/// In a real editor this view would be bound as a material texture in a UI
-/// panel.  Here we simply iterate render cameras that have a texture render
-/// target, making the texture view available for downstream systems.
+/// `render_camera.render_target_texture()` returns the [`RenderTexture`] that
+/// was rendered into this frame.  Its `.view` field is a `wgpu::TextureView`
+/// that can be bound as a sampled texture in a material or UI viewport panel.
+///
+/// Register this system in `UpdateGroup::Update` (after rendering) and add it
+/// to any project that needs to read back the off-screen render, for example:
+///
+/// ```ignore
+/// app.add_system(UpdateGroup::Update, use_viewport_texture);
+/// ```
+#[allow(dead_code)]
 fn log_viewport_render_target(render_cameras: Query<&RenderCamera>) {
     for render_camera in render_cameras.iter() {
         if let Some(_rt) = render_camera.render_target_texture() {
-            // `_rt.view` is a `wgpu::TextureView` that can be bound as a
-            // texture in a UI viewport material.  In a real editor you would
-            // pass this view to the editor's viewport panel each frame.
+            // TODO: pass `_rt.view` to a UI viewport material or copy it for
+            // use as an editor panel texture.
         }
     }
 }

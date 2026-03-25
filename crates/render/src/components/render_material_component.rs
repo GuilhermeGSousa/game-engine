@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use ecs::component::Component;
 use essential::assets::AssetId;
 
+use crate::Material;
+
 /// Render-world component placed on mesh entities to identify which material
 /// asset they use for a specific material type `M`.
 ///
@@ -16,12 +18,12 @@ use essential::assets::AssetId;
 /// entities belonging to pipeline `M`, so multiple `MaterialPlugin` instances
 /// for different material types coexist without interfering with each other.
 #[derive(Component)]
-pub(crate) struct RenderMaterialComponent<M: 'static> {
+pub(crate) struct RenderMaterialComponent<M: Material + 'static> {
     pub(crate) material_asset_id: AssetId,
     _marker: PhantomData<fn() -> M>,
 }
 
-impl<M: 'static> RenderMaterialComponent<M> {
+impl<M: Material + 'static> RenderMaterialComponent<M> {
     pub(crate) fn new(material_asset_id: AssetId) -> Self {
         Self {
             material_asset_id,

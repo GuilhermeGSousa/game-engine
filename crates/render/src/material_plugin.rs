@@ -42,9 +42,7 @@ use essential::transform::GlobalTranform;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::{
-        material::{Material, ShaderRef},
-    },
+    assets::material::{Material, ShaderRef},
     components::{
         camera::RenderCamera,
         light::RenderLights,
@@ -354,44 +352,27 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         // Build the material's own @group(0) bind-group layout.
         let material_layout = M::bind_group_layout(device);
 
-        // Gather only the engine layouts that M's shaders declare they need,
-        // in fixed slot order: camera(1), lighting(2), skeleton(3).
-        // Using the exact same BGL objects stored in resources ensures the
-        // bind groups created from them are compatible with the pipeline.
-        let camera_layout_res = if M::needs_camera() {
-            Some(
-                app.get_resource::<CameraLayout>()
-                    .expect("CameraLayout not found"),
-            )
-        } else {
-            None
-        };
-        let light_layout_res = if M::needs_lighting() {
-            Some(
-                app.get_resource::<LightLayout>()
-                    .expect("LightLayout not found"),
-            )
-        } else {
-            None
-        };
-        let skeleton_layout_res = if M::needs_skeleton() {
-            Some(
-                app.get_resource::<SkeletonLayout>()
-                    .expect("SkeletonLayout not found"),
-            )
-        } else {
-            None
-        };
-
         let mut all_layouts: Vec<&wgpu::BindGroupLayout> = vec![&material_layout];
-        if let Some(cl) = &camera_layout_res {
-            all_layouts.push(&cl.camera_layout);
+
+        if M::needs_camera() {
+            let camera_layout = app
+                .get_resource::<CameraLayout>()
+                .expect("CameraLayout not found");
+            all_layouts.push(&camera_layout.camera_layout);
         }
-        if let Some(ll) = &light_layout_res {
-            all_layouts.push(ll);
+
+        if M::needs_lighting() {
+            let light_layout = app
+                .get_resource::<LightLayout>()
+                .expect("LightLayout not found");
+            all_layouts.push(light_layout);
         }
-        if let Some(sl) = &skeleton_layout_res {
-            all_layouts.push(sl);
+
+        if M::needs_skeleton() {
+            let skeleton_layout = app
+                .get_resource::<SkeletonLayout>()
+                .expect("SkeletonLayout not found");
+            all_layouts.push(skeleton_layout);
         }
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

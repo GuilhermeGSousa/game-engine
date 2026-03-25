@@ -24,6 +24,7 @@ pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut app::App) {
+        app.register_plugin(MaterialPlugin::<UIMaterial>::pipeline_only());
         app.add_system(app::update_group::UpdateGroup::LateUpdate, compute_ui_nodes)
             .add_system(
                 app::update_group::UpdateGroup::Render,
@@ -72,11 +73,6 @@ impl Plugin for UIPlugin {
             glyphon::TextAtlas::new(&device, &queue, &cache, context.surface_config.format);
         let text_renderer =
             glyphon::TextRenderer::new(&mut atlas, &device, MultisampleState::default(), None);
-
-        // Use MaterialPlugin to build the UI render pipeline from UIMaterial's
-        // trait methods (vertex_layouts, depth_stencil, shader sources).
-        // pipeline_only() skips asset registration and mesh rendering systems.
-        MaterialPlugin::<UIMaterial>::pipeline_only().finish(app);
 
         app.insert_resource(TextRenderer(text_renderer))
             .insert_resource(TextCache(cache))

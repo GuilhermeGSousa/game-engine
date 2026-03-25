@@ -222,8 +222,6 @@ pub(crate) fn camera_added(
                 let new_render_entity = cmd.spawn(render_cam);
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
                 if let Some(target) = texture_target {
-                    // cmd.insert on new_render_entity — need to capture it
-                    // We re-query via the stored new_render_entity handle:
                     cmd.insert(target, new_render_entity);
                 }
             }

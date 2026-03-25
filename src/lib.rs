@@ -396,7 +396,7 @@ fn spawn_viewport_camera(mut cmd: CommandQueue, asset_server: Res<AssetServer>) 
 /// app.add_system(UpdateGroup::LateRender, use_viewport_texture);
 /// ```
 #[allow(dead_code)]
-fn log_viewport_render_target(texture_targets: Query<&CameraTextureTarget>) {
+fn use_viewport_texture(texture_targets: Query<&CameraTextureTarget>) {
     for target in texture_targets.iter() {
         let _handle = &target.texture_handle;
         // Pass `_handle` to a material's texture slot or a UI viewport panel to

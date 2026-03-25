@@ -37,7 +37,7 @@ use render::{
     plugin::RenderPlugin,
 };
 
-use skybox::{SkyboxCube, material::SkyboxMaterial, plugin::SkyboxPlugin};
+use skybox::{material::SkyboxMaterial, plugin::SkyboxPlugin, SkyboxCube};
 use taffy::FlexDirection;
 use ui::{
     material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent, transform::UIValue,
@@ -89,10 +89,10 @@ pub fn run_game() {
         .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
+        .register_plugin(SkyboxPlugin)
         // Register the custom unlit material so the engine knows how to render it.
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
-        .register_plugin(SkyboxPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
             app::update_group::UpdateGroup::Update,
@@ -187,7 +187,9 @@ fn spawn_player(
         handle: skybox_cube.clone(),
     };
     cmd.spawn((
-        MaterialComponent { handle: asset_server.add(skybox_material) },
+        MaterialComponent {
+            handle: asset_server.add(skybox_material),
+        },
         skybox_cube,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
     ));

@@ -1,7 +1,11 @@
-use essential::assets::{handle::AssetHandle, Asset};
+use essential::assets::{Asset, handle::AssetHandle};
 
 use render::{
-    AsBindGroup, Material, assets::{texture::Texture, vertex::{Vertex, VertexBufferLayout}},
+    AsBindGroup, Material,
+    assets::{
+        texture::Texture,
+        vertex::{Vertex, VertexBufferLayout},
+    },
 };
 
 /// Material used by the skybox render pass.
@@ -48,7 +52,6 @@ impl Material for SkyboxMaterial {
 
     fn needs_skeleton() -> bool {
         false
-        
     }
 
     fn cull_mode() -> Option<wgpu::Face> {

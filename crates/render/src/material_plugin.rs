@@ -210,13 +210,15 @@ pub(crate) fn material_renderpass<M: Material>(
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &render_camera.depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
+                depth_stencil_attachment: M::depth_stencil().map(|_| {
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view: &render_camera.depth_texture.view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }
                 }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
@@ -402,7 +404,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
 
         // Use the vertex layouts from the material trait.
         let vertex_layouts = M::vertex_layouts();
-        
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Material Pipeline"),
             layout: Some(&pipeline_layout),

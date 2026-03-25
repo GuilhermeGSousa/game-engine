@@ -1,9 +1,11 @@
-pub mod plugin;
 pub mod material;
+pub mod plugin;
 
-use ecs::{component::Component, resource::Resource};
+use derive_more::Deref;
+
+use ecs::resource::Resource;
 use essential::assets::handle::AssetHandle;
-use render::assets::{mesh::Mesh, texture::Texture, vertex::Vertex};
+use render::assets::{mesh::Mesh, vertex::Vertex};
 
 pub(crate) const SKYBOX_VERTICES: [Vertex; 8] = [
     // Front
@@ -92,10 +94,5 @@ pub const SKYBOX_INDICES: [u32; 36] = [
     4, 5, 1, 1, 0, 4,
 ];
 
-#[derive(Component)]
-pub struct Skybox {
-    pub texture: AssetHandle<Texture>,
-}
-
-#[derive(Resource)]
-pub(crate) struct SkyboxCube(pub(crate) AssetHandle<Mesh>);
+#[derive(Resource, Deref)]
+pub struct SkyboxCube(AssetHandle<Mesh>);

@@ -402,7 +402,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
 
         // Use the vertex layouts from the material trait.
         let vertex_layouts = M::vertex_layouts();
-
+        
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Material Pipeline"),
             layout: Some(&pipeline_layout),

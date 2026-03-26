@@ -102,7 +102,6 @@ impl Plugin for RenderPlugin {
         #[cfg(not(target_arch = "wasm32"))]
         pollster::block_on(async_renderer_initialization);
 
-        
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
             .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
             .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());

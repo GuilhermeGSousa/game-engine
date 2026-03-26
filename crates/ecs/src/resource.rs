@@ -10,9 +10,24 @@ use crate::{
     world::UnsafeWorldCell,
 };
 
+/// A unique identifier for a resource type, based on its Rust [`TypeId`].
 pub type ResourceId = TypeId;
 
+/// Marker trait for globally-shared data stored in a [`World`](crate::world::World).
+///
+/// Derive with `#[derive(Resource)]`.  Each type may have at most one instance per world.
+///
+/// Access resources in systems using [`Res<T>`] (read-only) or [`ResMut<T>`] (mutable).
+///
+/// # Example
+/// ```
+/// use ecs::resource::Resource;
+///
+/// #[derive(Resource)]
+/// struct Score(u32);
+/// ```
 pub trait Resource: Send + Sync + 'static {
+    /// Returns the human-readable name of this resource (usually the type name).
     fn name() -> &'static str;
 }
 
@@ -33,6 +48,13 @@ impl<T: Resource> ResourceStorage<T> {
     }
 }
 
+/// Read-only system parameter that borrows a [`Resource`] from the world.
+///
+/// Derefs to `&T`.  Implements [`DetectChanges`](crate::query::change_detection::DetectChanges)
+/// so systems can react when the resource value changes.
+///
+/// # Panics
+/// Panics at system execution time if the resource has not been inserted into the world.
 pub struct Res<'world, T: Resource> {
     pub value: &'world T,
     changed_tick: &'world Tick,
@@ -96,6 +118,13 @@ where
     }
 }
 
+/// Mutable system parameter that borrows a [`Resource`] from the world.
+///
+/// Derefs to `&mut T` and automatically marks the resource as changed when
+/// [`DerefMut`] is called, so change-detection works correctly.
+///
+/// # Panics
+/// Panics at system execution time if the resource has not been inserted into the world.
 pub struct ResMut<'world, T: Resource> {
     pub value: &'world mut T,
     changed_tick: &'world mut Tick,

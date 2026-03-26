@@ -13,6 +13,21 @@ use crate::{
     world::UnsafeWorldCell,
 };
 
+/// A type-safe view over all entities in a [`World`](crate::world::World) that
+/// match a given set of components.
+///
+/// `T` is a [`QueryData`] that describes which components to fetch.  `F` is an
+/// optional [`QueryFilter`] that further restricts which entities are visited.
+///
+/// Obtain a `Query` in a system by adding it as a parameter:
+///
+/// ```ignore
+/// fn move_system(query: Query<(&mut Transform, &Velocity)>) {
+///     for (transform, velocity) in query.iter() {
+///         transform.translation += velocity.linear;
+///     }
+/// }
+/// ```
 pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
     world: UnsafeWorldCell<'world>,
     matched_indices: Vec<usize>,
@@ -20,17 +35,26 @@ pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
     _marker_filter: PhantomData<F>,
 }
 
+/// Describes what data a [`Query`] fetches from each matching entity.
+///
+/// Implementations are provided for `&T`, `&mut T`, `Entity`, `Option<&T>`,
+/// `Option<&mut T>`, and tuples of up to 12 elements.
 pub trait QueryData {
+    /// The item type produced for each matched entity.
     type Item<'a>;
 
+    /// Returns the [`ComponentId`]s that must be present on an entity for it to match.
     fn component_ids() -> Vec<ComponentId>;
 
+    /// Fetches the data for `entity` from `world`, returning `None` if not possible.
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>>;
 
+    /// Registers component access with the scheduler's access tracker.
     fn fill_access(access: &mut SystemAccess);
 }
 
 impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
+    /// Constructs a new query by scanning the world's archetypes for matches.
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         let matched_indices: Vec<usize> = world
             .world()
@@ -54,6 +78,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
         }
     }
 
+    /// Returns an iterator over all matching entities.
     pub fn iter<'s>(&'s self) -> QueryIter<'world, 's, T, F> {
         QueryIter {
             world: self.world,
@@ -66,6 +91,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
         }
     }
 
+    /// Fetches the query data for a specific entity, returning `None` if it doesn't match.
     pub fn get_entity(&self, entity: Entity) -> Option<T::Item<'world>> {
         if !F::filter(self.world, entity) {
             return None;
@@ -73,6 +99,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
         T::fetch(self.world, entity)
     }
 
+    /// Returns `true` if `entity` matches this query.
     pub fn contains_entity(&self, entity: Entity) -> bool {
         self.get_entity(entity).is_some()
     }

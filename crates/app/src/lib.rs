@@ -24,11 +24,30 @@ pub mod plugins;
 pub mod runner;
 pub mod update_group;
 
+// Re-export the most commonly needed types so users don't have to know the module layout.
+pub use plugins::Plugin;
+pub use update_group::UpdateGroup;
+
 pub(crate) struct HokeyPokeyPlugin;
 impl Plugin for HokeyPokeyPlugin {
     fn build(&self, _: &mut App) {}
 }
 
+/// The top-level container for the game engine.
+///
+/// An `App` owns a [`World`], a set of per-group [`Schedule`]s, and a list of
+/// [`Plugin`]s.  Call [`run`](App::run) to hand control over to the configured
+/// runner (typically the window event loop).
+///
+/// # Typical setup
+/// ```ignore
+/// use app::App;
+/// use app::plugins::TimePlugin;
+///
+/// let mut app = App::empty();
+/// app.register_plugin(TimePlugin);
+/// app.run();
+/// ```
 pub struct App {
     runner: runner::RunnerFn,
     world: World,
@@ -45,6 +64,7 @@ pub struct App {
 }
 
 impl App {
+    /// Creates a minimal app with no plugins, resources, or systems.
     pub fn empty() -> App {
         Self {
             runner: Box::new(runner::run_once),
@@ -62,12 +82,19 @@ impl App {
         }
     }
 
+    /// Builds and registers a [`Plugin`].
+    ///
+    /// Calls [`Plugin::build`] immediately, then stores the plugin so that
+    /// [`Plugin::ready`] and [`Plugin::finish`] can be polled later.
     pub fn register_plugin(&mut self, plugin: impl Plugin + 'static) -> &mut Self {
         plugin.build(self);
         self.plugins.push(Box::new(plugin));
         self
     }
 
+    /// Registers an asset type, creating its [`AssetStore`] and wiring up the tracking system.
+    ///
+    /// Requires [`AssetManagerPlugin`](plugins::AssetManagerPlugin) to already be registered.
     pub fn register_asset<A: Asset>(&mut self) -> &mut Self {
         let asset_store = AssetStore::<A>::new();
         let asset_server = self
@@ -86,17 +113,20 @@ impl App {
         self
     }
 
+    /// Hands control to the configured runner function, consuming the app.
     pub fn run(&mut self) {
         let runner = replace(&mut self.runner, Box::new(run_once));
         let app = replace(self, App::empty());
         (runner)(app);
     }
 
+    /// Replaces the default runner with a custom one (e.g. a window event loop).
     pub fn set_runner(&mut self, f: impl FnOnce(App) -> AppExit + 'static) -> &mut Self {
         self.runner = Box::new(f);
         self
     }
 
+    /// Registers a system in the given [`UpdateGroup`].
     pub fn add_system<M>(
         &mut self,
         update_group: UpdateGroup,
@@ -114,6 +144,7 @@ impl App {
         self
     }
 
+    /// Registers a system to run before all others in its [`UpdateGroup`].
     pub fn add_system_first<M>(
         &mut self,
         update_group: UpdateGroup,
@@ -133,6 +164,9 @@ impl App {
         self
     }
 
+    /// Registers an event type, creating its [`EventChannel`] resource and a flush system.
+    ///
+    /// Call this once per event type before any system uses [`EventWriter`] or [`EventReader`].
     pub fn register_event<T: Event + 'static>(&mut self) -> &mut Self {
         let event_channel = EventChannel::<T>::new();
 
@@ -141,6 +175,7 @@ impl App {
         self
     }
 
+    /// Inserts a resource into the world (replacing any existing one of the same type).
     pub fn insert_resource<R: Resource>(&mut self, value: R) -> &mut Self {
         self.world.insert_resource(value);
         self
@@ -158,6 +193,8 @@ impl App {
         self.world.get_resource_mut()
     }
 
+    /// Runs all per-frame schedules: FixedUpdate (as many times as needed), Update,
+    /// LateUpdate, Render, LateRender.  Also advances the world tick at the end.
     pub fn update(&mut self) {
         {
             let time = self
@@ -180,11 +217,15 @@ impl App {
         self.world.tick();
     }
 
+    /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`.
     pub fn register_component_lifecycle<T: Component>(&mut self) -> &mut Self {
         self.world.register_component_lifetimes::<T>();
         self
     }
 
+    /// Polls each plugin's [`ready`](Plugin::ready) method and transitions the state machine.
+    ///
+    /// Returns the current [`PluginsState`].
     pub fn plugin_state(&mut self) -> PluginsState {
         let next_state = match self.plugin_state {
             PluginsState::Building => {
@@ -202,6 +243,9 @@ impl App {
         next_state
     }
 
+    /// Calls [`Plugin::finish`] on every registered plugin, then runs the `Startup` schedule.
+    ///
+    /// Should be called once after all plugins have been registered and all async work is ready.
     pub fn finish_plugin_build(&mut self) {
         let mut hokeypokey: Box<dyn Plugin> = Box::new(HokeyPokeyPlugin);
         for i in 0..self.plugins.len() {

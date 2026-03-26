@@ -23,6 +23,22 @@ use crate::{
     utilities::TypeIdMap,
 };
 
+/// The central container of the ECS.
+///
+/// A `World` stores all entities together with their components and all
+/// globally-shared resources. Systems receive a reference to the world (or
+/// typed wrappers around it) and use it to read and write game state.
+///
+/// # Example
+/// ```
+/// use ecs::{World, Component};
+///
+/// #[derive(Component)]
+/// struct Health(f32);
+///
+/// let mut world = World::new();
+/// let entity = world.spawn(Health(100.0));
+/// ```
 pub struct World {
     archetypes: Vec<Archetype>,
     resources: AnyMap,
@@ -36,6 +52,7 @@ unsafe impl Send for World {}
 unsafe impl Sync for World {}
 
 impl World {
+    /// Creates a new, empty `World` with no entities or resources.
     pub fn new() -> World {
         Self {
             archetypes: Vec::new(),
@@ -47,6 +64,7 @@ impl World {
         }
     }
 
+    /// Spawns a new entity with the given component bundle and returns its [`Entity`] handle.
     pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> Entity {
         let entity = self.entity_store.alloc();
 
@@ -83,14 +101,17 @@ impl World {
         cell.trigger_on_add(entity, &T::get_component_ids());
     }
 
+    /// Removes an entity and all of its components from the world.
+    ///
+    /// # Panics
+    /// Panics if the entity does not exist in the world.
     pub fn despawn(&mut self, entity: Entity) {
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 {
-                    let mut component_ids = Vec::new();
-                    component_ids.clone_from_slice(
-                        self.archetypes[location.archetype_index as usize].component_ids(),
-                    );
+                    let component_ids = self.archetypes[location.archetype_index as usize]
+                        .component_ids()
+                        .to_vec();
                     let cell = self.as_unsafe_world_cell_mut();
                     cell.trigger_on_remove(entity, &component_ids);
                 }
@@ -117,10 +138,23 @@ impl World {
         &mut self.archetypes
     }
 
+    /// Adds a component to an existing entity, migrating it to the appropriate archetype.
+    ///
+    /// If the entity already has a component of type `T`, the existing value is replaced.
+    ///
+    /// # Panics
+    /// Panics if the entity does not exist in the world.
     pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
         self.insert_component_internal(component, entity, true);
     }
 
+    /// Removes a component of type `T` from an entity, migrating it to the appropriate archetype.
+    ///
+    /// If the entity does not have a component of type `T`, a warning is logged and the call
+    /// is a no-op.
+    ///
+    /// # Panics
+    /// Panics if the entity does not exist in the world.
     pub fn remove_component<T: Component>(&mut self, entity: Entity) {
         self.remove_component_internal::<T>(entity, true);
     }
@@ -268,6 +302,7 @@ impl World {
         &mut self.entity_store
     }
 
+    /// Returns a shared reference to the component of type `T` on `entity`, or `None` if absent.
     pub fn get_component_for_entity<T: Component>(&self, entity: Entity) -> Option<&T> {
         self.entity_store
             .find_location(entity)
@@ -275,6 +310,9 @@ impl World {
             .flatten()
     }
 
+    /// Returns an exclusive reference to the component of type `T` on `entity`, or `None`.
+    ///
+    /// Marks the component as changed for this tick so change-detection filters fire correctly.
     pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
         let current_tick = self.current_tick;
         self.entity_store
@@ -319,23 +357,27 @@ impl World {
             .flatten()
     }
 
+    /// Inserts a resource into the world.  If one of the same type already exists it is replaced.
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
         self.resources
             .insert(ResourceStorage::new(resource, self.current_tick));
     }
 
+    /// Removes and returns the resource of type `T`, or `None` if it was not present.
     pub fn remove_resource<T: Resource + 'static>(&mut self) -> Option<T> {
         self.resources
             .remove::<ResourceStorage<T>>()
             .map(|resource_storage| resource_storage.data)
     }
 
+    /// Returns a shared reference to the resource of type `T`, or `None` if not present.
     pub fn get_resource<T: Resource + 'static>(&self) -> Option<&T> {
         self.resources
             .get::<ResourceStorage<T>>()
             .map(|resource_storage| &resource_storage.data)
     }
 
+    /// Returns an exclusive reference to the resource of type `T`, or `None` if not present.
     pub fn get_resource_mut<T: Resource + 'static>(&mut self) -> Option<&mut T> {
         self.resources
             .get_mut::<ResourceStorage<T>>()
@@ -362,6 +404,10 @@ impl World {
         UnsafeWorldCell::new_ref(self)
     }
 
+    /// Advances the world's internal tick counter.
+    ///
+    /// Call this once per frame (after all systems have run) so that change-detection
+    /// filters (`Added`, `Changed`) produce fresh results on the next frame.
     pub fn tick(&mut self) {
         self.current_tick += 1;
     }
@@ -394,12 +440,20 @@ impl World {
         }
     }
 
+    /// Registers lifecycle callbacks (`on_add` / `on_remove`) for component type `T`.
+    ///
+    /// Must be called before any entity is spawned with `T` for the callbacks to fire.
     pub fn register_component_lifetimes<T: Component>(&mut self) {
         self.component_lifetimes
             .entry(ComponentId::of::<T>())
             .or_insert(ComponentLifecycleCallbacks::from_component::<T>());
     }
 
+    /// Establishes a parent-child relationship between two entities.
+    ///
+    /// Inserts a [`ChildOf`](crate::entity::hierarchy::ChildOf) component on `child` and
+    /// updates (or creates) the [`Children`](crate::entity::hierarchy::Children) component on
+    /// `parent`.
     pub fn add_child(&mut self, parent: Entity, child: Entity) {
         self.insert_component(ChildOf::new(parent), child);
 
@@ -415,6 +469,14 @@ impl World {
 }
 
 #[derive(Copy, Clone)]
+/// A raw, lifetime-scoped pointer to a [`World`].
+///
+/// `UnsafeWorldCell` is used internally so that multiple system parameters
+/// (queries, resources, event readers/writers) can all borrow from the same
+/// world simultaneously at runtime.  Using it incorrectly can cause undefined
+/// behaviour; prefer the safe wrappers [`Query`](crate::query::Query),
+/// [`Res`](crate::resource::Res) and [`ResMut`](crate::resource::ResMut) in
+/// normal system code.
 pub struct UnsafeWorldCell<'w> {
     ptr: *mut World,
     is_mutable: bool,
@@ -542,6 +604,11 @@ impl<'w> UnsafeWorldCell<'w> {
     }
 }
 
+/// A scoped, restricted view of a [`World`] that is safe to pass into component lifecycle
+/// callbacks.
+///
+/// `RestrictedWorld` is provided to `on_add` and `on_remove` lifecycle callbacks.  It
+/// intentionally exposes a limited API to avoid re-entrant mutation issues.
 pub struct RestrictedWorld<'w> {
     world_cell: UnsafeWorldCell<'w>,
 }

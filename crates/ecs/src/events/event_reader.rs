@@ -7,6 +7,18 @@ use crate::{
     world::UnsafeWorldCell,
 };
 
+/// System parameter for reading events of type `T`.
+///
+/// Call [`read`](EventReader::read) to iterate over all events that were written this frame.
+///
+/// # Example
+/// ```ignore
+/// fn on_player_died(reader: EventReader<PlayerDied>) {
+///     for event in reader.read() {
+///         println!("Player died with score {}", event.score);
+///     }
+/// }
+/// ```
 pub struct EventReader<'world, T: Event + 'static> {
     channel: Res<'world, EventChannel<T>>,
 }
@@ -18,6 +30,7 @@ impl<'w, T: Event> EventReader<'w, T> {
         }
     }
 
+    /// Returns an iterator over all events buffered this frame.
     pub fn read(&self) -> EventIterator<'_, T> {
         EventIterator::new(&self.channel)
     }

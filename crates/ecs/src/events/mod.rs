@@ -6,8 +6,8 @@ pub use ecs_macros::Event;
 
 /// Marker trait for messages that can be sent between systems.
 ///
-/// Derive with `#[derive(Event)]`.  Register a new event type with
-/// [`App::register_event`](crate::App::register_event) before using it.
+/// Derive with `#[derive(Event)]`.  Register a new event type with the app's
+/// `register_event` method before using it.
 ///
 /// Send events from systems with [`EventWriter`](event_writer::EventWriter) and
 /// read them with [`EventReader`](event_reader::EventReader).

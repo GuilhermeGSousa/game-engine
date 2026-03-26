@@ -274,10 +274,11 @@ mod tests {
         world.add_child(entity_parent, entity_child_2);
     }
 
-    // ----- resource tests -----
-
     #[derive(Resource)]
     struct Score(u32);
+
+    #[derive(Resource)]
+    struct DoubleScore(u32);
 
     #[test]
     fn insert_and_get_resource() {
@@ -304,7 +305,7 @@ mod tests {
         assert_eq!(world.get_resource::<Score>().unwrap().0, 99);
     }
 
-    fn read_score(score: Res<Score>, mut result: ResMut<Score>) {
+    fn read_score(score: Res<Score>, mut result: ResMut<DoubleScore>) {
         result.0 = score.0 * 2;
     }
 
@@ -312,12 +313,13 @@ mod tests {
     fn resource_system_read_write() {
         let mut world = World::new();
         world.insert_resource(Score(5));
+        world.insert_resource(DoubleScore(0));
 
         let mut schedule = Schedule::new();
         schedule.add_system(read_score);
         schedule.run(&mut world);
 
-        assert_eq!(world.get_resource::<Score>().unwrap().0, 10);
+        assert_eq!(world.get_resource::<DoubleScore>().unwrap().0, 10);
     }
 
     // ----- event tests -----

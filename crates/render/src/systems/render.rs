@@ -4,17 +4,15 @@ use ecs::{
 };
 
 use crate::{
-    assets::{material::StandardMaterial, skybox_material::SkyboxMaterial},
+    assets::material::StandardMaterial,
     components::{
         camera::RenderCamera,
         light::RenderLights,
         mesh_component::RenderMeshInstance,
         render_material_component::RenderMaterialComponent,
         skeleton_component::{EmptySkeletonBuffer, RenderSkeletonComponent},
-        skybox::{RenderSkyboxBindGroup, RenderSkyboxCube, SKYBOX_INDICES},
     },
     device::RenderDevice,
-    material_plugin::MaterialPipeline,
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial, render_mesh::RenderMesh, render_window::RenderWindow,
@@ -48,7 +46,7 @@ pub(crate) fn main_renderpass(
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: wgpu::LoadOp::Clear(render_camera.clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -97,46 +95,6 @@ pub(crate) fn main_renderpass(
 
 pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
     render_window.present();
-}
-
-pub(crate) fn skybox_renderpass(
-    pipeline: Res<MaterialPipeline<SkyboxMaterial>>,
-    mut device: ResMut<RenderDevice>,
-    render_cameras: Query<(&RenderCamera, &RenderSkyboxBindGroup)>,
-    render_window: Res<RenderWindow>,
-    skybox_cube: Res<RenderSkyboxCube>,
-) {
-    if let Some(view) = render_window.get_view() {
-        let encoder = device.command_encoder();
-
-        for (camera, skybox_bind_group) in render_cameras.iter() {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Skybox Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(camera.clear_color),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-
-            render_pass.set_pipeline(&pipeline.pipeline);
-
-            // group(0) = SkyboxMaterial (cube texture + sampler)
-            // group(1) = camera
-            render_pass.set_bind_group(0, &skybox_bind_group.bind_group, &[]);
-            render_pass.set_bind_group(1, &camera.camera_bind_group, &[]);
-
-            render_pass.set_vertex_buffer(0, skybox_cube.vertices.slice(..));
-            render_pass.set_index_buffer(skybox_cube.indices.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..(SKYBOX_INDICES.len() as u32), 0, 0..1);
-        }
-    }
 }
 
 pub(crate) fn finish_render(mut device: ResMut<RenderDevice>, queue: Res<RenderQueue>) {

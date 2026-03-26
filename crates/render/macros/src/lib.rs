@@ -19,7 +19,10 @@ enum TextureViewDimension {
 enum BindingKind {
     /// A texture binding.  `dimension` controls whether it is a 2-D texture
     /// (the default) or a cube-map texture (`#[texture(N, dimension = "cube")]`).
-    Texture { index: u32, dimension: TextureViewDimension },
+    Texture {
+        index: u32,
+        dimension: TextureViewDimension,
+    },
     /// A sampler linked to the texture at `texture_index`.
     Sampler { index: u32 },
     /// A plain `bytemuck::Pod + bytemuck::Zeroable` value uploaded as a uniform buffer.

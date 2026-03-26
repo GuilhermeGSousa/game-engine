@@ -1,12 +1,7 @@
 use ecs::{
-    component::Component,
-    events::{
-        event_channel::{update_event_channel, EventChannel},
-        Event,
-    },
-    resource::{ResMut, Resource},
-    system::{schedule::Schedule, IntoSystem},
-    world::World,
+    component::{Component, bundle::ComponentBundle}, entity::Entity, events::{
+        Event, event_channel::{EventChannel, update_event_channel}
+    }, resource::{ResMut, Resource}, system::{IntoSystem, schedule::Schedule}, world::World
 };
 use runner::{run_once, AppExit};
 
@@ -202,6 +197,11 @@ impl App {
         next_state
     }
 
+    pub fn spawn<T: ComponentBundle>(&mut self, bundle: T) -> Entity
+    {
+        self.world.spawn(bundle)
+    }
+
     pub fn finish_plugin_build(&mut self) {
         let mut hokeypokey: Box<dyn Plugin> = Box::new(HokeyPokeyPlugin);
         for i in 0..self.plugins.len() {
@@ -213,4 +213,5 @@ impl App {
         self.plugin_state = PluginsState::Finished;
         self.startup_schedule.run(&mut self.world);
     }
+
 }

@@ -46,7 +46,7 @@ pub(crate) fn main_renderpass(
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: wgpu::LoadOp::Clear(render_camera.clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],

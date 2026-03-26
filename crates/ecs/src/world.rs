@@ -102,9 +102,6 @@ impl World {
     }
 
     /// Removes an entity and all of its components from the world.
-    ///
-    /// # Panics
-    /// Panics if the entity does not exist in the world.
     pub fn despawn(&mut self, entity: Entity) {
         match self.entity_store.find_location(entity) {
             Some(location) => {
@@ -141,9 +138,6 @@ impl World {
     /// Adds a component to an existing entity, migrating it to the appropriate archetype.
     ///
     /// If the entity already has a component of type `T`, the existing value is replaced.
-    ///
-    /// # Panics
-    /// Panics if the entity does not exist in the world.
     pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
         self.insert_component_internal(component, entity, true);
     }
@@ -152,9 +146,6 @@ impl World {
     ///
     /// If the entity does not have a component of type `T`, a warning is logged and the call
     /// is a no-op.
-    ///
-    /// # Panics
-    /// Panics if the entity does not exist in the world.
     pub fn remove_component<T: Component>(&mut self, entity: Entity) {
         self.remove_component_internal::<T>(entity, true);
     }

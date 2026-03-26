@@ -14,9 +14,7 @@ use essential::{
     assets::{asset_server::AssetServer, asset_store::AssetStore, Asset},
     time::Time,
 };
-use plugins::Plugin;
 use std::mem::replace;
-use update_group::UpdateGroup;
 
 use crate::plugins::PluginsState;
 

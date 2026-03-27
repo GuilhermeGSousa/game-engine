@@ -1,7 +1,12 @@
 use ecs::{
-    component::{Component, bundle::ComponentBundle}, entity::Entity, events::{
-        Event, event_channel::{EventChannel, update_event_channel}
-    }, resource::{ResMut, Resource}, system::{IntoSystem, schedule::Schedule}, world::World
+    component::Component,
+    events::{
+        event_channel::{update_event_channel, EventChannel},
+        Event,
+    },
+    resource::{ResMut, Resource},
+    system::{schedule::Schedule, IntoSystem},
+    world::World,
 };
 use runner::{run_once, AppExit};
 
@@ -250,5 +255,4 @@ impl App {
         self.plugin_state = PluginsState::Finished;
         self.startup_schedule.run(&mut self.world);
     }
-
 }

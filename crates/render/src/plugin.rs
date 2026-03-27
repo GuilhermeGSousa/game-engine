@@ -16,6 +16,7 @@ use crate::{
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
+    material_plugin::DEFAULT_SHADER_SOURCE,
     queue::RenderQueue,
     render_asset::{
         render_material::RenderMaterial,
@@ -35,7 +36,7 @@ use ecs::resource::Resource;
 use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};
-use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
+use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue, ShaderModuleDescriptor};
 use window::plugin::Window;
 use winit::window::Window as WinitWindow;
 
@@ -197,7 +198,10 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
-        let main_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
+        let main_shader = device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("Standard Shader"),
+            source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER_SOURCE.into()),
+        });
 
         let camera_layouts = CameraLayout::new(&device);
 

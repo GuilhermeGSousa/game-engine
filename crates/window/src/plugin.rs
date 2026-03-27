@@ -96,6 +96,7 @@ fn update_input(mut input: ResMut<Input>) {
 }
 
 #[allow(deprecated)]
+#[allow(unused_mut)]
 impl Plugin for WindowPlugin {
     fn build(&self, app: &mut App) {
         app.register_event::<WindowEvent>();

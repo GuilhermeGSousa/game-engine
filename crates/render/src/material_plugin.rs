@@ -65,7 +65,7 @@ use crate::{
 
 // ─── Default (built-in) shader source ────────────────────────────────────────
 
-const DEFAULT_SHADER_SOURCE: &str = include_str!("shaders/shader.wgsl");
+pub(crate) const DEFAULT_SHADER_SOURCE: &str = include_str!("shaders/shader.wgsl");
 
 // ─── MaterialPipeline ─────────────────────────────────────────────────────────
 

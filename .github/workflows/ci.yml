@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Build
+  # -----------------------------------------------------------------------
+  # Build all workspace members that compile on every OS (including window
+  # and render, which do not require a physical GPU).  We also
+  # cross-compile to wasm32-unknown-unknown and, on macOS, verify the full
+  # workspace (which requires the wgpu metal backend).
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry and build artefacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-cargo-build-
+
+      # Build all crates that compile on every OS (including window and render,
+      # which do not require a GPU at compile time).
+      - name: Build platform-agnostic crates
+        run: >
+          cargo build
+          -p ecs
+          -p essential
+          -p app
+          -p animation
+          -p physics
+          -p window
+          -p render
+
+      # Cross-compile to WebAssembly.  window and render both declare
+      # wasm32-specific dependencies so they are included here as well.
+      - name: Build for wasm32-unknown-unknown
+        run: >
+          cargo build --target wasm32-unknown-unknown
+          -p ecs
+          -p essential
+          -p app
+          -p animation
+          -p physics
+          -p window
+          -p render
+
+      # Build the full workspace on macOS, where the wgpu metal backend is
+      # available and winit has native support.
+      - name: Build full workspace (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: cargo build --workspace
+
+  # -----------------------------------------------------------------------
+  # Test
+  # -----------------------------------------------------------------------
+  # Run all unit tests.  Currently tests live in the platform-agnostic crates
+  # (ecs, essential) so this job runs identically on every OS.
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artefacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-cargo-test-
+
+      - name: Run tests
+        run: cargo test -p ecs -p essential

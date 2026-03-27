@@ -8,6 +8,11 @@ use crate::table::TableRowIndex;
 pub mod entity_store;
 pub mod hierarchy;
 
+/// A lightweight, copyable handle that uniquely identifies a game object in the [`World`](crate::world::World).
+///
+/// Entities are created with [`World::spawn`](crate::world::World::spawn) and destroyed with
+/// [`World::despawn`](crate::world::World::despawn).  An entity is just an `(index, generation)`
+/// pair — the generation is bumped each time a slot is reused so stale handles can be detected.
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub struct Entity {
     index: u32,
@@ -19,10 +24,13 @@ impl Entity {
         Self { index, generation }
     }
 
+    /// Returns the slot index of this entity within the entity store.
     pub fn index(&self) -> u32 {
         self.index
     }
 
+    /// Returns the generation counter that distinguishes this entity from previously-occupying
+    /// entities at the same index.
     pub fn generation(&self) -> NonZero<u32> {
         self.generation
     }

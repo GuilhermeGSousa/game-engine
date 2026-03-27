@@ -1,4 +1,4 @@
-use crate::world::World;
+use crate::{system::batch::SystemBatch, world::World};
 
 use super::{IntoSystem, ScheduledSystem, System};
 
@@ -25,22 +25,21 @@ use super::{IntoSystem, ScheduledSystem, System};
 #[allow(unused)]
 pub struct Schedule {
     systems: Vec<ScheduledSystem>,
+    batches: Vec<SystemBatch>,
 }
 
 impl Schedule {
-    // TODO: Implement an actual scheduler with stages and conditions
     /// Creates an empty schedule.
     pub fn new() -> Schedule {
         Self {
             systems: Vec::new(),
+            batches: Vec::new(),
         }
     }
 
     /// Appends a system to the end of the schedule.
-    #[allow(unused)]
     pub fn add_system<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
         let scheduled_system = system.into_system();
-        let system_access = scheduled_system.access();
         self.systems.push(scheduled_system);
         self
     }
@@ -64,5 +63,16 @@ impl Schedule {
         for system in &mut self.systems {
             system.run(world.as_unsafe_world_cell_mut());
         }
+    }
+
+    pub fn run_parallel(&mut self, world: &mut World) {
+        rayon::scope(|s| {
+            let world_cell = world.as_unsafe_world_cell_mut();
+            for batch in &mut self.batches {
+                s.spawn(move |_| {
+                    batch.run(world_cell);
+                });
+            }
+        });
     }
 }

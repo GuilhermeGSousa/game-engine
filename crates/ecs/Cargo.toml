@@ -12,3 +12,5 @@ anymap3 = "1.0.1"
 typle = "0.10.6"
 ecs-macros = { path = "macros" }
 log = "0.4.27"
+
+rayon = "1.11.0"

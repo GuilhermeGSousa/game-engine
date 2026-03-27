@@ -19,7 +19,7 @@ pub struct ActiveNodeInstance {
 impl ActiveNodeInstance {
     pub(crate) fn update(
         &mut self,
-        node: &Box<dyn AnimationNode>,
+        node: &dyn AnimationNode,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {

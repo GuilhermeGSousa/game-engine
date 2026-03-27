@@ -32,6 +32,12 @@ impl<T: Event + 'static> EventChannel<T> {
     }
 }
 
+impl<T: Event + 'static> Default for EventChannel<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// System that flushes all events in a channel at the end of `LateUpdate`.
 ///
 /// Registered automatically by [`App::register_event`].

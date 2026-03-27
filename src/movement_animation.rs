@@ -21,7 +21,7 @@ use essential::{
     assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
     transform::Transform,
 };
-use gltf::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings};
+use gltf_loader::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings};
 use render::components::camera::Camera;
 use window::input::{Input, InputState};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -88,11 +88,11 @@ pub(crate) fn setup_state_machine(
             gltf_scenes
                 .get(&loading_anim_store.idle)
                 .and_then(|idle_scene| idle_scene.animations().first())
-                .map(|clip| clip.clone()),
+                .cloned(),
             gltf_scenes
                 .get(&loading_anim_store.walk)
                 .and_then(|walk_scene| walk_scene.animations().first())
-                .map(|clip| clip.clone()),
+                .cloned(),
         ) else {
             continue;
         };

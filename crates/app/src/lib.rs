@@ -227,7 +227,7 @@ impl App {
     pub fn plugin_state(&mut self) -> PluginsState {
         let next_state = match self.plugin_state {
             PluginsState::Building => {
-                if self.plugins.iter().all(|plugin| plugin.ready(&self)) {
+                if self.plugins.iter().all(|plugin| plugin.ready(self)) {
                     PluginsState::Ready
                 } else {
                     PluginsState::Building

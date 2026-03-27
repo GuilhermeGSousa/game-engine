@@ -28,7 +28,6 @@ pub async fn load_to_string<'a>(path: AssetPath<'a>) -> Result<String, ()> {
             let txt = std::fs::read_to_string(&path).map_err(|_|
                 {
                     println!("Failed to load file: {}", &path.display());
-                    ()
                 })?;
         }
     }
@@ -53,7 +52,6 @@ pub async fn load_binary<'a>(path: AssetPath<'a>) -> Result<Vec<u8>, ()> {
             let data = std::fs::read(&path).map_err(|_|
                 {
                     println!("Failed to load file: {}", &path.display());
-                    ()
                 })?;
         }
     }

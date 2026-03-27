@@ -6,13 +6,13 @@ use crate::{
 };
 use typle::typle;
 
-pub unsafe trait SystemInput {
+pub trait SystemInput {
     type State: Send + Sync + 'static;
     type Data<'world, 'state>;
 
     fn init_state() -> Self::State;
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state>;
@@ -24,7 +24,7 @@ pub unsafe trait SystemInput {
 
 #[allow(unused_variables, unused_mut)]
 #[typle(Tuple for 0..=12)]
-unsafe impl<T> SystemInput for T
+impl<T> SystemInput for T
 where
     T: Tuple,
     T<_>: SystemInput + 'static,
@@ -36,7 +36,7 @@ where
         typle_for!(i in .. => <T<{i}>>::init_state())
     }
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -72,7 +72,7 @@ impl<'w, 's, P: SystemInput> StaticSystemInput<'w, 's, P> {
     }
 }
 
-unsafe impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, 's, P> {
+impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, 's, P> {
     type State = P::State;
     type Data<'world, 'state> = StaticSystemInput<'world, 'state, P>;
 
@@ -80,11 +80,11 @@ unsafe impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<
         P::init_state()
     }
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        StaticSystemInput(unsafe { P::get_data(state, world) })
+        StaticSystemInput(P::get_data(state, world))
     }
 
     fn fill_access(access: &mut SystemAccess) {

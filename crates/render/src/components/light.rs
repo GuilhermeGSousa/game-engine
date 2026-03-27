@@ -97,7 +97,7 @@ impl RenderLights {
 
         let lights_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("lights_bind_group"),
-            layout: &*layout,
+            layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: lights_buffer.as_entire_binding(),

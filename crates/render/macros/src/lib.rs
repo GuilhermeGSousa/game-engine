@@ -267,8 +267,7 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
                             None
                         }
                     })
-                    .filter(|(_, ti)| *ti < *index)
-                    .last();
+                    .rfind(|(_, ti)| *ti < *index);
 
                 if let Some((tex_field, _)) = paired_texture {
                     let tex_field_name = tex_field.ident.as_ref().unwrap();

@@ -32,7 +32,7 @@ impl Input {
 
     pub fn get_key_state(&self, key: PhysicalKey) -> InputState {
         match self.input_map.get(&key) {
-            Some(state) => state.clone(),
+            Some(state) => *state,
             None => InputState::Up,
         }
     }
@@ -53,11 +53,14 @@ impl Input {
     }
 
     pub fn update_key_input(&mut self, key: PhysicalKey, state: ElementState) {
-        // If the key is not in the map, add it with the current state
-        if !self.input_map.contains_key(&key) {
+        if let std::collections::hash_map::Entry::Vacant(e) = self.input_map.entry(key) {
             match state {
-                ElementState::Pressed => self.input_map.insert(key, InputState::Pressed),
-                ElementState::Released => self.input_map.insert(key, InputState::Released),
+                ElementState::Pressed => {
+                    e.insert(InputState::Pressed);
+                }
+                ElementState::Released => {
+                    e.insert(InputState::Released);
+                }
             };
             return;
         }
@@ -89,5 +92,11 @@ impl Input {
                 self.mouse_delta = delta;
             }
         }
+    }
+}
+
+impl Default for Input {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -26,10 +26,7 @@ struct LoadedAsset {
 }
 
 impl LoadedAsset {
-    pub fn new<A: Asset>(id: AssetId, value: A) -> Self
-    where
-        A: 'static,
-    {
+    pub fn new<A: Asset + 'static>(id: AssetId, value: A) -> Self {
         LoadedAsset {
             id,
             value: Box::new(value),
@@ -99,28 +96,28 @@ impl AssetServer {
             .register_asset::<A>(asset.clone_drop_sender());
     }
 
-    pub fn load<'a, A: LoadableAsset>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A>
+    pub fn load<'a, A>(&self, path: impl Into<AssetPath<'a>>) -> AssetHandle<A>
     where
-        A: 'static,
+        A: LoadableAsset + 'static,
     {
         self.load_internal::<A>(path, A::default_usage_settings())
     }
 
-    pub fn add<'a, A: Asset>(&self, asset: A) -> AssetHandle<A> {
+    pub fn add<A: Asset>(&self, asset: A) -> AssetHandle<A> {
         let id = AssetId::new();
 
         let sender = self.data.asset_load_event_sender.clone();
-        let _ = sender.send(AssetLoadEvent::Loaded(LoadedAsset::new(id.clone(), asset)));
+        let _ = sender.send(AssetLoadEvent::Loaded(LoadedAsset::new(id, asset)));
         self.data.handle_provider.request_handle(id, None)
     }
 
-    pub fn load_with_usage_settings<'a, A: LoadableAsset>(
+    pub fn load_with_usage_settings<'a, A>(
         &self,
         path: impl Into<AssetPath<'a>>,
         usage_settings: A::UsageSettings,
     ) -> AssetHandle<A>
     where
-        A: 'static,
+        A: LoadableAsset + 'static,
     {
         self.load_internal::<A>(path, usage_settings)
     }
@@ -176,11 +173,9 @@ impl AssetServer {
                     sender
                         .send(AssetLoadEvent::Loaded(LoadedAsset::new(id, asset)))
                         .unwrap();
-                    ()
                 }
                 Err(_) => {
                     sender.send(AssetLoadEvent::LoadFailed(id)).unwrap();
-                    ()
                 }
             }
         });
@@ -189,6 +184,13 @@ impl AssetServer {
     }
 }
 
+impl Default for AssetServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// TODO: This shouldn't need to be public
 pub fn handle_asset_load_events(world: &mut world::World) {
     let server = world.remove_resource::<AssetServer>().unwrap();
 
@@ -256,7 +258,7 @@ impl AssetHandleProvider {
 
         let mut binding = self.asset_handles.write().unwrap();
 
-        let info = binding.entry(id.clone()).or_insert_with(|| AssetInfo {
+        let info = binding.entry(id).or_insert_with(|| AssetInfo {
             handle: Weak::new(),
         });
 

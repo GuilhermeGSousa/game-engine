@@ -22,7 +22,7 @@ pub struct ApplicationWindowHandler {
 impl ApplicationWindowHandler {
     pub fn new(app: App) -> Self {
         Self {
-            app: app,
+            app,
             winit_events: Vec::new(),
         }
     }
@@ -102,12 +102,9 @@ impl ApplicationHandler for ApplicationWindowHandler {
         _device_id: winit::event::DeviceId,
         event: winit::event::DeviceEvent,
     ) {
-        match event {
-            winit::event::DeviceEvent::MouseMotion { delta } => {
-                let input_state = self.app.get_mut_resource::<Input>().unwrap();
-                input_state.update_mouse_delta(delta);
-            }
-            _ => (),
+        if let winit::event::DeviceEvent::MouseMotion { delta } = event {
+            let input_state = self.app.get_mut_resource::<Input>().unwrap();
+            input_state.update_mouse_delta(delta);
         }
     }
 

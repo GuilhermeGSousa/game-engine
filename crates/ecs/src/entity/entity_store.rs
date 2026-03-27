@@ -34,11 +34,11 @@ impl EntityStore {
         self.total += 1;
 
         if let Some(index) = self.pending.pop() {
-            return Entity::new(index, self.metadata[index as usize].current_generation);
+            Entity::new(index, self.metadata[index as usize].current_generation)
         } else {
             let index = self.metadata.len() as u32;
             self.metadata.push(EntityData::EMPTY);
-            return Entity::new(index, NonZero::<u32>::MIN);
+            Entity::new(index, NonZero::<u32>::MIN)
         }
     }
 

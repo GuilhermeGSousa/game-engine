@@ -63,7 +63,7 @@ impl System for ScheduledSystem {
 }
 
 /// Wraps a plain function (or closure) and its cached input state into a [`System`].
-pub struct FunctionSystem<F, Input: SystemInput> {
+pub(crate) struct FunctionSystem<F, Input: SystemInput> {
     pub func: F,
     system_state: Input::State,
 }
@@ -100,7 +100,7 @@ where
 
     fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
         (self.func)(
-            typle_args!(i in .. => unsafe { <T<{i}>>::get_data(&mut self.system_state[[i]], world) } ),
+            typle_args!(i in .. =>  <T<{i}>>::get_data(&mut self.system_state[[i]], world) ),
         );
     }
 

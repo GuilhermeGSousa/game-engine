@@ -27,6 +27,12 @@ impl AnimationGraphEvaluator {
     }
 }
 
+impl Default for AnimationGraphEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct AnimationGraphContext<'a> {
     pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
     pub(crate) animation_graphs: &'a AssetStore<AnimationGraph>,

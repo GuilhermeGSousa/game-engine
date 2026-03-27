@@ -65,7 +65,7 @@ use crate::{
 
 // ─── Default (built-in) shader source ────────────────────────────────────────
 
-const DEFAULT_SHADER_SOURCE: &str = include_str!("shaders/shader.wgsl");
+pub(crate) const DEFAULT_SHADER_SOURCE: &str = include_str!("shaders/shader.wgsl");
 
 // ─── MaterialPipeline ─────────────────────────────────────────────────────────
 
@@ -203,7 +203,7 @@ pub(crate) fn material_renderpass<M: Material>(
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Material Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,

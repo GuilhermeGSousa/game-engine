@@ -4,10 +4,8 @@ use ecs::{
 };
 use glyphon::{Color, Resolution, TextArea, TextBounds};
 use render::{
-    device::RenderDevice,
-    queue::RenderQueue,
+    MaterialPipeline, device::RenderDevice, queue::RenderQueue,
     render_asset::render_window::RenderWindow,
-    MaterialPipeline,
 };
 use window::plugin::Window;
 

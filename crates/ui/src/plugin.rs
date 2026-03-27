@@ -1,9 +1,7 @@
 use app::plugins::Plugin;
 use glyphon::{Cache, FontSystem, SwashCache, Viewport};
 use render::{
-    device::RenderDevice,
-    material_plugin::MaterialPlugin,
-    queue::RenderQueue,
+    device::RenderDevice, material_plugin::MaterialPlugin, queue::RenderQueue,
     resources::RenderContext,
 };
 use wgpu::MultisampleState;

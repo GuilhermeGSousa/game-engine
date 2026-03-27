@@ -30,8 +30,8 @@ pub use component::Component;
 pub use entity::Entity;
 pub use events::Event;
 pub use query::{
-    Query,
     query_filter::{Added, Changed, Or, With, Without},
+    Query,
 };
 pub use resource::{Res, ResMut, Resource};
 pub use system::{schedule::Schedule, IntoSystem, System};

@@ -51,7 +51,7 @@ impl<A: Asset + 'static> AssetStore<A> {
 
     pub fn track_assets(&mut self, mut asset_server: ResMut<AssetServer>) {
         for event in self.drop_receiver.try_iter() {
-            if let Some(_) = self.assets.get_mut(&event.id()) {
+            if self.assets.contains_key(&event.id()) {
                 match event {
                     AssetLifetimeEvent::Dropped(id, asset_path) => {
                         self.assets.remove(&id);
@@ -77,5 +77,11 @@ impl<'a, A: Asset + 'static> IntoIterator for &'a AssetStore<A> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.assets.iter().map(|(id, entry)| (id, &entry.asset))
+    }
+}
+
+impl<A: Asset + 'static> Default for AssetStore<A> {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -150,7 +150,7 @@ where
     }
 }
 
-unsafe impl<T, F> SystemInput for Query<'_, T, F>
+impl<T, F> SystemInput for Query<'_, T, F>
 where
     T: QueryData,
     F: QueryFilter,
@@ -158,11 +158,9 @@ where
     type State = ();
     type Data<'world, 'state> = Query<'world, T, F>;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -191,8 +189,7 @@ where
         world
             .entity_store()
             .find_location(entity)
-            .map(|location| world.get_component_for_entity_location::<T>(location))
-            .flatten()
+            .and_then(|location| world.get_component_for_entity_location::<T>(location))
     }
 
     fn fill_access(access: &mut SystemAccess) {
@@ -218,7 +215,7 @@ where
         world
             .entity_store()
             .find_location(entity)
-            .map(|location| {
+            .and_then(|location| {
                 let current_tick = world.current_tick();
                 world
                     .get_component_for_entity_location_mut::<T>(location)
@@ -226,7 +223,6 @@ where
                         Mut::new(table_cell.data, table_cell.changed_tick, current_tick)
                     })
             })
-            .flatten()
     }
 
     fn fill_access(access: &mut SystemAccess) {
@@ -307,6 +303,7 @@ where
 {
     type Item<'w> = typle_for!(i in .. => T<{i}>::Item<'w>);
 
+    #[allow(clippy::let_and_return)]
     fn component_ids() -> Vec<ComponentId> {
         {
             let mut res = Vec::new();
@@ -321,11 +318,7 @@ where
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         Some(typle_for!(i in .. => {
-                match <T<{i}>>::fetch(world, entity)
-                {
-                    Some(fetched_value) => { fetched_value },
-                    None => return None,
-                }
+                <T<{i}>>::fetch(world, entity)?
             }
         ))
     }

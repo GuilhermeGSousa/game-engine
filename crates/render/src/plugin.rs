@@ -275,7 +275,7 @@ impl Plugin for RenderPlugin {
         let empty_skeleton_buffer = EmptySkeletonBuffer::new(&device, &skeleton_layout);
         app.insert_resource(DummyRenderTexture::new(&device))
             .insert_resource(RenderContext {
-                surface: surface,
+                surface,
                 surface_config: config,
             })
             .insert_resource(MainRenderPipeline::new(main_render_pipeline))

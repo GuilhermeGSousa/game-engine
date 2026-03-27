@@ -55,7 +55,7 @@ impl EmptySkeletonBuffer {
 
         Self(device.create_bind_group(&BindGroupDescriptor {
             label: Some("empty_skeleton_buffer"),
-            layout: *&layout,
+            layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: skeleton_buffer.as_entire_binding(),
@@ -88,7 +88,7 @@ pub(crate) fn skeleton_added(
 
         let skeleton_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("Skeleton Bind Group"),
-            layout: &*skeleton_layout,
+            layout: &skeleton_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: bones_buffer.as_entire_binding(),

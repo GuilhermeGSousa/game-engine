@@ -95,7 +95,7 @@ impl World {
             row: table_row,
         };
 
-        self.entity_store.set_location(entity, new_location.clone());
+        self.entity_store.set_location(entity, new_location);
 
         let cell = self.as_unsafe_world_cell_mut();
         cell.trigger_on_add(entity, &T::get_component_ids());
@@ -169,8 +169,7 @@ impl World {
                 // Update the location of the entity being swapped
                 // It will take the location of the entity being removed
                 if let Some(swapped_entity) = previous_archetype.entities().last() {
-                    self.entity_store
-                        .set_location(*swapped_entity, location.clone());
+                    self.entity_store.set_location(*swapped_entity, location);
                 }
 
                 // Remove row from previous archetype
@@ -183,7 +182,7 @@ impl World {
                 let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
                     Occupied(occupied_entry) => {
                         let new_archetype_index = *occupied_entry.get();
-                        let new_archetype = &mut self.archetypes[*occupied_entry.get() as usize];
+                        let new_archetype = &mut self.archetypes[*occupied_entry.get()];
                         new_archetype.add_row(removed_row, self.current_tick);
                         new_archetype_index
                     }
@@ -204,7 +203,7 @@ impl World {
                     row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
                 };
                 // Store in entity store
-                self.entity_store.set_location(entity, location.clone());
+                self.entity_store.set_location(entity, location);
 
                 if trigger_events {
                     self.as_unsafe_world_cell_mut()
@@ -229,8 +228,7 @@ impl World {
                 // Update the location of the entity being swapped
                 // It will take the location of the entity being removed
                 if let Some(swapped_entity) = previous_archetype.entities().last() {
-                    self.entity_store
-                        .set_location(*swapped_entity, location.clone());
+                    self.entity_store.set_location(*swapped_entity, location);
                 }
 
                 let mut component_ids = previous_archetype.component_ids().to_vec();
@@ -252,7 +250,7 @@ impl World {
                 let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
                     Occupied(occupied_entry) => {
                         let new_archetype_index = *occupied_entry.get();
-                        let new_archetype = &mut self.archetypes[*occupied_entry.get() as usize];
+                        let new_archetype = &mut self.archetypes[*occupied_entry.get()];
                         new_archetype.add_row(removed_row, self.current_tick);
                         new_archetype_index
                     }
@@ -274,7 +272,7 @@ impl World {
                 };
 
                 // Store in entity store
-                self.entity_store.set_location(entity, location.clone());
+                self.entity_store.set_location(entity, location);
 
                 if trigger_events {
                     let cell = self.as_unsafe_world_cell_mut();
@@ -297,8 +295,7 @@ impl World {
     pub fn get_component_for_entity<T: Component>(&self, entity: Entity) -> Option<&T> {
         self.entity_store
             .find_location(entity)
-            .map(|location| self.get_component_for_entity_location(location))
-            .flatten()
+            .and_then(|location| self.get_component_for_entity_location(location))
     }
 
     /// Returns an exclusive reference to the component of type `T` on `entity`, or `None`.
@@ -308,14 +305,13 @@ impl World {
         let current_tick = self.current_tick;
         self.entity_store
             .find_location(entity)
-            .map(|location| {
+            .and_then(|location| {
                 self.get_component_for_entity_location_mut(location)
                     .map(|accessor| {
                         accessor.changed_tick.set(current_tick);
                         accessor.data
                     })
             })
-            .flatten()
     }
 
     pub(crate) fn get_component_accessor_for_entity_mut<T: Component>(
@@ -324,8 +320,7 @@ impl World {
     ) -> Option<MutableCellAccessor<'_, T>> {
         self.entity_store
             .find_location(entity)
-            .map(|location| self.get_component_for_entity_location_mut(location))
-            .flatten()
+            .and_then(|location| self.get_component_for_entity_location_mut(location))
     }
 
     pub(crate) fn get_component_for_entity_location<T: Component>(
@@ -334,8 +329,7 @@ impl World {
     ) -> Option<&T> {
         self.archetypes
             .get(entity_location.archetype_index as usize)
-            .map(|archetype| unsafe { archetype.get_component_unsafe(entity_location.row) })
-            .flatten()
+            .and_then(|archetype| unsafe { archetype.get_component_unsafe(entity_location.row) })
     }
 
     pub(crate) fn get_component_for_entity_location_mut<T: Component>(
@@ -344,8 +338,9 @@ impl World {
     ) -> Option<MutableCellAccessor<'_, T>> {
         self.archetypes
             .get_mut(entity_location.archetype_index as usize)
-            .map(|archetype| unsafe { archetype.get_component_unsafe_mut(entity_location.row) })
-            .flatten()
+            .and_then(|archetype| unsafe {
+                archetype.get_component_unsafe_mut(entity_location.row)
+            })
     }
 
     /// Inserts a resource into the world.  If one of the same type already exists it is replaced.
@@ -459,6 +454,12 @@ impl World {
     }
 }
 
+impl Default for World {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Copy, Clone)]
 /// A raw, lifetime-scoped pointer to a [`World`].
 ///
@@ -489,15 +490,13 @@ impl<'w> From<&'w World> for UnsafeWorldCell<'w> {
     }
 }
 
-unsafe impl SystemInput for &World {
+impl SystemInput for &World {
     type State = ();
     type Data<'world, 'state> = &'world World;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -509,15 +508,13 @@ unsafe impl SystemInput for &World {
     }
 }
 
-unsafe impl SystemInput for &mut World {
+impl SystemInput for &mut World {
     type State = ();
     type Data<'world, 'state> = &'world mut World;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {

@@ -66,7 +66,7 @@ impl<'world, T: Resource> Res<'world, T> {
         let world = world.world();
         let res_storage = world
             .get_resource_storage::<T>()
-            .expect(&format!("Could not find resource {}", T::name()));
+            .unwrap_or_else(|| panic!("Could not find resource {}", T::name()));
         Self {
             value: &res_storage.data,
             changed_tick: &res_storage.changed_tick,
@@ -75,18 +75,16 @@ impl<'world, T: Resource> Res<'world, T> {
     }
 }
 
-unsafe impl<'a, T> SystemInput for Res<'a, T>
+impl<'a, T> SystemInput for Res<'a, T>
 where
     T: Resource,
 {
     type State = ();
     type Data<'world, 'state> = Res<'world, T>;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -105,7 +103,7 @@ where
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.value
+        self.value
     }
 }
 
@@ -151,18 +149,16 @@ impl<'world, T: Resource> ResMut<'world, T> {
     }
 }
 
-unsafe impl<T> SystemInput for ResMut<'_, T>
+impl<T> SystemInput for ResMut<'_, T>
 where
     T: Resource,
 {
     type State = ();
     type Data<'world, 'state> = ResMut<'world, T>;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -181,7 +177,7 @@ where
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.value
+        self.value
     }
 }
 
@@ -194,7 +190,7 @@ where
             self.has_changed = true;
             *self.changed_tick = self.current_tick;
         }
-        &mut self.value
+        self.value
     }
 }
 

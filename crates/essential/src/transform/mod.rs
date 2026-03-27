@@ -50,8 +50,8 @@ impl Transform {
 
     pub fn from_translation_rotation(translation: Vec3, rotation: Quat) -> Self {
         Self {
-            translation: translation,
-            rotation: rotation,
+            translation,
+            rotation,
             scale: Vec3::ONE,
         }
     }

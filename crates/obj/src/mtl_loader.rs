@@ -19,9 +19,7 @@ impl LoadableAsset for MTLMaterial {
         Box::new(MTLLoader)
     }
 
-    fn default_usage_settings() -> Self::UsageSettings {
-        ()
-    }
+    fn default_usage_settings() -> Self::UsageSettings {}
 }
 
 pub(crate) struct MTLLoader;

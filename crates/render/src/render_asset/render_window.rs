@@ -31,3 +31,9 @@ impl RenderWindow {
         }
     }
 }
+
+impl Default for RenderWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}

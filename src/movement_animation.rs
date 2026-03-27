@@ -88,11 +88,11 @@ pub(crate) fn setup_state_machine(
             gltf_scenes
                 .get(&loading_anim_store.idle)
                 .and_then(|idle_scene| idle_scene.animations().first())
-                .map(|clip| clip.clone()),
+                .cloned(),
             gltf_scenes
                 .get(&loading_anim_store.walk)
                 .and_then(|walk_scene| walk_scene.animations().first())
-                .map(|clip| clip.clone()),
+                .cloned(),
         ) else {
             continue;
         };

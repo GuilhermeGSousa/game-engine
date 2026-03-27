@@ -35,9 +35,7 @@ where
     T: Component,
 {
     fn get_component_ids() -> Vec<ComponentId> {
-        let mut type_ids = Vec::new();
-        type_ids.push(TypeId::of::<T>());
-        type_ids
+        vec![TypeId::of::<T>()]
     }
 
     fn add_row_to_archetype(

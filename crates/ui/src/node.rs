@@ -201,7 +201,7 @@ fn generate_taffy_children_recursive(
             continue;
         };
 
-        if !taffy.add_child(parent_node, child_node_id).is_ok() {
+        if taffy.add_child(parent_node, child_node_id).is_err() {
             continue;
         }
 
@@ -277,9 +277,9 @@ pub(crate) fn extract_added_ui_nodes(
         });
 
         let render_ui_node = RenderUINode {
-            index_buffer: index_buffer,
+            index_buffer,
             index_count: QUAD_INDICES.len() as u32,
-            vertex_buffer: vertex_buffer,
+            vertex_buffer,
             location: computed_node.location,
             size: computed_node.size,
             z_index: computed_node.z_index,

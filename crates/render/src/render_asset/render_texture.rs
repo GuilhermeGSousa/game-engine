@@ -45,7 +45,7 @@ impl RenderTexture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &texture.data(),
+            texture.data(),
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * dimensions.width),
@@ -117,7 +117,7 @@ impl RenderAsset for RenderTexture {
         params: &mut SystemInputData<Self::PreparationParams>,
     ) -> Result<Self, AssetPreparationError> {
         let (device, queue) = params;
-        Ok(RenderTexture::from_texture(&source_asset, &device, &queue))
+        Ok(RenderTexture::from_texture(source_asset, device, queue))
     }
 }
 
@@ -156,8 +156,8 @@ impl DummyRenderTexture {
 
         Self(RenderTexture {
             texture: wgpu_texture,
-            view: view,
-            sampler: sampler,
+            view,
+            sampler,
         })
     }
 

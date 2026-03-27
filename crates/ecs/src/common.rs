@@ -5,8 +5,8 @@ use std::{
 
 use crate::entity::EntityType;
 
-pub fn generate_type_id(type_ids: &Vec<TypeId>) -> EntityType {
-    let mut sorted_type_ids: Vec<TypeId> = type_ids.clone();
+pub fn generate_type_id(type_ids: &[TypeId]) -> EntityType {
+    let mut sorted_type_ids: Vec<TypeId> = type_ids.to_owned();
     sorted_type_ids.sort();
     sorted_type_ids.dedup();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

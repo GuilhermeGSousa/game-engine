@@ -61,8 +61,6 @@ use crate::movement_animation::{
 mod custom_material;
 mod movement_animation;
 
-#[allow(dead_code)]
-
 const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
@@ -345,9 +343,9 @@ fn spawn_with_collider(
     if key_r == InputState::Pressed {
         let spawn_point = pos.translation() + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
-        let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
+        let rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
-        let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
+        let collider = physics_state.make_sphere(&rigid_body, 1.0);
 
         cmd.spawn((
             OBJSpawnerComponent(asset_server.load::<OBJAsset>(MESH_ASSET)),

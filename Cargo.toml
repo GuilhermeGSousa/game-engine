@@ -24,8 +24,8 @@ render = { path = "crates/render" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 physics = { path = "crates/physics" }
-gltf = { path = "crates/gltf" }
-obj = { path = "crates/obj" }
+gltf-loader = { path = "crates/gltf-loader" }
+obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
 skybox = { path = "crates/skybox" }
 cfg-if = "1.0.0"

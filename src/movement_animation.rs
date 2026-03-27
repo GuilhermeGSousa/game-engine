@@ -21,7 +21,7 @@ use essential::{
     assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
     transform::Transform,
 };
-use gltf::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings};
+use gltf_loader::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings};
 use render::components::camera::Camera;
 use window::input::{Input, InputState};
 use winit::keyboard::{KeyCode, PhysicalKey};

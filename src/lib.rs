@@ -19,8 +19,8 @@ use ecs::{
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec3, Vec4};
-use gltf::plugin::GLTFPlugin;
-use obj::{
+use gltf_loader::plugin::GLTFPlugin;
+use obj_loader::{
     obj_loader::{OBJAsset, OBJSpawnerComponent},
     plugin::OBJPlugin,
 };

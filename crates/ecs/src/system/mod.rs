@@ -37,12 +37,13 @@ pub trait System: Send + Sync {
 }
 
 /// A type-erased, heap-allocated system ready to be stored in a [`Schedule`](schedule::Schedule).
-pub struct ScheduledSystem {
+pub(crate) struct ScheduledSystem {
     system: BoxedSystem,
 }
 
 impl ScheduledSystem {
     pub fn new(system: impl System + 'static) -> Self {
+        let access = system.access();
         Self {
             system: Box::new(system),
         }

@@ -1,6 +1,12 @@
-use crate::world::World;
-
 use super::{IntoSystem, ScheduledSystem, System};
+use crate::{system::access::SystemAccess, world::World};
+use derive_more::{Deref, From};
+use petgraph::graph::{DiGraph, NodeIndex};
+
+pub(crate) type SystemDependencyGraph = DiGraph<usize, ()>;
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq, Deref, From)]
+pub(crate) struct ScheduledSystemIndex(NodeIndex);
 
 /// An ordered list of systems that are executed sequentially each time [`run`](Schedule::run) is called.
 ///
@@ -25,23 +31,38 @@ use super::{IntoSystem, ScheduledSystem, System};
 #[allow(unused)]
 pub struct Schedule {
     systems: Vec<ScheduledSystem>,
+    system_ids: Vec<ScheduledSystemIndex>,
+    graph: SystemDependencyGraph,
 }
 
 impl Schedule {
-    // TODO: Implement an actual scheduler with stages and conditions
     /// Creates an empty schedule.
     pub fn new() -> Schedule {
         Self {
             systems: Vec::new(),
+            system_ids: Vec::new(),
+            graph: SystemDependencyGraph::new(),
         }
     }
 
     /// Appends a system to the end of the schedule.
-    #[allow(unused)]
     pub fn add_system<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
-        let scheduled_system = system.into_system();
-        let system_access = scheduled_system.access();
-        self.systems.push(scheduled_system);
+        let added_system = system.into_system();
+        let added_system_access = added_system.access();
+        let added_system_index = self.graph.add_node(self.systems.len()).into();
+
+        // System can also have user defined dependencies!
+
+        for node_index in &self.system_ids {
+            if let Some(other_system) = self.graph.node_weight(**node_index) {
+                let system_access = self.systems[*other_system].access();
+                if !SystemAccess::are_disjoint(&system_access, &added_system_access) {
+                    self.graph.add_edge(**node_index, added_system_index, ());
+                }
+            }
+        }
+
+        self.system_ids.push(added_system_index.into());
         self
     }
 

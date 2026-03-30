@@ -13,15 +13,15 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
 
     fn evaluate(
         &self,
-        node: &Box<dyn AnimationNode>,
+        node: &dyn AnimationNode,
         target: &AnimationTarget,
-        evaluated_inputs: &Vec<EvaluatedNode>,
+        evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
     ) -> Transform;
 
     fn update(
         &mut self,
-        node: &Box<dyn AnimationNode>,
+        node: &dyn AnimationNode,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     );
@@ -42,7 +42,7 @@ impl AnimationNodeInstance for NoneInstance {
 
     fn update(
         &mut self,
-        _node: &Box<dyn AnimationNode>,
+        _node: &dyn AnimationNode,
         _delta_time: f32,
         _context: &AnimationGraphContext<'_>,
     ) {
@@ -50,9 +50,9 @@ impl AnimationNodeInstance for NoneInstance {
 
     fn evaluate(
         &self,
-        _node: &Box<dyn AnimationNode>,
+        _node: &dyn AnimationNode,
         _target: &AnimationTarget,
-        evaluated_inputs: &Vec<EvaluatedNode>,
+        evaluated_inputs: &[EvaluatedNode],
         _context: &AnimationGraphContext<'_>,
     ) -> Transform {
         evaluated_inputs
@@ -101,6 +101,12 @@ impl AnimationClipNodeInstance {
     }
 }
 
+impl Default for AnimationClipNodeInstance {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn reset(&mut self) {
         self.time = 0.0;
@@ -108,9 +114,9 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 
     fn evaluate(
         &self,
-        node: &Box<dyn AnimationNode>,
+        node: &dyn AnimationNode,
         target: &AnimationTarget,
-        _evaluated_inputs: &Vec<EvaluatedNode>,
+        _evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
     ) -> Transform {
         let Some(animation_clip) = node
@@ -137,7 +143,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 
     fn update(
         &mut self,
-        node: &Box<dyn AnimationNode>,
+        node: &dyn AnimationNode,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {

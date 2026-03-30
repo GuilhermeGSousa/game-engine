@@ -1,9 +1,7 @@
 use app::plugins::Plugin;
 use glyphon::{Cache, FontSystem, SwashCache, Viewport};
 use render::{
-    device::RenderDevice,
-    material_plugin::MaterialPlugin,
-    queue::RenderQueue,
+    device::RenderDevice, material_plugin::MaterialPlugin, queue::RenderQueue,
     resources::RenderContext,
 };
 use wgpu::MultisampleState;
@@ -65,14 +63,14 @@ impl Plugin for UIPlugin {
         // Text rendering
         let font_system = FontSystem::new();
         let swash_cache = SwashCache::new();
-        let cache = Cache::new(&device);
-        let viewport = Viewport::new(&device, &cache);
+        let cache = Cache::new(device);
+        let viewport = Viewport::new(device, &cache);
         // TODO: Update Viewport on resize!
 
         let mut atlas =
-            glyphon::TextAtlas::new(&device, &queue, &cache, context.surface_config.format);
+            glyphon::TextAtlas::new(device, queue, &cache, context.surface_config.format);
         let text_renderer =
-            glyphon::TextRenderer::new(&mut atlas, &device, MultisampleState::default(), None);
+            glyphon::TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
 
         app.insert_resource(TextRenderer(text_renderer))
             .insert_resource(TextCache(cache))

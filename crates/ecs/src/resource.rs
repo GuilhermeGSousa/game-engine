@@ -10,9 +10,24 @@ use crate::{
     world::UnsafeWorldCell,
 };
 
+/// A unique identifier for a resource type, based on its Rust [`TypeId`].
 pub type ResourceId = TypeId;
 
+/// Marker trait for globally-shared data stored in a [`World`](crate::world::World).
+///
+/// Derive with `#[derive(Resource)]`.  Each type may have at most one instance per world.
+///
+/// Access resources in systems using [`Res<T>`] (read-only) or [`ResMut<T>`] (mutable).
+///
+/// # Example
+/// ```
+/// use ecs::resource::Resource;
+///
+/// #[derive(Resource)]
+/// struct Score(u32);
+/// ```
 pub trait Resource: Send + Sync + 'static {
+    /// Returns the human-readable name of this resource (usually the type name).
     fn name() -> &'static str;
 }
 
@@ -33,6 +48,13 @@ impl<T: Resource> ResourceStorage<T> {
     }
 }
 
+/// Read-only system parameter that borrows a [`Resource`] from the world.
+///
+/// Derefs to `&T`.  Implements [`DetectChanges`](crate::query::change_detection::DetectChanges)
+/// so systems can react when the resource value changes.
+///
+/// # Panics
+/// Panics at system execution time if the resource has not been inserted into the world.
 pub struct Res<'world, T: Resource> {
     pub value: &'world T,
     changed_tick: &'world Tick,
@@ -44,7 +66,7 @@ impl<'world, T: Resource> Res<'world, T> {
         let world = world.world();
         let res_storage = world
             .get_resource_storage::<T>()
-            .expect(&format!("Could not find resource {}", T::name()));
+            .unwrap_or_else(|| panic!("Could not find resource {}", T::name()));
         Self {
             value: &res_storage.data,
             changed_tick: &res_storage.changed_tick,
@@ -53,18 +75,16 @@ impl<'world, T: Resource> Res<'world, T> {
     }
 }
 
-unsafe impl<'a, T> SystemInput for Res<'a, T>
+impl<'a, T> SystemInput for Res<'a, T>
 where
     T: Resource,
 {
     type State = ();
     type Data<'world, 'state> = Res<'world, T>;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -83,7 +103,7 @@ where
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.value
+        self.value
     }
 }
 
@@ -96,6 +116,13 @@ where
     }
 }
 
+/// Mutable system parameter that borrows a [`Resource`] from the world.
+///
+/// Derefs to `&mut T` and automatically marks the resource as changed when
+/// [`DerefMut`] is called, so change-detection works correctly.
+///
+/// # Panics
+/// Panics at system execution time if the resource has not been inserted into the world.
 pub struct ResMut<'world, T: Resource> {
     pub value: &'world mut T,
     changed_tick: &'world mut Tick,
@@ -122,18 +149,16 @@ impl<'world, T: Resource> ResMut<'world, T> {
     }
 }
 
-unsafe impl<T> SystemInput for ResMut<'_, T>
+impl<T> SystemInput for ResMut<'_, T>
 where
     T: Resource,
 {
     type State = ();
     type Data<'world, 'state> = ResMut<'world, T>;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -152,7 +177,7 @@ where
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.value
+        self.value
     }
 }
 
@@ -165,7 +190,7 @@ where
             self.has_changed = true;
             *self.changed_tick = self.current_tick;
         }
-        &mut self.value
+        self.value
     }
 }
 

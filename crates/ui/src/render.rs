@@ -4,10 +4,8 @@ use ecs::{
 };
 use glyphon::{Color, Resolution, TextArea, TextBounds};
 use render::{
-    device::RenderDevice,
-    queue::RenderQueue,
+    MaterialPipeline, device::RenderDevice, queue::RenderQueue,
     render_asset::render_window::RenderWindow,
-    MaterialPipeline,
 };
 use window::plugin::Window;
 
@@ -65,7 +63,7 @@ pub(crate) fn prepare_text_renderer(
                         left: 0,
                         top: 0,
                         right: render_node.size.x as i32,
-                        bottom: 600 as i32,
+                        bottom: 600_i32,
                     },
                     default_color: Color::rgb(255, 255, 255),
                     custom_glyphs: &[],
@@ -91,7 +89,7 @@ pub(crate) fn ui_renderpass(
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("UI Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,

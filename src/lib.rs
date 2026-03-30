@@ -19,8 +19,8 @@ use ecs::{
     resource::{Res, ResMut},
 };
 use glam::{Quat, Vec3, Vec4};
-use gltf::plugin::GLTFPlugin;
-use obj::{
+use gltf_loader::plugin::GLTFPlugin;
+use obj_loader::{
     obj_loader::{OBJAsset, OBJSpawnerComponent},
     plugin::OBJPlugin,
 };
@@ -32,12 +32,12 @@ use render::{
         light::{LighType, Light, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
-        skybox::Skybox,
     },
     material_plugin::MaterialPlugin,
     plugin::RenderPlugin,
 };
 
+use skybox::{material::SkyboxMaterial, plugin::SkyboxPlugin, SkyboxCube};
 use taffy::FlexDirection;
 use ui::{
     material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent, transform::UIValue,
@@ -60,8 +60,6 @@ use crate::movement_animation::{
 
 mod custom_material;
 mod movement_animation;
-
-#[allow(dead_code)]
 
 const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
@@ -89,6 +87,7 @@ pub fn run_game() {
         .register_plugin(AnimationPlugin)
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
+        .register_plugin(SkyboxPlugin)
         // Register the custom unlit material so the engine knows how to render it.
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
@@ -153,10 +152,14 @@ fn spawn_ui(mut cmd: CommandQueue) {
     cmd.add_child(root_pannel, bottom_pannel);
 }
 
-fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
+fn spawn_player(
+    skybox_cube: Res<SkyboxCube>,
+    mut cmd: CommandQueue,
+    asset_server: Res<AssetServer>,
+) {
     let camera = Camera::default();
-    let skybox = Skybox {
-        texture: asset_server.load_with_usage_settings(
+    let skybox_material = SkyboxMaterial {
+        texture: Some(asset_server.load_with_usage_settings(
             SKYBOX_TEXTURE,
             TextureUsageSettings {
                 texture_descriptor: TextureDescriptor {
@@ -179,9 +182,19 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
                     ..Default::default()
                 },
             },
-        ),
+        )),
     };
 
+    let skybox_cube = MeshComponent {
+        handle: skybox_cube.clone(),
+    };
+    cmd.spawn((
+        MaterialComponent {
+            handle: asset_server.add(skybox_material),
+        },
+        skybox_cube,
+        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+    ));
     let light = Light {
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
         intensity: 10.0,
@@ -201,7 +214,6 @@ fn spawn_player(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
 
     let child = cmd.spawn((
         camera,
-        skybox,
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
     ));
 
@@ -335,9 +347,9 @@ fn spawn_with_collider(
     if key_r == InputState::Pressed {
         let spawn_point = pos.translation() + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
-        let mut rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
+        let rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
 
-        let collider = physics_state.make_sphere(&mut rigid_body, 1.0);
+        let collider = physics_state.make_sphere(&rigid_body, 1.0);
 
         cmd.spawn((
             OBJSpawnerComponent(asset_server.load::<OBJAsset>(MESH_ASSET)),

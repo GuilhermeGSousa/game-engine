@@ -51,7 +51,6 @@ use crate::{
         render_entity::RenderEntity,
         render_material_component::RenderMaterialComponent,
         skeleton_component::{EmptySkeletonBuffer, RenderSkeletonComponent},
-        skybox::RenderSkyboxBindGroup,
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, SkeletonLayout},
@@ -66,7 +65,7 @@ use crate::{
 
 // ─── Default (built-in) shader source ────────────────────────────────────────
 
-const DEFAULT_SHADER_SOURCE: &str = include_str!("shaders/shader.wgsl");
+pub(crate) const DEFAULT_SHADER_SOURCE: &str = include_str!("shaders/shader.wgsl");
 
 // ─── MaterialPipeline ─────────────────────────────────────────────────────────
 
@@ -190,11 +189,7 @@ pub(crate) fn material_renderpass<M: Material>(
         Option<&RenderSkeletonComponent>,
         &RenderMaterialComponent<M>,
     )>,
-    render_cameras: Query<(
-        &RenderCamera,
-        Option<&CameraTextureTarget>,
-        Option<&RenderSkyboxBindGroup>,
-    )>,
+    render_cameras: Query<(&RenderCamera, Option<&CameraTextureTarget>)>,
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_materials: Res<RenderAssets<RenderMaterial<M>>>,
     render_textures: Res<RenderAssets<RenderTexture>>,
@@ -204,7 +199,7 @@ pub(crate) fn material_renderpass<M: Material>(
 ) {
     let encoder = device.command_encoder();
 
-    for (render_camera, texture_target, skybox_bind_group) in render_cameras.iter() {
+    for (render_camera, texture_target) in render_cameras.iter() {
         // Resolve the colour attachment view.
         let view = match texture_target {
             Some(ct) => match render_textures.get(&ct.texture_handle.id()) {
@@ -217,30 +212,25 @@ pub(crate) fn material_renderpass<M: Material>(
             },
         };
 
-        // Texture render target cameras without a skybox need to clear on entry.
-        let load_op = if texture_target.is_some() && skybox_bind_group.is_none() {
-            wgpu::LoadOp::Clear(render_camera.clear_color)
-        } else {
-            wgpu::LoadOp::Load
-        };
-
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Material Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: load_op,
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &render_camera.depth_texture.view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
+            depth_stencil_attachment: M::depth_stencil().map(|_| {
+                wgpu::RenderPassDepthStencilAttachment {
+                    view: &render_camera.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }
             }),
             occlusion_query_set: None,
             timestamp_writes: None,

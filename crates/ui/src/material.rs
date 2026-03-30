@@ -1,6 +1,6 @@
 use ecs::component::Component;
 use essential::assets::Asset;
-use render::{assets::material::Material, assets::vertex::VertexBufferLayout, AsBindGroup};
+use render::{AsBindGroup, assets::material::Material, assets::vertex::VertexBufferLayout};
 
 use crate::vertex::UIVertex;
 

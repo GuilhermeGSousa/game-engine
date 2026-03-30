@@ -86,7 +86,7 @@ impl SystemAccess {
             return false;
         }
 
-        return true;
+        true
     }
 
     pub fn combine(&mut self, other: Self) {

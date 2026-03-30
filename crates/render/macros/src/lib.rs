@@ -19,7 +19,10 @@ enum TextureViewDimension {
 enum BindingKind {
     /// A texture binding.  `dimension` controls whether it is a 2-D texture
     /// (the default) or a cube-map texture (`#[texture(N, dimension = "cube")]`).
-    Texture { index: u32, dimension: TextureViewDimension },
+    Texture {
+        index: u32,
+        dimension: TextureViewDimension,
+    },
     /// A sampler linked to the texture at `texture_index`.
     Sampler { index: u32 },
     /// A plain `bytemuck::Pod + bytemuck::Zeroable` value uploaded as a uniform buffer.
@@ -264,8 +267,7 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
                             None
                         }
                     })
-                    .filter(|(_, ti)| *ti < *index)
-                    .last();
+                    .rfind(|(_, ti)| *ti < *index);
 
                 if let Some((tex_field, _)) = paired_texture {
                     let tex_field_name = tex_field.ident.as_ref().unwrap();

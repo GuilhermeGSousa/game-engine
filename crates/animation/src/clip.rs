@@ -12,23 +12,15 @@ pub enum AnimationChanelOutput {
 
 impl AnimationChanelOutput {
     pub fn from_translation(translations: impl Iterator<Item = [f32; 3]>) -> Self {
-        Self::Translation(
-            translations
-                .map(|val| Vec3::from_array(val))
-                .collect::<Vec<_>>(),
-        )
+        Self::Translation(translations.map(Vec3::from_array).collect::<Vec<_>>())
     }
 
     pub fn from_rotation(rotations: impl Iterator<Item = [f32; 4]>) -> Self {
-        Self::Rotation(
-            rotations
-                .map(|val| Quat::from_array(val))
-                .collect::<Vec<_>>(),
-        )
+        Self::Rotation(rotations.map(Quat::from_array).collect::<Vec<_>>())
     }
 
     pub fn from_scale(scales: impl Iterator<Item = [f32; 3]>) -> Self {
-        Self::Scale(scales.map(|val| Vec3::from_array(val)).collect::<Vec<_>>())
+        Self::Scale(scales.map(Vec3::from_array).collect::<Vec<_>>())
     }
 }
 

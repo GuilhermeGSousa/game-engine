@@ -38,3 +38,9 @@ impl PhysicsPipeline {
         );
     }
 }
+
+impl Default for PhysicsPipeline {
+    fn default() -> Self {
+        Self::new()
+    }
+}

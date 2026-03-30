@@ -6,16 +6,12 @@ use glam::Affine2;
 use render::assets::vertex::VertexBufferLayout;
 use wgpu::VertexFormat;
 
+#[derive(Default)]
 pub enum UIValue {
+    #[default]
     Auto,
     Px(f32),
     Percent(f32),
-}
-
-impl Default for UIValue {
-    fn default() -> Self {
-        UIValue::Auto
-    }
 }
 
 #[derive(Default)]

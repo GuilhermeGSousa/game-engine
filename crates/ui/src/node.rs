@@ -20,8 +20,8 @@ use render::{
     components::render_entity::RenderEntity,
     device::RenderDevice,
     render_asset::{
-        render_texture::{DummyRenderTexture, RenderTexture},
         RenderAssets,
+        render_texture::{DummyRenderTexture, RenderTexture},
     },
 };
 use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree};
@@ -201,7 +201,7 @@ fn generate_taffy_children_recursive(
             continue;
         };
 
-        if !taffy.add_child(parent_node, child_node_id).is_ok() {
+        if taffy.add_child(parent_node, child_node_id).is_err() {
             continue;
         }
 
@@ -238,8 +238,8 @@ pub(crate) fn extract_added_ui_nodes(
     // NDC space:    (-1,-1) = bottom-left, (+1,+1) = top-right, Y increases upward.
     let to_ndc = |px: f32, py: f32| -> [f32; 2] {
         [
-            (px / win_w) * 2.0 - 1.0,  // map [0, width]  → [-1, +1]
-            1.0 - (py / win_h) * 2.0,  // map [0, height] → [+1, -1] (flip Y)
+            (px / win_w) * 2.0 - 1.0, // map [0, width]  → [-1, +1]
+            1.0 - (py / win_h) * 2.0, // map [0, height] → [+1, -1] (flip Y)
         ]
     };
 
@@ -256,10 +256,18 @@ pub(crate) fn extract_added_ui_nodes(
         let h = computed_node.size.y;
 
         let vertices = [
-            UIVertex { pos_coords: to_ndc(x,     y    ) }, // top-left
-            UIVertex { pos_coords: to_ndc(x,     y + h) }, // bottom-left
-            UIVertex { pos_coords: to_ndc(x + w, y + h) }, // bottom-right
-            UIVertex { pos_coords: to_ndc(x + w, y    ) }, // top-right
+            UIVertex {
+                pos_coords: to_ndc(x, y),
+            }, // top-left
+            UIVertex {
+                pos_coords: to_ndc(x, y + h),
+            }, // bottom-left
+            UIVertex {
+                pos_coords: to_ndc(x + w, y + h),
+            }, // bottom-right
+            UIVertex {
+                pos_coords: to_ndc(x + w, y),
+            }, // top-right
         ];
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -269,9 +277,9 @@ pub(crate) fn extract_added_ui_nodes(
         });
 
         let render_ui_node = RenderUINode {
-            index_buffer: index_buffer,
+            index_buffer,
             index_count: QUAD_INDICES.len() as u32,
-            vertex_buffer: vertex_buffer,
+            vertex_buffer,
             location: computed_node.location,
             size: computed_node.size,
             z_index: computed_node.z_index,
@@ -296,10 +304,7 @@ pub(crate) fn extract_added_ui_nodes(
 /// — so the layout used here is always consistent with the one used to build the
 /// UI render pipeline.
 pub(crate) fn extract_added_ui_materials(
-    computed_nodes: Query<
-        (Entity, &UIMaterial, Option<&RenderEntity>),
-        Changed<UIMaterial>,
-    >,
+    computed_nodes: Query<(Entity, &UIMaterial, Option<&RenderEntity>), Changed<UIMaterial>>,
     device: Res<RenderDevice>,
     render_textures: Res<RenderAssets<RenderTexture>>,
     dummy_texture: Res<DummyRenderTexture>,
@@ -316,7 +321,9 @@ pub(crate) fn extract_added_ui_materials(
             continue;
         };
 
-        let render_ui_material = RenderUIMaterial { material_bind_group };
+        let render_ui_material = RenderUIMaterial {
+            material_bind_group,
+        };
 
         match render_entity {
             Some(render_entity) => {

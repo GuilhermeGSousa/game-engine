@@ -72,7 +72,13 @@ impl CommandQueueState {
     }
 }
 
-unsafe impl SystemInput for CommandQueue<'_, '_> {
+impl Default for CommandQueueState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SystemInput for CommandQueue<'_, '_> {
     type State = CommandQueueState;
     type Data<'world, 'state> = CommandQueue<'world, 'state>;
 
@@ -80,7 +86,7 @@ unsafe impl SystemInput for CommandQueue<'_, '_> {
         CommandQueueState::new()
     }
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         state: &'state mut Self::State,
         world: crate::world::UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {

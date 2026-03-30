@@ -60,6 +60,11 @@ impl RenderTarget {
         RenderTarget::Window(WindowRef::MainWindow)
     }
 
+    #[allow(dead_code)]
+    pub fn custom_window(entity: Entity) -> Self {
+        RenderTarget::Window(WindowRef::CustomWindow(entity))
+    }
+
     /// Creates a render target that renders into the given off-screen texture.
     ///
     /// `handle` should refer to a [`Texture`] created with
@@ -119,9 +124,15 @@ impl CameraUniform {
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTranform) {
-        self.view_pos = transform.translation().into();
+        self.view_pos = transform.translation();
         self.view_proj =
             OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
+    }
+}
+
+impl Default for CameraUniform {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

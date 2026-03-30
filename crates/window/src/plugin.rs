@@ -81,7 +81,7 @@ fn winit_runner(mut app: App, event_loop: EventLoop<()>) -> AppExit {
 
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
-            event_loop.0.spawn_app(state);
+            event_loop.spawn_app(state);
         } else {
             let mut state = state;
             let _ = event_loop.run_app(&mut state);
@@ -96,6 +96,7 @@ fn update_input(mut input: ResMut<Input>) {
 }
 
 #[allow(deprecated)]
+#[allow(unused_mut)]
 impl Plugin for WindowPlugin {
     fn build(&self, app: &mut App) {
         app.register_event::<WindowEvent>();
@@ -107,12 +108,11 @@ impl Plugin for WindowPlugin {
             .expect("Failed to build event loop");
         event_loop.set_control_flow(ControlFlow::Poll);
 
-        let win_attr = WinitWindow::default_attributes().with_title("winit example");
+        let mut win_attr = WinitWindow::default_attributes().with_title("winit example");
 
         #[cfg(target_arch = "wasm32")]
         {
             use winit::platform::web::WindowAttributesExtWebSys;
-            win_attr = &mut win_attr;
             win_attr = win_attr.with_append(true);
         }
 

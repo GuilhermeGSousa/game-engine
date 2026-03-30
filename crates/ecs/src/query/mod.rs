@@ -13,6 +13,21 @@ use crate::{
     world::UnsafeWorldCell,
 };
 
+/// A type-safe view over all entities in a [`World`](crate::world::World) that
+/// match a given set of components.
+///
+/// `T` is a [`QueryData`] that describes which components to fetch.  `F` is an
+/// optional [`QueryFilter`] that further restricts which entities are visited.
+///
+/// Obtain a `Query` in a system by adding it as a parameter:
+///
+/// ```ignore
+/// fn move_system(query: Query<(&mut Transform, &Velocity)>) {
+///     for (transform, velocity) in query.iter() {
+///         transform.translation += velocity.linear;
+///     }
+/// }
+/// ```
 pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
     world: UnsafeWorldCell<'world>,
     matched_indices: Vec<usize>,
@@ -20,17 +35,26 @@ pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
     _marker_filter: PhantomData<F>,
 }
 
+/// Describes what data a [`Query`] fetches from each matching entity.
+///
+/// Implementations are provided for `&T`, `&mut T`, `Entity`, `Option<&T>`,
+/// `Option<&mut T>`, and tuples of up to 12 elements.
 pub trait QueryData {
+    /// The item type produced for each matched entity.
     type Item<'a>;
 
+    /// Returns the [`ComponentId`]s that must be present on an entity for it to match.
     fn component_ids() -> Vec<ComponentId>;
 
+    /// Fetches the data for `entity` from `world`, returning `None` if not possible.
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>>;
 
+    /// Registers component access with the scheduler's access tracker.
     fn fill_access(access: &mut SystemAccess);
 }
 
 impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
+    /// Constructs a new query by scanning the world's archetypes for matches.
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         let matched_indices: Vec<usize> = world
             .world()
@@ -54,6 +78,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
         }
     }
 
+    /// Returns an iterator over all matching entities.
     pub fn iter<'s>(&'s self) -> QueryIter<'world, 's, T, F> {
         QueryIter {
             world: self.world,
@@ -66,6 +91,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
         }
     }
 
+    /// Fetches the query data for a specific entity, returning `None` if it doesn't match.
     pub fn get_entity(&self, entity: Entity) -> Option<T::Item<'world>> {
         if !F::filter(self.world, entity) {
             return None;
@@ -73,6 +99,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
         T::fetch(self.world, entity)
     }
 
+    /// Returns `true` if `entity` matches this query.
     pub fn contains_entity(&self, entity: Entity) -> bool {
         self.get_entity(entity).is_some()
     }
@@ -123,7 +150,7 @@ where
     }
 }
 
-unsafe impl<T, F> SystemInput for Query<'_, T, F>
+impl<T, F> SystemInput for Query<'_, T, F>
 where
     T: QueryData,
     F: QueryFilter,
@@ -131,11 +158,9 @@ where
     type State = ();
     type Data<'world, 'state> = Query<'world, T, F>;
 
-    fn init_state() -> Self::State {
-        ()
-    }
+    fn init_state() -> Self::State {}
 
-    unsafe fn get_data<'world, 'state>(
+    fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
@@ -164,8 +189,7 @@ where
         world
             .entity_store()
             .find_location(entity)
-            .map(|location| world.get_component_for_entity_location::<T>(location))
-            .flatten()
+            .and_then(|location| world.get_component_for_entity_location::<T>(location))
     }
 
     fn fill_access(access: &mut SystemAccess) {
@@ -191,7 +215,7 @@ where
         world
             .entity_store()
             .find_location(entity)
-            .map(|location| {
+            .and_then(|location| {
                 let current_tick = world.current_tick();
                 world
                     .get_component_for_entity_location_mut::<T>(location)
@@ -199,7 +223,6 @@ where
                         Mut::new(table_cell.data, table_cell.changed_tick, current_tick)
                     })
             })
-            .flatten()
     }
 
     fn fill_access(access: &mut SystemAccess) {
@@ -280,6 +303,7 @@ where
 {
     type Item<'w> = typle_for!(i in .. => T<{i}>::Item<'w>);
 
+    #[allow(clippy::let_and_return)]
     fn component_ids() -> Vec<ComponentId> {
         {
             let mut res = Vec::new();
@@ -294,11 +318,7 @@ where
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
         Some(typle_for!(i in .. => {
-                match <T<{i}>>::fetch(world, entity)
-                {
-                    Some(fetched_value) => { fetched_value },
-                    None => return None,
-                }
+                <T<{i}>>::fetch(world, entity)?
             }
         ))
     }

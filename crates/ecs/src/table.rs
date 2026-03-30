@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use any_vec::{any_value::AnyValueWrapper, mem::Heap, AnyVec, AnyVecMut, AnyVecRef};
+use any_vec::{any_value::AnyValueWrapper, AnyVec};
 
 use crate::{
     component::{Component, ComponentId, Tick},
@@ -43,12 +43,8 @@ impl Column {
         self.data.len()
     }
 
-    pub unsafe fn as_vec_unchecked<T: 'static>(&self) -> AnyVecRef<'_, T, Heap> {
-        self.data.downcast_ref_unchecked::<T>()
-    }
-
-    pub unsafe fn as_vec_mut_unchecked<T: 'static>(&mut self) -> AnyVecMut<'_, T, Heap> {
-        self.data.downcast_mut_unchecked::<T>()
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 
     pub(crate) unsafe fn get_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
@@ -105,7 +101,7 @@ impl Table {
         });
 
         Self {
-            columns: columns,
+            columns,
             entities: vec![removed_row.entity],
         }
     }
@@ -205,6 +201,12 @@ impl Table {
             data: removed_row_data,
             entity: self.entities.swap_remove(*row),
         }
+    }
+}
+
+impl Default for Table {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

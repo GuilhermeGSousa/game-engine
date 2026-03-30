@@ -40,7 +40,7 @@ pub struct AssetHandle<A: Asset> {
 impl<A: Asset> AssetHandle<A> {
     pub(crate) fn new(handle: Arc<StrongAssetHandle>) -> Self {
         Self {
-            handle: handle,
+            handle,
             _marker: PhantomData,
         }
     }

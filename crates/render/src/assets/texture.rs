@@ -41,6 +41,7 @@ pub struct Texture {
 }
 
 impl Texture {
+    #[allow(clippy::result_unit_err)]
     pub fn from_bytes(bytes: &[u8], mut usage_settings: TextureUsageSettings) -> Result<Self, ()> {
         let img = image::load_from_memory(bytes).map_err(|_| ())?;
         let dimensions = img.dimensions();
@@ -76,7 +77,7 @@ impl Texture {
 
         Self {
             data: image.to_rgba8().into_raw(),
-            usage_settings: usage_settings,
+            usage_settings,
         }
     }
 

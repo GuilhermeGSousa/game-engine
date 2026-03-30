@@ -86,3 +86,9 @@ impl Drop for TaskPool {
         }
     }
 }
+
+impl Default for TaskPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -24,13 +24,14 @@ render = { path = "crates/render" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 physics = { path = "crates/physics" }
-gltf = { path = "crates/gltf" }
-obj = { path = "crates/obj" }
+gltf-loader = { path = "crates/gltf-loader" }
+obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
+skybox = { path = "crates/skybox" }
 cfg-if = "1.0.0"
 env_logger = "0.11.8"
 log = "0.4.27"
-winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+winit = { version = "0.30"}
 glam = { version = "0.30.1" }
 wgpu-types = { version = "24", default-features = false }
 taffy = "0.9.2"
@@ -40,13 +41,13 @@ wgpu = { version = "24.0.1", default-features = false, features = [
     "metal",
     "naga-ir",
     "fragile-send-sync-non-atomic-wasm",
-]}
+] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
 wgpu = { version = "24.0.1", features = ["webgl"] }
-wasm-bindgen = "0.2"
+wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3.77", features = ["Document", "Window", "Element"] }
 

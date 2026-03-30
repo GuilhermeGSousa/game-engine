@@ -20,11 +20,8 @@ pub(crate) fn request_window_resize(
     mut window: ResMut<Window>,
 ) {
     for event in window_events.read() {
-        match event.deref() {
-            winit::event::WindowEvent::Resized(_) => {
-                window.mark_changed();
-            }
-            _ => {}
+        if let winit::event::WindowEvent::Resized(_) = event.deref() {
+            window.mark_changed();
         }
     }
 }

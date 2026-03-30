@@ -2,7 +2,7 @@ use std::{any::TypeId, collections::HashSet};
 
 use crate::{component::Component, resource::Resource};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct SystemAccess {
     component_reads: HashSet<TypeId>,
     component_writes: HashSet<TypeId>,

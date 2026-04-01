@@ -9,15 +9,10 @@ use crate::{
     world::World,
 };
 use derive_more::{Deref, From};
-use petgraph::{graph::NodeIndex, visit::EdgeRef};
-use slotmap::{new_key_type, SlotMap};
+use petgraph::graph::NodeIndex;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Deref, From)]
 pub(crate) struct SystemNodeIndex(NodeIndex);
-
-new_key_type! {
-    pub(crate) struct SystemKey;
-}
 
 /// An ordered list of systems that are executed sequentially each time [`run`](Schedule::run) is called.
 ///

@@ -1,20 +1,18 @@
 use ecs::{
     component::Component,
     events::{
-        event_channel::{update_event_channel, EventChannel},
-        Event,
+        Event, event_channel::{EventChannel, update_event_channel}
     },
     resource::{ResMut, Resource},
-    system::{schedule::Schedule, IntoSystem},
+    system::{IntoSystem, schedule::ScheduleVariant},
     world::World,
 };
-use runner::{run_once, AppExit};
+use runner::AppExit;
 
 use essential::{
     assets::{asset_server::AssetServer, asset_store::AssetStore, Asset},
     time::Time,
 };
-use std::mem::replace;
 
 use crate::plugins::PluginsState;
 
@@ -49,13 +47,13 @@ impl Plugin for HokeyPokeyPlugin {
 pub struct App {
     runner: runner::RunnerFn,
     world: World,
-    startup_schedule: Schedule,
-    update_schedule: Schedule,
-    fixed_update_schedule: Schedule,
-    late_update_schedule: Schedule,
-    late_fixed_update_schedule: Schedule,
-    render_schedule: Schedule,
-    late_render_schedule: Schedule,
+    startup_schedule: ScheduleVariant,
+    update_schedule: ScheduleVariant,
+    fixed_update_schedule: ScheduleVariant,
+    late_update_schedule: ScheduleVariant,
+    late_fixed_update_schedule: ScheduleVariant,
+    render_schedule: ScheduleVariant,
+    late_render_schedule: ScheduleVariant,
     accumulated_fixed_time: f32,
     plugins: Vec<Box<dyn Plugin>>,
     plugin_state: PluginsState,
@@ -67,13 +65,13 @@ impl App {
         Self {
             runner: Box::new(runner::run_once),
             world: World::new(),
-            startup_schedule: Schedule::default(),
-            update_schedule: Schedule::default(),
-            fixed_update_schedule: Schedule::default(),
-            late_update_schedule: Schedule::default(),
-            late_fixed_update_schedule: Schedule::default(),
-            render_schedule: Schedule::default(),
-            late_render_schedule: Schedule::default(),
+            startup_schedule: ScheduleVariant::default(),
+            update_schedule: ScheduleVariant::default(),
+            fixed_update_schedule: ScheduleVariant::default(),
+            late_update_schedule: ScheduleVariant::default(),
+            late_fixed_update_schedule: ScheduleVariant::default(),
+            render_schedule: ScheduleVariant::default(),
+            late_render_schedule: ScheduleVariant::default(),
             accumulated_fixed_time: 0.0,
             plugins: Vec::new(),
             plugin_state: PluginsState::Building,
@@ -96,7 +94,7 @@ impl App {
     pub fn register_asset<A: Asset>(&mut self) -> &mut Self {
         let asset_store = AssetStore::<A>::new();
         let asset_server = self
-            .get_mut_resource::<AssetServer>()
+            .get_resource_mut::<AssetServer>()
             .expect("Asset Server not found");
 
         asset_server.register_asset::<A>(&asset_store);
@@ -112,10 +110,9 @@ impl App {
     }
 
     /// Hands control to the configured runner function, consuming the app.
-    pub fn run(&mut self) {
-        let runner = replace(&mut self.runner, Box::new(run_once));
-        let app = replace(self, App::empty());
-        (runner)(app);
+    pub fn run(self) {
+        let runner = self.runner;
+        (runner)(self);
     }
 
     /// Replaces the default runner with a custom one (e.g. a window event loop).
@@ -138,26 +135,6 @@ impl App {
             UpdateGroup::LateFixedUpdate => self.late_fixed_update_schedule.add_system(system),
             UpdateGroup::Render => self.render_schedule.add_system(system),
             UpdateGroup::LateRender => self.late_render_schedule.add_system(system),
-        };
-        self
-    }
-
-    /// Registers a system to run before all others in its [`UpdateGroup`].
-    pub fn add_system_first<M>(
-        &mut self,
-        update_group: UpdateGroup,
-        system: impl IntoSystem<M> + 'static,
-    ) -> &mut Self {
-        match update_group {
-            UpdateGroup::Startup => self.startup_schedule.add_system_first(system),
-            UpdateGroup::Update => self.update_schedule.add_system_first(system),
-            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system_first(system),
-            UpdateGroup::LateUpdate => self.late_update_schedule.add_system_first(system),
-            UpdateGroup::LateFixedUpdate => {
-                self.late_fixed_update_schedule.add_system_first(system)
-            }
-            UpdateGroup::Render => self.render_schedule.add_system_first(system),
-            UpdateGroup::LateRender => self.late_render_schedule.add_system_first(system),
         };
         self
     }
@@ -187,7 +164,7 @@ impl App {
         self.world.get_resource()
     }
 
-    pub fn get_mut_resource<R: Resource>(&mut self) -> Option<&mut R> {
+    pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
         self.world.get_resource_mut()
     }
 

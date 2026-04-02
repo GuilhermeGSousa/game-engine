@@ -1,4 +1,6 @@
 pub mod access;
+mod batch;
+mod graph;
 pub mod schedule;
 pub mod system_input;
 
@@ -35,30 +37,17 @@ pub trait System: Send + Sync {
     fn apply(&mut self, world: &mut World);
 }
 
-/// A type-erased, heap-allocated system ready to be stored in a [`Schedule`](schedule::Schedule).
-pub struct ScheduledSystem {
-    system: BoxedSystem,
-}
-
-impl ScheduledSystem {
-    pub fn new(system: impl System + 'static) -> Self {
-        Self {
-            system: Box::new(system),
-        }
-    }
-}
-
-impl System for ScheduledSystem {
+impl System for BoxedSystem {
     fn apply(&mut self, world: &mut World) {
-        self.system.apply(world);
+        (**self).apply(world);
     }
 
     fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        self.system.run_without_apply(world);
+        (**self).run_without_apply(world);
     }
 
     fn access(&self) -> SystemAccess {
-        self.system.access()
+        (**self).access()
     }
 }
 
@@ -118,7 +107,7 @@ where
 /// Implemented automatically for functions whose parameters implement [`SystemInput`].
 pub trait IntoSystem<Marker> {
     /// Wraps `self` in a [`ScheduledSystem`] ready to be added to a [`Schedule`](schedule::Schedule).
-    fn into_system(self) -> ScheduledSystem;
+    fn into_system(self) -> BoxedSystem;
 }
 
 #[typle(Tuple for 0..=12)]
@@ -130,7 +119,7 @@ where
     for<'w, 's> F:
         FnMut(typle_args!(i in .. => T<{i}>)) + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>)),
 {
-    fn into_system(self) -> ScheduledSystem {
-        ScheduledSystem::new(FunctionSystem::new(self))
+    fn into_system(self) -> BoxedSystem {
+        Box::new(FunctionSystem::new(self))
     }
 }

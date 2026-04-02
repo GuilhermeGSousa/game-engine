@@ -34,7 +34,6 @@ pub(crate) struct SystemNodeIndex(NodeIndex);
 /// schedule.add_system(apply_velocity);
 /// ```
 #[derive(Default)]
-#[allow(unused)]
 pub struct Schedule {
     system_ids: Vec<SystemNodeIndex>,
     graph: SystemDependencyGraph,
@@ -72,13 +71,6 @@ impl Schedule {
 
         self.system_ids.push(added_system_index.into());
         self
-    }
-
-    /// Runs all systems in order against `world`.
-    pub fn run(&mut self, world: &mut World) {
-        // for system in &mut self.systems {
-        //     system.run(world.as_unsafe_world_cell_mut());
-        // }
     }
 
     fn compile_batches(self) -> Vec<ScheduledBatch> {
@@ -137,10 +129,43 @@ impl Schedule {
     }
 }
 
-
 pub struct CompiledSchedule
 {
 
+}
+
+// No constructor methods here! Get this by compiling a schedule
+impl CompiledSchedule {
+
+    // This will likely take an executor as well
+    pub fn run(&self, world: &mut World)
+    {}
+}
+
+pub enum ScheduleVariant {
+    Uncompiled(Schedule),
+    Compiled(CompiledSchedule)
+}
+
+impl Default for ScheduleVariant
+{
+    fn default() -> Self {
+        Self::Uncompiled(Schedule::default())
+    }
+}
+
+impl ScheduleVariant {
+    pub fn run(&mut self, world: &mut World)
+    {
+        match self {
+            Self::Compiled(compiled) => compiled.run(world),
+            Self::Uncompiled(schedule) => {
+                let compiled = std::mem::take(schedule).compile();
+                compiled.run(world);
+                *self = Self::Compiled(compiled);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -55,13 +55,6 @@ impl Schedule {
         self
     }
 
-    /// Prepends a system to the front of the schedule so it runs before all others.
-    #[allow(unused)]
-    pub fn add_system_first<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
-        // self.systems.insert(0, system.into_system());
-        self
-    }
-
     /// Appends an already-boxed [`ScheduledSystem`] to the schedule (builder style).
     fn add_scheduled_system(&mut self, system: BoxedSystem) -> &mut Self {
         let added_system_access = system.access();
@@ -88,7 +81,9 @@ impl Schedule {
         // }
     }
 
-    fn compile_batches(&self) -> Vec<ScheduledBatch> {
+    fn compile_batches(self) -> Vec<ScheduledBatch> {
+
+        
         // Compute in-degree of each node
         // let mut in_degrees = vec![0usize; self.systems.len()];
         // for system_id in &self.system_ids {
@@ -135,6 +130,17 @@ impl Schedule {
         // }
         batches
     }
+
+    pub fn compile(self) -> CompiledSchedule
+    {
+        todo!()
+    }
+}
+
+
+pub struct CompiledSchedule
+{
+
 }
 
 #[cfg(test)]

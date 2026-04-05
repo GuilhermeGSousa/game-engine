@@ -6,7 +6,7 @@ use glam::Affine2;
 use render::assets::vertex::VertexBufferLayout;
 use wgpu::VertexFormat;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub enum UIValue {
     #[default]
     Auto,

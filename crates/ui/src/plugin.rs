@@ -7,6 +7,7 @@ use render::{
 use wgpu::MultisampleState;
 
 use crate::{
+    interaction::update_interactions,
     material::UIMaterial,
     node::{compute_ui_nodes, extract_added_ui_materials, extract_added_ui_nodes},
     render::{prepare_text_renderer, ui_renderpass, update_text_viewport},
@@ -24,6 +25,10 @@ impl Plugin for UIPlugin {
     fn build(&self, app: &mut app::App) {
         app.register_plugin(MaterialPlugin::<UIMaterial>::pipeline_only());
         app.add_system(app::update_group::UpdateGroup::LateUpdate, compute_ui_nodes)
+            .add_system(
+                app::update_group::UpdateGroup::LateUpdate,
+                update_interactions,
+            )
             .add_system(
                 app::update_group::UpdateGroup::Render,
                 extract_added_ui_nodes,

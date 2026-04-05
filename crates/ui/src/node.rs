@@ -24,7 +24,10 @@ use render::{
         render_texture::{DummyRenderTexture, RenderTexture},
     },
 };
-use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree};
+use taffy::{
+    AlignItems, AvailableSpace, Dimension, FlexDirection, JustifyContent, LengthPercentage,
+    LengthPercentageAuto, NodeId, Rect, Size, Style, TaffyTree,
+};
 use wgpu::{Buffer, util::DeviceExt};
 use window::plugin::Window;
 
@@ -34,6 +37,57 @@ use crate::{
     vertex::{QUAD_INDICES, UIVertex},
 };
 
+fn ui_value_to_length_percentage(value: &UIValue) -> LengthPercentage {
+    match value {
+        UIValue::Auto | UIValue::Px(0.0) => LengthPercentage::length(0.0),
+        UIValue::Px(v) => LengthPercentage::length(*v),
+        UIValue::Percent(v) => LengthPercentage::percent(*v),
+    }
+}
+
+fn ui_value_to_length_percentage_auto(value: &UIValue) -> LengthPercentageAuto {
+    match value {
+        UIValue::Auto => LengthPercentageAuto::auto(),
+        UIValue::Px(v) => LengthPercentageAuto::length(*v),
+        UIValue::Percent(v) => LengthPercentageAuto::percent(*v),
+    }
+}
+
+/// Per-side spacing values (top, right, bottom, left).
+#[derive(Default)]
+pub struct UISides {
+    pub top: UIValue,
+    pub right: UIValue,
+    pub bottom: UIValue,
+    pub left: UIValue,
+}
+
+impl UISides {
+    pub fn all(value: UIValue) -> Self
+    where
+        UIValue: Clone,
+    {
+        Self {
+            top: value.clone(),
+            right: value.clone(),
+            bottom: value.clone(),
+            left: value,
+        }
+    }
+
+    pub fn axes(horizontal: UIValue, vertical: UIValue) -> Self
+    where
+        UIValue: Clone,
+    {
+        Self {
+            top: vertical.clone(),
+            right: horizontal.clone(),
+            bottom: vertical,
+            left: horizontal,
+        }
+    }
+}
+
 // User defined layout data
 #[derive(Component)]
 pub struct UINode {
@@ -42,6 +96,14 @@ pub struct UINode {
     pub flex_direction: FlexDirection,
     pub flex_grow: f32,
     pub flex_shrink: f32,
+    /// Inner spacing between the node border and its children.
+    pub padding: UISides,
+    /// Outer spacing between this node and its siblings.
+    pub margin: UISides,
+    /// How children are aligned along the cross axis.
+    pub align_items: Option<AlignItems>,
+    /// How children are distributed along the main axis.
+    pub justify_content: Option<JustifyContent>,
 }
 
 impl UINode {
@@ -66,6 +128,20 @@ impl UINode {
             flex_direction: self.flex_direction,
             flex_grow: self.flex_grow,
             flex_shrink: self.flex_shrink,
+            padding: Rect {
+                top: ui_value_to_length_percentage(&self.padding.top),
+                right: ui_value_to_length_percentage(&self.padding.right),
+                bottom: ui_value_to_length_percentage(&self.padding.bottom),
+                left: ui_value_to_length_percentage(&self.padding.left),
+            },
+            margin: Rect {
+                top: ui_value_to_length_percentage_auto(&self.margin.top),
+                right: ui_value_to_length_percentage_auto(&self.margin.right),
+                bottom: ui_value_to_length_percentage_auto(&self.margin.bottom),
+                left: ui_value_to_length_percentage_auto(&self.margin.left),
+            },
+            align_items: self.align_items,
+            justify_content: self.justify_content,
             ..Default::default()
         }
     }
@@ -79,6 +155,10 @@ impl Default for UINode {
             flex_direction: Default::default(),
             flex_grow: 0.0,
             flex_shrink: 1.0,
+            padding: Default::default(),
+            margin: Default::default(),
+            align_items: None,
+            justify_content: None,
         }
     }
 }

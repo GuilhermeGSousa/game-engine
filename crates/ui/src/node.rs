@@ -37,9 +37,14 @@ use crate::{
     vertex::{QUAD_INDICES, UIVertex},
 };
 
+/// Converts a [`UIValue`] to a Taffy [`LengthPercentage`].
+///
+/// `Auto` is not supported by `LengthPercentage` (which is used for padding
+/// and similar properties where CSS does not allow `auto`). It is therefore
+/// mapped to zero length, which leaves the space unset.
 fn ui_value_to_length_percentage(value: &UIValue) -> LengthPercentage {
     match value {
-        UIValue::Auto | UIValue::Px(0.0) => LengthPercentage::length(0.0),
+        UIValue::Auto => LengthPercentage::length(0.0),
         UIValue::Px(v) => LengthPercentage::length(*v),
         UIValue::Percent(v) => LengthPercentage::percent(*v),
     }

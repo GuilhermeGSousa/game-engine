@@ -26,6 +26,16 @@ pub struct Input {
     previous_mouse_delta: Vec2,
 }
 
+/// Advances a single [`InputState`] by one tick:
+/// `Pressed → Down`, `Released → Up`, everything else is unchanged.
+fn advance_input_state(state: &mut InputState) {
+    match state {
+        InputState::Pressed => *state = InputState::Down,
+        InputState::Released => *state = InputState::Up,
+        _ => {}
+    }
+}
+
 impl Input {
     pub fn new() -> Self {
         Self {
@@ -65,18 +75,10 @@ impl Input {
 
     pub fn update(&mut self) {
         for (_, state) in self.input_map.iter_mut() {
-            match state {
-                InputState::Pressed => *state = InputState::Down,
-                InputState::Released => *state = InputState::Up,
-                _ => {}
-            }
+            advance_input_state(state);
         }
         for (_, state) in self.mouse_buttons.iter_mut() {
-            match state {
-                InputState::Pressed => *state = InputState::Down,
-                InputState::Released => *state = InputState::Up,
-                _ => {}
-            }
+            advance_input_state(state);
         }
         self.mouse_delta = Vec2::ZERO; // Reset mouse delta after processing
     }

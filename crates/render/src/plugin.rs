@@ -205,9 +205,9 @@ impl Plugin for RenderPlugin {
             desired_maximum_frame_latency: 2,
         };
 
-        let main_shader = device.create_shader_module(wgpu::include_wgsl!("shaders\\shader.wgsl"));
+        let main_shader = device.create_shader_module(wgpu::include_wgsl!("shaders/shader.wgsl"));
         let skybox_shader =
-            device.create_shader_module(wgpu::include_wgsl!("shaders\\skybox.wgsl"));
+            device.create_shader_module(wgpu::include_wgsl!("shaders/skybox.wgsl"));
 
         let camera_layouts = CameraLayout::new(&device);
 

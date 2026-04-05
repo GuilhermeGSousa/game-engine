@@ -130,6 +130,7 @@ fn spawn_ui(mut cmd: CommandQueue) {
             text: "Hello I am text".to_string(),
             font_size: 20.0,
             line_height: 30.0,
+            color: [255, 255, 255, 255],
         },
     ));
 

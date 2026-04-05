@@ -76,6 +76,14 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 let input_state = self.app.get_mut_resource::<Input>().unwrap();
                 input_state.update_key_input(PhysicalKey::Code(keycode), state);
             }
+            WinitWindowEvent::CursorMoved { position, .. } => {
+                let input_state = self.app.get_mut_resource::<Input>().unwrap();
+                input_state.update_mouse_position((position.x, position.y));
+            }
+            WinitWindowEvent::MouseInput { state, button, .. } => {
+                let input_state = self.app.get_mut_resource::<Input>().unwrap();
+                input_state.update_mouse_button(button, state);
+            }
             _ => (),
         }
     }

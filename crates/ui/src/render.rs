@@ -2,7 +2,7 @@ use ecs::{
     query::{Query, change_detection::DetectChanges},
     resource::{Res, ResMut},
 };
-use glyphon::{Color, Resolution, TextArea, TextBounds};
+use glyphon::{Resolution, TextArea, TextBounds};
 use render::{
     MaterialPipeline, device::RenderDevice, queue::RenderQueue,
     render_asset::render_window::RenderWindow,
@@ -65,7 +65,7 @@ pub(crate) fn prepare_text_renderer(
                         right: render_node.size.x as i32,
                         bottom: 600_i32,
                     },
-                    default_color: Color::rgb(255, 255, 255),
+                    default_color: render_text.color,
                     custom_glyphs: &[],
                 }),
             &mut text_swash_cache,

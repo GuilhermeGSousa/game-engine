@@ -18,11 +18,14 @@ pub struct TextComponent {
     pub text: String,
     pub font_size: f32,
     pub line_height: f32,
+    /// RGBA color of the rendered text. Defaults to opaque white `[255, 255, 255, 255]`.
+    pub color: [u8; 4],
 }
 
 #[derive(Component)]
 pub struct RenderTextComponent {
     pub(crate) buffer: glyphon::Buffer,
+    pub(crate) color: glyphon::Color,
 }
 
 pub(crate) fn extract_added_text_nodes(
@@ -57,6 +60,12 @@ pub(crate) fn extract_added_text_nodes(
 
         let render_text_component = RenderTextComponent {
             buffer: text_buffer,
+            color: glyphon::Color::rgba(
+                text_component.color[0],
+                text_component.color[1],
+                text_component.color[2],
+                text_component.color[3],
+            ),
         };
 
         match render_entity {

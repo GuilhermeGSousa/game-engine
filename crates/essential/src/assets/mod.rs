@@ -85,6 +85,12 @@ impl AssetId {
     }
 }
 
+impl Default for AssetId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub trait Asset: Send + Sync + 'static {
     fn name() -> &'static str;
 }

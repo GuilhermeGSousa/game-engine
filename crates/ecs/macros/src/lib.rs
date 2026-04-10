@@ -14,13 +14,13 @@ pub fn component(input: TokenStream) -> TokenStream {
 
 fn impl_component(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
+    let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
     let gen = quote! {
-        impl Component for #name {
+        impl #impl_generics Component for #name #type_generics #where_clause {
             fn name() -> &'static str {
                 stringify!(#name)
             }
         }
-
     };
     gen.into()
 }

@@ -10,21 +10,32 @@ use crate::{
     world::{UnsafeWorldCell, World},
 };
 
+/// Type alias for a boxed, type-erased system.
 pub type BoxedSystem = Box<dyn System>;
 
+/// Core trait implemented by all executable systems.
+///
+/// In normal use you don't implement this directly — plain Rust functions whose
+/// parameters implement [`SystemInput`] automatically implement [`IntoSystem`], which
+/// wraps them in a [`FunctionSystem`] that implements `System`.
 pub trait System: Send + Sync {
+    /// Describes which components and resources this system reads or writes.
     fn access(&self) -> SystemAccess;
 
+    /// Executes the system against the world, then applies any deferred commands.
     fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
         self.run_without_apply(world);
         self.apply(world.world_mut());
     }
 
+    /// Executes the system without applying deferred commands.
     fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>);
 
+    /// Applies any deferred mutations (e.g. spawned entities from [`CommandQueue`](crate::command::CommandQueue)).
     fn apply(&mut self, world: &mut World);
 }
 
+/// A type-erased, heap-allocated system ready to be stored in a [`Schedule`](schedule::Schedule).
 pub struct ScheduledSystem {
     system: BoxedSystem,
 }
@@ -51,7 +62,8 @@ impl System for ScheduledSystem {
     }
 }
 
-pub struct FunctionSystem<F, Input: SystemInput> {
+/// Wraps a plain function (or closure) and its cached input state into a [`System`].
+pub(crate) struct FunctionSystem<F, Input: SystemInput> {
     pub func: F,
     system_state: Input::State,
 }
@@ -88,7 +100,7 @@ where
 
     fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
         (self.func)(
-            typle_args!(i in .. => unsafe { <T<{i}>>::get_data(&mut self.system_state[[i]], world) } ),
+            typle_args!(i in .. =>  <T<{i}>>::get_data(&mut self.system_state[[i]], world) ),
         );
     }
 
@@ -101,7 +113,11 @@ where
     }
 }
 
+/// Conversion trait that turns a compatible function or closure into a [`ScheduledSystem`].
+///
+/// Implemented automatically for functions whose parameters implement [`SystemInput`].
 pub trait IntoSystem<Marker> {
+    /// Wraps `self` in a [`ScheduledSystem`] ready to be added to a [`Schedule`](schedule::Schedule).
     fn into_system(self) -> ScheduledSystem;
 }
 

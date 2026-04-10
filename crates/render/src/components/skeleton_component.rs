@@ -11,7 +11,7 @@ use ecs::{
     query::{query_filter::Added, Query},
     resource::{Res, Resource},
 };
-use encase::{UniformBuffer};
+use encase::UniformBuffer;
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
     transform::GlobalTranform,
@@ -55,7 +55,7 @@ impl EmptySkeletonBuffer {
 
         Self(device.create_bind_group(&BindGroupDescriptor {
             label: Some("empty_skeleton_buffer"),
-            layout: *&layout,
+            layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: skeleton_buffer.as_entire_binding(),
@@ -88,7 +88,7 @@ pub(crate) fn skeleton_added(
 
         let skeleton_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("Skeleton Bind Group"),
-            layout: &*skeleton_layout,
+            layout: &skeleton_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: bones_buffer.as_entire_binding(),
@@ -147,4 +147,8 @@ pub(crate) fn update_skeletons(
             _ => continue,
         };
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 2d08558e539edb886f4c2988c853a4f6c47601ba

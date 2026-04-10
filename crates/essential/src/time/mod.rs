@@ -35,3 +35,9 @@ impl Time {
         Self::FIXED_DELTA_TIME
     }
 }
+
+impl Default for Time {
+    fn default() -> Self {
+        Self::new()
+    }
+}

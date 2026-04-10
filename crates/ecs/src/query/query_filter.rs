@@ -3,6 +3,10 @@ use std::marker::PhantomData;
 use crate::{component::bundle::ComponentBundle, entity::Entity, world::UnsafeWorldCell};
 use typle::typle;
 
+/// Restricts which entities a [`Query`](super::Query) visits.
+///
+/// Multiple filters can be combined in a tuple: `(With<A>, Without<B>)` matches
+/// entities that have `A` but not `B`.  [`Or`] can be used for disjunctions.
 pub trait QueryFilter {
     fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
         Self::filter_and(world, entity)
@@ -44,6 +48,7 @@ where
     }
 }
 
+/// Matches entities where the given components were **added** this tick.
 pub struct Added<T: ComponentBundle> {
     _marker: PhantomData<T>,
 }
@@ -62,6 +67,7 @@ where
     }
 }
 
+/// Matches entities where the given components were **mutated** this tick.
 pub struct Changed<T: ComponentBundle> {
     _marker: PhantomData<T>,
 }
@@ -80,6 +86,7 @@ where
     }
 }
 
+/// Matches entities that **have** all of the given components, without fetching them.
 pub struct With<T: ComponentBundle> {
     _marker: PhantomData<T>,
 }
@@ -105,6 +112,7 @@ where
     }
 }
 
+/// Inverts a [`QueryFilter`]: matches entities that do **not** satisfy `T`.
 pub struct Not<T: QueryFilter> {
     _marker: PhantomData<T>,
 }
@@ -118,8 +126,16 @@ where
     }
 }
 
+/// Matches entities that **do not** have the given component(s). Alias for `Not<With<T>>`.
 pub type Without<T> = Not<With<T>>;
 
+/// Matches entities that satisfy **at least one** of the filters in the tuple `T`.
+///
+/// # Example
+/// ```ignore
+/// // Entities that have either Health or Shield
+/// Query<Entity, Or<(With<Health>, With<Shield>)>>
+/// ```
 pub struct Or<T: QueryFilter> {
     _marker: PhantomData<T>,
 }

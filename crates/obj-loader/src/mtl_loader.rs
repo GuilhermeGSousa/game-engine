@@ -6,11 +6,11 @@ use essential::assets::{
     handle::AssetHandle, utils::load_to_string,
 };
 
-use render::assets::{material::Material, texture::Texture};
+use render::assets::{material::StandardMaterial, texture::Texture};
 
 #[derive(Asset)]
 pub struct MTLMaterial {
-    pub material: AssetHandle<Material>,
+    pub material: AssetHandle<StandardMaterial>,
 }
 
 impl LoadableAsset for MTLMaterial {
@@ -19,9 +19,7 @@ impl LoadableAsset for MTLMaterial {
         Box::new(MTLLoader)
     }
 
-    fn default_usage_settings() -> Self::UsageSettings {
-        ()
-    }
+    fn default_usage_settings() -> Self::UsageSettings {}
 }
 
 pub(crate) struct MTLLoader;
@@ -43,7 +41,7 @@ impl AssetLoader for MTLLoader {
 
         match mat {
             Ok((mats, _)) => {
-                let mut material = Material::new(None, None);
+                let mut material = StandardMaterial::new(None, None);
                 for m in mats {
                     if let Some(diffuse_texture) = m.diffuse_texture {
                         let texture_handle =

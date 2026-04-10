@@ -32,7 +32,8 @@ use image::ImageBuffer;
 use log::warn;
 use render::{
     assets::{
-        material::Material, mesh::Mesh, skeleton::Skeleton, texture::Texture, vertex::Vertex,
+        material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture,
+        vertex::Vertex,
     },
     components::{
         material_component::MaterialComponent, mesh_component::MeshComponent,
@@ -46,7 +47,7 @@ pub(crate) struct GLTFLoader;
 #[derive(Asset)]
 pub struct GLTFScene {
     pub(crate) meshes: Vec<GLTFMesh>,
-    pub(crate) materials: Vec<AssetHandle<Material>>,
+    pub(crate) materials: Vec<AssetHandle<StandardMaterial>>,
     pub(crate) nodes: Vec<GLTFNode>,
     pub(crate) skeletons: Vec<GLTFSkeleton>,
     pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
@@ -150,7 +151,7 @@ impl AssetLoader for GLTFLoader {
 
         let mut materials = Vec::new();
         for gltf_material in document.materials() {
-            let material = Material::new(
+            let material = StandardMaterial::new(
                 gltf_material
                     .pbr_metallic_roughness()
                     .base_color_texture()
@@ -196,22 +197,18 @@ impl AssetLoader for GLTFLoader {
                 let skeleton = load_context.asset_server().add(inverse_bind_matrices);
                 let bones: Vec<usize> = skin.joints().map(|j| j.index()).collect();
 
-                let root_bone = usage_setting
-                    .root_bone
-                    .as_ref()
-                    .map(|root_bone_name| {
-                        skin.joints().find_map(|join_node| match join_node.name() {
-                            Some(joint_name) => {
-                                if joint_name == *root_bone_name {
-                                    Some(join_node.index())
-                                } else {
-                                    None
-                                }
+                let root_bone = usage_setting.root_bone.as_ref().and_then(|root_bone_name| {
+                    skin.joints().find_map(|join_node| match join_node.name() {
+                        Some(joint_name) => {
+                            if joint_name == *root_bone_name {
+                                Some(join_node.index())
+                            } else {
+                                None
                             }
-                            None => None,
-                        })
+                        }
+                        None => None,
                     })
-                    .flatten();
+                });
                 skeletons.push(GLTFSkeleton {
                     bones,
                     skeleton,
@@ -290,7 +287,7 @@ impl AssetLoader for GLTFLoader {
                 if let Some(node_path_info) = node_paths.get(&target_node_idx) {
                     let target_id = paths_to_uuid(&node_path_info.node_path);
                     target_id_to_node_idx.insert(
-                        target_id.clone(),
+                        target_id,
                         GLTFAnimationTargetInfo {
                             node_index: target_node_idx,
                             root_index: node_path_info.root_node,
@@ -319,7 +316,7 @@ impl AssetLoader for GLTFLoader {
 
 impl GLTFLoader {
     fn load_primitive(
-        buffers: &Vec<Data>,
+        buffers: &[Data],
         gltf_primitive: &Primitive,
         asset_server: &AssetServer,
     ) -> Result<AssetHandle<Mesh>, ()> {
@@ -479,22 +476,22 @@ pub(crate) fn spawn_gltf_components(
 
                     let mut primitives = gltf_mesh.primitives.iter().zip(&gltf_mesh.materials);
 
-                    if let Some((first_mesh, material_index)) = primitives.next() {
-                        if let Some(material_index) = material_index {
-                            cmd.insert(
-                                MeshComponent {
-                                    handle: first_mesh.clone(),
-                                },
-                                node_entities[node_index],
-                            );
+                    if let Some((first_mesh, material_index)) = primitives.next()
+                        && let Some(material_index) = material_index
+                    {
+                        cmd.insert(
+                            MeshComponent {
+                                handle: first_mesh.clone(),
+                            },
+                            node_entities[node_index],
+                        );
 
-                            cmd.insert(
-                                MaterialComponent {
-                                    handle: asset.materials[*material_index].clone(),
-                                },
-                                node_entities[node_index],
-                            );
-                        }
+                        cmd.insert(
+                            MaterialComponent {
+                                handle: asset.materials[*material_index].clone(),
+                            },
+                            node_entities[node_index],
+                        );
                     }
 
                     // TODO: Spawn the rest of the primitives as children
@@ -526,13 +523,12 @@ pub(crate) fn spawn_gltf_components(
             for animation_clip in asset
                 .animations
                 .iter()
-                .map(|handle| animation_assets.get(handle))
-                .filter_map(|value| value)
+                .filter_map(|handle| animation_assets.get(handle))
             {
                 for target_id in animation_clip.target_ids() {
-                    if let Some(node_info) = asset.target_id_to_node_idx.get(&*target_id) {
+                    if let Some(node_info) = asset.target_id_to_node_idx.get(target_id) {
                         let target_component = AnimationTarget {
-                            id: target_id.clone(),
+                            id: *target_id,
                             animator: node_entities[node_info.root_index],
                         };
 
@@ -575,7 +571,7 @@ pub(crate) fn collect_paths(
     visited.insert(node.index());
     for child in node.children() {
         if !visited.contains(&child.index()) {
-            collect_paths(&child, &path, &root_index, paths, visited);
+            collect_paths(&child, &path, root_index, paths, visited);
         }
     }
     paths.insert(

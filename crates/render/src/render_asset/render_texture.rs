@@ -12,10 +12,14 @@ use ecs::{
 };
 
 #[allow(dead_code)]
-pub(crate) struct RenderTexture {
+pub struct RenderTexture {
+    /// The GPU texture view (used for bind groups).
+    pub view: wgpu::TextureView,
+    /// The GPU sampler associated with this texture.
+    pub sampler: wgpu::Sampler,
+    /// The underlying GPU texture.  Kept crate-private since callers interact
+    /// with `view` and `sampler`; expose via a getter if broader access is needed.
     pub(crate) texture: wgpu::Texture,
-    pub(crate) view: wgpu::TextureView,
-    pub(crate) sampler: wgpu::Sampler,
 }
 
 impl RenderTexture {
@@ -41,7 +45,7 @@ impl RenderTexture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &texture.data(),
+            texture.data(),
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * dimensions.width),
@@ -113,15 +117,15 @@ impl RenderAsset for RenderTexture {
         params: &mut SystemInputData<Self::PreparationParams>,
     ) -> Result<Self, AssetPreparationError> {
         let (device, queue) = params;
-        Ok(RenderTexture::from_texture(&source_asset, &device, &queue))
+        Ok(RenderTexture::from_texture(source_asset, device, queue))
     }
 }
 
 #[derive(Resource)]
-pub(crate) struct DummyRenderTexture(pub(crate) RenderTexture);
+pub struct DummyRenderTexture(pub(crate) RenderTexture);
 
 impl DummyRenderTexture {
-    pub(crate) fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device) -> Self {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("RenderTexture Sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -152,9 +156,17 @@ impl DummyRenderTexture {
 
         Self(RenderTexture {
             texture: wgpu_texture,
-            view: view,
-            sampler: sampler,
+            view,
+            sampler,
         })
+    }
+
+    /// Access the inner [`RenderTexture`].
+    ///
+    /// In most cases the `Deref` impl is sufficient (use `dummy.view` or
+    /// `dummy.sampler`); use this getter when you need the full `RenderTexture`.
+    pub fn inner(&self) -> &RenderTexture {
+        &self.0
     }
 }
 

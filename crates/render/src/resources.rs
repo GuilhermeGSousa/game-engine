@@ -23,20 +23,3 @@ impl Deref for MainRenderPipeline {
         &self.0
     }
 }
-
-#[derive(Resource)]
-pub(crate) struct SkyboxRenderPipeline(wgpu::RenderPipeline);
-
-impl Deref for SkyboxRenderPipeline {
-    type Target = wgpu::RenderPipeline;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl SkyboxRenderPipeline {
-    pub fn new(pipeline: wgpu::RenderPipeline) -> Self {
-        Self(pipeline)
-    }
-}

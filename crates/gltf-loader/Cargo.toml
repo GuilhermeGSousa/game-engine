@@ -1,5 +1,5 @@
 [package]
-name = "gltf"
+name = "gltf-loader"
 version = "0.1.0"
 edition = "2024"
 
@@ -13,7 +13,7 @@ gltf = { version = "1.4.1" }
 async-trait = "0.1.50"
 glam = { version = "0.30.1" }
 log = "0.4.27"
-uuid = { version = "1.18.1", features = ["v4"] }
+uuid = { version = "1.18.1", features = ["v4", "js"] }
 
 [dependencies.image]
 version = "0.25.5"

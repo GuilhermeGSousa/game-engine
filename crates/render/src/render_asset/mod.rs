@@ -16,7 +16,7 @@ pub enum AssetPreparationError {
     NotReady,
 }
 
-pub(crate) trait RenderAsset: Send + Sync + Sized + 'static {
+pub trait RenderAsset: Send + Sync + Sized + 'static {
     type SourceAsset: Asset;
     type PreparationParams: SystemInput;
 
@@ -33,21 +33,20 @@ pub(crate) fn prepare_render_asset<A: RenderAsset>(
 ) {
     for (asset_id, asset) in asset_store.into_iter() {
         // TODO: Do something more performant than this
-        if render_assets.contains(&asset_id) {
+        if render_assets.contains(asset_id) {
             continue;
         }
 
         let prepared_asset = A::prepare_asset(asset, &mut params);
 
-        match prepared_asset {
-            Ok(prepared_asset) => render_assets.insert(*asset_id, prepared_asset),
-            Err(_) => {}
-        };
+        if let Ok(prepared_asset) = prepared_asset {
+            render_assets.insert(*asset_id, prepared_asset)
+        }
     }
 }
 
 #[derive(Resource)]
-pub(crate) struct RenderAssets<A: RenderAsset + 'static>(HashMap<AssetId, A>);
+pub struct RenderAssets<A: RenderAsset + 'static>(HashMap<AssetId, A>);
 
 impl<A: RenderAsset + 'static> RenderAssets<A> {
     pub fn new() -> Self {
@@ -67,7 +66,13 @@ impl<A: RenderAsset + 'static> RenderAssets<A> {
     }
 }
 
-pub(crate) struct RenderAssetPlugin<A: RenderAsset> {
+impl<A: RenderAsset + 'static> Default for RenderAssets<A> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct RenderAssetPlugin<A: RenderAsset> {
     _marker: std::marker::PhantomData<A>,
 }
 
@@ -76,6 +81,12 @@ impl<A: RenderAsset> RenderAssetPlugin<A> {
         RenderAssetPlugin {
             _marker: std::marker::PhantomData,
         }
+    }
+}
+
+impl<A: RenderAsset> Default for RenderAssetPlugin<A> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

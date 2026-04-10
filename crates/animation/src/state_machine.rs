@@ -187,7 +187,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
 
     fn update(
         &mut self,
-        node: &Box<dyn AnimationNode>,
+        node: &dyn AnimationNode,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
@@ -233,9 +233,9 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
 
     fn evaluate(
         &self,
-        _node: &Box<dyn AnimationNode>,
+        _node: &dyn AnimationNode,
         target: &AnimationTarget,
-        _evaluated_inputs: &Vec<EvaluatedNode>,
+        _evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
     ) -> Transform {
         self.blend_stack

@@ -12,10 +12,7 @@ mod vertex;
 
 #[cfg(test)]
 mod tests {
-    use taffy::{
-        AvailableSpace, Dimension, LengthPercentage, Size, Style, TaffyTree,
-        prelude::{FromLength, FromPercent},
-    };
+    use taffy::{AvailableSpace, Dimension, Size, Style, TaffyTree};
 
     #[test]
     fn test_taffy() {
@@ -50,13 +47,15 @@ mod tests {
             )
             .unwrap();
 
-        taffy.compute_layout(
-            root,
-            Size {
-                height: AvailableSpace::Definite(800.0),
-                width: AvailableSpace::Definite(600.0),
-            },
-        );
+        taffy
+            .compute_layout(
+                root,
+                Size {
+                    height: AvailableSpace::Definite(800.0),
+                    width: AvailableSpace::Definite(600.0),
+                },
+            )
+            .expect("Error computing layout");
 
         let spacer_layout = taffy.layout(spacer).unwrap();
         println!(

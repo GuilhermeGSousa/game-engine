@@ -29,6 +29,13 @@ pub struct OBJAsset {
     materials: Vec<AssetHandle<MTLMaterial>>,
 }
 
+impl OBJAsset {
+    /// Returns a slice of the meshes contained in this OBJ file.
+    pub fn meshes(&self) -> &[OBJMesh] {
+        &self.meshes
+    }
+}
+
 #[derive(Asset)]
 pub struct OBJMesh {
     pub handle: AssetHandle<Mesh>,
@@ -42,9 +49,7 @@ impl LoadableAsset for OBJAsset {
         Box::new(OBJLoader)
     }
 
-    fn default_usage_settings() -> Self::UsageSettings {
-        ()
-    }
+    fn default_usage_settings() -> Self::UsageSettings {}
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -64,7 +69,7 @@ impl AssetLoader for OBJLoader {
 
         let mat_handles = BufReader::new(obj_cursor.clone())
             .lines()
-            .filter_map(Result::ok)
+            .map_while(Result::ok)
             .filter_map(|line| {
                 if line.starts_with("mtllib") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
@@ -123,8 +128,8 @@ impl AssetLoader for OBJLoader {
                                 m.mesh.positions[vertex_index * 3 + 1],
                                 m.mesh.positions[vertex_index * 3 + 2],
                             ],
-                            uv_coords: uv_coords,
-                            normal: normal,
+                            uv_coords,
+                            normal,
                             tangent: [0.0; 3],
                             bitangent: [0.0; 3],
                             bone_indices: [0; Vertex::MAX_AFFECTED_BONES],
@@ -134,10 +139,10 @@ impl AssetLoader for OBJLoader {
                     .collect::<Vec<_>>();
 
                 if requires_normal_computation {
-                    OBJLoader::compute_normals(&m, &mut vertices);
+                    OBJLoader::compute_normals(m, &mut vertices);
                 }
 
-                OBJLoader::compute_tangents(&m, &mut vertices);
+                OBJLoader::compute_tangents(m, &mut vertices);
 
                 let handle = load_context.asset_server().add(Mesh {
                     vertices,
@@ -159,7 +164,7 @@ impl AssetLoader for OBJLoader {
 }
 
 impl OBJLoader {
-    fn compute_normals(model: &Model, vertices: &mut Vec<Vertex>) {
+    fn compute_normals(model: &Model, vertices: &mut [Vertex]) {
         let mut triangles_included = vec![0; vertices.len()];
 
         model.mesh.indices.chunks(3).for_each(|index_chunk| {
@@ -187,7 +192,7 @@ impl OBJLoader {
         }
     }
 
-    fn compute_tangents(model: &Model, vertices: &mut Vec<Vertex>) {
+    fn compute_tangents(model: &Model, vertices: &mut [Vertex]) {
         if model.mesh.texcoords.is_empty() {
             for v in vertices.iter_mut() {
                 let normal = Vec3::from(v.normal);

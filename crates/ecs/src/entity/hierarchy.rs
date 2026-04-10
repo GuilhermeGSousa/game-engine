@@ -32,7 +32,7 @@ impl<'a> IntoIterator for &'a Children {
     type IntoIter = <&'a Vec<Entity> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&self.children).into_iter()
+        self.children.iter()
     }
 }
 

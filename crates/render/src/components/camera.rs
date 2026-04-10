@@ -103,9 +103,15 @@ impl CameraUniform {
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTranform) {
-        self.view_pos = transform.translation().into();
+        self.view_pos = transform.translation();
         self.view_proj =
             OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
+    }
+}
+
+impl Default for CameraUniform {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -150,10 +156,10 @@ pub(crate) fn camera_added(
             RenderTexture::create_depth_texture(&device, &context.surface_config, "depth_texture");
 
         let render_cam = RenderCamera {
-            camera_bind_group: camera_bind_group,
-            camera_uniform: camera_uniform,
-            camera_buffer: camera_buffer,
-            depth_texture: depth_texture,
+            camera_bind_group,
+            camera_uniform,
+            camera_buffer,
+            depth_texture,
             clear_color: camera.clear_color,
         };
 

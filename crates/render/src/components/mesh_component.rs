@@ -15,8 +15,11 @@ use essential::{
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::mesh::Mesh,
-    components::{material_component::MaterialComponent, render_entity::RenderEntity},
+    assets::{material::StandardMaterial, mesh::Mesh},
+    components::{
+        material_component::MaterialComponent, render_entity::RenderEntity,
+        render_material_component::RenderMaterialComponent,
+    },
     device::RenderDevice,
     queue::RenderQueue,
 };
@@ -29,7 +32,6 @@ pub struct MeshComponent {
 #[derive(Component)]
 pub(crate) struct RenderMeshInstance {
     pub(crate) mesh_asset_id: AssetId,
-    pub(crate) material_asset_id: AssetId,
     pub(crate) transform: wgpu::Buffer,
 }
 
@@ -54,16 +56,23 @@ pub(crate) fn mesh_added(
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
-        let instance: RenderMeshInstance = RenderMeshInstance {
+        let instance = RenderMeshInstance {
             mesh_asset_id: mesh.handle.id(),
+<<<<<<< HEAD
             material_asset_id: material.handle.id(),
+=======
+>>>>>>> 2d08558e539edb886f4c2988c853a4f6c47601ba
             transform: instance_buffer,
         };
+        let render_mat = RenderMaterialComponent::<StandardMaterial>::new(material.handle.id());
 
         match render_entity {
-            Some(render_entity) => cmd.insert(instance, **render_entity),
+            Some(render_entity) => {
+                cmd.insert(instance, **render_entity);
+                cmd.insert(render_mat, **render_entity);
+            }
             None => {
-                let new_render_entity = cmd.spawn(instance);
+                let new_render_entity = cmd.spawn((instance, render_mat));
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
         }

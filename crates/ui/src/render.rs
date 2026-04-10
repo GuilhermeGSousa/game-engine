@@ -2,6 +2,11 @@ use ecs::{
     query::{Query, change_detection::DetectChanges},
     resource::{Res, ResMut},
 };
+use glyphon::{Color, Resolution, TextArea, TextBounds};
+use render::{
+    MaterialPipeline, device::RenderDevice, queue::RenderQueue,
+    render_asset::render_window::RenderWindow,
+};
 use glam::Mat4;
 use glyphon::{Color, Resolution, TextArea, TextBounds};
 use render::{device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow};
@@ -9,9 +14,8 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use window::plugin::Window;
 
 use crate::{
-    layout::UICameraLayout,
+    material::UIMaterial,
     node::{RenderUIMaterial, RenderUINode},
-    resources::UIRenderPipeline,
     text::{
         RenderTextComponent,
         resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport},
@@ -63,7 +67,7 @@ pub(crate) fn prepare_text_renderer(
                         left: 0,
                         top: 0,
                         right: render_node.size.x as i32,
-                        bottom: 600 as i32,
+                        bottom: 600_i32,
                     },
                     default_color: Color::rgb(255, 255, 255),
                     custom_glyphs: &[],
@@ -74,48 +78,22 @@ pub(crate) fn prepare_text_renderer(
 }
 
 pub(crate) fn ui_renderpass(
-    pipeline: Res<UIRenderPipeline>,
+    pipeline: Res<MaterialPipeline<UIMaterial>>,
     mut device: ResMut<RenderDevice>,
     render_window: Res<RenderWindow>,
-    window: Res<Window>,
-    ui_camera_layout: Res<UICameraLayout>,
     ui_nodes: Query<(&RenderUINode, &RenderUIMaterial)>,
     // Texture inputs
     text_renderer: ResMut<TextRenderer>,
     text_viewport: Res<TextViewport>,
     text_atlas: Res<TextAtlas>,
 ) {
-    let projection_matrix = Mat4::orthographic_rh(
-        0.0,
-        window.width() as f32,
-        window.height() as f32,
-        0.0,
-        0.0,
-        1.0,
-    );
-
-    let ui_view = device.create_buffer_init(&BufferInitDescriptor {
-        label: Some("UI Projection"),
-        contents: bytemuck::cast_slice(&[projection_matrix]),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-
-    let ui_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout: &ui_camera_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: ui_view.as_entire_binding(),
-        }],
-        label: Some("UI Camera Bind Group"),
-    });
-
     let encoder = device.command_encoder();
 
     if let Some(view) = render_window.get_view() {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("UI Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
@@ -127,8 +105,7 @@ pub(crate) fn ui_renderpass(
             timestamp_writes: None,
         });
 
-        render_pass.set_pipeline(&pipeline);
-        render_pass.set_bind_group(0, &ui_camera_bind_group, &[]);
+        render_pass.set_pipeline(&pipeline.pipeline);
 
         let mut render_nodes = ui_nodes.iter().collect::<Vec<_>>();
         render_nodes.sort_by_key(|(render_node, _)| render_node.z_index);
@@ -138,7 +115,7 @@ pub(crate) fn ui_renderpass(
                 wgpu::IndexFormat::Uint16,
             );
             render_pass.set_vertex_buffer(0, render_node.vertex_buffer.slice(..));
-            render_pass.set_bind_group(1, &render_material.material_bind_group, &[]);
+            render_pass.set_bind_group(0, &render_material.material_bind_group, &[]);
             render_pass.draw_indexed(0..render_node.index_count, 0, 0..1);
         }
 

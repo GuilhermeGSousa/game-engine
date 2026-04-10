@@ -85,3 +85,9 @@ impl PhysicsState {
         Transform::from_translation_rotation(translation, rotation)
     }
 }
+
+impl Default for PhysicsState {
+    fn default() -> Self {
+        Self::new()
+    }
+}

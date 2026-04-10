@@ -60,7 +60,11 @@ impl Archetype {
         self.data_table.get_row_count()
     }
 
-    pub unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub(crate) unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
         self.data_table
             .get_column(ComponentId::of::<T>())?
             .get_unsafe(row)

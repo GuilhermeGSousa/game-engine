@@ -80,12 +80,18 @@ impl AnimationGraph {
             .map(|node_index| node_index.into())
     }
 
-    pub fn get_node(&self, node_index: AnimationNodeIndex) -> Option<&Box<dyn AnimationNode>> {
-        self.graph.node_weight(*node_index)
+    pub fn get_node(&self, node_index: AnimationNodeIndex) -> Option<&dyn AnimationNode> {
+        self.graph.node_weight(*node_index).map(|node| node.deref())
     }
 
     pub fn get_node_inputs(&self, node_index: AnimationNodeIndex) -> Neighbors<'_, (), u32> {
         self.graph.neighbors_directed(*node_index, Outgoing)
+    }
+}
+
+impl Default for AnimationGraph {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -175,7 +181,7 @@ impl AnimationGraphInstance {
                     return;
                 };
 
-                node_state.update(node, delta_time, &context);
+                node_state.update(node, delta_time, context);
             });
     }
 
@@ -204,19 +210,18 @@ impl AnimationGraphInstance {
 
             let evaluated_inputs = graph
                 .get_node_inputs(node_index)
-                .map(|_| graph_evaluator.pop_evaluation())
-                .filter_map(|transform| transform)
+                .filter_map(|_| graph_evaluator.pop_evaluation())
                 .collect::<Vec<_>>();
 
             let state_context = AnimationGraphContext {
-                animation_clips: &context.animation_clips,
-                animation_graphs: &context.animation_graphs,
+                animation_clips: context.animation_clips,
+                animation_graphs: context.animation_graphs,
             };
 
             graph_evaluator.push_evaluation(EvaluatedNode {
                 transform: node_state.node_instance.evaluate(
-                    &node,
-                    &target,
+                    node,
+                    target,
                     &evaluated_inputs,
                     &state_context,
                 ),
@@ -236,7 +241,7 @@ impl AnimationGraphInstance {
     ) -> Option<&'a AnimationGraph> {
         self.graph_handle
             .as_ref()
-            .and_then(move |handle| context.animation_graphs().get(&handle))
+            .and_then(move |handle| context.animation_graphs().get(handle))
     }
 }
 

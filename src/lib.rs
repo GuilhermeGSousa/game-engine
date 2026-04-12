@@ -1,12 +1,6 @@
 use std::f32::consts::PI;
 
 use animation::plugin::AnimationPlugin;
-use essential::{
-    assets::asset_server::AssetServer,
-    time::Time,
-    transform::{GlobalTranform, Transform},
-};
-
 use app::{
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
     App,
@@ -17,6 +11,11 @@ use ecs::{
     entity::Entity,
     query::{query_filter::With, Query},
     resource::{Res, ResMut},
+};
+use essential::{
+    assets::asset_server::AssetServer,
+    time::Time,
+    transform::{GlobalTranform, Transform},
 };
 use glam::{Quat, Vec3, Vec4};
 use gltf_loader::plugin::GLTFPlugin;
@@ -36,12 +35,8 @@ use render::{
     material_plugin::MaterialPlugin,
     plugin::RenderPlugin,
 };
-
 use skybox::{material::SkyboxMaterial, plugin::SkyboxPlugin, SkyboxCube};
-use taffy::FlexDirection;
-use ui::{
-    material::UIMaterial, node::UINode, plugin::UIPlugin, text::TextComponent, transform::UIValue,
-};
+use ui::plugin::UIPlugin;
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -50,7 +45,6 @@ use window::{
     input::{Input, InputState},
     plugin::WindowPlugin,
 };
-
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use crate::custom_material::{TintUniform, UnlitMaterial};
@@ -64,6 +58,7 @@ mod movement_animation;
 const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
+
 #[derive(Component)]
 struct Player;
 
@@ -78,8 +73,8 @@ pub fn run_game() {
     }
 
     let mut app = App::empty();
-    app.register_plugin(TimePlugin)
-        .register_plugin(AssetManagerPlugin)
+    app.register_plugin(AssetManagerPlugin)
+        .register_plugin(TimePlugin)
         .register_plugin(WindowPlugin)
         .register_plugin(RenderPlugin)
         .register_plugin(TransformPlugin)
@@ -88,7 +83,6 @@ pub fn run_game() {
         .register_plugin(GLTFPlugin)
         .register_plugin(OBJPlugin)
         .register_plugin(SkyboxPlugin)
-        // Register the custom unlit material so the engine knows how to render it.
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
@@ -96,56 +90,15 @@ pub fn run_game() {
             app::update_group::UpdateGroup::Update,
             spawn_on_button_press,
         )
-        .add_system(
-            app::update_group::UpdateGroup::Update,
-            despawn_on_button_press,
-        )
         .add_system(app::update_group::UpdateGroup::Update, setup_state_machine)
         .add_system(app::update_group::UpdateGroup::Update, setup_animations)
         .add_system(app::update_group::UpdateGroup::Update, update_movement_fsm)
         .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
-        // Async OBJ spawner for the unlit-material ground plane.
         .add_system(app::update_group::UpdateGroup::Update, spawn_unlit_obj)
-        .add_system(app::update_group::UpdateGroup::Startup, spawn_ui)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
         .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
 
     app.run();
-}
-
-fn spawn_ui(mut cmd: CommandQueue) {
-    let root_pannel = cmd.spawn((UINode {
-        width: UIValue::Percent(1.0),
-        height: UIValue::Percent(1.0),
-        flex_direction: FlexDirection::Column,
-        ..Default::default()
-    },));
-
-    let spacer_pannel = cmd.spawn((
-        UINode {
-            flex_grow: 1.0,
-            ..Default::default()
-        },
-        TextComponent {
-            text: "Hello I am text".to_string(),
-            font_size: 20.0,
-            line_height: 30.0,
-        },
-    ));
-
-    let bottom_pannel = cmd.spawn((
-        UINode {
-            width: UIValue::Percent(1.0),
-            height: UIValue::Percent(0.1),
-            ..Default::default()
-        },
-        UIMaterial {
-            color: [0.0, 1.0, 0.0, 1.0],
-        },
-    ));
-
-    cmd.add_child(root_pannel, spacer_pannel);
-    cmd.add_child(root_pannel, bottom_pannel);
 }
 
 fn spawn_player(
@@ -154,6 +107,7 @@ fn spawn_player(
     asset_server: Res<AssetServer>,
 ) {
     let camera = Camera::default();
+
     let skybox_material = SkyboxMaterial {
         texture: Some(asset_server.load_with_usage_settings(
             SKYBOX_TEXTURE,
@@ -165,7 +119,6 @@ fn spawn_player(
                         height: 256,
                         depth_or_array_layers: 6,
                     },
-
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: TextureDimension::D2,
@@ -191,6 +144,7 @@ fn spawn_player(
         skybox_cube,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
     ));
+
     let light = Light {
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
         intensity: 10.0,
@@ -198,7 +152,6 @@ fn spawn_player(
             cone_angle: 50.0 * PI / 180.0,
         }),
     };
-
     let mut light_transform =
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
     light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
@@ -207,14 +160,11 @@ fn spawn_player(
         Player,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
     ));
-
     let child = cmd.spawn((
         camera,
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
     ));
-
     cmd.add_child(parent, child);
-
     cmd.spawn((light, light_transform));
 }
 
@@ -224,43 +174,29 @@ fn spawn_floor(
     asset_server: Res<AssetServer>,
 ) {
     let height = 1.0;
-
     let ground_transform =
         Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
-    let ground_colider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
-
-    // Use the ground OBJ geometry with a custom unlit material rendered by
-    // the user-defined `unlit.wgsl` shader (a bright cyan tint).
+    let ground_collider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
     let ground_mesh = asset_server.load::<OBJAsset>(GROUND_ASSET);
-
-    // Create the UnlitMaterial asset: bright cyan so it is clearly
-    // distinguishable from the Phong-shaded spheres.
     let unlit_mat = asset_server.add(UnlitMaterial {
         tint: TintUniform::new(0.2, 0.8, 1.0, 1.0),
     });
-
     cmd.spawn((
         UnlitOBJSpawner {
             mesh: ground_mesh,
             material: unlit_mat,
         },
-        ground_colider,
+        ground_collider,
         ground_transform,
     ));
 }
 
-/// Temporary component that holds the OBJ handle and custom material handle
-/// before the OBJ asset is fully loaded.  Once the OBJ finishes loading the
-/// [`spawn_unlit_obj`] system expands it into child [`MeshComponent`] entities
-/// and removes this component from the entity.
 #[derive(ecs::component::Component)]
 struct UnlitOBJSpawner {
     mesh: essential::assets::handle::AssetHandle<OBJAsset>,
     material: essential::assets::handle::AssetHandle<UnlitMaterial>,
 }
 
-/// System that waits for the OBJ to load and then spawns mesh children using
-/// the custom `UnlitMaterial` instead of the MTL-based `StandardMaterial`.
 fn spawn_unlit_obj(
     mut cmd: CommandQueue,
     spawners: ecs::query::Query<(Entity, &UnlitOBJSpawner)>,
@@ -301,23 +237,21 @@ fn move_around(
     let key_w = input.get_key_state(PhysicalKey::Code(KeyCode::KeyW));
     let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
 
+    let right = player_transform.right();
+    let left = player_transform.left();
+    let forward = player_transform.forward();
+    let back = player_transform.backward();
+
     if key_d == InputState::Pressed || key_d == InputState::Down {
-        let right = player_transform.right();
         player_transform.translation += right * displacement;
     }
-
     if key_a == InputState::Pressed || key_a == InputState::Down {
-        let left = player_transform.left();
         player_transform.translation += left * displacement;
     }
-
     if key_w == InputState::Pressed || key_w == InputState::Down {
-        let forward = player_transform.forward();
         player_transform.translation += forward * displacement;
     }
-
     if key_s == InputState::Pressed || key_s == InputState::Down {
-        let back = player_transform.backward();
         player_transform.translation += back * displacement;
     }
 
@@ -337,35 +271,18 @@ fn spawn_with_collider(
     mut physics_state: ResMut<PhysicsState>,
 ) {
     let (_, pos) = cameras.iter().next().expect("No camera found");
-
     let key_r = input.get_key_state(PhysicalKey::Code(KeyCode::KeyR));
 
     if key_r == InputState::Pressed {
         let spawn_point = pos.translation() + pos.forward() * 10.0;
         let cube_transform = Transform::from_translation_rotation(spawn_point, Quat::IDENTITY);
         let rigid_body = RigidBody::new(&cube_transform, &mut physics_state);
-
         let collider = physics_state.make_sphere(&rigid_body, 1.0);
-
         cmd.spawn((
             OBJSpawnerComponent(asset_server.load::<OBJAsset>(MESH_ASSET)),
             rigid_body,
             collider,
             cube_transform.clone(),
         ));
-    }
-}
-
-fn despawn_on_button_press(
-    meshes: Query<(Entity, &MeshComponent, &mut Transform)>,
-    mut cmd: CommandQueue,
-    input: Res<Input>,
-) {
-    let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyL));
-
-    if key_d == InputState::Pressed {
-        for (entity, _, _) in meshes.iter() {
-            cmd.despawn(entity);
-        }
     }
 }

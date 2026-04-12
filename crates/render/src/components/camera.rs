@@ -1,5 +1,5 @@
 use encase::{ShaderType, UniformBuffer};
-use essential::{assets::handle::AssetHandle, transform::GlobalTranform};
+use essential::{assets::{asset_store::AssetStore, handle::AssetHandle}, transform::GlobalTranform};
 
 use ecs::{
     command::CommandQueue,
@@ -122,6 +122,7 @@ pub struct RenderCamera {
     pub camera_uniform: CameraUniform,
     pub camera_buffer: wgpu::Buffer,
     pub(crate) depth_texture: RenderTexture,
+    pub render_target: Option<RenderTexture>,
 }
 
 pub(crate) fn camera_added(
@@ -130,6 +131,7 @@ pub(crate) fn camera_added(
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayout>,
+    texture_assets: Res<AssetStore<Texture>>,
 ) {
     for (entity, camera, transform, render_entity) in cameras.iter() {
         let mut camera_uniform = CameraUniform::new();
@@ -152,8 +154,31 @@ pub(crate) fn camera_added(
             label: Some("camera_bind_group"),
         });
 
+        let render_target: Option<RenderTexture> = match &camera.render_target {
+            RenderTarget::Texture(handle) => {
+                let texture = texture_assets
+                    .get(handle)
+                    .expect("Texture asset for camera render target not found in AssetStore");
+                let size = texture.size();
+                Some(create_rtt(
+                    &device,
+                    context.surface_config.format,
+                    size.width.max(1),
+                    size.height.max(1),
+                ))
+            }
+            RenderTarget::Window(_) => None,
+        };
+
+        let (depth_w, depth_h) = match &render_target {
+            Some(rt) => {
+                let size = rt.texture.size();
+                (size.width, size.height)
+            }
+            None => (context.surface_config.width, context.surface_config.height),
+        };
         let depth_texture =
-            RenderTexture::create_depth_texture(&device, &context.surface_config, "depth_texture");
+            RenderTexture::create_depth_texture(&device, depth_w, depth_h, "depth_texture");
 
         let render_cam = RenderCamera {
             camera_bind_group,
@@ -161,6 +186,7 @@ pub(crate) fn camera_added(
             camera_buffer,
             depth_texture,
             clear_color: camera.clear_color,
+            render_target,
         };
 
         match render_entity {
@@ -172,6 +198,48 @@ pub(crate) fn camera_added(
                 cmd.insert(render_cam, **render_entity);
             }
         }
+    }
+}
+
+/// Creates a single [`RenderTexture`] for use as a camera render target.
+///
+/// The texture is owned exclusively by [`RenderCamera::color_target`].
+/// Viewports that want to display this camera's output look up the matching
+/// camera by handle ID and borrow the view directly — no shared allocation needed.
+pub(crate) fn create_rtt(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    width: u32,
+    height: u32,
+) -> RenderTexture {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Camera RTT"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("RTT Sampler"),
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+    RenderTexture {
+        texture,
+        view,
+        sampler,
     }
 }
 

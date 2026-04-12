@@ -283,10 +283,6 @@ impl Plugin for RenderPlugin {
                 surface_config: config,
             })
             .insert_resource(MainRenderPipeline::new(main_render_pipeline))
-<<<<<<< HEAD
-            .insert_resource(SkyboxRenderPipeline::new(skybox_render_pipeline))
-=======
->>>>>>> 2d08558e539edb886f4c2988c853a4f6c47601ba
             .insert_resource(RenderDevice {
                 device,
                 encoder: None,

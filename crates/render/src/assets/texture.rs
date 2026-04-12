@@ -63,6 +63,20 @@ impl Texture {
         })
     }
 
+    /// Creates a GPU-only render target texture at the given resolution.
+    ///
+    /// The texture carries no CPU pixel data; the camera system creates the
+    /// actual wgpu texture at the specified size.  Pass the same
+    /// [`AssetHandle<Texture>`] to [`Camera::render_target`] and to
+    /// [`UIViewport::texture`] to wire up a camera-to-panel connection.
+    pub fn render_target(width: u32, height: u32) -> Self {
+        let mut usage_settings = TextureUsageSettings::default();
+        usage_settings.texture_descriptor.usage =
+            TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING;
+        usage_settings.texture_descriptor.size = Extent3d { width, height, depth_or_array_layers: 1 };
+        Self { data: Vec::new(), usage_settings }
+    }
+
     pub fn from_dynamic_image(image: DynamicImage) -> Self {
         let mut usage_settings = TextureUsageSettings::default();
 

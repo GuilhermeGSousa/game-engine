@@ -6,25 +6,74 @@ use crate::vertex::UIVertex;
 
 /// Material for UI elements.
 ///
-/// Carries a solid `color` (RGBA, each channel in the range `0.0 – 1.0`) that
-/// is uploaded as a uniform buffer and bound at `@group(0) @binding(0)` in the
-/// UI shader.
+/// # Border rendering
 ///
-/// The bind-group layout and bind-group creation are fully macro-generated via
-/// `#[derive(AsBindGroup)]`, so the layout definition always stays in sync with
-/// the struct definition.
+/// Set `border_width` (pixels) and `border_color` to draw a solid rectangular
+/// outline.  The engine automatically syncs the node's computed pixel size into
+/// `border_params` each frame, so you only need to supply `border_width`.
 ///
-/// Register via `MaterialPlugin::<UIMaterial>::pipeline_only()` to create the
-/// wgpu pipeline without adding the generic mesh rendering systems.
+/// # Example
+/// ```rust,ignore
+/// UIMaterial {
+///     color: [0.15, 0.15, 0.15, 1.0],
+///     border_color: [0.4, 0.4, 0.4, 1.0],
+///     border_width: 1.0,
+///     ..UIMaterial::flat([0.15, 0.15, 0.15, 1.0])
+/// }
+/// ```
 #[derive(Component, Asset, AsBindGroup)]
 #[material(
     vertex_shader = include_str!("shaders/ui.wgsl"),
     fragment_shader = include_str!("shaders/ui.wgsl")
 )]
 pub struct UIMaterial {
-    /// RGBA colour as `[r, g, b, a]` with values in `[0.0, 1.0]`.
+    /// Background fill colour (RGBA, values in `[0.0, 1.0]`).
     #[uniform(0)]
     pub color: [f32; 4],
+
+    /// Border outline colour (RGBA).  Only visible when `border_width > 0`.
+    #[uniform(1)]
+    pub border_color: [f32; 4],
+
+    /// GPU-side border parameters — **do not set manually**.
+    ///
+    /// Layout: `[border_width_px, node_width_px, node_height_px, 0.0]`.
+    /// The `sync_border_size` system fills in the node dimensions each frame;
+    /// `border_width_px` is copied from the user-facing `border_width` field.
+    #[uniform(2)]
+    pub border_params: [f32; 4],
+
+    /// Border width in logical pixels.  Set this; the engine manages
+    /// `border_params` automatically.
+    pub border_width: f32,
+}
+
+impl UIMaterial {
+    /// A plain filled rectangle with no border.
+    pub fn flat(color: [f32; 4]) -> Self {
+        Self {
+            color,
+            border_color: [0.0; 4],
+            border_width: 0.0,
+            border_params: [0.0; 4],
+        }
+    }
+
+    /// A filled rectangle with a solid-colour border.
+    pub fn with_border(color: [f32; 4], border_color: [f32; 4], border_width: f32) -> Self {
+        Self {
+            color,
+            border_color,
+            border_width,
+            border_params: [border_width, 0.0, 0.0, 0.0],
+        }
+    }
+}
+
+impl Default for UIMaterial {
+    fn default() -> Self {
+        Self::flat([1.0, 1.0, 1.0, 1.0])
+    }
 }
 
 impl Material for UIMaterial {

@@ -2,7 +2,7 @@ use app::{plugins::PluginsState, App};
 use ecs::events::event_channel::EventChannel;
 use input::Input;
 use plugin::Window;
-use winit::{application::ApplicationHandler, event::KeyEvent, keyboard::PhysicalKey};
+use winit::{application::ApplicationHandler, keyboard::PhysicalKey};
 
 use winit::event::WindowEvent as WinitWindowEvent;
 
@@ -64,17 +64,30 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 let window = self.app.get_resource::<Window>().unwrap();
                 window.request_redraw();
             }
-            WinitWindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        state,
-                        physical_key: PhysicalKey::Code(keycode),
-                        ..
-                    },
-                ..
-            } => {
-                let input_state = self.app.get_mut_resource::<Input>().unwrap();
-                input_state.update_key_input(PhysicalKey::Code(keycode), state);
+            WinitWindowEvent::KeyboardInput { event, .. } => {
+                let input = self.app.get_mut_resource::<Input>().unwrap();
+                // Capture typed text (handles modifier keys, dead keys, etc.).
+                // Only on press — not release — and only printable characters.
+                if event.state == winit::event::ElementState::Pressed {
+                    if let Some(text) = &event.text {
+                        for c in text.chars() {
+                            if !c.is_control() {
+                                input.push_typed_char(c);
+                            }
+                        }
+                    }
+                }
+                if let PhysicalKey::Code(keycode) = event.physical_key {
+                    input.update_key_input(PhysicalKey::Code(keycode), event.state);
+                }
+            }
+            WinitWindowEvent::CursorMoved { position, .. } => {
+                let input = self.app.get_mut_resource::<Input>().unwrap();
+                input.update_mouse_position(position.x, position.y);
+            }
+            WinitWindowEvent::MouseInput { state, button, .. } => {
+                let input = self.app.get_mut_resource::<Input>().unwrap();
+                input.update_mouse_button(button, state);
             }
             _ => (),
         }

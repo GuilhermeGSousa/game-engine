@@ -7,15 +7,12 @@ use render::{
     MaterialPipeline, device::RenderDevice, queue::RenderQueue,
     render_asset::render_window::RenderWindow,
 };
-use glam::Mat4;
-use glyphon::{Color, Resolution, TextArea, TextBounds};
-use render::{device::RenderDevice, queue::RenderQueue, render_asset::render_window::RenderWindow};
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+
 use window::plugin::Window;
 
 use crate::{
     material::UIMaterial,
-    node::{RenderUIMaterial, RenderUINode},
+    node::{RenderUIMaterial, RenderUINode, RenderUIViewport, UIViewportPipeline},
     text::{
         RenderTextComponent,
         resources::{TextAtlas, TextFontSystem, TextRenderer, TextSwashCache, TextViewport},
@@ -36,6 +33,25 @@ pub(crate) fn update_text_viewport(
                 height: size.1,
             },
         );
+    }
+}
+
+/// Compute the screen-space scissor rectangle for a text node.
+///
+/// `TextBounds` is a clip rect in **absolute screen pixel coordinates** — all
+/// four values are measured from the top-left corner of the window, not from
+/// the node's own origin.  The text that falls outside this rect is discarded
+/// by glyphon before it reaches the GPU.
+///
+/// The node's `location` is already in absolute screen pixels (set by
+/// `write_absolute_positions` in `node.rs`), so we just map it straight
+/// through.
+fn node_text_bounds(location: glam::Vec2, size: glam::Vec2) -> TextBounds {
+    TextBounds {
+        left: location.x as i32,
+        top: location.y as i32,
+        right: (location.x + size.x) as i32,
+        bottom: (location.y + size.y) as i32,
     }
 }
 
@@ -63,12 +79,7 @@ pub(crate) fn prepare_text_renderer(
                     left: render_node.location.x,
                     top: render_node.location.y,
                     scale: 1.0,
-                    bounds: TextBounds {
-                        left: 0,
-                        top: 0,
-                        right: render_node.size.x as i32,
-                        bottom: 600_i32,
-                    },
+                    bounds: node_text_bounds(render_node.location, render_node.size),
                     default_color: Color::rgb(255, 255, 255),
                     custom_glyphs: &[],
                 }),
@@ -77,12 +88,43 @@ pub(crate) fn prepare_text_renderer(
         .expect("Failed preparing for rendering text");
 }
 
+#[cfg(test)]
+mod tests {
+    use super::node_text_bounds;
+    use glam::Vec2;
+
+    #[test]
+    fn bounds_match_node_absolute_position() {
+        let loc = Vec2::new(10.0, 800.0);
+        let size = Vec2::new(120.0, 32.0);
+        let b = node_text_bounds(loc, size);
+        assert_eq!(b.left, 10);
+        assert_eq!(b.top, 800);
+        assert_eq!(b.right, 130); // 10 + 120
+        assert_eq!(b.bottom, 832); // 800 + 32
+    }
+
+    #[test]
+    fn bounds_at_origin() {
+        let b = node_text_bounds(Vec2::ZERO, Vec2::new(800.0, 600.0));
+        assert_eq!(b.left, 0);
+        assert_eq!(b.top, 0);
+        assert_eq!(b.right, 800);
+        assert_eq!(b.bottom, 600);
+    }
+}
+
 pub(crate) fn ui_renderpass(
     pipeline: Res<MaterialPipeline<UIMaterial>>,
+    viewport_pipeline: Res<UIViewportPipeline>,
     mut device: ResMut<RenderDevice>,
     render_window: Res<RenderWindow>,
-    ui_nodes: Query<(&RenderUINode, &RenderUIMaterial)>,
-    // Texture inputs
+    ui_nodes: Query<(
+        &RenderUINode,
+        Option<&RenderUIMaterial>,
+        Option<&RenderUIViewport>,
+    )>,
+    // Text
     text_renderer: ResMut<TextRenderer>,
     text_viewport: Res<TextViewport>,
     text_atlas: Res<TextAtlas>,
@@ -105,17 +147,26 @@ pub(crate) fn ui_renderpass(
             timestamp_writes: None,
         });
 
-        render_pass.set_pipeline(&pipeline.pipeline);
-
         let mut render_nodes = ui_nodes.iter().collect::<Vec<_>>();
-        render_nodes.sort_by_key(|(render_node, _)| render_node.z_index);
-        for (render_node, render_material) in render_nodes {
+        render_nodes.sort_by_key(|(render_node, _, _)| render_node.z_index);
+
+        for (render_node, render_material, render_viewport) in render_nodes {
             render_pass.set_index_buffer(
                 render_node.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint16,
             );
             render_pass.set_vertex_buffer(0, render_node.vertex_buffer.slice(..));
-            render_pass.set_bind_group(0, &render_material.material_bind_group, &[]);
+
+            if let Some(viewport) = render_viewport {
+                render_pass.set_pipeline(&viewport_pipeline.pipeline);
+                render_pass.set_bind_group(0, &viewport.bind_group, &[]);
+            } else if let Some(material) = render_material {
+                render_pass.set_pipeline(&pipeline.pipeline);
+                render_pass.set_bind_group(0, &material.material_bind_group, &[]);
+            } else {
+                continue;
+            }
+
             render_pass.draw_indexed(0..render_node.index_count, 0, 0..1);
         }
 

@@ -58,10 +58,6 @@ pub(crate) fn mesh_added(
 
         let instance = RenderMeshInstance {
             mesh_asset_id: mesh.handle.id(),
-<<<<<<< HEAD
-            material_asset_id: material.handle.id(),
-=======
->>>>>>> 2d08558e539edb886f4c2988c853a4f6c47601ba
             transform: instance_buffer,
         };
         let render_mat = RenderMaterialComponent::<StandardMaterial>::new(material.handle.id());

@@ -147,8 +147,4 @@ pub(crate) fn update_skeletons(
             _ => continue,
         };
     }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 2d08558e539edb886f4c2988c853a4f6c47601ba

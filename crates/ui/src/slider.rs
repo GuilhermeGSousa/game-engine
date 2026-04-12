@@ -105,7 +105,7 @@ pub(crate) fn update_slider_drag(
 
     for (entity, mut slider, computed) in sliders.iter() {
         // Start drag when pressed over this slider.
-        if left == InputState::Pressed && hovered.0 == Some(entity) {
+        if left == InputState::Pressed && **hovered == Some(entity) {
             slider.dragging = true;
         }
         // Stop drag on release regardless of cursor position.

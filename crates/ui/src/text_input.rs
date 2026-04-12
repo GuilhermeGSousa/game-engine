@@ -68,7 +68,7 @@ pub(crate) fn update_text_inputs(
     )>,
     mut writer: EventWriter<UITextInputChanged>,
 ) {
-    for (entity, mut ti, mut text, mut material) in text_inputs.iter() {
+    for (entity, mut text_input, mut text, mut material) in text_inputs.iter() {
         let is_focused = **focused == Some(entity);
 
         if is_focused {
@@ -76,66 +76,66 @@ pub(crate) fn update_text_inputs(
 
             // --- printable characters ---
             for &c in input.typed_chars() {
-                let cursor = ti.cursor;
-                ti.value.insert(cursor, c);
-                ti.cursor += c.len_utf8();
+                let cursor = text_input.cursor;
+                text_input.value.insert(cursor, c);
+                text_input.cursor += c.len_utf8();
                 changed = true;
             }
 
             // --- backspace: delete character before cursor ---
             let backspace = input.get_key_state(PhysicalKey::Code(KeyCode::Backspace));
-            if backspace == InputState::Pressed && ti.cursor > 0 {
-                let mut pos = ti.cursor;
+            if backspace == InputState::Pressed && text_input.cursor > 0 {
+                let mut pos = text_input.cursor;
                 loop {
                     pos -= 1;
-                    if ti.value.is_char_boundary(pos) {
+                    if text_input.value.is_char_boundary(pos) {
                         break;
                     }
                 }
-                ti.value.remove(pos);
-                ti.cursor = pos;
+                text_input.value.remove(pos);
+                text_input.cursor = pos;
                 changed = true;
             }
 
             // --- arrow keys: move cursor ---
             let left = input.get_key_state(PhysicalKey::Code(KeyCode::ArrowLeft));
-            if left == InputState::Pressed && ti.cursor > 0 {
-                let mut pos = ti.cursor;
+            if left == InputState::Pressed && text_input.cursor > 0 {
+                let mut pos = text_input.cursor;
                 loop {
                     pos -= 1;
-                    if ti.value.is_char_boundary(pos) {
+                    if text_input.value.is_char_boundary(pos) {
                         break;
                     }
                 }
-                ti.cursor = pos;
+                text_input.cursor = pos;
             }
 
             let right = input.get_key_state(PhysicalKey::Code(KeyCode::ArrowRight));
-            if right == InputState::Pressed && ti.cursor < ti.value.len() {
-                let mut pos = ti.cursor + 1;
-                while pos <= ti.value.len() && !ti.value.is_char_boundary(pos) {
+            if right == InputState::Pressed && text_input.cursor < text_input.value.len() {
+                let mut pos = text_input.cursor + 1;
+                while pos <= text_input.value.len() && !text_input.value.is_char_boundary(pos) {
                     pos += 1;
                 }
-                ti.cursor = pos;
+                text_input.cursor = pos;
             }
 
             if changed {
                 writer.write(UITextInputChanged {
                     entity,
-                    value: ti.value.clone(),
+                    value: text_input.value.clone(),
                 });
             }
         }
 
         // --- update displayed text and border colour ---
         let display = if is_focused {
-            let mut s = ti.value.clone();
-            s.insert(ti.cursor, '|');
+            let mut s = text_input.value.clone();
+            s.insert(text_input.cursor, '|');
             s
-        } else if ti.value.is_empty() {
-            ti.placeholder.clone()
+        } else if text_input.value.is_empty() {
+            text_input.placeholder.clone()
         } else {
-            ti.value.clone()
+            text_input.value.clone()
         };
 
         if text.text != display {

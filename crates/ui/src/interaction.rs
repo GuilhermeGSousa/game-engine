@@ -1,3 +1,4 @@
+use derive_more::{Deref, DerefMut};
 use ecs::events::event_writer::EventWriter;
 use ecs::{
     component::Component,
@@ -12,8 +13,8 @@ use window::input::{Input, InputState, MouseButton};
 use crate::{material::UIMaterial, node::UIComputedNode};
 
 /// The UI entity currently under the cursor, if any.
-#[derive(Resource)]
-pub struct HoveredNode(pub Option<Entity>);
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct HoveredNode(Option<Entity>);
 
 /// Opts a node into hit testing and click events.
 ///
@@ -95,7 +96,7 @@ pub(crate) fn update_ui_interaction(
         }
     }
 
-    hovered.0 = best.map(|(e, _)| e);
+    **hovered = best.map(|(e, _)| e);
 
     if input.get_mouse_button_state(MouseButton::Left) == InputState::Pressed {
         if let Some((entity, _)) = best {
@@ -129,7 +130,7 @@ pub(crate) fn apply_interaction_styles(
     for (entity, style, mut material) in styled.iter() {
         let color = if disabled_nodes.get_entity(entity).is_some() {
             style.disabled
-        } else if hovered.0 == Some(entity) {
+        } else if **hovered == Some(entity) {
             if left_held {
                 style.pressed
             } else {

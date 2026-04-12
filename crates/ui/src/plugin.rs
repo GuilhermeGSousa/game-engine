@@ -34,8 +34,8 @@ impl Plugin for UIPlugin {
         app.register_plugin(MaterialPlugin::<UIMaterial>::pipeline_only());
 
         // Resources
-        app.insert_resource(HoveredNode(None));
-        app.insert_resource(FocusedWidget(None));
+        app.insert_resource(HoveredNode::default());
+        app.insert_resource(FocusedWidget::default());
 
         // Events
         app.register_event::<UIClick>();

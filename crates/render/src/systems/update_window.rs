@@ -5,7 +5,6 @@ use ecs::{
     query::{change_detection::DetectChanges, Query},
     resource::{Res, ResMut},
 };
-
 use window::{plugin::Window, winit_events::WindowEvent};
 
 use crate::{
@@ -41,11 +40,11 @@ pub(crate) fn update_render_window(
         surface.configure(&device, &context.surface_config);
 
         for (mut render_camera,) in render_cameras.iter() {
-            render_camera.depth_texture = RenderTexture::create_depth_texture(
-                &device,
-                &context.surface_config,
-                "depth_texture",
-            );
+            if render_camera.render_target.is_some() {
+                continue; // RTT camera: fixed resolution, depth stays in sync with RTT
+            }
+            render_camera.depth_texture =
+                RenderTexture::create_depth_texture(&device, size.0, size.1, "depth_texture");
         }
     }
 

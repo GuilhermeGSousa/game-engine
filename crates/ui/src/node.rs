@@ -11,20 +11,27 @@ use ecs::{
         Query,
         query_filter::{Changed, Without},
     },
-    resource::Res,
+    resource::{Res, Resource},
 };
+use essential::assets::handle::AssetHandle;
 use glam::Vec2;
 use log::warn;
 use render::{
-    assets::material::AsBindGroup,
-    components::render_entity::RenderEntity,
+    assets::{material::AsBindGroup, texture::Texture},
+    components::{
+        camera::{Camera, RenderCamera, RenderTarget},
+        render_entity::RenderEntity,
+    },
     device::RenderDevice,
     render_asset::{
         RenderAssets,
         render_texture::{DummyRenderTexture, RenderTexture},
     },
 };
-use taffy::{AvailableSpace, Dimension, FlexDirection, NodeId, Size, Style, TaffyTree};
+use taffy::{
+    AvailableSpace, Dimension, FlexDirection, LengthPercentage, LengthPercentageAuto, NodeId, Rect,
+    Size, Style, TaffyTree,
+};
 use wgpu::{Buffer, util::DeviceExt};
 use window::plugin::Window;
 
@@ -34,6 +41,55 @@ use crate::{
     vertex::{QUAD_INDICES, UIVertex},
 };
 
+/// A uniform padding/margin value for one or all sides of a UI node (in pixels).
+#[derive(Default, Clone, Copy)]
+pub struct UIRect {
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub left: f32,
+}
+
+impl UIRect {
+    /// Applies the same value to all four sides.
+    pub fn all(value: f32) -> Self {
+        Self {
+            top: value,
+            right: value,
+            bottom: value,
+            left: value,
+        }
+    }
+
+    /// Applies `vertical` to top/bottom and `horizontal` to left/right.
+    pub fn axes(vertical: f32, horizontal: f32) -> Self {
+        Self {
+            top: vertical,
+            right: horizontal,
+            bottom: vertical,
+            left: horizontal,
+        }
+    }
+
+    fn to_taffy_padding(self) -> Rect<LengthPercentage> {
+        Rect {
+            top: LengthPercentage::length(self.top),
+            right: LengthPercentage::length(self.right),
+            bottom: LengthPercentage::length(self.bottom),
+            left: LengthPercentage::length(self.left),
+        }
+    }
+
+    fn to_taffy_margin(self) -> Rect<LengthPercentageAuto> {
+        Rect {
+            top: LengthPercentageAuto::length(self.top),
+            right: LengthPercentageAuto::length(self.right),
+            bottom: LengthPercentageAuto::length(self.bottom),
+            left: LengthPercentageAuto::length(self.left),
+        }
+    }
+}
+
 // User defined layout data
 #[derive(Component)]
 pub struct UINode {
@@ -42,6 +98,8 @@ pub struct UINode {
     pub flex_direction: FlexDirection,
     pub flex_grow: f32,
     pub flex_shrink: f32,
+    pub padding: UIRect,
+    pub margin: UIRect,
 }
 
 impl UINode {
@@ -66,6 +124,8 @@ impl UINode {
             flex_direction: self.flex_direction,
             flex_grow: self.flex_grow,
             flex_shrink: self.flex_shrink,
+            padding: self.padding.to_taffy_padding(),
+            margin: self.margin.to_taffy_margin(),
             ..Default::default()
         }
     }
@@ -79,6 +139,8 @@ impl Default for UINode {
             flex_direction: Default::default(),
             flex_grow: 0.0,
             flex_shrink: 1.0,
+            padding: UIRect::default(),
+            margin: UIRect::default(),
         }
     }
 }
@@ -114,110 +176,149 @@ pub(crate) fn compute_ui_nodes(
 ) {
     let mut taffy: TaffyTree<()> = TaffyTree::new();
 
-    let window_width = window.width() as f32;
-    let window_height = window.height() as f32;
-
     let window_size = Size {
-        width: AvailableSpace::Definite(window_width),
-        height: AvailableSpace::Definite(window_height),
+        width: AvailableSpace::Definite(window.width() as f32),
+        height: AvailableSpace::Definite(window.height() as f32),
     };
 
-    let mut entity_to_taffy = HashMap::new();
-    let mut entity_to_z_index = HashMap::new();
+    // Phase 1: build the Taffy tree mirroring the ECS hierarchy.
+    let mut entity_to_taffy: HashMap<Entity, NodeId> = HashMap::new();
 
     for (entity, node, children) in ui_roots.iter() {
-        let node_id = match taffy.new_leaf(node.style()) {
-            Ok(node_id) => node_id,
-            Err(error) => {
-                warn!("Error adding UI node: {}", error);
-                continue;
-            }
+        let Ok(node_id) = taffy.new_leaf(node.style()) else {
+            warn!("Error adding root UI node");
+            continue;
         };
-        let z_index = 0;
         entity_to_taffy.insert(entity, node_id);
-        entity_to_z_index.insert(entity, z_index);
+
         if let Some(children) = children {
-            generate_taffy_children_recursive(
+            build_taffy_tree(
                 &mut taffy,
                 node_id,
-                z_index,
                 children,
                 &ui_nodes,
                 &mut entity_to_taffy,
-                &mut entity_to_z_index,
             );
         }
 
         if let Err(error) = taffy.compute_layout(node_id, window_size) {
             warn!("Error computing UI layout: {}", error);
-            continue;
         }
     }
 
-    for (node_entity, _, _) in ui_nodes.iter() {
-        let Some(node_id) = entity_to_taffy.get(&node_entity) else {
+    // Phase 2: walk each root and accumulate absolute screen positions as we
+    // descend.  Taffy's `layout().location` is relative to the parent, so we
+    // must add the parent's absolute position at every level.
+    for (entity, _, children) in ui_roots.iter() {
+        let Some(&node_id) = entity_to_taffy.get(&entity) else {
+            continue;
+        };
+        let Ok(layout) = taffy.layout(node_id) else {
             continue;
         };
 
-        let Some(z_index) = entity_to_z_index.get(&node_entity) else {
-            continue;
-        };
-
-        let node_layout = match taffy.layout(*node_id) {
-            Ok(layout) => layout,
-            Err(error) => {
-                warn!("Error computing UI node: {}", error);
-                continue;
-            }
-        };
+        let abs_pos = Vec2::new(layout.location.x, layout.location.y);
+        let size = Vec2::new(layout.size.width, layout.size.height);
 
         cmd.insert(
             UIComputedNode {
-                location: Vec2::new(node_layout.location.x, node_layout.location.y),
-                size: Vec2::new(node_layout.size.width, node_layout.size.height),
-                z_index: *z_index,
+                location: abs_pos,
+                size,
+                z_index: 0,
             },
-            node_entity,
+            entity,
         );
+
+        if let Some(children) = children {
+            write_absolute_positions(
+                &taffy,
+                abs_pos,
+                0,
+                children,
+                &ui_nodes,
+                &entity_to_taffy,
+                &mut cmd,
+            );
+        }
     }
 }
 
-fn generate_taffy_children_recursive(
+/// Recursively registers every descendant as a Taffy node and links it to its
+/// parent, building a tree that mirrors the ECS hierarchy.
+fn build_taffy_tree(
     taffy: &mut TaffyTree<()>,
-    parent_node: NodeId,
-    current_z_index: i32,
+    parent_id: NodeId,
     children: &Children,
     ui_nodes: &Query<(Entity, &UINode, Option<&Children>)>,
     entity_to_taffy: &mut HashMap<Entity, NodeId>,
-    entity_to_z_index: &mut HashMap<Entity, i32>,
 ) {
-    let next_z_index = current_z_index + 1;
     for child in children {
         let Some((_, child_node, grand_children)) = ui_nodes.get_entity(*child) else {
             continue;
         };
+        let Ok(child_id) = taffy.new_leaf(child_node.style()) else {
+            continue;
+        };
+        if taffy.add_child(parent_id, child_id).is_err() {
+            continue;
+        }
+        entity_to_taffy.insert(*child, child_id);
 
-        let Ok(child_node_id) = taffy.new_leaf(child_node.style()) else {
+        if let Some(grand_children) = grand_children {
+            build_taffy_tree(taffy, child_id, grand_children, ui_nodes, entity_to_taffy);
+        }
+    }
+}
+
+/// Recursively writes [`UIComputedNode`] with **absolute** screen coordinates
+/// for every node in the subtree rooted at `children`.
+///
+/// `parent_origin` is the absolute screen position of the parent so we can
+/// convert each child's parent-relative `location` to an absolute position.
+fn write_absolute_positions(
+    taffy: &TaffyTree<()>,
+    parent_origin: Vec2,
+    parent_z: i32,
+    children: &Children,
+    ui_nodes: &Query<(Entity, &UINode, Option<&Children>)>,
+    entity_to_taffy: &HashMap<Entity, NodeId>,
+    cmd: &mut CommandQueue,
+) {
+    let z = parent_z + 1;
+    for child_entity in children {
+        let Some(&node_id) = entity_to_taffy.get(child_entity) else {
+            continue;
+        };
+        let Ok(layout) = taffy.layout(node_id) else {
             continue;
         };
 
-        if taffy.add_child(parent_node, child_node_id).is_err() {
-            continue;
-        }
+        // layout.location is relative to the parent — add the parent's
+        // absolute position to obtain the screen-space position.
+        let abs_pos = parent_origin + Vec2::new(layout.location.x, layout.location.y);
+        let size = Vec2::new(layout.size.width, layout.size.height);
 
-        entity_to_taffy.insert(*child, child_node_id);
-        entity_to_z_index.insert(*child, next_z_index);
-        if let Some(grand_children) = grand_children {
-            generate_taffy_children_recursive(
-                taffy,
-                child_node_id,
-                next_z_index,
-                grand_children,
-                ui_nodes,
-                entity_to_taffy,
-                entity_to_z_index,
-            );
-        }
+        cmd.insert(
+            UIComputedNode {
+                location: abs_pos,
+                size,
+                z_index: z,
+            },
+            *child_entity,
+        );
+
+        let Some((_, _, Some(grand_children))) = ui_nodes.get_entity(*child_entity) else {
+            continue;
+        };
+        write_absolute_positions(
+            taffy,
+            abs_pos,
+            z,
+            grand_children,
+            ui_nodes,
+            entity_to_taffy,
+            cmd,
+        );
     }
 }
 
@@ -258,15 +359,19 @@ pub(crate) fn extract_added_ui_nodes(
         let vertices = [
             UIVertex {
                 pos_coords: to_ndc(x, y),
+                uv: [0.0, 0.0],
             }, // top-left
             UIVertex {
                 pos_coords: to_ndc(x, y + h),
+                uv: [0.0, 1.0],
             }, // bottom-left
             UIVertex {
                 pos_coords: to_ndc(x + w, y + h),
+                uv: [1.0, 1.0],
             }, // bottom-right
             UIVertex {
                 pos_coords: to_ndc(x + w, y),
+                uv: [1.0, 0.0],
             }, // top-right
         ];
 
@@ -292,6 +397,101 @@ pub(crate) fn extract_added_ui_nodes(
             None => {
                 let render_entity = cmd.spawn(render_ui_node);
                 cmd.insert(RenderEntity::new(render_entity), computed_node_entity);
+            }
+        }
+    }
+}
+
+/// Syncs the computed node size into [`UIMaterial::border_params`] each frame so
+/// the border shader knows the pixel dimensions of the quad it's running on.
+///
+/// This runs in `LateUpdate` after `compute_ui_nodes`.  Writing `border_params`
+/// marks the material as changed, which causes `extract_added_ui_materials` to
+/// rebuild the bind group with the updated data.
+pub(crate) fn sync_border_size(nodes: Query<(&UIComputedNode, &mut UIMaterial)>) {
+    for (node, mut material) in nodes.iter() {
+        material.border_params = [material.border_width, node.size.x, node.size.y, 0.0];
+    }
+}
+
+/// Marker component: this UI node displays the output of a camera render target.
+/// Attach alongside [`UINode`] to display the output of a camera that renders
+/// to a [`Texture`] render target.  The `texture` field must be the same
+/// [`AssetHandle<Texture>`] that was passed to [`Camera::render_target`].
+#[derive(Component)]
+pub struct UIViewport {
+    pub texture: AssetHandle<Texture>,
+}
+
+/// GPU-side bind group for a [`UIViewport`] node, updated every frame by
+/// `extract_viewport_nodes` so it always references the current RTT texture view.
+#[derive(Component)]
+pub(crate) struct RenderUIViewport {
+    pub(crate) bind_group: wgpu::BindGroup,
+}
+
+/// Pipeline and bind group layout for rendering [`UIViewport`] nodes.
+///
+/// Built in [`UIPlugin::finish`] and stored as a resource.
+#[derive(Resource)]
+pub struct UIViewportPipeline {
+    pub pipeline: wgpu::RenderPipeline,
+    pub bind_group_layout: wgpu::BindGroupLayout,
+}
+
+/// Creates a fresh [`RenderUIViewport`] bind group every frame by finding the
+/// camera whose `render_target` handle matches the viewport's `texture` handle,
+/// then borrowing `color_target.view` directly.
+///
+/// The bind group is recreated each frame so resize is handled automatically:
+/// [`sync_camera_render_textures`] replaces `color_target` on resize, and the
+/// next frame's bind group references the new allocation.
+pub(crate) fn extract_viewport_nodes(
+    viewports: Query<(Entity, &UIViewport, Option<&RenderEntity>)>,
+    cameras: Query<(&Camera, &RenderEntity)>,
+    render_cameras: Query<(&RenderCamera,)>,
+    pipeline: Res<UIViewportPipeline>,
+    device: Res<RenderDevice>,
+    mut cmd: CommandQueue,
+) {
+    for (entity, viewport, render_entity) in viewports.iter() {
+        // Find the render camera whose handle ID matches this viewport's texture.
+        // The bind group is created inside the find_map closure while the
+        // render_cameras borrow is live; wgpu::BindGroup does not borrow from
+        // the view/sampler after creation, so it's safe to return owned.
+        let Some(bind_group) = cameras.iter().find_map(|(cam, re)| {
+            let RenderTarget::Texture(h) = &cam.render_target else {
+                return None;
+            };
+            if h.id() != viewport.texture.id() {
+                return None;
+            }
+            let (rc,) = render_cameras.get_entity(**re)?;
+            let ct = rc.render_target.as_ref()?;
+            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("UIViewport BindGroup"),
+                layout: &pipeline.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&ct.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&ct.sampler),
+                    },
+                ],
+            }))
+        }) else {
+            continue;
+        };
+
+        let rv = RenderUIViewport { bind_group };
+        match render_entity {
+            Some(re) => cmd.insert(rv, **re),
+            None => {
+                let new_re = cmd.spawn(rv);
+                cmd.insert(RenderEntity::new(new_re), entity);
             }
         }
     }

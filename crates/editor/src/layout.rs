@@ -1,3 +1,4 @@
+use derive_more::Deref;
 use ecs::{
     command::CommandQueue,
     resource::{Res, Resource},
@@ -14,11 +15,7 @@ use ui::{
 };
 
 /// The render-target texture handle for the editor's 3D viewport.
-///
-/// Created by [`EditorPlugin::finish`] and inserted as a resource.  Pass
-/// `rtt.0.clone()` to the editor camera's `render_target` so the camera writes
-/// its output to the texture that the viewport panel reads.
-#[derive(Resource)]
+#[derive(Resource, Deref)]
 pub struct EditorRttHandle(pub AssetHandle<Texture>);
 
 // ── Colours ──────────────────────────────────────────────────────────────────
@@ -150,7 +147,7 @@ fn build_viewport(cmd: &mut CommandQueue, rtt: &EditorRttHandle) -> ecs::entity:
         },
         UIMaterial::flat(COL_VIEWPORT_BG),
         UIViewport {
-            texture: rtt.0.clone(),
+            texture: (*rtt).clone(),
         },
     ))
 }

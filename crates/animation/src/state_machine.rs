@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::ops::Deref;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::evaluation::EvaluatedNode;
@@ -12,6 +11,7 @@ use crate::{
     node::{AnimationNode, AnimationNodeInstance},
 };
 
+use derive_more::Deref;
 use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
 
 pub struct AnimationFSMStateDefinition<'a> {
@@ -57,16 +57,8 @@ pub(crate) struct AnimationStateMachineTransition {
     transition_time: f32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deref)]
 pub struct StateId(usize);
-
-impl Deref for StateId {
-    type Target = usize;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 impl From<usize> for StateId {
     fn from(value: usize) -> Self {
@@ -76,7 +68,7 @@ impl From<usize> for StateId {
 
 impl StateId {
     fn as_graph_id(&self) -> GraphId {
-        self.0.into()
+        (**self).into()
     }
 }
 

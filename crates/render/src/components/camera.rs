@@ -30,25 +30,16 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(
     ]
 );
 
-pub enum WindowRef {
-    MainWindow,
-    CustomWindow(Entity),
-}
-
 #[allow(dead_code)]
 pub enum RenderTarget {
-    Window(WindowRef),
+    MainWindow,
     Texture(AssetHandle<Texture>),
 }
 
 #[allow(dead_code)]
 impl RenderTarget {
     pub fn main_window() -> Self {
-        RenderTarget::Window(WindowRef::MainWindow)
-    }
-
-    pub fn custom_window(entity: Entity) -> Self {
-        RenderTarget::Window(WindowRef::CustomWindow(entity))
+        RenderTarget::MainWindow
     }
 
     pub fn texture(handle: AssetHandle<Texture>) -> Self {
@@ -170,7 +161,7 @@ pub(crate) fn camera_added(
                     size.height.max(1),
                 ))
             }
-            RenderTarget::Window(_) => None,
+            RenderTarget::MainWindow => None,
         };
 
         let (depth_w, depth_h) = match &render_target {

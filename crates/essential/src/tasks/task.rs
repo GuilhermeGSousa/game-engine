@@ -1,3 +1,6 @@
+use derive_more::Deref;
+
+#[derive(Deref)]
 pub struct Task<T>(async_executor::Task<T>);
 
 impl<T> Task<T> {

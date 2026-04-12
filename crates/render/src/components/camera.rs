@@ -1,5 +1,8 @@
 use encase::{ShaderType, UniformBuffer};
-use essential::{assets::{asset_store::AssetStore, handle::AssetHandle}, transform::GlobalTranform};
+use essential::{
+    assets::{asset_store::AssetStore, handle::AssetHandle},
+    transform::GlobalTranform,
+};
 
 use ecs::{
     command::CommandQueue,

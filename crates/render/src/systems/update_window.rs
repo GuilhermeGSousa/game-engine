@@ -43,12 +43,8 @@ pub(crate) fn update_render_window(
             if render_camera.render_target.is_some() {
                 continue; // RTT camera: fixed resolution, depth stays in sync with RTT
             }
-            render_camera.depth_texture = RenderTexture::create_depth_texture(
-                &device,
-                size.0,
-                size.1,
-                "depth_texture",
-            );
+            render_camera.depth_texture =
+                RenderTexture::create_depth_texture(&device, size.0, size.1, "depth_texture");
         }
     }
 

@@ -73,8 +73,15 @@ impl Texture {
         let mut usage_settings = TextureUsageSettings::default();
         usage_settings.texture_descriptor.usage =
             TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING;
-        usage_settings.texture_descriptor.size = Extent3d { width, height, depth_or_array_layers: 1 };
-        Self { data: Vec::new(), usage_settings }
+        usage_settings.texture_descriptor.size = Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        Self {
+            data: Vec::new(),
+            usage_settings,
+        }
     }
 
     pub fn from_dynamic_image(image: DynamicImage) -> Self {

@@ -8,6 +8,30 @@ use crate::{
     world::World,
 };
 
+pub struct EntityCommandContext<'a> {
+    entity: Entity,
+    queue: &'a mut CommandQueueState,
+    entity_store: &'a mut EntityStore,
+}
+
+impl<'a> EntityCommandContext<'a> {
+    pub fn get(&self) -> &Entity {
+        &self.entity
+    }
+
+    pub fn add_child<T: ComponentBundle + 'static>(self, components: T) -> Self {
+        let parent = self.entity;
+        let child = self.entity_store.alloc();
+        self.queue.add_command(SpawnCommand::new(components, child));
+        self.queue.add_command(AddChild::new(parent, child));
+        Self {
+            entity: child,
+            queue: self.queue,
+            entity_store: self.entity_store,
+        }
+    }
+}
+
 pub struct CommandQueue<'world, 'state> {
     queue_state: &'state mut CommandQueueState,
     entities: &'world mut EntityStore,
@@ -21,11 +45,18 @@ impl<'w, 's> CommandQueue<'w, 's> {
         }
     }
 
-    pub fn spawn<T: ComponentBundle + 'static>(&mut self, components: T) -> Entity {
-        let entity = self.entities.alloc();
+    pub fn spawn<T: ComponentBundle + 'static>(
+        &mut self,
+        components: T,
+    ) -> EntityCommandContext<'_> {
+        let spawned_entity = self.entities.alloc();
         self.queue_state
-            .add_command(SpawnCommand::new(components, entity));
-        entity
+            .add_command(SpawnCommand::new(components, spawned_entity));
+        EntityCommandContext {
+            entity: spawned_entity,
+            queue: self.queue_state,
+            entity_store: self.entities,
+        }
     }
 
     pub fn despawn(&mut self, entity: Entity) {

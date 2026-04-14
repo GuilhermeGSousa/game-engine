@@ -105,7 +105,7 @@ pub(crate) fn skeleton_added(
                 cmd.insert(render_skeleton_component, **render_entity);
             }
             None => {
-                let new_render_entity = cmd.spawn(render_skeleton_component);
+                let new_render_entity = *cmd.spawn(render_skeleton_component).entity();
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
         }

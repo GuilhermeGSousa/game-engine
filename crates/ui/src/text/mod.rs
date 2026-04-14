@@ -121,7 +121,7 @@ pub(crate) fn extract_added_text_nodes(
                 cmd.insert(render_text_component, **render_entity);
             }
             None => {
-                let render_entity = cmd.spawn(render_text_component);
+                let render_entity = *cmd.spawn(render_text_component).entity();
                 cmd.insert(RenderEntity::new(render_entity), entity);
             }
         }

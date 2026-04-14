@@ -55,64 +55,64 @@ const LABEL_W: f32 = 76.0;
 /// └────────────┴──────────────────────────┴─────────────┘
 /// ```
 pub(crate) fn spawn_editor_ui(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) {
-    // ── root: full-screen column ─────────────────────────────────────────────
-    let root = cmd.spawn((UINode {
-        width: UIValue::Percent(1.0),
-        height: UIValue::Percent(1.0),
-        flex_direction: FlexDirection::Column,
-        ..Default::default()
-    },));
-
-    // ── title bar ────────────────────────────────────────────────────────────
-    let title_bar = cmd.spawn((
-        UINode {
-            width: UIValue::Percent(1.0),
-            height: UIValue::Px(TITLEBAR_H),
-            padding: UIRect::axes(0.0, 12.0),
-            ..Default::default()
-        },
-        UIMaterial::with_border(COL_TITLEBAR, COL_BORDER, 1.0),
-    ));
-    let title_label = cmd.spawn((
-        UINode {
-            flex_grow: 1.0,
-            ..Default::default()
-        },
-        TextComponent {
-            text: "Game Editor".to_string(),
-            font_size: 14.0,
-            line_height: TITLEBAR_H,
-            font_family: FontFamily::Monospace,
-            font_weight: 600,
-            ..Default::default()
-        },
-    ));
-    cmd.add_child(title_bar, title_label);
-
-    // ── main area: left panel + viewport + right panel ───────────────────────
-    let main_area = cmd.spawn((UINode {
-        width: UIValue::Percent(1.0),
-        flex_grow: 1.0,
-        flex_direction: FlexDirection::Row,
-        ..Default::default()
-    },));
-
     let left_panel = build_side_panel(&mut cmd, LEFT_W, "Hierarchy");
     let viewport = build_viewport(&mut cmd, &rtt);
     let right_panel = build_properties_panel(&mut cmd);
 
+    let main_area = *cmd
+        .spawn((UINode {
+            width: UIValue::Percent(1.0),
+            flex_grow: 1.0,
+            flex_direction: FlexDirection::Row,
+            ..Default::default()
+        },))
+        .entity();
     cmd.add_child(main_area, left_panel);
     cmd.add_child(main_area, viewport);
     cmd.add_child(main_area, right_panel);
 
-    cmd.add_child(root, title_bar);
+    let root = *cmd
+        .spawn((UINode {
+            width: UIValue::Percent(1.0),
+            height: UIValue::Percent(1.0),
+            flex_direction: FlexDirection::Column,
+            ..Default::default()
+        },))
+        .add_child_with(
+            (
+                UINode {
+                    width: UIValue::Percent(1.0),
+                    height: UIValue::Px(TITLEBAR_H),
+                    padding: UIRect::axes(0.0, 12.0),
+                    ..Default::default()
+                },
+                UIMaterial::with_border(COL_TITLEBAR, COL_BORDER, 1.0),
+            ),
+            |mut title_bar| {
+                title_bar.add_child((
+                    UINode {
+                        flex_grow: 1.0,
+                        ..Default::default()
+                    },
+                    TextComponent {
+                        text: "Game Editor".to_string(),
+                        font_size: 14.0,
+                        line_height: TITLEBAR_H,
+                        font_family: FontFamily::Monospace,
+                        font_weight: 600,
+                        ..Default::default()
+                    },
+                ));
+            },
+        )
+        .entity();
     cmd.add_child(root, main_area);
 }
 
 // ── Panel builders ────────────────────────────────────────────────────────────
 
 fn build_side_panel(cmd: &mut CommandQueue, width: f32, title: &str) -> Entity {
-    let panel = cmd.spawn((
+    *cmd.spawn((
         UINode {
             width: UIValue::Px(width),
             height: UIValue::Percent(1.0),
@@ -120,38 +120,38 @@ fn build_side_panel(cmd: &mut CommandQueue, width: f32, title: &str) -> Entity {
             ..Default::default()
         },
         UIMaterial::with_border(COL_PANEL, COL_BORDER, 1.0),
-    ));
-
-    let header = cmd.spawn((
-        UINode {
-            width: UIValue::Percent(1.0),
-            height: UIValue::Px(PANEL_HDR_H),
-            padding: UIRect::axes(0.0, 10.0),
-            ..Default::default()
+    ))
+    .add_child_with(
+        (
+            UINode {
+                width: UIValue::Percent(1.0),
+                height: UIValue::Px(PANEL_HDR_H),
+                padding: UIRect::axes(0.0, 10.0),
+                ..Default::default()
+            },
+            UIMaterial::with_border(COL_PANEL_HDR, COL_BORDER, 1.0),
+        ),
+        |mut header| {
+            header.add_child((
+                UINode {
+                    flex_grow: 1.0,
+                    ..Default::default()
+                },
+                TextComponent {
+                    text: title.to_string(),
+                    font_size: 12.0,
+                    line_height: PANEL_HDR_H,
+                    font_weight: 600,
+                    ..Default::default()
+                },
+            ));
         },
-        UIMaterial::with_border(COL_PANEL_HDR, COL_BORDER, 1.0),
-    ));
-    let header_label = cmd.spawn((
-        UINode {
-            flex_grow: 1.0,
-            ..Default::default()
-        },
-        TextComponent {
-            text: title.to_string(),
-            font_size: 12.0,
-            line_height: PANEL_HDR_H,
-            font_weight: 600,
-            ..Default::default()
-        },
-    ));
-
-    cmd.add_child(header, header_label);
-    cmd.add_child(panel, header);
-    panel
+    )
+    .entity()
 }
 
 fn build_viewport(cmd: &mut CommandQueue, rtt: &EditorRttHandle) -> Entity {
-    cmd.spawn((
+    *cmd.spawn((
         UINode {
             flex_grow: 1.0,
             height: UIValue::Percent(1.0),
@@ -162,6 +162,7 @@ fn build_viewport(cmd: &mut CommandQueue, rtt: &EditorRttHandle) -> Entity {
             texture: (*rtt).clone(),
         },
     ))
+    .entity()
 }
 
 /// Builds the right Properties panel, pre-populated with placeholder widgets
@@ -185,50 +186,53 @@ fn build_viewport(cmd: &mut CommandQueue, rtt: &EditorRttHandle) -> Entity {
 /// └───────────────────────────────┘
 /// ```
 fn build_properties_panel(cmd: &mut CommandQueue) -> Entity {
-    let panel = cmd.spawn((
-        UINode {
-            width: UIValue::Px(RIGHT_W),
-            height: UIValue::Percent(1.0),
-            flex_direction: FlexDirection::Column,
-            ..Default::default()
-        },
-        UIMaterial::with_border(COL_PANEL, COL_BORDER, 1.0),
-    ));
+    let panel = *cmd
+        .spawn((
+            UINode {
+                width: UIValue::Px(RIGHT_W),
+                height: UIValue::Percent(1.0),
+                flex_direction: FlexDirection::Column,
+                ..Default::default()
+            },
+            UIMaterial::with_border(COL_PANEL, COL_BORDER, 1.0),
+        ))
+        .add_child_with(
+            (
+                UINode {
+                    width: UIValue::Percent(1.0),
+                    height: UIValue::Px(PANEL_HDR_H),
+                    padding: UIRect::axes(0.0, 10.0),
+                    ..Default::default()
+                },
+                UIMaterial::with_border(COL_PANEL_HDR, COL_BORDER, 1.0),
+            ),
+            |mut header| {
+                header.add_child((
+                    UINode {
+                        flex_grow: 1.0,
+                        ..Default::default()
+                    },
+                    TextComponent {
+                        text: "Properties".to_string(),
+                        font_size: 12.0,
+                        line_height: PANEL_HDR_H,
+                        font_weight: 600,
+                        ..Default::default()
+                    },
+                ));
+            },
+        )
+        .entity();
 
-    // Header
-    let header = cmd.spawn((
-        UINode {
+    let content = *cmd
+        .spawn((UINode {
             width: UIValue::Percent(1.0),
-            height: UIValue::Px(PANEL_HDR_H),
-            padding: UIRect::axes(0.0, 10.0),
-            ..Default::default()
-        },
-        UIMaterial::with_border(COL_PANEL_HDR, COL_BORDER, 1.0),
-    ));
-    let header_label = cmd.spawn((
-        UINode {
             flex_grow: 1.0,
+            flex_direction: FlexDirection::Column,
+            padding: UIRect::axes(6.0, 8.0),
             ..Default::default()
-        },
-        TextComponent {
-            text: "Properties".to_string(),
-            font_size: 12.0,
-            line_height: PANEL_HDR_H,
-            font_weight: 600,
-            ..Default::default()
-        },
-    ));
-    cmd.add_child(header, header_label);
-    cmd.add_child(panel, header);
-
-    // Scrollable content column
-    let content = cmd.spawn((UINode {
-        width: UIValue::Percent(1.0),
-        flex_grow: 1.0,
-        flex_direction: FlexDirection::Column,
-        padding: UIRect::axes(6.0, 8.0),
-        ..Default::default()
-    },));
+        },))
+        .entity();
 
     // ── Name ─────────────────────────────────────────────────────────────────
     add_section_label(cmd, content, "Name");
@@ -252,8 +256,8 @@ fn build_properties_panel(cmd: &mut CommandQueue) -> Entity {
     // ── Flags ─────────────────────────────────────────────────────────────────
     add_section_label(cmd, content, "Flags");
     let vis_row = spawn_checkbox_row(cmd, "Visible", true);
-    let shadow_row = spawn_checkbox_row(cmd, "Cast Shadows", false);
     cmd.add_child(content, vis_row);
+    let shadow_row = spawn_checkbox_row(cmd, "Cast Shadows", false);
     cmd.add_child(content, shadow_row);
 
     cmd.add_child(panel, content);
@@ -264,57 +268,58 @@ fn build_properties_panel(cmd: &mut CommandQueue) -> Entity {
 
 /// Appends a small section-divider label (e.g. `"─ Transform ─"`) into `parent`.
 fn add_section_label(cmd: &mut CommandQueue, parent: Entity, text: &str) {
-    let label = cmd.spawn((
-        UINode {
-            width: UIValue::Percent(1.0),
-            height: UIValue::Px(18.0),
-            margin: UIRect {
-                top: 6.0,
-                bottom: 2.0,
+    let label = *cmd
+        .spawn((
+            UINode {
+                width: UIValue::Percent(1.0),
+                height: UIValue::Px(18.0),
+                margin: UIRect {
+                    top: 6.0,
+                    bottom: 2.0,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
-            ..Default::default()
-        },
-        TextComponent {
-            text: format!("─ {text} ─"),
-            font_size: 10.0,
-            line_height: 18.0,
-            font_weight: 600,
-            ..Default::default()
-        },
-    ));
+            TextComponent {
+                text: format!("─ {text} ─"),
+                font_size: 10.0,
+                line_height: 18.0,
+                font_weight: 600,
+                ..Default::default()
+            },
+        ))
+        .entity();
     cmd.add_child(parent, label);
 }
 
 /// Returns a horizontal row entity with a fixed-width label on the left and
 /// `widget` on the right (flex_grow: 1).
 fn spawn_label_row(cmd: &mut CommandQueue, label: &str, widget: Entity) -> Entity {
-    let row = cmd.spawn((UINode {
-        width: UIValue::Percent(1.0),
-        height: UIValue::Px(ROW_H),
-        flex_direction: FlexDirection::Row,
-        margin: UIRect {
-            bottom: 4.0,
+    let row = *cmd
+        .spawn((UINode {
+            width: UIValue::Percent(1.0),
+            height: UIValue::Px(ROW_H),
+            flex_direction: FlexDirection::Row,
+            margin: UIRect {
+                bottom: 4.0,
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    },));
-
-    let label_entity = cmd.spawn((
-        UINode {
-            width: UIValue::Px(LABEL_W),
-            height: UIValue::Percent(1.0),
-            ..Default::default()
-        },
-        TextComponent {
-            text: label.to_string(),
-            font_size: 11.0,
-            line_height: ROW_H,
-            ..Default::default()
-        },
-    ));
-
-    cmd.add_child(row, label_entity);
+        },))
+        .add_child((
+            UINode {
+                width: UIValue::Px(LABEL_W),
+                height: UIValue::Percent(1.0),
+                ..Default::default()
+            },
+            TextComponent {
+                text: label.to_string(),
+                font_size: 11.0,
+                line_height: ROW_H,
+                ..Default::default()
+            },
+        ))
+        .entity();
     cmd.add_child(row, widget);
     row
 }
@@ -324,7 +329,7 @@ fn spawn_label_row(cmd: &mut CommandQueue, label: &str, widget: Entity) -> Entit
 /// The fill child is automatically added by `setup_slider_visuals` on the first
 /// frame.  `UIInteractionStyle` gives the track a subtle hover/press tint.
 fn spawn_slider(cmd: &mut CommandQueue, value: f32, min: f32, max: f32) -> Entity {
-    cmd.spawn((
+    *cmd.spawn((
         UINode {
             flex_grow: 1.0,
             height: UIValue::Px(SLIDER_H),
@@ -344,11 +349,12 @@ fn spawn_slider(cmd: &mut CommandQueue, value: f32, min: f32, max: f32) -> Entit
             disabled: [0.12, 0.12, 0.12, 0.5],
         },
     ))
+    .entity()
 }
 
 /// Spawns a single-line text input that spans the full content width.
 fn spawn_text_input(cmd: &mut CommandQueue, placeholder: &str) -> Entity {
-    cmd.spawn((
+    *cmd.spawn((
         UINode {
             width: UIValue::Percent(1.0),
             height: UIValue::Px(ROW_H),
@@ -369,11 +375,12 @@ fn spawn_text_input(cmd: &mut CommandQueue, placeholder: &str) -> Entity {
         UITextInput::new(placeholder),
         Interactable,
     ))
+    .entity()
 }
 
 /// Spawns a row containing a checkbox square followed by a text label.
 fn spawn_checkbox_row(cmd: &mut CommandQueue, label: &str, checked: bool) -> Entity {
-    let row = cmd.spawn((UINode {
+    *cmd.spawn((UINode {
         width: UIValue::Percent(1.0),
         height: UIValue::Px(ROW_H),
         flex_direction: FlexDirection::Row,
@@ -382,47 +389,42 @@ fn spawn_checkbox_row(cmd: &mut CommandQueue, label: &str, checked: bool) -> Ent
             ..Default::default()
         },
         ..Default::default()
-    },));
-
-    let checkbox = cmd.spawn((
-        UINode {
-            width: UIValue::Px(CHECKBOX_SIZE),
-            height: UIValue::Px(CHECKBOX_SIZE),
-            margin: UIRect {
-                top: (ROW_H - CHECKBOX_SIZE) / 2.0,
-                right: 6.0,
+    },))
+        .add_child((
+            UINode {
+                width: UIValue::Px(CHECKBOX_SIZE),
+                height: UIValue::Px(CHECKBOX_SIZE),
+                margin: UIRect {
+                    top: (ROW_H - CHECKBOX_SIZE) / 2.0,
+                    right: 6.0,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
-            ..Default::default()
-        },
-        UIMaterial::with_border(
-            if checked {
-                [0.20, 0.50, 0.90, 1.0]
-            } else {
-                [0.12, 0.12, 0.12, 1.0]
+            UIMaterial::with_border(
+                if checked {
+                    [0.20, 0.50, 0.90, 1.0]
+                } else {
+                    [0.12, 0.12, 0.12, 1.0]
+                },
+                COL_BORDER,
+                1.0,
+            ),
+            UICheckbox::new(checked),
+            Interactable,
+        ))
+        .add_child((
+            UINode {
+                flex_grow: 1.0,
+                height: UIValue::Percent(1.0),
+                ..Default::default()
             },
-            COL_BORDER,
-            1.0,
-        ),
-        UICheckbox::new(checked),
-        Interactable,
-    ));
-
-    let label_entity = cmd.spawn((
-        UINode {
-            flex_grow: 1.0,
-            height: UIValue::Percent(1.0),
-            ..Default::default()
-        },
-        TextComponent {
-            text: label.to_string(),
-            font_size: 11.0,
-            line_height: ROW_H,
-            ..Default::default()
-        },
-    ));
-
-    cmd.add_child(row, checkbox);
-    cmd.add_child(row, label_entity);
-    row
+            TextComponent {
+                text: label.to_string(),
+                font_size: 11.0,
+                line_height: ROW_H,
+                ..Default::default()
+            },
+        ))
+        .entity()
 }

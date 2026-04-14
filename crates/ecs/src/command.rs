@@ -8,27 +8,38 @@ use crate::{
     world::World,
 };
 
-pub struct EntityCommandContext<'a> {
+pub struct EntityCommandQueue<'a> {
     entity: Entity,
-    queue: &'a mut CommandQueueState,
-    entity_store: &'a mut EntityStore,
+    command_queue: CommandQueue<'a, 'a>,
 }
 
-impl<'a> EntityCommandContext<'a> {
-    pub fn get(&self) -> &Entity {
+impl<'a> EntityCommandQueue<'a> {
+    pub fn entity(&self) -> &Entity {
         &self.entity
     }
 
-    pub fn add_child<T: ComponentBundle + 'static>(self, components: T) -> Self {
-        let parent = self.entity;
-        let child = self.entity_store.alloc();
-        self.queue.add_command(SpawnCommand::new(components, child));
-        self.queue.add_command(AddChild::new(parent, child));
-        Self {
-            entity: child,
-            queue: self.queue,
-            entity_store: self.entity_store,
-        }
+    pub fn add_child<T: ComponentBundle + 'static>(&mut self, components: T) -> &mut Self {
+        self.add_child_with(components, |_| {})
+    }
+
+    pub fn add_child_with<T: ComponentBundle + 'static>(
+        &mut self,
+        components: T,
+        f: impl Fn(EntityCommandQueue),
+    ) -> &mut Self {
+        let child_ctx = self.command_queue.spawn(components);
+        let child_entity = *child_ctx.entity();
+        f(child_ctx);
+        self.command_queue.add_child(self.entity, child_entity);
+        self
+    }
+
+    pub fn insert<T: Component>(&mut self, component: T) {
+        self.command_queue.insert(component, self.entity);
+    }
+
+    pub fn despawn(mut self) {
+        self.command_queue.despawn(*self.entity());
     }
 }
 
@@ -45,17 +56,17 @@ impl<'w, 's> CommandQueue<'w, 's> {
         }
     }
 
-    pub fn spawn<T: ComponentBundle + 'static>(
-        &mut self,
-        components: T,
-    ) -> EntityCommandContext<'_> {
+    pub fn spawn<T: ComponentBundle + 'static>(&mut self, components: T) -> EntityCommandQueue<'_> {
         let spawned_entity = self.entities.alloc();
         self.queue_state
             .add_command(SpawnCommand::new(components, spawned_entity));
-        EntityCommandContext {
+
+        EntityCommandQueue {
             entity: spawned_entity,
-            queue: self.queue_state,
-            entity_store: self.entities,
+            command_queue: CommandQueue {
+                queue_state: &mut *self.queue_state,
+                entities: &mut *self.entities,
+            },
         }
     }
 

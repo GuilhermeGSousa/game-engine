@@ -169,7 +169,7 @@ pub(crate) fn mesh_added<M: Material>(
                 cmd.insert(render_mat, **re);
             }
             None => {
-                let new_re = cmd.spawn((instance, render_mat));
+                let new_re = *cmd.spawn((instance, render_mat)).entity();
                 cmd.insert(RenderEntity::new(new_re), entity);
             }
         }

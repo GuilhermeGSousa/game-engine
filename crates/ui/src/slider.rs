@@ -77,15 +77,17 @@ pub(crate) fn setup_slider_visuals(
     mut cmd: CommandQueue,
 ) {
     for (entity, slider) in new_sliders.iter() {
-        let fill = cmd.spawn((
-            UISliderFill,
-            UINode {
-                width: UIValue::Percent(slider.normalized()),
-                height: UIValue::Percent(1.0),
-                ..Default::default()
-            },
-            UIMaterial::flat([0.25, 0.55, 0.95, 1.0]),
-        ));
+        let fill = *cmd
+            .spawn((
+                UISliderFill,
+                UINode {
+                    width: UIValue::Percent(slider.normalized()),
+                    height: UIValue::Percent(1.0),
+                    ..Default::default()
+                },
+                UIMaterial::flat([0.25, 0.55, 0.95, 1.0]),
+            ))
+            .entity();
         cmd.add_child(entity, fill);
     }
 }

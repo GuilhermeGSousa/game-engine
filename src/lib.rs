@@ -156,15 +156,14 @@ fn spawn_player(
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
     light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
 
-    let parent = cmd.spawn((
+    cmd.spawn((
         Player,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-    ));
-    let child = cmd.spawn((
+    ))
+    .add_child((
         camera,
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
     ));
-    cmd.add_child(parent, child);
     cmd.spawn((light, light_transform));
 }
 
@@ -205,15 +204,17 @@ fn spawn_unlit_obj(
     for (entity, spawner) in spawners.iter() {
         if let Some(asset) = obj_assets.get(&spawner.mesh) {
             for obj_mesh in asset.meshes() {
-                let child = cmd.spawn((
-                    MeshComponent {
-                        handle: obj_mesh.handle.clone(),
-                    },
-                    Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-                    MaterialComponent::<UnlitMaterial> {
-                        handle: spawner.material.clone(),
-                    },
-                ));
+                let child = *cmd
+                    .spawn((
+                        MeshComponent {
+                            handle: obj_mesh.handle.clone(),
+                        },
+                        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+                        MaterialComponent::<UnlitMaterial> {
+                            handle: spawner.material.clone(),
+                        },
+                    ))
+                    .entity();
                 cmd.add_child(entity, child);
             }
             cmd.remove::<UnlitOBJSpawner>(entity);

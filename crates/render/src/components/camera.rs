@@ -185,7 +185,7 @@ pub(crate) fn camera_added(
 
         match render_entity {
             None => {
-                let new_render_entity = cmd.spawn(render_cam);
+                let new_render_entity = *cmd.spawn(render_cam).entity();
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
             Some(render_entity) => {

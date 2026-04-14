@@ -280,19 +280,21 @@ pub(crate) fn spawn_obj_component(
     for (entity, component) in objs.iter() {
         if let Some(asset) = obj_assets.get(component) {
             for mesh in &asset.meshes {
-                let child_entity = cmd.spawn((
-                    MeshComponent {
-                        handle: mesh.handle.clone(),
-                    },
-                    Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-                    MaterialComponent {
-                        handle: mtl_assets
-                            .get(&asset.materials[mesh.material_index.unwrap_or(0)])
-                            .unwrap()
-                            .material
-                            .clone(),
-                    },
-                ));
+                let child_entity = *cmd
+                    .spawn((
+                        MeshComponent {
+                            handle: mesh.handle.clone(),
+                        },
+                        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+                        MaterialComponent {
+                            handle: mtl_assets
+                                .get(&asset.materials[mesh.material_index.unwrap_or(0)])
+                                .unwrap()
+                                .material
+                                .clone(),
+                        },
+                    ))
+                    .entity();
 
                 cmd.add_child(entity, child_entity);
             }

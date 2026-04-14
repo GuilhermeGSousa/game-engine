@@ -458,7 +458,7 @@ pub(crate) fn spawn_gltf_components(
 
             // Spawn all nodes
             for gltf_node in &asset.nodes {
-                let current_entity = cmd.spawn(gltf_node.transform.clone());
+                let current_entity = *cmd.spawn(gltf_node.transform.clone()).entity();
                 node_entities.push(current_entity);
             }
 

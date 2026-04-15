@@ -65,7 +65,7 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 window.request_redraw();
             }
             WinitWindowEvent::KeyboardInput { event, .. } => {
-                let input = self.app.get_mut_resource::<Input>().unwrap();
+                let input = self.app.get_resource_mut::<Input>().unwrap();
                 // Capture typed text (handles modifier keys, dead keys, etc.).
                 // Only on press — not release — and only printable characters.
                 if event.state == winit::event::ElementState::Pressed {
@@ -82,11 +82,11 @@ impl ApplicationHandler for ApplicationWindowHandler {
                 }
             }
             WinitWindowEvent::CursorMoved { position, .. } => {
-                let input = self.app.get_mut_resource::<Input>().unwrap();
+                let input = self.app.get_resource_mut::<Input>().unwrap();
                 input.update_mouse_position(position.x, position.y);
             }
             WinitWindowEvent::MouseInput { state, button, .. } => {
-                let input = self.app.get_mut_resource::<Input>().unwrap();
+                let input = self.app.get_resource_mut::<Input>().unwrap();
                 input.update_mouse_button(button, state);
             }
             _ => (),

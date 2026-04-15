@@ -47,73 +47,73 @@ impl Plugin for UIPlugin {
         // ── LateUpdate ──────────────────────────────────────────────────────────
         // 1. Spawn fill children for new sliders (commands flush immediately after).
         app.add_system(
-            app::update_group::UpdateGroup::LateUpdate,
+            UpdateGroup::LateUpdate,
             setup_slider_visuals,
         );
         // 2. Update fill widths from slider values (before layout so Taffy sees
         //    the correct widths this frame).
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, sync_slider_fill);
+        app.add_system(UpdateGroup::LateUpdate, sync_slider_fill);
         // 3. Taffy layout pass — computes UIComputedNode for all nodes.
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, compute_ui_nodes);
+        app.add_system(UpdateGroup::LateUpdate, compute_ui_nodes);
         // 4. Sync engine-managed border_params uniform from user-facing border_width.
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, sync_border_size);
+        app.add_system(UpdateGroup::LateUpdate, sync_border_size);
         // 5. Slider drag — reads UIComputedNode set in step 3.
         app.add_system(
-            app::update_group::UpdateGroup::LateUpdate,
+            UpdateGroup::LateUpdate,
             update_slider_drag,
         );
         // 6. Hit test — fires UIClick events.
         app.add_system(
-            app::update_group::UpdateGroup::LateUpdate,
+            UpdateGroup::LateUpdate,
             update_ui_interaction,
         );
         // 7. Focus — reads HoveredNode, updates FocusedWidget.
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, update_focus);
+        app.add_system(UpdateGroup::LateUpdate, update_focus);
         // 8. Checkbox toggle — reads UIClick.
         app.add_system(
-            app::update_group::UpdateGroup::LateUpdate,
+            UpdateGroup::LateUpdate,
             toggle_checkboxes,
         );
         // 9. Sync checkbox material colour from checked state.
         app.add_system(
-            app::update_group::UpdateGroup::LateUpdate,
+            UpdateGroup::LateUpdate,
             sync_checkbox_material,
         );
         // 10. Text input — reads FocusedWidget + typed chars, updates TextComponent.
         app.add_system(
-            app::update_group::UpdateGroup::LateUpdate,
+            UpdateGroup::LateUpdate,
             update_text_inputs,
         );
         // 11. Hover/press colours via UIInteractionStyle.
         app.add_system(
-            app::update_group::UpdateGroup::LateUpdate,
+            UpdateGroup::LateUpdate,
             apply_interaction_styles,
         );
 
         // ── Render ──────────────────────────────────────────────────────────────
         app.add_system(
-            app::update_group::UpdateGroup::Render,
+            UpdateGroup::Render,
             extract_added_ui_nodes,
         )
         .add_system(
-            app::update_group::UpdateGroup::Render,
+            UpdateGroup::Render,
             extract_added_ui_materials,
         )
         .add_system(
-            app::update_group::UpdateGroup::Render,
+            UpdateGroup::Render,
             extract_added_text_nodes,
         )
-        .add_system(app::update_group::UpdateGroup::Render, update_text_viewport)
+        .add_system(UpdateGroup::Render, update_text_viewport)
         .add_system(
-            app::update_group::UpdateGroup::Render,
+            UpdateGroup::Render,
             prepare_text_renderer,
         )
         // Viewport nodes: create fresh bind groups before ui_renderpass.
         .add_system(
-            app::update_group::UpdateGroup::Render,
+            UpdateGroup::Render,
             extract_viewport_nodes,
         )
-        .add_system(app::update_group::UpdateGroup::Render, ui_renderpass);
+        .add_system(UpdateGroup::Render, ui_renderpass);
     }
 
     fn finish(&self, app: &mut app::App) {

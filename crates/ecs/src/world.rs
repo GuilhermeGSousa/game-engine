@@ -10,7 +10,7 @@ use crate::component::bundle::ComponentBundle;
 use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
-use crate::resource::{self, ResourceStorage};
+use crate::resource::ResourceStorage;
 use crate::table::MutableCellAccessor;
 use crate::{
     archetype::Archetype,

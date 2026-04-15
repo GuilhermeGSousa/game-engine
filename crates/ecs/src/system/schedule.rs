@@ -246,4 +246,16 @@ mod tests {
         assert_eq!(schedule.system_ids.len(), 3);
         assert_eq!(schedule.graph.node_count(), 3);
     }
+
+    #[test]
+    fn compile_and_run()
+    {
+        let mut schedule = Schedule::new();
+        schedule
+            .add_system(|| { print!("First") })
+            .add_system(|| { print!("First") })
+            .add_system(|| { print!("First") });
+
+        schedule.compile().run(&mut World::new());
+    }
 }

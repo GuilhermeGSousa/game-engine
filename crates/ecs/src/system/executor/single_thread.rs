@@ -19,7 +19,7 @@ impl SystemExecutor for SingleThreadedExecutor {
                 .node_weight_mut(*node_index)
                 .unwrap()
                 .system
-                .run(world.as_unsafe_world_cell_mut());
+                .run_and_apply(world.as_unsafe_world_cell_mut());
         }
     }
 }

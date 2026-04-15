@@ -26,13 +26,13 @@ pub trait System: Send + Sync {
     fn access(&self) -> SystemAccess;
 
     /// Executes the system against the world, then applies any deferred commands.
-    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        self.run_without_apply(world);
+    fn run_and_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        self.run(world);
         self.apply(world.world_mut());
     }
 
     /// Executes the system without applying deferred commands.
-    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>);
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>);
 
     /// Applies any deferred mutations (e.g. spawned entities from [`CommandQueue`](crate::command::CommandQueue)).
     fn apply(&mut self, world: &mut World);
@@ -43,8 +43,8 @@ impl System for BoxedSystem {
         (**self).apply(world);
     }
 
-    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        (**self).run_without_apply(world);
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        (**self).run(world);
     }
 
     fn access(&self) -> SystemAccess {
@@ -80,7 +80,7 @@ where
     for<'w, 's> F:
         FnMut(typle_args!(i in .. => T<{i}>)) + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>)),
 {
-    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {}
+    // fn run_and_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {}
 
     fn apply(&mut self, world: &mut World) {
         for typle_index!(i) in 0..T::LEN {
@@ -88,7 +88,7 @@ where
         }
     }
 
-    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
         (self.func)(
             typle_args!(i in .. =>  <T<{i}>>::get_data(&mut self.system_state[[i]], world) ),
         );

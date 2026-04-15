@@ -75,13 +75,12 @@ impl Schedule {
     }
 
     pub fn compile(self) -> CompiledSchedule {
-        // This is wrong! It invalidates node ids
         let sorted_nodes =
             toposort(&self.graph, None).expect("Error compiling schedule, cycle found");
-
+        
         CompiledSchedule {
             executor: Box::new(SingleThreadedExecutor {}),
-            sorted_systems: sorted_nodes,
+            sorted_systems: self.system_ids.iter().map(|node_index| **node_index).collect(),
             graph: self.graph,
         }
     }

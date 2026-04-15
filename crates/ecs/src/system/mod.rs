@@ -80,8 +80,6 @@ where
     for<'w, 's> F:
         FnMut(typle_args!(i in .. => T<{i}>)) + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>)),
 {
-    // fn run_and_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {}
-
     fn apply(&mut self, world: &mut World) {
         for typle_index!(i) in 0..T::LEN {
             <T<{ i }>>::apply(&mut self.system_state[[i]], world);

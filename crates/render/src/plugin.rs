@@ -32,7 +32,7 @@ use crate::{
     },
 };
 use app::plugins::Plugin;
-use ecs::resource::Resource;
+use ecs::{resource::Resource, system::schedule::UpdateGroup};
 use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};
@@ -123,35 +123,20 @@ impl Plugin for RenderPlugin {
             .register_asset::<StandardMaterial>()
             .register_asset::<Skeleton>();
 
-        app.add_system(app::update_group::UpdateGroup::LateUpdate, camera_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, camera_changed)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, mesh_changed)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, light_added)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, light_changed)
-            .add_system(app::update_group::UpdateGroup::LateUpdate, skeleton_added)
-            .add_system(
-                app::update_group::UpdateGroup::Update,
-                update_window::request_window_resize,
-            )
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                update_window::update_render_window,
-            )
-            .add_system(app::update_group::UpdateGroup::Render, update_skeletons)
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                prepare_lights_buffer,
-            )
-            .add_system(
-                app::update_group::UpdateGroup::Render,
-                render::main_renderpass,
-            )
-            .add_system(
-                app::update_group::UpdateGroup::LateRender,
-                render::finish_render,
-            )
-            .add_system(app::update_group::UpdateGroup::LateRender, present_window);
+        app.add_system(UpdateGroup::LateUpdate, camera_added)
+            .add_system(UpdateGroup::LateUpdate, camera_changed)
+            .add_system(UpdateGroup::LateUpdate, mesh_added)
+            .add_system(UpdateGroup::LateUpdate, mesh_changed)
+            .add_system(UpdateGroup::LateUpdate, light_added)
+            .add_system(UpdateGroup::LateUpdate, light_changed)
+            .add_system(UpdateGroup::LateUpdate, skeleton_added)
+            .add_system(UpdateGroup::Update, update_window::request_window_resize)
+            .add_system(UpdateGroup::Render, update_window::update_render_window)
+            .add_system(UpdateGroup::Render, update_skeletons)
+            .add_system(UpdateGroup::Render, prepare_lights_buffer)
+            .add_system(UpdateGroup::Render, render::main_renderpass)
+            .add_system(UpdateGroup::LateRender, render::finish_render)
+            .add_system(UpdateGroup::LateRender, present_window);
     }
 
     fn ready(&self, app: &app::App) -> bool {

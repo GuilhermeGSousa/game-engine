@@ -6,7 +6,7 @@ use ecs::{
     },
     resource::{ResMut, Resource},
     system::{
-        schedule::{CompiledSchedules, Schedules},
+        schedule::{CompiledSchedules, Schedules, UpdateGroup},
         IntoSystem,
     },
     world::World,
@@ -23,11 +23,9 @@ use crate::{plugins::PluginsState, runner::run_once};
 
 pub mod plugins;
 pub mod runner;
-pub mod update_group;
 
 // Re-export the most commonly needed types so users don't have to know the module layout.
 pub use plugins::Plugin;
-pub use update_group::UpdateGroup;
 
 pub(crate) struct HokeyPokeyPlugin;
 impl Plugin for HokeyPokeyPlugin {
@@ -52,13 +50,6 @@ impl Plugin for HokeyPokeyPlugin {
 pub struct App {
     runner: runner::RunnerFn,
     world: World,
-    startup_schedule: Schedule,
-    update_schedule: Schedule,
-    fixed_update_schedule: Schedule,
-    late_update_schedule: Schedule,
-    late_fixed_update_schedule: Schedule,
-    render_schedule: Schedule,
-    late_render_schedule: Schedule,
     accumulated_fixed_time: f32,
     plugins: Vec<Box<dyn Plugin>>,
     plugin_state: PluginsState,
@@ -71,13 +62,6 @@ impl App {
         Self {
             runner: Box::new(runner::run_once),
             world,
-            startup_schedule: Schedule::default(),
-            update_schedule: Schedule::default(),
-            fixed_update_schedule: Schedule::default(),
-            late_update_schedule: Schedule::default(),
-            late_fixed_update_schedule: Schedule::default(),
-            render_schedule: Schedule::default(),
-            late_render_schedule: Schedule::default(),
             accumulated_fixed_time: 0.0,
             plugins: Vec::new(),
             plugin_state: PluginsState::Building,
@@ -105,7 +89,8 @@ impl App {
 
         asset_server.register_asset::<A>(&asset_store);
 
-        self.update_schedule.add_system(
+        self.add_system(
+            UpdateGroup::Update,
             |mut asset_store: ResMut<AssetStore<A>>, asset_server: ResMut<AssetServer>| {
                 asset_store.track_assets(asset_server);
             },
@@ -134,15 +119,10 @@ impl App {
         update_group: UpdateGroup,
         system: impl IntoSystem<M> + 'static,
     ) -> &mut Self {
-        match update_group {
-            UpdateGroup::Startup => self.startup_schedule.add_system(system),
-            UpdateGroup::Update => self.update_schedule.add_system(system),
-            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system(system),
-            UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
-            UpdateGroup::LateFixedUpdate => self.late_fixed_update_schedule.add_system(system),
-            UpdateGroup::Render => self.render_schedule.add_system(system),
-            UpdateGroup::LateRender => self.late_render_schedule.add_system(system),
-        };
+        self.get_resource_mut::<Schedules>()
+            .expect("Schedules resource not found!")
+            .add_system(update_group, system);
+
         self
     }
 

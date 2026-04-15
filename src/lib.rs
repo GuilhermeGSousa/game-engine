@@ -9,8 +9,8 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{query_filter::With, Query},
-    resource::{Res, ResMut},
+    query::{Query, query_filter::With},
+    resource::{Res, ResMut}, system::schedule::UpdateGroup,
 };
 use essential::{
     assets::asset_server::AssetServer,
@@ -85,9 +85,9 @@ pub fn run_game() {
         .register_plugin(SkyboxPlugin)
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
-        .add_system(app::update_group::UpdateGroup::Update, move_around)
+        .add_system(UpdateGroup::Update, move_around)
         .add_system(
-            app::update_group::UpdateGroup::Update,
+            UpdateGroup::Update,
             spawn_on_button_press,
         )
         .add_system(app::update_group::UpdateGroup::Update, setup_state_machine)

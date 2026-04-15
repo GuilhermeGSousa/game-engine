@@ -1,4 +1,5 @@
 use app::plugins::Plugin;
+use ecs::system::schedule::UpdateGroup;
 use glyphon::{Cache, FontSystem, SwashCache, Viewport};
 use render::{
     assets::vertex::VertexBufferLayout, device::RenderDevice, material_plugin::MaterialPlugin,

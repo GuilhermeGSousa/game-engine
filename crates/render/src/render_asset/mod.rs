@@ -8,7 +8,10 @@ use std::collections::HashMap;
 use app::plugins::Plugin;
 use ecs::{
     resource::{ResMut, Resource},
-    system::system_input::{StaticSystemInput, SystemInput, SystemInputData},
+    system::{
+        schedule::UpdateGroup,
+        system_input::{StaticSystemInput, SystemInput, SystemInputData},
+    },
 };
 use essential::assets::{asset_store::AssetStore, Asset, AssetId};
 
@@ -93,9 +96,6 @@ impl<A: RenderAsset> Default for RenderAssetPlugin<A> {
 impl<A: RenderAsset + 'static> Plugin for RenderAssetPlugin<A> {
     fn build(&self, app: &mut app::App) {
         app.insert_resource(RenderAssets::<A>::new());
-        app.add_system(
-            app::update_group::UpdateGroup::Render,
-            prepare_render_asset::<A>,
-        );
+        app.add_system(UpdateGroup::Render, prepare_render_asset::<A>);
     }
 }

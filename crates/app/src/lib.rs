@@ -101,7 +101,6 @@ impl App {
 
     /// Hands control to the configured runner function, consuming the app.
     pub fn run(mut self) {
-        self.compile_schedules();
         let runner = std::mem::replace(&mut self.runner, Box::new(run_once));
         (runner)(self);
     }
@@ -170,18 +169,13 @@ impl App {
         while self.accumulated_fixed_time >= Time::fixed_delta_time() {
             schedules.fixed_update(&mut self.world);
             self.accumulated_fixed_time -= Time::fixed_delta_time();
-            // self.fixed_update_schedule.run(&mut self.world);
-            // self.late_fixed_update_schedule.run(&mut self.world);
         }
 
         schedules.update(&mut self.world);
+        schedules.render(&mut self.world);
 
         self.world.insert_resource(schedules);
 
-        // self.update_schedule.run(&mut self.world);
-        // self.late_update_schedule.run(&mut self.world);
-        // self.render_schedule.run(&mut self.world);
-        // self.late_render_schedule.run(&mut self.world);
         self.world.tick();
     }
 
@@ -223,6 +217,8 @@ impl App {
         }
 
         self.plugin_state = PluginsState::Finished;
+
+        self.compile_schedules();
 
         let mut schedules = self
             .remove_resource::<CompiledSchedules>()

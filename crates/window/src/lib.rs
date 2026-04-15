@@ -50,7 +50,7 @@ impl ApplicationHandler for ApplicationWindowHandler {
             WinitWindowEvent::RedrawRequested => {
                 let event_channel = self
                     .app
-                    .get_mut_resource::<EventChannel<WindowEvent>>()
+                    .get_resource_mut::<EventChannel<WindowEvent>>()
                     .unwrap();
 
                 self.winit_events
@@ -116,7 +116,7 @@ impl ApplicationHandler for ApplicationWindowHandler {
         event: winit::event::DeviceEvent,
     ) {
         if let winit::event::DeviceEvent::MouseMotion { delta } = event {
-            let input_state = self.app.get_mut_resource::<Input>().unwrap();
+            let input_state = self.app.get_resource_mut::<Input>().unwrap();
             input_state.update_mouse_delta(delta);
         }
     }

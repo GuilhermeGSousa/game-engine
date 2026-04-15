@@ -96,7 +96,7 @@ impl App {
     pub fn register_asset<A: Asset>(&mut self) -> &mut Self {
         let asset_store = AssetStore::<A>::new();
         let asset_server = self
-            .get_mut_resource::<AssetServer>()
+            .get_resource_mut::<AssetServer>()
             .expect("Asset Server not found");
 
         asset_server.register_asset::<A>(&asset_store);
@@ -142,26 +142,6 @@ impl App {
         self
     }
 
-    /// Registers a system to run before all others in its [`UpdateGroup`].
-    pub fn add_system_first<M>(
-        &mut self,
-        update_group: UpdateGroup,
-        system: impl IntoSystem<M> + 'static,
-    ) -> &mut Self {
-        match update_group {
-            UpdateGroup::Startup => self.startup_schedule.add_system_first(system),
-            UpdateGroup::Update => self.update_schedule.add_system_first(system),
-            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system_first(system),
-            UpdateGroup::LateUpdate => self.late_update_schedule.add_system_first(system),
-            UpdateGroup::LateFixedUpdate => {
-                self.late_fixed_update_schedule.add_system_first(system)
-            }
-            UpdateGroup::Render => self.render_schedule.add_system_first(system),
-            UpdateGroup::LateRender => self.late_render_schedule.add_system_first(system),
-        };
-        self
-    }
-
     /// Registers an event type, creating its [`EventChannel`] resource and a flush system.
     ///
     /// Call this once per event type before any system uses [`EventWriter`] or [`EventReader`].
@@ -187,7 +167,7 @@ impl App {
         self.world.get_resource()
     }
 
-    pub fn get_mut_resource<R: Resource>(&mut self) -> Option<&mut R> {
+    pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
         self.world.get_resource_mut()
     }
 

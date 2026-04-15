@@ -1,7 +1,12 @@
+use std::{cmp::max, collections::BinaryHeap};
+
 use super::{IntoSystem, ScheduledSystem, System};
 use crate::{system::access::SystemAccess, world::World};
 use derive_more::{Deref, From};
-use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::{
+    graph::{DiGraph, NodeIndex},
+    visit::{EdgeRef, Topo, Walker},
+};
 
 pub(crate) type SystemDependencyGraph = DiGraph<usize, ()>;
 
@@ -51,7 +56,7 @@ impl Schedule {
         let added_system_access = added_system.access();
         let added_system_index = self.graph.add_node(self.systems.len()).into();
 
-        // System can also have user defined dependencies!
+        // TODO: System can also have user defined dependencies!
 
         for node_index in &self.system_ids {
             if let Some(other_system) = self.graph.node_weight(**node_index) {
@@ -61,7 +66,6 @@ impl Schedule {
                 }
             }
         }
-
         self.system_ids.push(added_system_index.into());
         self
     }
@@ -80,10 +84,39 @@ impl Schedule {
     }
 
     /// Runs all systems in order against `world`.
-    #[allow(unused)]
     pub fn run(&mut self, world: &mut World) {
         for system in &mut self.systems {
             system.run(world.as_unsafe_world_cell_mut());
         }
+    }
+
+    fn compile_batches(&mut self) {
+        // Compute rank of each node
+        let topo = Topo::new(&self.graph);
+        let topo_order = topo.iter(&self.graph).collect::<Vec<_>>();
+
+        let mut system_ranks = vec![0usize; self.systems.len()];
+        for node_index in topo_order {
+            let system_index = self.graph.node_weight(node_index).unwrap();
+            for node_edge in self.graph.edges(node_index) {
+                let node_edge_target = self.graph.node_weight(node_edge.target()).unwrap();
+
+                system_ranks[*system_index] = max(
+                    system_ranks[*system_index],
+                    1 + system_ranks[*node_edge_target],
+                );
+            }
+        }
+
+        // Compute in-degree of each node
+        let mut in_degrees = vec![0usize; self.systems.len()];
+        for system_id in &self.system_ids {
+            for system_edge in self.graph.edges(**system_id) {
+                let system_edge_target = self.graph.node_weight(system_edge.target()).unwrap();
+                in_degrees[*system_edge_target] += 1;
+            }
+        }
+
+        let mut ready_queue = BinaryHeap::new();
     }
 }

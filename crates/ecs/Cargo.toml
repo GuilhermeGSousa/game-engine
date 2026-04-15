@@ -14,6 +14,5 @@ typle = "0.10.6"
 log = "0.4.27"
 petgraph = { version = "0.8" }
 derive_more = { version = "2", features = ["full"] }
-slotmap = "1.0"
 
 rayon = "1.11.0"

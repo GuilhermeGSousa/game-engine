@@ -1,12 +1,6 @@
 use crate::{
-    system::{executor::SystemExecutor, schedule::CompiledSchedule},
+    system::{executor::SystemExecutor, graph::SystemNode},
     World,
 };
 
 pub struct MultiThreadedExecutor {}
-
-impl SystemExecutor for MultiThreadedExecutor {
-    fn run(&self, schedule: &mut CompiledSchedule, world: &mut World) {
-        unimplemented!()
-    }
-}

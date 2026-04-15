@@ -51,12 +51,12 @@ impl Schedule {
 
     /// Appends a system to the end of the schedule.
     pub fn add_system<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
-        self.add_scheduled_system(system.into_system());
+        self.add_boxed_system(system.into_system());
         self
     }
 
     /// Appends an already-boxed [`ScheduledSystem`] to the schedule (builder style).
-    fn add_scheduled_system(&mut self, system: BoxedSystem) -> &mut Self {
+    fn add_boxed_system(&mut self, system: BoxedSystem) -> &mut Self {
         let added_system_access = system.access();
         let added_system_index = self.graph.add_node(SystemNode::new(system)).into();
 
@@ -74,30 +74,30 @@ impl Schedule {
         self
     }
 
-    pub fn compile(mut self) -> CompiledSchedule {
-        let sorted_nodes = toposort(&self.graph, None)
-            .expect("Error compiling schedule, cycle found")
-            .into_iter()
-            .map(|node_id| self.graph.remove_node(node_id).unwrap())
-            .collect::<Vec<_>>();
+    pub fn compile(self) -> CompiledSchedule {
+        // This is wrong! It invalidates node ids
+        let sorted_nodes =
+            toposort(&self.graph, None).expect("Error compiling schedule, cycle found");
 
         CompiledSchedule {
             executor: Box::new(SingleThreadedExecutor {}),
-            systems: sorted_nodes,
+            sorted_systems: sorted_nodes,
+            graph: self.graph,
         }
     }
 }
 
 pub struct CompiledSchedule {
     executor: Box<dyn SystemExecutor>,
-    systems: Vec<SystemNode>,
+    sorted_systems: Vec<NodeIndex>,
+    graph: SystemDependencyGraph,
 }
 
 // No constructor methods here! Get this by compiling a schedule
 impl CompiledSchedule {
-    // This will likely take an executor as well
     pub fn run(&mut self, world: &mut World) {
-        self.executor.run(&mut self.systems, world);
+        self.executor
+            .run(&mut self.graph, &self.sorted_systems, world);
     }
 }
 

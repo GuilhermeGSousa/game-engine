@@ -8,10 +8,10 @@ use crate::{
     },
     components::{
         camera::{camera_added, camera_changed},
-        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
+        light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
         mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
-        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
+        skeleton_component::{EmptySkeletonBuffer, skeleton_added, update_skeletons},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
@@ -19,20 +19,16 @@ use crate::{
     material_plugin::DEFAULT_SHADER_SOURCE,
     queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial,
-        render_mesh::RenderMesh,
-        render_texture::{DummyRenderTexture, RenderTexture},
-        render_window::RenderWindow,
-        RenderAssetPlugin,
+        RenderAssetPlugin, render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
     },
     resources::{MainRenderPipeline, RenderContext},
     systems::{
-        render::{self, present_window},
+        render::{self, finish_render, present_window},
         update_window,
     },
 };
 use app::plugins::Plugin;
-use ecs::{resource::Resource, system::schedule::UpdateGroup};
+use ecs::{IntoSystemConfig, resource::Resource, system::schedule::UpdateGroup};
 use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};
@@ -135,8 +131,8 @@ impl Plugin for RenderPlugin {
             .add_system(UpdateGroup::Render, update_skeletons)
             .add_system(UpdateGroup::Render, prepare_lights_buffer)
             .add_system(UpdateGroup::Render, render::main_renderpass)
-            .add_system(UpdateGroup::LateRender, render::finish_render)
-            .add_system(UpdateGroup::LateRender, present_window);
+            // .add_system(UpdateGroup::LateRender, render::finish_render)
+            .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
     }
 
     fn ready(&self, app: &app::App) -> bool {

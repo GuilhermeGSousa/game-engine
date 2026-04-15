@@ -1,9 +1,12 @@
 pub mod access;
 mod batch;
+pub mod config;
 pub mod executor;
 mod graph;
 pub mod schedule;
 pub mod system_input;
+
+pub use config::{AlreadyConfigured, IntoSystemConfig, SystemConfig};
 
 use system_input::SystemInput;
 use typle::typle;

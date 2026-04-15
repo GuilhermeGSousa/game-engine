@@ -34,7 +34,7 @@ pub use query::{
     Query,
 };
 pub use resource::{Res, ResMut, Resource};
-pub use system::{schedule::Schedule, IntoSystem, System};
+pub use system::{schedule::Schedule, IntoSystem, IntoSystemConfig, System, SystemConfig};
 pub use world::World;
 
 #[cfg(test)]

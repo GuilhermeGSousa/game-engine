@@ -5,11 +5,9 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::{
-        schedule::{CompiledSchedules, Schedules, UpdateGroup},
-        IntoSystem,
-    },
+    system::schedule::{CompiledSchedules, Schedules, UpdateGroup},
     world::World,
+    IntoSystemConfig,
 };
 use runner::AppExit;
 
@@ -115,7 +113,7 @@ impl App {
     pub fn add_system<M>(
         &mut self,
         update_group: UpdateGroup,
-        system: impl IntoSystem<M> + 'static,
+        system: impl IntoSystemConfig<M> + 'static,
     ) -> &mut Self {
         self.get_resource_mut::<Schedules>()
             .expect("Schedules resource not found!")

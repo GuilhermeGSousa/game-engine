@@ -10,7 +10,6 @@ use ecs::{
         IntoSystem,
     },
     world::World,
-    Schedule,
 };
 use runner::AppExit;
 
@@ -164,7 +163,7 @@ impl App {
 
         self.accumulated_fixed_time += time.delta().as_secs_f32();
 
-        let schedules = self
+        let mut schedules = self
             .remove_resource::<CompiledSchedules>()
             .expect("Compiled schedules not found!");
 
@@ -225,7 +224,7 @@ impl App {
 
         self.plugin_state = PluginsState::Finished;
 
-        let schedules = self
+        let mut schedules = self
             .remove_resource::<CompiledSchedules>()
             .expect("Compiled schedules not found!");
 

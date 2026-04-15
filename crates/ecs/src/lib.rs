@@ -122,7 +122,7 @@ mod tests {
         schedule.add_system(system_query_added);
 
         world.spawn((Position { x: 0.0, y: 0.0 },));
-        let compiled_schedule = schedule.compile();
+        let mut compiled_schedule = schedule.compile();
         compiled_schedule.run(&mut world);
 
         world.tick();
@@ -156,7 +156,6 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(spawn);
 
-        
         schedule.compile().run(&mut world);
 
         let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
@@ -363,16 +362,16 @@ mod tests {
 
         let mut frame1 = Schedule::new();
         frame1.add_system(send_death);
-        let frame1 = frame1.compile();
+        let mut frame1 = frame1.compile();
 
         let mut flush = Schedule::new();
         flush.add_system(crate::events::event_channel::update_event_channel::<PlayerDied>);
-        let flush = flush.compile();
+        let mut flush = flush.compile();
 
         let mut frame2 = Schedule::new();
         frame2.add_system(count_deaths);
-        let frame2 = frame2.compile();
-        
+        let mut frame2 = frame2.compile();
+
         frame1.run(&mut world);
         flush.run(&mut world);
         frame2.run(&mut world);

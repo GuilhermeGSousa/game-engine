@@ -2,7 +2,7 @@ use super::IntoSystem;
 use crate::{
     system::{
         access::SystemAccess,
-        batch::ScheduledBatch,
+        executor::{single_thread::SingleThreadedExecutor, SystemExecutor},
         graph::{SystemDependencyGraph, SystemNode},
         BoxedSystem,
     },
@@ -75,24 +75,30 @@ impl Schedule {
     }
 
     pub fn compile(mut self) -> CompiledSchedule {
-        for node_id in toposort(&self.graph, None).expect("Error compiling schedule, cycle found") {
-        }
-
         let sorted_nodes = toposort(&self.graph, None)
             .expect("Error compiling schedule, cycle found")
             .into_iter()
             .map(|node_id| self.graph.remove_node(node_id).unwrap())
             .collect::<Vec<_>>();
-        todo!()
+
+        CompiledSchedule {
+            executor: Box::new(SingleThreadedExecutor {}),
+            systems: sorted_nodes,
+        }
     }
 }
 
-pub struct CompiledSchedule {}
+pub struct CompiledSchedule {
+    executor: Box<dyn SystemExecutor>,
+    systems: Vec<SystemNode>,
+}
 
 // No constructor methods here! Get this by compiling a schedule
 impl CompiledSchedule {
     // This will likely take an executor as well
-    pub fn run(&self, world: &mut World) {}
+    pub fn run(&mut self, world: &mut World) {
+        self.executor.run(&mut self.systems, world);
+    }
 }
 
 /// Identifies which phase of the per-frame update loop a system belongs to.
@@ -180,21 +186,21 @@ pub struct CompiledSchedules {
 }
 
 impl CompiledSchedules {
-    pub fn startup(&self, world: &mut World) {
+    pub fn startup(&mut self, world: &mut World) {
         self.startup_schedule.run(world);
     }
 
-    pub fn update(&self, world: &mut World) {
+    pub fn update(&mut self, world: &mut World) {
         self.update_schedule.run(world);
         self.late_update_schedule.run(world);
     }
 
-    pub fn fixed_update(&self, world: &mut World) {
+    pub fn fixed_update(&mut self, world: &mut World) {
         self.fixed_update_schedule.run(world);
         self.late_fixed_update_schedule.run(world);
     }
 
-    pub fn render(&self, world: &mut World) {
+    pub fn render(&mut self, world: &mut World) {
         self.render_schedule.run(world);
         self.late_render_schedule.run(world);
     }
@@ -202,8 +208,6 @@ impl CompiledSchedules {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Component, Query};
-
     use super::*;
 
     #[test]

@@ -1,5 +1,6 @@
 pub mod access;
 mod batch;
+pub mod executor;
 mod graph;
 pub mod schedule;
 pub mod system_input;

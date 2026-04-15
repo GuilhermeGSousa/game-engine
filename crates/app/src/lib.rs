@@ -1,11 +1,16 @@
 use ecs::{
     component::Component,
     events::{
-        Event, event_channel::{EventChannel, update_event_channel}
+        event_channel::{update_event_channel, EventChannel},
+        Event,
     },
     resource::{ResMut, Resource},
-    system::{IntoSystem, schedule::ScheduleVariant},
+    system::{
+        schedule::{CompiledSchedules, Schedules},
+        IntoSystem,
+    },
     world::World,
+    Schedule,
 };
 use runner::AppExit;
 
@@ -14,7 +19,7 @@ use essential::{
     time::Time,
 };
 
-use crate::plugins::PluginsState;
+use crate::{plugins::PluginsState, runner::run_once};
 
 pub mod plugins;
 pub mod runner;
@@ -47,31 +52,32 @@ impl Plugin for HokeyPokeyPlugin {
 pub struct App {
     runner: runner::RunnerFn,
     world: World,
-    startup_schedule: ScheduleVariant,
-    update_schedule: ScheduleVariant,
-    fixed_update_schedule: ScheduleVariant,
-    late_update_schedule: ScheduleVariant,
-    late_fixed_update_schedule: ScheduleVariant,
-    render_schedule: ScheduleVariant,
-    late_render_schedule: ScheduleVariant,
+    startup_schedule: Schedule,
+    update_schedule: Schedule,
+    fixed_update_schedule: Schedule,
+    late_update_schedule: Schedule,
+    late_fixed_update_schedule: Schedule,
+    render_schedule: Schedule,
+    late_render_schedule: Schedule,
     accumulated_fixed_time: f32,
     plugins: Vec<Box<dyn Plugin>>,
     plugin_state: PluginsState,
 }
 
 impl App {
-    /// Creates a minimal app with no plugins, resources, or systems.
-    pub fn empty() -> App {
+    pub fn new() -> App {
+        let mut world = World::new();
+        world.init_resource::<Schedules>();
         Self {
             runner: Box::new(runner::run_once),
-            world: World::new(),
-            startup_schedule: ScheduleVariant::default(),
-            update_schedule: ScheduleVariant::default(),
-            fixed_update_schedule: ScheduleVariant::default(),
-            late_update_schedule: ScheduleVariant::default(),
-            late_fixed_update_schedule: ScheduleVariant::default(),
-            render_schedule: ScheduleVariant::default(),
-            late_render_schedule: ScheduleVariant::default(),
+            world,
+            startup_schedule: Schedule::default(),
+            update_schedule: Schedule::default(),
+            fixed_update_schedule: Schedule::default(),
+            late_update_schedule: Schedule::default(),
+            late_fixed_update_schedule: Schedule::default(),
+            render_schedule: Schedule::default(),
+            late_render_schedule: Schedule::default(),
             accumulated_fixed_time: 0.0,
             plugins: Vec::new(),
             plugin_state: PluginsState::Building,
@@ -110,8 +116,9 @@ impl App {
     }
 
     /// Hands control to the configured runner function, consuming the app.
-    pub fn run(self) {
-        let runner = self.runner;
+    pub fn run(mut self) {
+        self.compile_schedules();
+        let runner = std::mem::replace(&mut self.runner, Box::new(run_once));
         (runner)(self);
     }
 
@@ -171,24 +178,31 @@ impl App {
     /// Runs all per-frame schedules: FixedUpdate (as many times as needed), Update,
     /// LateUpdate, Render, LateRender.  Also advances the world tick at the end.
     pub fn update(&mut self) {
-        {
-            let time = self
-                .get_resource::<Time>()
-                .expect("Time resource not found");
+        let time = self
+            .get_resource::<Time>()
+            .expect("Time resource not found");
 
-            let delta_time = time.delta();
-            self.accumulated_fixed_time += delta_time.as_secs_f32();
+        self.accumulated_fixed_time += time.delta().as_secs_f32();
 
-            while self.accumulated_fixed_time >= Time::fixed_delta_time() {
-                self.fixed_update_schedule.run(&mut self.world);
-                self.accumulated_fixed_time -= Time::fixed_delta_time();
-                self.late_fixed_update_schedule.run(&mut self.world);
-            }
+        let schedules = self
+            .remove_resource::<CompiledSchedules>()
+            .expect("Compiled schedules not found!");
+
+        while self.accumulated_fixed_time >= Time::fixed_delta_time() {
+            schedules.fixed_update(&mut self.world);
+            self.accumulated_fixed_time -= Time::fixed_delta_time();
+            // self.fixed_update_schedule.run(&mut self.world);
+            // self.late_fixed_update_schedule.run(&mut self.world);
         }
-        self.update_schedule.run(&mut self.world);
-        self.late_update_schedule.run(&mut self.world);
-        self.render_schedule.run(&mut self.world);
-        self.late_render_schedule.run(&mut self.world);
+
+        schedules.update(&mut self.world);
+
+        self.world.insert_resource(schedules);
+
+        // self.update_schedule.run(&mut self.world);
+        // self.late_update_schedule.run(&mut self.world);
+        // self.render_schedule.run(&mut self.world);
+        // self.late_render_schedule.run(&mut self.world);
         self.world.tick();
     }
 
@@ -230,6 +244,22 @@ impl App {
         }
 
         self.plugin_state = PluginsState::Finished;
-        self.startup_schedule.run(&mut self.world);
+
+        let schedules = self
+            .remove_resource::<CompiledSchedules>()
+            .expect("Compiled schedules not found!");
+
+        schedules.startup(&mut self.world);
+
+        self.insert_resource(schedules);
+    }
+
+    fn compile_schedules(&mut self) {
+        let compiled_schedules = self
+            .remove_resource::<Schedules>()
+            .expect("Schedules resource not found!")
+            .compile();
+
+        self.insert_resource(compiled_schedules);
     }
 }

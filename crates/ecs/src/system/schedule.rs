@@ -7,6 +7,7 @@ use crate::{
         BoxedSystem,
     },
     world::World,
+    Resource,
 };
 use derive_more::{Deref, From};
 use petgraph::graph::NodeIndex;
@@ -74,8 +75,6 @@ impl Schedule {
     }
 
     fn compile_batches(self) -> Vec<ScheduledBatch> {
-
-        
         // Compute in-degree of each node
         // let mut in_degrees = vec![0usize; self.systems.len()];
         // for system_id in &self.system_ids {
@@ -123,49 +122,34 @@ impl Schedule {
         batches
     }
 
-    pub fn compile(self) -> CompiledSchedule
-    {
+    pub fn compile(self) -> CompiledSchedule {
         todo!()
     }
 }
 
-pub struct CompiledSchedule
-{
-
-}
+pub struct CompiledSchedule {}
 
 // No constructor methods here! Get this by compiling a schedule
 impl CompiledSchedule {
-
     // This will likely take an executor as well
-    pub fn run(&self, world: &mut World)
-    {}
+    pub fn run(&self, world: &mut World) {}
 }
 
-pub enum ScheduleVariant {
-    Uncompiled(Schedule),
-    Compiled(CompiledSchedule)
-}
+#[derive(Resource, Default)]
+pub struct Schedules {}
 
-impl Default for ScheduleVariant
-{
-    fn default() -> Self {
-        Self::Uncompiled(Schedule::default())
+impl Schedules {
+    pub fn compile(self) -> CompiledSchedules {
+        CompiledSchedules {}
     }
 }
+#[derive(Resource)]
+pub struct CompiledSchedules {}
 
-impl ScheduleVariant {
-    pub fn run(&mut self, world: &mut World)
-    {
-        match self {
-            Self::Compiled(compiled) => compiled.run(world),
-            Self::Uncompiled(schedule) => {
-                let compiled = std::mem::take(schedule).compile();
-                compiled.run(world);
-                *self = Self::Compiled(compiled);
-            }
-        }
-    }
+impl CompiledSchedules {
+    pub fn startup(&self, world: &mut World) {}
+    pub fn update(&self, world: &mut World) {}
+    pub fn fixed_update(&self, world: &mut World) {}
 }
 
 #[cfg(test)]

@@ -1,20 +1,23 @@
-use std::cmp::max;
-
-use super::{IntoSystem, ScheduledSystem, System};
+use super::IntoSystem;
 use crate::{
-    system::{access::SystemAccess, batch::ScheduledBatch},
+    system::{
+        access::SystemAccess,
+        batch::ScheduledBatch,
+        graph::{SystemDependencyGraph, SystemNode},
+        BoxedSystem,
+    },
     world::World,
 };
 use derive_more::{Deref, From};
-use petgraph::{
-    graph::{DiGraph, NodeIndex},
-    visit::{EdgeRef},
-};
-
-pub(crate) type SystemDependencyGraph = DiGraph<usize, ()>;
+use petgraph::{graph::NodeIndex, visit::EdgeRef};
+use slotmap::{new_key_type, SlotMap};
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Deref, From)]
-pub(crate) struct ScheduledSystemIndex(NodeIndex);
+pub(crate) struct SystemNodeIndex(NodeIndex);
+
+new_key_type! {
+    pub(crate) struct SystemKey;
+}
 
 /// An ordered list of systems that are executed sequentially each time [`run`](Schedule::run) is called.
 ///
@@ -38,9 +41,7 @@ pub(crate) struct ScheduledSystemIndex(NodeIndex);
 #[derive(Default)]
 #[allow(unused)]
 pub struct Schedule {
-    systems: Vec<ScheduledSystem>,
-    cached_access: Vec<SystemAccess>,
-    system_ids: Vec<ScheduledSystemIndex>,
+    system_ids: Vec<SystemNodeIndex>,
     graph: SystemDependencyGraph,
 }
 
@@ -48,8 +49,6 @@ impl Schedule {
     /// Creates an empty schedule.
     pub fn new() -> Schedule {
         Self {
-            systems: Vec::new(),
-            cached_access: Vec::new(),
             system_ids: Vec::new(),
             graph: SystemDependencyGraph::new(),
         }
@@ -64,89 +63,81 @@ impl Schedule {
     /// Prepends a system to the front of the schedule so it runs before all others.
     #[allow(unused)]
     pub fn add_system_first<M>(&mut self, system: impl IntoSystem<M> + 'static) -> &mut Self {
-        self.systems.insert(0, system.into_system());
+        // self.systems.insert(0, system.into_system());
         self
     }
 
     /// Appends an already-boxed [`ScheduledSystem`] to the schedule (builder style).
-    fn add_scheduled_system(&mut self, system: ScheduledSystem) -> &mut Self {
+    fn add_scheduled_system(&mut self, system: BoxedSystem) -> &mut Self {
         let added_system_access = system.access();
-        let added_system_index = self.graph.add_node(self.systems.len()).into();
+        let added_system_index = self.graph.add_node(SystemNode::new(system)).into();
 
         // TODO: System can also have user defined dependencies!
 
         for node_index in &self.system_ids {
             if let Some(other_system) = self.graph.node_weight(**node_index) {
-                let system_access = &self.cached_access[*other_system];
-                if !SystemAccess::are_disjoint(system_access, &added_system_access) {
+                if !SystemAccess::are_disjoint(&added_system_access, &other_system.access()) {
                     self.graph.add_edge(**node_index, added_system_index, ());
                 }
             }
         }
 
-        // Add to the correct batch as we go along?
-
-        self.systems.push(system);
         self.system_ids.push(added_system_index.into());
-        self.cached_access.push(added_system_access);
         self
     }
 
     /// Runs all systems in order against `world`.
     pub fn run(&mut self, world: &mut World) {
-        for system in &mut self.systems {
-            system.run(world.as_unsafe_world_cell_mut());
-        }
+        // for system in &mut self.systems {
+        //     system.run(world.as_unsafe_world_cell_mut());
+        // }
     }
 
     fn compile_batches(&self) -> Vec<ScheduledBatch> {
         // Compute in-degree of each node
-        let mut in_degrees = vec![0usize; self.systems.len()];
-        for system_id in &self.system_ids {
-            for system_edge in self.graph.edges(**system_id) {
-                let system_edge_target = self.graph.node_weight(system_edge.target()).unwrap();
-                in_degrees[*system_edge_target] += 1;
-            }
-        }
+        // let mut in_degrees = vec![0usize; self.systems.len()];
+        // for system_id in &self.system_ids {
+        //     for system_edge in self.graph.edges(**system_id) {
+        //         let system_edge_target = self.graph.node_weight(system_edge.target()).unwrap();
+        //         in_degrees[*system_edge_target] += 1;
+        //     }
+        // }
 
-        let mut ready_queue = Vec::new();
-        for system_index in 0..self.system_ids.len() {
-            if in_degrees[system_index] == 0 {
-                ready_queue.push(system_index);
-            }
-        }
+        // let mut ready_queue = Vec::new();
+        // for system_index in 0..self.system_ids.len() {
+        //     if in_degrees[system_index] == 0 {
+        //         ready_queue.push(system_index);
+        //     }
+        // }
 
         let mut processed_nodes = 0;
         let mut batches = Vec::new();
-        while processed_nodes < self.system_ids.len() {
-            let candidates = ready_queue.drain(..).collect::<Vec<_>>();
-            let mut batch = ScheduledBatch::default();
+        // while processed_nodes < self.system_ids.len() {
+        //     let candidates = ready_queue.drain(..).collect::<Vec<_>>();
+        //     let mut batch = ScheduledBatch::default();
 
-            // Put all the disjoint systems in the same batch. Those that aren't will go on the next one
-            for candidate_index in candidates {
-                let candidate_system_access = &self.cached_access[candidate_index];
-                if batch.is_disjoint_from(candidate_system_access) {
-                    batch.push(candidate_index, candidate_system_access.clone());
+        //     // Put all the disjoint systems in the same batch. Those that aren't will go on the next one
+        //     for candidate_index in candidates {
+        //         let candidate_system_access = &self.cached_access[candidate_index];
+        //         if batch.is_disjoint_from(candidate_system_access) {
+        //             batch.push(candidate_index, candidate_system_access.clone());
 
-                    // Unlock successors of this node
-                    for edge in self
-                        .graph
-                        .edges(*self.system_ids[candidate_index])
-                    {
-                        let successor = self.graph.node_weight(edge.target()).unwrap();
-                        in_degrees[*successor] -= 1;
-                        // In Degree zero: this node is ready to be added to the next batch
-                        if in_degrees[*successor] == 0 {
-                            ready_queue.push(*successor);
-                        }
-                    }
-                    processed_nodes += 1;
-                } else {
-                    unreachable!("This should never happen wtf");
-                }
-            }
-            batches.push(batch);
-        }
+        //             // Unlock successors of this node
+        //             for edge in self.graph.edges(*self.system_ids[candidate_index]) {
+        //                 let successor = self.graph.node_weight(edge.target()).unwrap();
+        //                 in_degrees[*successor] -= 1;
+        //                 // In Degree zero: this node is ready to be added to the next batch
+        //                 if in_degrees[*successor] == 0 {
+        //                     ready_queue.push(*successor);
+        //                 }
+        //             }
+        //             processed_nodes += 1;
+        //         } else {
+        //             unreachable!("This should never happen wtf");
+        //         }
+        //     }
+        //     batches.push(batch);
+        // }
         batches
     }
 }
@@ -160,7 +151,7 @@ mod tests {
     #[test]
     fn schedule_new() {
         let schedule = Schedule::new();
-        assert_eq!(schedule.systems.len(), 0);
+        assert_eq!(schedule.graph.node_count(), 2);
         assert_eq!(schedule.system_ids.len(), 0);
     }
 
@@ -169,7 +160,7 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(|| {}).add_system(|| {});
 
-        assert_eq!(schedule.systems.len(), 2);
+        assert_eq!(schedule.graph.node_count(), 2);
         assert_eq!(schedule.system_ids.len(), 2);
     }
 
@@ -189,7 +180,7 @@ mod tests {
             .add_system(|| {})
             .add_system(|| {});
 
-        assert_eq!(schedule.systems.len(), 3);
+        assert_eq!(schedule.graph.node_count(), 3);
         assert_eq!(schedule.system_ids.len(), 3);
         assert_eq!(schedule.graph.node_count(), 3);
     }

@@ -118,27 +118,15 @@ pub(crate) fn setup_animations(
             };
 
             let mut anim_graph = AnimationGraph::new();
-            let mut idle_graph = AnimationGraph::new();
-            let mut walk_graph = AnimationGraph::new();
-
-            idle_graph.add_node(
-                AnimationClipNode::new(anim_store.idle.clone()),
-                *idle_graph.root(),
-            );
-
-            walk_graph.add_node(
-                AnimationClipNode::new(anim_store.walk.clone()),
-                *walk_graph.root(),
-            );
 
             let states_definition = vec![
                 AnimationFSMStateDefinition {
                     name: "idle",
-                    graph: asset_server.add(idle_graph),
+                    graph: asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
                 },
                 AnimationFSMStateDefinition {
                     name: "walk",
-                    graph: asset_server.add(walk_graph),
+                    graph: asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
                 },
             ];
 

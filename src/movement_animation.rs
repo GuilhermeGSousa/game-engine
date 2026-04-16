@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use animation::{
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeIndex},
-    node::AnimationClipNode,
     player::{AnimationHandleComponent, AnimationPlayer},
     state_machine::{
         AnimationFSMStateDefinition, AnimationFSMTrigger, AnimationFSMVariableType,
@@ -118,70 +117,26 @@ pub(crate) fn setup_animations(
             };
 
             let mut anim_graph = AnimationGraph::new();
-            let mut idle_graph = AnimationGraph::new();
-            let mut walk_graph = AnimationGraph::new();
 
-            idle_graph.add_node(
-                AnimationClipNode::new(anim_store.idle.clone()),
-                *idle_graph.root(),
-            );
-
-            walk_graph.add_node(
-                AnimationClipNode::new(anim_store.walk.clone()),
-                *walk_graph.root(),
-            );
-
-            let states_definition = vec![
-                AnimationFSMStateDefinition {
-                    name: "idle",
-                    graph: asset_server.add(idle_graph),
+            let anim_fsm = AnimationStateMachine::from_initial_state(
+                "idle",
+                asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
+                |transition| {
+                    transition.to("walk", AnimationFSMTrigger::on_bool("has_moved", true), 0.5);
                 },
-                AnimationFSMStateDefinition {
-                    name: "walk",
-                    graph: asset_server.add(walk_graph),
+            )
+            .state(
+                "walk",
+                asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
+                |transition| {
+                    transition.to(
+                        "idle",
+                        AnimationFSMTrigger::on_bool("has_moved", false),
+                        0.5,
+                    );
                 },
-            ];
-
-            let transitions_definition = HashMap::from([
-                (
-                    "idle",
-                    vec![AnimationStateMachineTransitionDefinition {
-                        target_state: "walk",
-                        trigger: AnimationFSMTrigger::from_condition(|params| {
-                            params
-                                .get("has_moved")
-                                .map(|param| match param {
-                                    animation::state_machine::AnimationFSMVariableType::Bool(
-                                        val,
-                                    ) => *val,
-                                    _ => false,
-                                })
-                                .unwrap_or(false)
-                        }),
-                        transition_time: 0.5,
-                    }],
-                ),
-                (
-                    "walk",
-                    vec![AnimationStateMachineTransitionDefinition {
-                        target_state: "idle",
-                        trigger: AnimationFSMTrigger::from_condition(|params| {
-                            params
-                                .get("has_moved")
-                                .map(|param| match param {
-                                    animation::state_machine::AnimationFSMVariableType::Bool(
-                                        val,
-                                    ) => !*val,
-                                    _ => false,
-                                })
-                                .unwrap_or(false)
-                        }),
-                        transition_time: 0.5,
-                    }],
-                ),
-            ]);
-            let anim_fsm =
-                AnimationStateMachine::new("idle", states_definition, transitions_definition);
+            )
+            .build();
 
             let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
 
@@ -191,7 +146,6 @@ pub(crate) fn setup_animations(
                 },
                 entity,
             );
-
             cmd.insert(AnimationFSMData { fsm_node }, entity);
         }
     }

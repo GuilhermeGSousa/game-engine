@@ -140,9 +140,19 @@ impl AnimationStateMachine {
         }
     }
 
-    pub fn builder() -> UninitializedAnimationStateMachineBuilder
-    { 
-        todo!()
+    pub fn from_initial_state(
+        state_name: &str,
+        state_graph: AssetHandle<AnimationGraph>,
+        f: impl FnOnce(&mut TransitionBuilder),
+    ) -> AnimationStateMachineBuilder {
+        let mut builder = AnimationStateMachineBuilder {
+            initial_state: state_name.to_string(),
+            states: vec![FSMStateEntry { name: state_name.to_string(), graph: state_graph }],
+            transitions: Vec::new(),
+        };
+        let mut tb = TransitionBuilder { builder: &mut builder, from: state_name.to_string() };
+        f(&mut tb);
+        builder
     }
 
     pub(crate) fn get_state_transitions(
@@ -256,41 +266,92 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
     }
 }
 
-pub struct UninitializedAnimationStateMachineBuilder {
+
+struct FSMStateEntry {
+    name: String,
+    graph: AssetHandle<AnimationGraph>,
 }
 
-impl UninitializedAnimationStateMachineBuilder {
-    
-    pub fn initial_state(mut self, state_name: &str, state_graph: AssetHandle<AnimationGraph>, f: impl FnOnce(&mut TransitionBuilder)) -> AnimationStateMachineBuilder {
-        todo!()
-    }
-
+struct FSMTransitionEntry {
+    from: String,
+    to: String,
+    trigger: AnimationFSMTrigger,
+    transition_time: f32,
 }
 
 pub struct AnimationStateMachineBuilder {
+    initial_state: String,
+    states: Vec<FSMStateEntry>,
+    transitions: Vec<FSMTransitionEntry>,
 }
 
 impl AnimationStateMachineBuilder {
-    
-    pub fn state(mut self, state_name: &str, state_graph: AssetHandle<AnimationGraph>, f: impl FnOnce(&mut TransitionBuilder)) -> Self {
-        todo!();
+    pub fn state(
+        mut self,
+        state_name: &str,
+        state_graph: AssetHandle<AnimationGraph>,
+        f: impl FnOnce(&mut TransitionBuilder),
+    ) -> Self {
+        self.states.push(FSMStateEntry { name: state_name.to_string(), graph: state_graph });
+        let mut tb = TransitionBuilder { builder: &mut self, from: state_name.to_string() };
+        f(&mut tb);
         self
     }
 
     pub fn build(self) -> AnimationStateMachine {
-        todo!()
+        let mut name_to_index: HashMap<String, StateId> = HashMap::new();
+        let mut states = Vec::new();
+        let mut transitions: Vec<Vec<AnimationStateMachineTransition>> = Vec::new();
+
+        for (index, entry) in self.states.into_iter().enumerate() {
+            name_to_index.insert(entry.name, index.into());
+            states.push(AnimationFSMState { graph: entry.graph });
+            transitions.push(Vec::new());
+        }
+
+        for entry in self.transitions {
+            let Some(&from_index) = name_to_index.get(&entry.from) else {
+                continue;
+            };
+            let target_index = name_to_index.get(&entry.to).copied().unwrap_or(0.into());
+            transitions[*from_index].push(AnimationStateMachineTransition {
+                next_state: target_index,
+                trigger: entry.trigger,
+                transition_time: entry.transition_time,
+            });
+        }
+
+        let initial_state = name_to_index
+            .get(&self.initial_state)
+            .copied()
+            .unwrap_or(0.into());
+
+        AnimationStateMachine {
+            initial_state,
+            states,
+            transitions,
+        }
     }
 }
 
-pub struct TransitionBuilder
-{
-
+pub struct TransitionBuilder<'a> {
+    builder: &'a mut AnimationStateMachineBuilder,
+    from: String,
 }
 
-impl TransitionBuilder {
-    
-    pub fn to(&mut self, state_name: &str, trigger: AnimationFSMTrigger, transition_time: f32) -> &mut Self
-    {
+impl TransitionBuilder<'_> {
+    pub fn to(
+        &mut self,
+        state_name: &str,
+        trigger: AnimationFSMTrigger,
+        transition_time: f32,
+    ) -> &mut Self {
+        self.builder.transitions.push(FSMTransitionEntry {
+            from: self.from.clone(),
+            to: state_name.to_string(),
+            trigger,
+            transition_time,
+        });
         self
     }
 }

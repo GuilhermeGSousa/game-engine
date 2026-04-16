@@ -118,40 +118,7 @@ pub(crate) fn setup_animations(
 
             let mut anim_graph = AnimationGraph::new();
 
-            let states_definition = vec![
-                AnimationFSMStateDefinition {
-                    name: "idle",
-                    graph: asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
-                },
-                AnimationFSMStateDefinition {
-                    name: "walk",
-                    graph: asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
-                },
-            ];
-
-            let transitions_definition = HashMap::from([
-                (
-                    "idle",
-                    vec![AnimationStateMachineTransitionDefinition {
-                        target_state: "walk",
-                        trigger: AnimationFSMTrigger::on_bool("has_moved", true),
-                        transition_time: 0.5,
-                    }],
-                ),
-                (
-                    "walk",
-                    vec![AnimationStateMachineTransitionDefinition {
-                        target_state: "idle",
-                        trigger: AnimationFSMTrigger::on_bool("has_moved", false),
-                        transition_time: 0.5,
-                    }],
-                ),
-            ]);
-            let anim_fsm =
-                AnimationStateMachine::new("idle", states_definition, transitions_definition);
-
-            let fsm = AnimationStateMachine::builder()
-                .initial_state(
+            let anim_fsm = AnimationStateMachine::from_initial_state(
                     "idle",
                     asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
                     |t| {

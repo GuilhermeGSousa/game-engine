@@ -43,6 +43,22 @@ impl AnimationFSMTrigger {
     {
         Self::Condition(Arc::new(condition))
     }
+
+    pub fn on_bool<P>(param_name: P, cond: bool) -> Self
+    where
+        P: Into<String> + Eq + std::hash::Hash + Send + Sync + 'static,
+    {
+        let param_name = param_name.into();
+        AnimationFSMTrigger::from_condition(move |params| {
+            params
+                .get(&param_name)
+                .map(|param| match param {
+                    AnimationFSMVariableType::Bool(val) => *val == cond,
+                    _ => false,
+                })
+                .unwrap_or(false)
+        })
+    }
 }
 
 pub struct AnimationStateMachineTransitionDefinition<'a> {
@@ -191,7 +207,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
             return;
         };
 
-        // Right now, we do not support transitioning states is a transition is ongoing
+        // Right now, we do not support transitioning states if a transition is ongoing
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
@@ -232,5 +248,27 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
     ) -> Transform {
         self.blend_stack
             .sample(target, &self.state_graph_instances, context)
+    }
+}
+
+pub struct AnimationStateMachineBuilder<'a> {
+    graph: &'a mut AnimationGraph,
+}
+
+impl<'a> AnimationStateMachineBuilder<'a> {
+    pub fn new(graph: &'a mut AnimationGraph) -> Self {
+        Self { graph }
+    }
+
+    pub fn state(mut self, state_name: String) -> Self {
+        self
+    }
+
+    pub fn transition(mut self) -> Self {
+        self
+    }
+
+    pub fn build(self) -> AnimationStateMachine {
+        todo!()
     }
 }

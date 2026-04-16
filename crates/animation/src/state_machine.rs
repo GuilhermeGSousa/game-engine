@@ -147,10 +147,16 @@ impl AnimationStateMachine {
     ) -> AnimationStateMachineBuilder {
         let mut builder = AnimationStateMachineBuilder {
             initial_state: state_name.to_string(),
-            states: vec![FSMStateEntry { name: state_name.to_string(), graph: state_graph }],
+            states: vec![FSMStateEntry {
+                name: state_name.to_string(),
+                graph: state_graph,
+            }],
             transitions: Vec::new(),
         };
-        let mut tb = TransitionBuilder { builder: &mut builder, from: state_name.to_string() };
+        let mut tb = TransitionBuilder {
+            builder: &mut builder,
+            from: state_name.to_string(),
+        };
         f(&mut tb);
         builder
     }
@@ -266,7 +272,6 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
     }
 }
 
-
 struct FSMStateEntry {
     name: String,
     graph: AssetHandle<AnimationGraph>,
@@ -292,8 +297,14 @@ impl AnimationStateMachineBuilder {
         state_graph: AssetHandle<AnimationGraph>,
         f: impl FnOnce(&mut TransitionBuilder),
     ) -> Self {
-        self.states.push(FSMStateEntry { name: state_name.to_string(), graph: state_graph });
-        let mut tb = TransitionBuilder { builder: &mut self, from: state_name.to_string() };
+        self.states.push(FSMStateEntry {
+            name: state_name.to_string(),
+            graph: state_graph,
+        });
+        let mut tb = TransitionBuilder {
+            builder: &mut self,
+            from: state_name.to_string(),
+        };
         f(&mut tb);
         self
     }

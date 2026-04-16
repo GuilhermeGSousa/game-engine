@@ -12,7 +12,15 @@ use petgraph::{
 };
 
 use crate::{
-    clip::AnimationClip, evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode}, node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode, AnimationStateMachineNode}, player::ActiveNodeInstance, state_machine::AnimationStateMachine, target::AnimationTarget
+    clip::AnimationClip,
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode},
+    node::{
+        AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode,
+        AnimationStateMachineNode,
+    },
+    player::ActiveNodeInstance,
+    state_machine::AnimationStateMachine,
+    target::AnimationTarget,
 };
 
 type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
@@ -51,13 +59,11 @@ impl AnimationGraph {
         }
     }
 
-    pub fn from_clip(clip: AssetHandle<AnimationClip>) -> Self
-    {
+    pub fn from_clip(clip: AssetHandle<AnimationClip>) -> Self {
         let mut graph = Self::new();
         graph.add_node(AnimationClipNode::new(clip), *graph.root());
         graph
     }
-
 
     pub fn add_node<T: AnimationNode + 'static>(
         &mut self,

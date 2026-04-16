@@ -119,24 +119,24 @@ pub(crate) fn setup_animations(
             let mut anim_graph = AnimationGraph::new();
 
             let anim_fsm = AnimationStateMachine::from_initial_state(
-                    "idle",
-                    asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
-                    |t| {
-                        t.to("walk", AnimationFSMTrigger::on_bool("has_moved", true), 0.5);
-                    },
-                )
-                .state(
-                    "walk",
-                    asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
-                    |t| {
-                        t.to(
-                            "idle",
-                            AnimationFSMTrigger::on_bool("has_moved", false),
-                            0.5,
-                        );
-                    },
-                )
-                .build();
+                "idle",
+                asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
+                |transition| {
+                    transition.to("walk", AnimationFSMTrigger::on_bool("has_moved", true), 0.5);
+                },
+            )
+            .state(
+                "walk",
+                asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
+                |transition| {
+                    transition.to(
+                        "idle",
+                        AnimationFSMTrigger::on_bool("has_moved", false),
+                        0.5,
+                    );
+                },
+            )
+            .build();
 
             let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
 

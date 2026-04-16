@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use animation::{
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeIndex},
-    node::AnimationClipNode,
     player::{AnimationHandleComponent, AnimationPlayer},
     state_machine::{
         AnimationFSMStateDefinition, AnimationFSMTrigger, AnimationFSMVariableType,
@@ -150,6 +149,27 @@ pub(crate) fn setup_animations(
             ]);
             let anim_fsm =
                 AnimationStateMachine::new("idle", states_definition, transitions_definition);
+
+            let fsm = AnimationStateMachine::builder()
+                .initial_state(
+                    "idle",
+                    asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
+                    |t| {
+                        t.to("walk", AnimationFSMTrigger::on_bool("has_moved", true), 0.5);
+                    },
+                )
+                .state(
+                    "walk",
+                    asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
+                    |t| {
+                        t.to(
+                            "idle",
+                            AnimationFSMTrigger::on_bool("has_moved", false),
+                            0.5,
+                        );
+                    },
+                )
+                .build();
 
             let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
 

@@ -140,6 +140,11 @@ impl AnimationStateMachine {
         }
     }
 
+    pub fn builder() -> UninitializedAnimationStateMachineBuilder
+    { 
+        todo!()
+    }
+
     pub(crate) fn get_state_transitions(
         &self,
         state_index: StateId,
@@ -251,24 +256,41 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
     }
 }
 
-pub struct AnimationStateMachineBuilder<'a> {
-    graph: &'a mut AnimationGraph,
+pub struct UninitializedAnimationStateMachineBuilder {
 }
 
-impl<'a> AnimationStateMachineBuilder<'a> {
-    pub fn new(graph: &'a mut AnimationGraph) -> Self {
-        Self { graph }
+impl UninitializedAnimationStateMachineBuilder {
+    
+    pub fn initial_state(mut self, state_name: &str, state_graph: AssetHandle<AnimationGraph>, f: impl FnOnce(&mut TransitionBuilder)) -> AnimationStateMachineBuilder {
+        todo!()
     }
 
-    pub fn state(mut self, state_name: String) -> Self {
-        self
-    }
+}
 
-    pub fn transition(mut self) -> Self {
+pub struct AnimationStateMachineBuilder {
+}
+
+impl AnimationStateMachineBuilder {
+    
+    pub fn state(mut self, state_name: &str, state_graph: AssetHandle<AnimationGraph>, f: impl FnOnce(&mut TransitionBuilder)) -> Self {
+        todo!();
         self
     }
 
     pub fn build(self) -> AnimationStateMachine {
         todo!()
+    }
+}
+
+pub struct TransitionBuilder
+{
+
+}
+
+impl TransitionBuilder {
+    
+    pub fn to(&mut self, state_name: &str, trigger: AnimationFSMTrigger, transition_time: f32) -> &mut Self
+    {
+        self
     }
 }

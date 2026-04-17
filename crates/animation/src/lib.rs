@@ -1,3 +1,4 @@
+pub mod blend_space;
 pub mod clip;
 pub mod evaluation;
 pub mod graph;

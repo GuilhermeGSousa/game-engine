@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use animation::{
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeIndex},
     player::{AnimationHandleComponent, AnimationPlayer},
     state_machine::{
-        AnimationFSMStateDefinition, AnimationFSMTrigger, AnimationFSMVariableType,
-        AnimationStateMachine, AnimationStateMachineTransitionDefinition,
+        AnimationFSMTrigger, AnimationFSMVariableType,
+        AnimationStateMachine,
     },
 };
 use ecs::{

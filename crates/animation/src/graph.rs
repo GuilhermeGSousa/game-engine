@@ -16,10 +16,8 @@ use crate::{
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode},
     node::{
         AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode,
-        AnimationStateMachineNode,
     },
     player::ActiveNodeInstance,
-    state_machine::AnimationStateMachine,
     target::AnimationTarget,
 };
 

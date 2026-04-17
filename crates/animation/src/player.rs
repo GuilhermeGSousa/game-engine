@@ -2,9 +2,11 @@ use std::ops::Deref;
 
 use ecs::component::Component;
 use essential::assets::handle::AssetHandle;
+use glam::Vec2;
 use log::info;
 
 use crate::{
+    blend_space::{BlendSpace1DNodeInstance, BlendSpace2DNodeInstance},
     evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
@@ -61,6 +63,18 @@ impl AnimationPlayer {
         };
 
         fsm_instance.set_param(param_name.into(), param_value);
+    }
+
+    pub fn set_blend_space_1d_value(&mut self, node_index: &AnimationNodeIndex, value: f32) {
+        if let Some(instance) = self.graph_instance.get_instance_mut::<BlendSpace1DNodeInstance>(node_index) {
+            instance.value = value;
+        }
+    }
+
+    pub fn set_blend_space_2d_value(&mut self, node_index: &AnimationNodeIndex, value: Vec2) {
+        if let Some(instance) = self.graph_instance.get_instance_mut::<BlendSpace2DNodeInstance>(node_index) {
+            instance.value = value;
+        }
     }
 
     pub(crate) fn initialize_graph(

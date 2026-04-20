@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use essential::utils::AsAny;
+use essential::{blend::Blendable, transform::Transform, utils::AsAny};
 use glam::Vec2;
 
 use crate::{
@@ -9,11 +9,8 @@ use crate::{
     target::AnimationTarget,
 };
 
-
 #[derive(AsAny, Default)]
-pub struct BlendNode
-{
-}
+pub struct BlendNode {}
 
 impl AnimationNode for BlendNode {
     fn create_instance(
@@ -25,40 +22,52 @@ impl AnimationNode for BlendNode {
 }
 
 #[derive(AsAny, Default)]
-pub struct BlendNodeInstance
-{
-}
+pub struct BlendNodeInstance {}
 
 impl AnimationNodeInstance for BlendNodeInstance {
-    fn reset(&mut self) {
-        
-    }
+    fn reset(&mut self) {}
 
     fn evaluate(
         &self,
-        node: &dyn AnimationNode,
-        target: &AnimationTarget,
+        _node: &dyn AnimationNode,
+        _target: &AnimationTarget,
         evaluated_inputs: &[crate::evaluation::EvaluatedNode],
-        context: &AnimationGraphContext<'_>,
+        _context: &AnimationGraphContext<'_>,
     ) -> essential::transform::Transform {
-        todo!()
+        let Some(first_input) = evaluated_inputs.first() else {
+            return Transform::IDENTITY;
+        };
+
+        let mut result = first_input.transform.clone();
+        let mut accumulated_input = first_input.weight;
+
+        for input in &evaluated_inputs[1..] {
+            accumulated_input += input.weight;
+
+            if accumulated_input.abs() <= f32::EPSILON {
+                continue;
+            }
+            result = Transform::interpolate(
+                result,
+                input.transform.clone(),
+                input.weight / accumulated_input,
+            );
+        }
+
+        result
     }
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
-        delta_time: f32,
-        context: &AnimationGraphContext<'_>,
+        _node: &dyn AnimationNode,
+        _delta_time: f32,
+        _context: &AnimationGraphContext<'_>,
     ) {
-        
     }
 }
 
 #[derive(AsAny, Default)]
-pub struct BlendSpace1DNode
-{
-    
-}
+pub struct BlendSpace1DNode {}
 
 impl AnimationNode for BlendSpace1DNode {
     fn create_instance(
@@ -70,40 +79,46 @@ impl AnimationNode for BlendSpace1DNode {
 }
 
 #[derive(AsAny, Default)]
-pub struct BlendSpace1DNodeInstance
-{
+pub struct BlendSpace1DNodeInstance {
     pub(crate) value: f32,
 }
 
 impl AnimationNodeInstance for BlendSpace1DNodeInstance {
-    fn reset(&mut self) {
-        todo!()
-    }
+    fn reset(&mut self) {}
 
     fn evaluate(
         &self,
-        node: &dyn AnimationNode,
-        target: &crate::target::AnimationTarget,
+        _node: &dyn AnimationNode,
+        _target: &crate::target::AnimationTarget,
         evaluated_inputs: &[crate::evaluation::EvaluatedNode],
-        context: &crate::evaluation::AnimationGraphContext<'_>,
+        _context: &crate::evaluation::AnimationGraphContext<'_>,
     ) -> essential::transform::Transform {
-        todo!()
+        let Some(first_input) = evaluated_inputs.first() else {
+            return Transform::IDENTITY;
+        };
+
+        let Some(second_input) = evaluated_inputs.get(1) else {
+            return Transform::IDENTITY;
+        };
+
+        Transform::interpolate(
+            first_input.transform.clone(),
+            second_input.transform.clone(),
+            self.value.clamp(0.0, 1.0),
+        )
     }
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
-        delta_time: f32,
-        context: &crate::evaluation::AnimationGraphContext<'_>,
+        _node: &dyn AnimationNode,
+        _delta_time: f32,
+        _context: &AnimationGraphContext<'_>,
     ) {
-        todo!()
     }
 }
 
 #[derive(AsAny)]
-pub struct BlendSpace2DNode
-{
-}
+pub struct BlendSpace2DNode {}
 
 impl AnimationNode for BlendSpace2DNode {
     fn create_instance(
@@ -115,15 +130,12 @@ impl AnimationNode for BlendSpace2DNode {
 }
 
 #[derive(AsAny, Default)]
-pub struct BlendSpace2DNodeInstance
-{
-    pub(crate) value: Vec2
+pub struct BlendSpace2DNodeInstance {
+    pub(crate) value: Vec2,
 }
 
 impl AnimationNodeInstance for BlendSpace2DNodeInstance {
-    fn reset(&mut self) {
-        todo!()
-    }
+    fn reset(&mut self) {}
 
     fn evaluate(
         &self,
@@ -137,10 +149,9 @@ impl AnimationNodeInstance for BlendSpace2DNodeInstance {
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
-        delta_time: f32,
-        context: &crate::evaluation::AnimationGraphContext<'_>,
+        _node: &dyn AnimationNode,
+        _delta_time: f32,
+        _context: &AnimationGraphContext<'_>,
     ) {
-        todo!()
     }
 }

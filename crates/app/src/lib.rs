@@ -5,7 +5,10 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::schedule::{CompiledSchedules, Schedules, UpdateGroup},
+    system::{
+        executor::single_thread::SingleThreadedExecutor,
+        schedule::{CompiledSchedules, Schedules, UpdateGroup},
+    },
     world::World,
     IntoSystemConfig,
 };
@@ -231,7 +234,7 @@ impl App {
         let compiled_schedules = self
             .remove_resource::<Schedules>()
             .expect("Schedules resource not found!")
-            .compile();
+            .compile::<SingleThreadedExecutor>();
 
         self.insert_resource(compiled_schedules);
     }

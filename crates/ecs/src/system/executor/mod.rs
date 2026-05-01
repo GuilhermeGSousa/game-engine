@@ -1,15 +1,20 @@
-use petgraph::graph::NodeIndex;
+use crate::{
+    system::{graph::SystemDependencyGraph, schedule::CompiledScheduleData},
+    World,
+};
 
-use crate::{system::graph::SystemDependencyGraph, World};
-
-pub(crate) mod multi_thread;
-pub(crate) mod single_thread;
+pub mod multi_thread;
+pub mod single_thread;
 
 pub trait SystemExecutor: Send + Sync {
+    fn init() -> Self
+    where
+        Self: Sized;
+
     fn run(
         &self,
         graph: &mut SystemDependencyGraph,
-        sorted_systems: &[NodeIndex],
+        compiled_data: &CompiledScheduleData,
         world: &mut World,
     );
 }

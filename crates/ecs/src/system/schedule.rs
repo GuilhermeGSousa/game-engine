@@ -110,13 +110,15 @@ impl Schedule {
         node_idx
     }
 
-    pub fn compile(self) -> CompiledSchedule {
-        let sorted_systems =
-            toposort(&self.graph, None).expect("Cycle detected in schedule — check your .after()/.before() constraints");
+    pub fn compile<T: SystemExecutor + 'static>(self) -> CompiledSchedule {
+        let sorted_systems = toposort(&self.graph, None)
+            .expect("Cycle detected in schedule — check your .after()/.before() constraints");
+
+        let compiled_data = CompiledScheduleData { sorted_systems };
 
         CompiledSchedule {
-            executor: Box::new(SingleThreadedExecutor {}),
-            sorted_systems,
+            executor: Box::new(T::init()),
+            compiled_data,
             graph: self.graph,
         }
     }
@@ -124,7 +126,7 @@ impl Schedule {
 
 pub struct CompiledSchedule {
     executor: Box<dyn SystemExecutor>,
-    sorted_systems: Vec<NodeIndex>,
+    compiled_data: CompiledScheduleData,
     graph: SystemDependencyGraph,
 }
 
@@ -132,8 +134,13 @@ pub struct CompiledSchedule {
 impl CompiledSchedule {
     pub fn run(&mut self, world: &mut World) {
         self.executor
-            .run(&mut self.graph, &self.sorted_systems, world);
+            .run(&mut self.graph, &self.compiled_data, world);
     }
+}
+
+pub struct CompiledScheduleData {
+    // Topologically sorted system indices
+    pub sorted_systems: Vec<NodeIndex>,
 }
 
 /// Identifies which phase of the per-frame update loop a system belongs to.
@@ -197,15 +204,15 @@ impl Schedules {
         };
     }
 
-    pub fn compile(self) -> CompiledSchedules {
+    pub fn compile<T: SystemExecutor + 'static>(self) -> CompiledSchedules {
         CompiledSchedules {
-            startup_schedule: self.startup_schedule.compile(),
-            update_schedule: self.update_schedule.compile(),
-            fixed_update_schedule: self.fixed_update_schedule.compile(),
-            late_update_schedule: self.late_update_schedule.compile(),
-            late_fixed_update_schedule: self.late_fixed_update_schedule.compile(),
-            render_schedule: self.render_schedule.compile(),
-            late_render_schedule: self.late_render_schedule.compile(),
+            startup_schedule: self.startup_schedule.compile::<T>(),
+            update_schedule: self.update_schedule.compile::<T>(),
+            fixed_update_schedule: self.fixed_update_schedule.compile::<T>(),
+            late_update_schedule: self.late_update_schedule.compile::<T>(),
+            late_fixed_update_schedule: self.late_fixed_update_schedule.compile::<T>(),
+            render_schedule: self.render_schedule.compile::<T>(),
+            late_render_schedule: self.late_render_schedule.compile::<T>(),
         }
     }
 }
@@ -291,11 +298,13 @@ mod tests {
     fn compile_and_run() {
         let mut schedule = Schedule::new();
         schedule
-            .add_system(|| { print!("First") })
-            .add_system(|| { print!("First") })
-            .add_system(|| { print!("First") });
+            .add_system(|| print!("First"))
+            .add_system(|| print!("First"))
+            .add_system(|| print!("First"));
 
-        schedule.compile().run(&mut World::new());
+        schedule
+            .compile::<SingleThreadedExecutor>()
+            .run(&mut World::new());
     }
 
     // ── Graph structure tests ─────────────────────────────────────────────────
@@ -327,7 +336,9 @@ mod tests {
         // dep is registered first → NodeIndex(0); main second → NodeIndex(1).
         // The explicit ordering edge must run dep before main: 0 → 1.
         assert_eq!(schedule.graph.edge_count(), 1);
-        assert!(schedule.graph.contains_edge(NodeIndex::new(0), NodeIndex::new(1)));
+        assert!(schedule
+            .graph
+            .contains_edge(NodeIndex::new(0), NodeIndex::new(1)));
     }
 
     #[test]
@@ -354,7 +365,9 @@ mod tests {
         // main is registered second → NodeIndex(1).
         // The explicit ordering edge must run main before dep: 1 → 0.
         assert_eq!(schedule.graph.edge_count(), 1);
-        assert!(schedule.graph.contains_edge(NodeIndex::new(1), NodeIndex::new(0)));
+        assert!(schedule
+            .graph
+            .contains_edge(NodeIndex::new(1), NodeIndex::new(0)));
     }
 
     #[test]
@@ -373,8 +386,12 @@ mod tests {
 
         assert_eq!(schedule.graph.node_count(), 3);
         assert_eq!(schedule.graph.edge_count(), 2);
-        assert!(schedule.graph.contains_edge(NodeIndex::new(0), NodeIndex::new(2))); // a → b
-        assert!(schedule.graph.contains_edge(NodeIndex::new(2), NodeIndex::new(1))); // b → c
+        assert!(schedule
+            .graph
+            .contains_edge(NodeIndex::new(0), NodeIndex::new(2))); // a → b
+        assert!(schedule
+            .graph
+            .contains_edge(NodeIndex::new(2), NodeIndex::new(1))); // b → c
     }
 
     #[test]
@@ -391,8 +408,12 @@ mod tests {
 
         assert_eq!(schedule.graph.node_count(), 3);
         assert_eq!(schedule.graph.edge_count(), 2);
-        assert!(schedule.graph.contains_edge(NodeIndex::new(0), NodeIndex::new(1)));
-        assert!(schedule.graph.contains_edge(NodeIndex::new(1), NodeIndex::new(2)));
+        assert!(schedule
+            .graph
+            .contains_edge(NodeIndex::new(0), NodeIndex::new(1)));
+        assert!(schedule
+            .graph
+            .contains_edge(NodeIndex::new(1), NodeIndex::new(2)));
     }
 
     // ── Runtime execution-order tests ─────────────────────────────────────────
@@ -417,8 +438,12 @@ mod tests {
 
     #[test]
     fn after_dep_runs_before_main_at_runtime() {
-        fn push_1(log: Res<ExecLog>) { log.0.lock().unwrap().push(1); }
-        fn push_2(log: Res<ExecLog>) { log.0.lock().unwrap().push(2); }
+        fn push_1(log: Res<ExecLog>) {
+            log.0.lock().unwrap().push(1);
+        }
+        fn push_2(log: Res<ExecLog>) {
+            log.0.lock().unwrap().push(2);
+        }
 
         let shared = Arc::new(Mutex::new(Vec::<u8>::new()));
         let mut world = World::new();
@@ -427,15 +452,19 @@ mod tests {
         let mut schedule = Schedule::new();
         // push_2 must run after push_1
         schedule.add_system(push_2.after(push_1));
-        schedule.compile().run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2]);
     }
 
     #[test]
     fn before_main_runs_before_dep_at_runtime() {
-        fn push_1(log: Res<ExecLog>) { log.0.lock().unwrap().push(1); }
-        fn push_2(log: Res<ExecLog>) { log.0.lock().unwrap().push(2); }
+        fn push_1(log: Res<ExecLog>) {
+            log.0.lock().unwrap().push(1);
+        }
+        fn push_2(log: Res<ExecLog>) {
+            log.0.lock().unwrap().push(2);
+        }
 
         let shared = Arc::new(Mutex::new(Vec::<u8>::new()));
         let mut world = World::new();
@@ -447,16 +476,22 @@ mod tests {
         // then push_1 (main → NodeIndex 1).  Insertion order would run
         // push_2 first — only the toposort fix produces the correct [1, 2] result.
         schedule.add_system(push_1.before(push_2));
-        schedule.compile().run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2]);
     }
 
     #[test]
     fn nested_chain_runs_in_correct_order() {
-        fn push_1(log: Res<ExecLog>) { log.0.lock().unwrap().push(1); }
-        fn push_2(log: Res<ExecLog>) { log.0.lock().unwrap().push(2); }
-        fn push_3(log: Res<ExecLog>) { log.0.lock().unwrap().push(3); }
+        fn push_1(log: Res<ExecLog>) {
+            log.0.lock().unwrap().push(1);
+        }
+        fn push_2(log: Res<ExecLog>) {
+            log.0.lock().unwrap().push(2);
+        }
+        fn push_3(log: Res<ExecLog>) {
+            log.0.lock().unwrap().push(3);
+        }
 
         let shared = Arc::new(Mutex::new(Vec::<u8>::new()));
         let mut world = World::new();
@@ -465,7 +500,7 @@ mod tests {
         let mut schedule = Schedule::new();
         // push_3.after(push_2.after(push_1)):  1 → 2 → 3
         schedule.add_system(push_3.after(push_2.after(push_1)));
-        schedule.compile().run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2, 3]);
     }

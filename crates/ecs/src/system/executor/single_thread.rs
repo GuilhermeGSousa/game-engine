@@ -1,20 +1,29 @@
 use petgraph::graph::NodeIndex;
 
 use crate::{
-    system::{executor::SystemExecutor, graph::SystemDependencyGraph},
+    system::{
+        executor::SystemExecutor, graph::SystemDependencyGraph, schedule::CompiledScheduleData,
+    },
     World,
 };
 
 pub struct SingleThreadedExecutor {}
 
 impl SystemExecutor for SingleThreadedExecutor {
+    fn init() -> Self
+    where
+        Self: Sized,
+    {
+        Self {}
+    }
+
     fn run(
         &self,
         graph: &mut SystemDependencyGraph,
-        sorted_systems: &[NodeIndex],
+        compiled_data: &CompiledScheduleData,
         world: &mut World,
     ) {
-        for node_index in sorted_systems {
+        for node_index in &compiled_data.sorted_systems {
             graph
                 .node_weight_mut(*node_index)
                 .unwrap()

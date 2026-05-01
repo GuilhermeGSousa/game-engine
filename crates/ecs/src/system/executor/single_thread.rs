@@ -8,7 +8,7 @@ use crate::{
 pub struct SingleThreadedExecutor {}
 
 impl SystemExecutor for SingleThreadedExecutor {
-    fn init() -> Self
+    fn init(_compiled_data: &CompiledScheduleData) -> Self
     where
         Self: Sized,
     {

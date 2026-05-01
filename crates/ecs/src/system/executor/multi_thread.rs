@@ -1,13 +1,38 @@
-use crate::system::{executor::SystemExecutor, schedule::CompiledScheduleData};
+use crate::system::{
+    executor::SystemExecutor,
+    schedule::{CompiledScheduleData, SystemNodeIndex},
+};
 
-pub struct MultiThreadedExecutor {}
+pub struct MultiThreadedExecutor {
+    starting_systems: Vec<SystemNodeIndex>,
+    dependency_count: Vec<usize>,
+}
 
 impl SystemExecutor for MultiThreadedExecutor {
-    fn init() -> Self
+    fn init(compiled_data: &CompiledScheduleData) -> Self
     where
         Self: Sized,
     {
-        todo!()
+        for system in &compiled_data.sorted_systems {
+            if compiled_data.dependency_count[system.index()] == 0 {}
+        }
+
+        let starting_systems = compiled_data
+            .sorted_systems
+            .iter()
+            .filter_map(|index| {
+                if compiled_data.dependency_count[index.index()] == 0 {
+                    Some(*index)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Self {
+            starting_systems,
+            dependency_count: compiled_data.dependency_count.clone(),
+        }
     }
 
     fn run(
@@ -16,6 +41,5 @@ impl SystemExecutor for MultiThreadedExecutor {
         compiled_data: &CompiledScheduleData,
         world: &mut crate::World,
     ) {
-        todo!()
     }
 }

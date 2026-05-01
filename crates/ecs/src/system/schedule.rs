@@ -12,7 +12,7 @@ use derive_more::{Deref, From};
 use petgraph::{algo::toposort, graph::NodeIndex, Direction};
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Deref, From)]
-pub(crate) struct SystemNodeIndex(NodeIndex);
+pub struct SystemNodeIndex(NodeIndex);
 
 /// An ordered list of systems that are executed sequentially each time [`run`](Schedule::run) is called.
 ///
@@ -149,7 +149,7 @@ impl Schedule {
         };
 
         CompiledSchedule {
-            executor: Box::new(T::init()),
+            executor: Box::new(T::init(&compiled_data)),
             compiled_data,
             graph: self.graph,
         }

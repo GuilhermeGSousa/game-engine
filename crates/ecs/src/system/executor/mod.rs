@@ -7,7 +7,7 @@ pub mod multi_thread;
 pub mod single_thread;
 
 pub trait SystemExecutor: Send + Sync {
-    fn init() -> Self
+    fn init(compiled_data: &CompiledScheduleData) -> Self
     where
         Self: Sized;
 

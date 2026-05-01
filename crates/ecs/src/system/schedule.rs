@@ -2,14 +2,14 @@ use crate::{
     system::{
         access::SystemAccess,
         config::{IntoSystemConfig, SystemConfig},
-        executor::{single_thread::SingleThreadedExecutor, SystemExecutor},
+        executor::SystemExecutor,
         graph::{SystemDependencyGraph, SystemNode},
     },
     world::World,
     Resource,
 };
 use derive_more::{Deref, From};
-use petgraph::{algo::toposort, graph::NodeIndex};
+use petgraph::{algo::toposort, graph::NodeIndex, Direction};
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Deref, From)]
 pub(crate) struct SystemNodeIndex(NodeIndex);
@@ -112,9 +112,41 @@ impl Schedule {
 
     pub fn compile<T: SystemExecutor + 'static>(self) -> CompiledSchedule {
         let sorted_systems = toposort(&self.graph, None)
-            .expect("Cycle detected in schedule — check your .after()/.before() constraints");
+            .expect("Cycle detected in schedule — check your .after()/.before() constraints")
+            .into_iter()
+            .map(SystemNodeIndex::from)
+            .collect::<Vec<_>>();
 
-        let compiled_data = CompiledScheduleData { sorted_systems };
+        let dependency_count: Vec<usize> = sorted_systems
+            .iter()
+            .map(|idx| {
+                self.graph
+                    .neighbors_directed(**idx, Direction::Incoming)
+                    .count()
+            })
+            .collect();
+
+        let dependants: Vec<Vec<SystemNodeIndex>> = sorted_systems
+            .iter()
+            .map(|idx| {
+                self.graph
+                    .neighbors_directed(**idx, Direction::Outgoing)
+                    .map(SystemNodeIndex::from)
+                    .collect()
+            })
+            .collect();
+
+        let system_access: Vec<SystemAccess> = sorted_systems
+            .iter()
+            .map(|idx| self.graph.node_weight(**idx).unwrap().access().clone())
+            .collect();
+
+        let compiled_data = CompiledScheduleData {
+            sorted_systems,
+            dependency_count,
+            dependants,
+            system_access,
+        };
 
         CompiledSchedule {
             executor: Box::new(T::init()),
@@ -139,8 +171,10 @@ impl CompiledSchedule {
 }
 
 pub struct CompiledScheduleData {
-    // Topologically sorted system indices
-    pub sorted_systems: Vec<NodeIndex>,
+    pub sorted_systems: Vec<SystemNodeIndex>,
+    pub dependency_count: Vec<usize>,
+    pub dependants: Vec<Vec<SystemNodeIndex>>,
+    pub system_access: Vec<SystemAccess>,
 }
 
 /// Identifies which phase of the per-frame update loop a system belongs to.
@@ -251,7 +285,10 @@ impl CompiledSchedules {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{resource::Res, system::config::IntoSystemConfig};
+    use crate::{
+        resource::Res,
+        system::{config::IntoSystemConfig, executor::single_thread::SingleThreadedExecutor},
+    };
     use petgraph::graph::NodeIndex;
     use std::sync::{Arc, Mutex};
 

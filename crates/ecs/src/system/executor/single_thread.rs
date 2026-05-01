@@ -1,5 +1,3 @@
-use petgraph::graph::NodeIndex;
-
 use crate::{
     system::{
         executor::SystemExecutor, graph::SystemDependencyGraph, schedule::CompiledScheduleData,
@@ -25,7 +23,7 @@ impl SystemExecutor for SingleThreadedExecutor {
     ) {
         for node_index in &compiled_data.sorted_systems {
             graph
-                .node_weight_mut(*node_index)
+                .node_weight_mut(**node_index)
                 .unwrap()
                 .system
                 .run_and_apply(world.as_unsafe_world_cell_mut());

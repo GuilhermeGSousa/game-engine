@@ -13,8 +13,10 @@ pub mod asset_loader;
 pub mod asset_server;
 pub mod asset_store;
 pub mod handle;
-pub mod load_pool;
 pub mod utils;
+
+pub mod compute_pool;
+pub mod load_pool;
 
 // Path to an asset in a virtual file system.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

@@ -1,6 +1,8 @@
 use async_channel::Sender;
 use futures_lite::future::FutureExt;
-use std::{future::Future, num::NonZero, sync::Arc, thread::JoinHandle};
+use std::{future::Future, marker::PhantomData, num::NonZero, sync::Arc, thread::JoinHandle};
+
+use crate::tasks::thread_executor::ThreadExecutor;
 
 use super::Task;
 
@@ -19,6 +21,7 @@ pub struct TaskPool {
 impl TaskPool {
     thread_local! {
         static LOCAL_EXECUTOR: async_executor::LocalExecutor<'static> = const { async_executor::LocalExecutor::new() };
+        static THREAD_EXECUTOR: Arc<ThreadExecutor<'static>> = Arc::new(ThreadExecutor::new());
     }
 
     pub fn new() -> Self {
@@ -75,6 +78,14 @@ impl TaskPool {
     {
         Task::new(Self::LOCAL_EXECUTOR.with(|local_executor| local_executor.spawn(future)))
     }
+
+    pub fn scope<F, T>(&self, f: F) -> Vec<T>
+    where
+        F: for<'scope> FnOnce(&'scope ScopedTaskPool<'scope>),
+        T: Send + 'static,
+    {
+        todo!()
+    }
 }
 
 impl Drop for TaskPool {
@@ -91,4 +102,12 @@ impl Default for TaskPool {
     fn default() -> Self {
         Self::new()
     }
+}
+
+pub struct ScopedTaskPool<'a> {
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a> ScopedTaskPool<'a> {
+    pub fn spawn<F: Future<Output = ()>>(&self, f: F) {}
 }

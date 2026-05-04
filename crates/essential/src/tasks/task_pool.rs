@@ -3,7 +3,7 @@ use async_executor::FallibleTask;
 use concurrent_queue::ConcurrentQueue;
 use futures_lite::future::FutureExt;
 use pollster::block_on;
-use std::{future::Future, marker::PhantomData, num::NonZero, sync::Arc, thread::JoinHandle};
+use std::{future::Future, num::NonZero, sync::Arc, thread::JoinHandle};
 
 use crate::tasks::thread_executor::{Executor, ThreadExecutor};
 
@@ -98,11 +98,18 @@ impl TaskPool {
 
         if spawned_tasks.is_empty() {
             Vec::new()
+        } else {
+            pollster::block_on(async move {
+                let mut results = Vec::with_capacity(spawned_tasks.len());
+                while let Ok(task) = spawned_tasks.pop() {
+                    if let Some(result) = task.await {
+                        results.push(result);
+                    }
+                }
+
+                results
+            })
         }
-
-        while let Ok(task) = spawned_tasks.pop() {}
-
-        todo!()
     }
 }
 

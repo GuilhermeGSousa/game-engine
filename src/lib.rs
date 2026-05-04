@@ -9,8 +9,8 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{query_filter::With, Query},
-    resource::{Res, ResMut},
+    query::{Query, query_filter::With},
+    resource::{Res, ResMut}, system::schedule::UpdateGroup,
 };
 use essential::{
     assets::asset_server::AssetServer,
@@ -72,7 +72,7 @@ pub fn run_game() {
         }
     }
 
-    let mut app = App::empty();
+    let mut app = App::new();
     app.register_plugin(AssetManagerPlugin)
         .register_plugin(TimePlugin)
         .register_plugin(WindowPlugin)
@@ -85,18 +85,18 @@ pub fn run_game() {
         .register_plugin(SkyboxPlugin)
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
-        .add_system(app::update_group::UpdateGroup::Update, move_around)
+        .add_system(UpdateGroup::Update, move_around)
         .add_system(
-            app::update_group::UpdateGroup::Update,
+            UpdateGroup::Update,
             spawn_on_button_press,
         )
-        .add_system(app::update_group::UpdateGroup::Update, setup_state_machine)
-        .add_system(app::update_group::UpdateGroup::Update, setup_animations)
-        .add_system(app::update_group::UpdateGroup::Update, update_movement_fsm)
-        .add_system(app::update_group::UpdateGroup::Update, spawn_with_collider)
-        .add_system(app::update_group::UpdateGroup::Update, spawn_unlit_obj)
-        .add_system(app::update_group::UpdateGroup::Startup, spawn_floor)
-        .add_system(app::update_group::UpdateGroup::Startup, spawn_player);
+        .add_system(UpdateGroup::Update, setup_state_machine)
+        .add_system(UpdateGroup::Update, setup_animations)
+        .add_system(UpdateGroup::Update, update_movement_fsm)
+        .add_system(UpdateGroup::Update, spawn_with_collider)
+        .add_system(UpdateGroup::Update, spawn_unlit_obj)
+        .add_system(UpdateGroup::Startup, spawn_floor)
+        .add_system(UpdateGroup::Startup, spawn_player);
 
     app.run();
 }

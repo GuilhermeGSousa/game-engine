@@ -93,7 +93,7 @@ impl Archetype {
         row: TableRowIndex,
     ) -> Option<MutableCellAccessor<'_, T>> {
         let column = self.data_table.get_column_mut(ComponentId::of::<T>())?;
-        column.get_mut_unsafe(row)
+        column.get_unsafe_mut(row)
     }
 
     pub fn entities(&self) -> &[Entity] {

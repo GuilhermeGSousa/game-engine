@@ -1,6 +1,11 @@
 pub mod access;
+pub mod config;
+pub mod executor;
+mod graph;
 pub mod schedule;
 pub mod system_input;
+
+pub use config::{AlreadyConfigured, IntoSystemConfig, SystemConfig};
 
 use system_input::SystemInput;
 use typle::typle;
@@ -23,42 +28,29 @@ pub trait System: Send + Sync {
     fn access(&self) -> SystemAccess;
 
     /// Executes the system against the world, then applies any deferred commands.
-    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        self.run_without_apply(world);
+    fn run_and_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        self.run(world);
         self.apply(world.world_mut());
     }
 
     /// Executes the system without applying deferred commands.
-    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>);
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>);
 
     /// Applies any deferred mutations (e.g. spawned entities from [`CommandQueue`](crate::command::CommandQueue)).
     fn apply(&mut self, world: &mut World);
 }
 
-/// A type-erased, heap-allocated system ready to be stored in a [`Schedule`](schedule::Schedule).
-pub struct ScheduledSystem {
-    system: BoxedSystem,
-}
-
-impl ScheduledSystem {
-    pub fn new(system: impl System + 'static) -> Self {
-        Self {
-            system: Box::new(system),
-        }
-    }
-}
-
-impl System for ScheduledSystem {
+impl System for BoxedSystem {
     fn apply(&mut self, world: &mut World) {
-        self.system.apply(world);
+        (**self).apply(world);
     }
 
-    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
-        self.system.run_without_apply(world);
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+        (**self).run(world);
     }
 
     fn access(&self) -> SystemAccess {
-        self.system.access()
+        (**self).access()
     }
 }
 
@@ -90,15 +82,13 @@ where
     for<'w, 's> F:
         FnMut(typle_args!(i in .. => T<{i}>)) + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>)),
 {
-    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {}
-
     fn apply(&mut self, world: &mut World) {
         for typle_index!(i) in 0..T::LEN {
             <T<{ i }>>::apply(&mut self.system_state[[i]], world);
         }
     }
 
-    fn run_without_apply<'world>(&mut self, world: UnsafeWorldCell<'world>) {
+    fn run<'world>(&mut self, world: UnsafeWorldCell<'world>) {
         (self.func)(
             typle_args!(i in .. =>  <T<{i}>>::get_data(&mut self.system_state[[i]], world) ),
         );
@@ -118,7 +108,7 @@ where
 /// Implemented automatically for functions whose parameters implement [`SystemInput`].
 pub trait IntoSystem<Marker> {
     /// Wraps `self` in a [`ScheduledSystem`] ready to be added to a [`Schedule`](schedule::Schedule).
-    fn into_system(self) -> ScheduledSystem;
+    fn into_system(self) -> BoxedSystem;
 }
 
 #[typle(Tuple for 0..=12)]
@@ -130,7 +120,7 @@ where
     for<'w, 's> F:
         FnMut(typle_args!(i in .. => T<{i}>)) + FnMut(typle_args!(i in .. => T<{i}>::Data<'w, 's>)),
 {
-    fn into_system(self) -> ScheduledSystem {
-        ScheduledSystem::new(FunctionSystem::new(self))
+    fn into_system(self) -> BoxedSystem {
+        Box::new(FunctionSystem::new(self))
     }
 }

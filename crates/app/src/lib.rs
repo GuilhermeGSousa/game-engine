@@ -5,26 +5,27 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::{schedule::Schedule, IntoSystem},
+    system::{
+        executor::single_thread::SingleThreadedExecutor,
+        schedule::{CompiledSchedules, Schedules, UpdateGroup},
+    },
     world::World,
+    IntoSystemConfig,
 };
-use runner::{run_once, AppExit};
+use runner::AppExit;
 
 use essential::{
     assets::{asset_server::AssetServer, asset_store::AssetStore, Asset},
     time::Time,
 };
-use std::mem::replace;
 
-use crate::plugins::PluginsState;
+use crate::{plugins::PluginsState, runner::run_once};
 
 pub mod plugins;
 pub mod runner;
-pub mod update_group;
 
 // Re-export the most commonly needed types so users don't have to know the module layout.
 pub use plugins::Plugin;
-pub use update_group::UpdateGroup;
 
 pub(crate) struct HokeyPokeyPlugin;
 impl Plugin for HokeyPokeyPlugin {
@@ -49,31 +50,18 @@ impl Plugin for HokeyPokeyPlugin {
 pub struct App {
     runner: runner::RunnerFn,
     world: World,
-    startup_schedule: Schedule,
-    update_schedule: Schedule,
-    fixed_update_schedule: Schedule,
-    late_update_schedule: Schedule,
-    late_fixed_update_schedule: Schedule,
-    render_schedule: Schedule,
-    late_render_schedule: Schedule,
     accumulated_fixed_time: f32,
     plugins: Vec<Box<dyn Plugin>>,
     plugin_state: PluginsState,
 }
 
 impl App {
-    /// Creates a minimal app with no plugins, resources, or systems.
-    pub fn empty() -> App {
+    pub fn new() -> App {
+        let mut world = World::new();
+        world.init_resource::<Schedules>();
         Self {
             runner: Box::new(runner::run_once),
-            world: World::new(),
-            startup_schedule: Schedule::default(),
-            update_schedule: Schedule::default(),
-            fixed_update_schedule: Schedule::default(),
-            late_update_schedule: Schedule::default(),
-            late_fixed_update_schedule: Schedule::default(),
-            render_schedule: Schedule::default(),
-            late_render_schedule: Schedule::default(),
+            world,
             accumulated_fixed_time: 0.0,
             plugins: Vec::new(),
             plugin_state: PluginsState::Building,
@@ -96,12 +84,13 @@ impl App {
     pub fn register_asset<A: Asset>(&mut self) -> &mut Self {
         let asset_store = AssetStore::<A>::new();
         let asset_server = self
-            .get_mut_resource::<AssetServer>()
+            .get_resource_mut::<AssetServer>()
             .expect("Asset Server not found");
 
         asset_server.register_asset::<A>(&asset_store);
 
-        self.update_schedule.add_system(
+        self.add_system(
+            UpdateGroup::Update,
             |mut asset_store: ResMut<AssetStore<A>>, asset_server: ResMut<AssetServer>| {
                 asset_store.track_assets(asset_server);
             },
@@ -112,10 +101,9 @@ impl App {
     }
 
     /// Hands control to the configured runner function, consuming the app.
-    pub fn run(&mut self) {
-        let runner = replace(&mut self.runner, Box::new(run_once));
-        let app = replace(self, App::empty());
-        (runner)(app);
+    pub fn run(mut self) {
+        let runner = std::mem::replace(&mut self.runner, Box::new(run_once));
+        (runner)(self);
     }
 
     /// Replaces the default runner with a custom one (e.g. a window event loop).
@@ -128,37 +116,12 @@ impl App {
     pub fn add_system<M>(
         &mut self,
         update_group: UpdateGroup,
-        system: impl IntoSystem<M> + 'static,
+        system: impl IntoSystemConfig<M> + 'static,
     ) -> &mut Self {
-        match update_group {
-            UpdateGroup::Startup => self.startup_schedule.add_system(system),
-            UpdateGroup::Update => self.update_schedule.add_system(system),
-            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system(system),
-            UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
-            UpdateGroup::LateFixedUpdate => self.late_fixed_update_schedule.add_system(system),
-            UpdateGroup::Render => self.render_schedule.add_system(system),
-            UpdateGroup::LateRender => self.late_render_schedule.add_system(system),
-        };
-        self
-    }
+        self.get_resource_mut::<Schedules>()
+            .expect("Schedules resource not found!")
+            .add_system(update_group, system);
 
-    /// Registers a system to run before all others in its [`UpdateGroup`].
-    pub fn add_system_first<M>(
-        &mut self,
-        update_group: UpdateGroup,
-        system: impl IntoSystem<M> + 'static,
-    ) -> &mut Self {
-        match update_group {
-            UpdateGroup::Startup => self.startup_schedule.add_system_first(system),
-            UpdateGroup::Update => self.update_schedule.add_system_first(system),
-            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system_first(system),
-            UpdateGroup::LateUpdate => self.late_update_schedule.add_system_first(system),
-            UpdateGroup::LateFixedUpdate => {
-                self.late_fixed_update_schedule.add_system_first(system)
-            }
-            UpdateGroup::Render => self.render_schedule.add_system_first(system),
-            UpdateGroup::LateRender => self.late_render_schedule.add_system_first(system),
-        };
         self
     }
 
@@ -187,31 +150,33 @@ impl App {
         self.world.get_resource()
     }
 
-    pub fn get_mut_resource<R: Resource>(&mut self) -> Option<&mut R> {
+    pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
         self.world.get_resource_mut()
     }
 
     /// Runs all per-frame schedules: FixedUpdate (as many times as needed), Update,
     /// LateUpdate, Render, LateRender.  Also advances the world tick at the end.
     pub fn update(&mut self) {
-        {
-            let time = self
-                .get_resource::<Time>()
-                .expect("Time resource not found");
+        let time = self
+            .get_resource::<Time>()
+            .expect("Time resource not found");
 
-            let delta_time = time.delta();
-            self.accumulated_fixed_time += delta_time.as_secs_f32();
+        self.accumulated_fixed_time += time.delta().as_secs_f32();
 
-            while self.accumulated_fixed_time >= Time::fixed_delta_time() {
-                self.fixed_update_schedule.run(&mut self.world);
-                self.accumulated_fixed_time -= Time::fixed_delta_time();
-                self.late_fixed_update_schedule.run(&mut self.world);
-            }
+        let mut schedules = self
+            .remove_resource::<CompiledSchedules>()
+            .expect("Compiled schedules not found!");
+
+        while self.accumulated_fixed_time >= Time::fixed_delta_time() {
+            schedules.fixed_update(&mut self.world);
+            self.accumulated_fixed_time -= Time::fixed_delta_time();
         }
-        self.update_schedule.run(&mut self.world);
-        self.late_update_schedule.run(&mut self.world);
-        self.render_schedule.run(&mut self.world);
-        self.late_render_schedule.run(&mut self.world);
+
+        schedules.update(&mut self.world);
+        schedules.render(&mut self.world);
+
+        self.world.insert_resource(schedules);
+
         self.world.tick();
     }
 
@@ -253,6 +218,24 @@ impl App {
         }
 
         self.plugin_state = PluginsState::Finished;
-        self.startup_schedule.run(&mut self.world);
+
+        self.compile_schedules();
+
+        let mut schedules = self
+            .remove_resource::<CompiledSchedules>()
+            .expect("Compiled schedules not found!");
+
+        schedules.startup(&mut self.world);
+
+        self.insert_resource(schedules);
+    }
+
+    fn compile_schedules(&mut self) {
+        let compiled_schedules = self
+            .remove_resource::<Schedules>()
+            .expect("Schedules resource not found!")
+            .compile::<SingleThreadedExecutor>();
+
+        self.insert_resource(compiled_schedules);
     }
 }

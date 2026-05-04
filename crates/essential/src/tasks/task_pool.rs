@@ -1,6 +1,11 @@
 use async_channel::Sender;
+use async_executor::FallibleTask;
+use concurrent_queue::ConcurrentQueue;
 use futures_lite::future::FutureExt;
+use pollster::block_on;
 use std::{future::Future, num::NonZero, sync::Arc, thread::JoinHandle};
+
+use crate::tasks::thread_executor::{Executor, ThreadExecutor};
 
 use super::Task;
 
@@ -19,6 +24,7 @@ pub struct TaskPool {
 impl TaskPool {
     thread_local! {
         static LOCAL_EXECUTOR: async_executor::LocalExecutor<'static> = const { async_executor::LocalExecutor::new() };
+        static THREAD_EXECUTOR: Arc<ThreadExecutor<'static>> = Arc::new(ThreadExecutor::new());
     }
 
     pub fn new() -> Self {
@@ -75,6 +81,36 @@ impl TaskPool {
     {
         Task::new(Self::LOCAL_EXECUTOR.with(|local_executor| local_executor.spawn(future)))
     }
+
+    pub fn scope<F, T>(&self, f: F) -> Vec<T>
+    where
+        F: for<'scope> FnOnce(&'scope ScopedTaskPool<'scope, T>),
+        T: Send + 'static,
+    {
+        let spawned_tasks: ConcurrentQueue<FallibleTask<T>> = ConcurrentQueue::unbounded();
+
+        let scope = ScopedTaskPool {
+            executor: todo!(),
+            spawned_tasks: &spawned_tasks,
+        };
+
+        f(&scope);
+
+        if spawned_tasks.is_empty() {
+            Vec::new()
+        } else {
+            pollster::block_on(async move {
+                let mut results = Vec::with_capacity(spawned_tasks.len());
+                while let Ok(task) = spawned_tasks.pop() {
+                    if let Some(result) = task.await {
+                        results.push(result);
+                    }
+                }
+
+                results
+            })
+        }
+    }
 }
 
 impl Drop for TaskPool {
@@ -90,5 +126,18 @@ impl Drop for TaskPool {
 impl Default for TaskPool {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub struct ScopedTaskPool<'a, T: Send> {
+    executor: &'a Executor<'a>,
+    spawned_tasks: &'a ConcurrentQueue<FallibleTask<T>>,
+}
+
+impl<'a, T: Send> ScopedTaskPool<'a, T> {
+    pub fn spawn<F: Future<Output = T> + Send + 'a>(&self, f: F) {
+        let task = self.executor.spawn(f).fallible();
+
+        self.spawned_tasks.push(task).unwrap();
     }
 }

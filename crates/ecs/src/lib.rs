@@ -34,7 +34,7 @@ pub use query::{
     Query,
 };
 pub use resource::{Res, ResMut, Resource};
-pub use system::{schedule::Schedule, IntoSystem, System};
+pub use system::{schedule::Schedule, IntoSystem, IntoSystemConfig, System, SystemConfig};
 pub use world::World;
 
 #[cfg(test)]
@@ -49,7 +49,7 @@ mod tests {
             Query,
         },
         resource::{Res, ResMut, Resource},
-        system::schedule::Schedule,
+        system::{executor::single_thread::SingleThreadedExecutor, schedule::Schedule},
         world::World,
     };
 
@@ -61,9 +61,6 @@ mod tests {
         pub x: f32,
         pub y: f32,
     }
-
-    #[derive(Component)]
-    struct Player;
 
     fn system_query_pos_hp(query: Query<(Entity, &Position, &mut Health)>) {
         for (_, position, _) in query.iter() {
@@ -114,7 +111,7 @@ mod tests {
         world.spawn((Health, Position { x: 10.0, y: 20.0 }));
         world.spawn((Position { x: 20.0, y: 20.0 },));
 
-        schedule.run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
     }
 
     #[test]
@@ -125,15 +122,16 @@ mod tests {
         schedule.add_system(system_query_added);
 
         world.spawn((Position { x: 0.0, y: 0.0 },));
-        schedule.run(&mut world);
+        let mut compiled_schedule = schedule.compile::<SingleThreadedExecutor>();
+        compiled_schedule.run(&mut world);
 
         world.tick();
 
         world.spawn((Position { x: 0.0, y: 0.0 },));
-        schedule.run(&mut world);
+        compiled_schedule.run(&mut world);
 
         world.tick();
-        schedule.run(&mut world);
+        compiled_schedule.run(&mut world);
     }
 
     #[test]
@@ -158,7 +156,7 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(spawn);
 
-        schedule.run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
 
         let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
 
@@ -245,7 +243,7 @@ mod tests {
         schedule.add_system(system_query_add_hp);
         schedule.add_system(system_query_hp_changed);
 
-        schedule.run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
     }
 
     #[test]
@@ -259,7 +257,7 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(system_filter_or);
 
-        schedule.run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
     }
 
     #[test]
@@ -317,7 +315,7 @@ mod tests {
 
         let mut schedule = Schedule::new();
         schedule.add_system(read_score);
-        schedule.run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
 
         assert_eq!(world.get_resource::<DoubleScore>().unwrap().0, 10);
     }
@@ -351,7 +349,7 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(send_death);
         schedule.add_system(count_deaths);
-        schedule.run(&mut world);
+        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
 
         assert_eq!(world.get_resource::<Score>().unwrap().0, 77);
     }
@@ -364,12 +362,15 @@ mod tests {
 
         let mut frame1 = Schedule::new();
         frame1.add_system(send_death);
+        let mut frame1 = frame1.compile::<SingleThreadedExecutor>();
 
         let mut flush = Schedule::new();
         flush.add_system(crate::events::event_channel::update_event_channel::<PlayerDied>);
+        let mut flush = flush.compile::<SingleThreadedExecutor>();
 
         let mut frame2 = Schedule::new();
         frame2.add_system(count_deaths);
+        let mut frame2 = frame2.compile::<SingleThreadedExecutor>();
 
         frame1.run(&mut world);
         flush.run(&mut world);

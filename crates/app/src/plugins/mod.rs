@@ -1,3 +1,4 @@
+use ecs::system::schedule::UpdateGroup;
 use essential::assets::asset_server::{handle_asset_load_events, AssetServer};
 use essential::time::Time;
 
@@ -5,7 +6,6 @@ use ecs::resource::ResMut;
 use essential::transform::systems::{propagate_global_transforms, update_simple_entities};
 use essential::transform::Transform;
 
-use crate::update_group::UpdateGroup;
 use crate::App;
 
 /// Describes the current phase of plugin initialisation.

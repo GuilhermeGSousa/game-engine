@@ -3,6 +3,7 @@ use crate::system::{
     schedule::{CompiledScheduleData, SystemNodeIndex},
 };
 
+#[allow(dead_code)]
 pub struct MultiThreadedExecutor {
     starting_systems: Vec<SystemNodeIndex>,
     dependency_count: Vec<usize>,
@@ -37,9 +38,9 @@ impl SystemExecutor for MultiThreadedExecutor {
 
     fn run(
         &self,
-        graph: &mut crate::system::graph::SystemDependencyGraph,
-        compiled_data: &CompiledScheduleData,
-        world: &mut crate::World,
+        _graph: &mut crate::system::graph::SystemDependencyGraph,
+        _compiled_data: &CompiledScheduleData,
+        _world: &mut crate::World,
     ) {
     }
 }

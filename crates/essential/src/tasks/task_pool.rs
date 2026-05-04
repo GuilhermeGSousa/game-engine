@@ -1,8 +1,11 @@
 use async_channel::Sender;
+use async_executor::FallibleTask;
+use concurrent_queue::ConcurrentQueue;
 use futures_lite::future::FutureExt;
+use pollster::block_on;
 use std::{future::Future, marker::PhantomData, num::NonZero, sync::Arc, thread::JoinHandle};
 
-use crate::tasks::thread_executor::ThreadExecutor;
+use crate::tasks::thread_executor::{Executor, ThreadExecutor};
 
 use super::Task;
 
@@ -81,9 +84,24 @@ impl TaskPool {
 
     pub fn scope<F, T>(&self, f: F) -> Vec<T>
     where
-        F: for<'scope> FnOnce(&'scope ScopedTaskPool<'scope>),
+        F: for<'scope> FnOnce(&'scope ScopedTaskPool<'scope, T>),
         T: Send + 'static,
     {
+        let spawned_tasks: ConcurrentQueue<FallibleTask<T>> = ConcurrentQueue::unbounded();
+
+        let scope = ScopedTaskPool {
+            executor: todo!(),
+            spawned_tasks: &spawned_tasks,
+        };
+
+        f(&scope);
+
+        if spawned_tasks.is_empty() {
+            Vec::new()
+        }
+
+        while let Ok(task) = spawned_tasks.pop() {}
+
         todo!()
     }
 }
@@ -104,10 +122,15 @@ impl Default for TaskPool {
     }
 }
 
-pub struct ScopedTaskPool<'a> {
-    _marker: PhantomData<&'a ()>,
+pub struct ScopedTaskPool<'a, T: Send> {
+    executor: &'a Executor<'a>,
+    spawned_tasks: &'a ConcurrentQueue<FallibleTask<T>>,
 }
 
-impl<'a> ScopedTaskPool<'a> {
-    pub fn spawn<F: Future<Output = ()>>(&self, f: F) {}
+impl<'a, T: Send> ScopedTaskPool<'a, T> {
+    pub fn spawn<F: Future<Output = T> + Send + 'a>(&self, f: F) {
+        let task = self.executor.spawn(f).fallible();
+
+        self.spawned_tasks.push(task).unwrap();
+    }
 }

@@ -1,5 +1,4 @@
 pub mod access;
-mod batch;
 pub mod config;
 pub mod executor;
 mod graph;

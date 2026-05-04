@@ -216,9 +216,9 @@ pub struct TableRow {
 }
 
 impl TableRow {
-    pub fn insert<T: Component>(&mut self, id: ComponentId, raw_value: AnyValueWrapper<T>) {
+    pub fn insert<T: Component>(&mut self, raw_value: AnyValueWrapper<T>) {
         self.data
-            .entry(id)
+            .entry(TypeId::of::<T>())
             .or_insert(AnyVec::new::<T>())
             .push(raw_value);
     }

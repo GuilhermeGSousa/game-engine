@@ -116,14 +116,15 @@ impl World {
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
 
                 if let Some(swapped_entity) = archetype.entities().last() {
-                    self.entity_store.set_location(*swapped_entity, location);
+                    if *swapped_entity != entity {
+                        self.entity_store.set_location(*swapped_entity, location);
+                    }
                 }
 
                 archetype.remove_swap(location.row);
 
-                self.entity_store.free(entity);
             }
-            None => panic!("Entity should exist in the world"),
+            None => panic!("Entity {:?} should exist in the world", entity),
         }
     }
 
@@ -176,7 +177,7 @@ impl World {
                 let mut removed_row = previous_archetype.remove_swap(location.row);
 
                 // Add new component to the removed row
-                removed_row.insert(inserted_id, AnyValueWrapper::<T>::new(component));
+                removed_row.insert(AnyValueWrapper::<T>::new(component));
 
                 // Add row to new archetype
                 let archetype_index = match self.archetype_index.entry(entity_type.clone()) {

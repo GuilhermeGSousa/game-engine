@@ -63,6 +63,12 @@ impl Material for SkyboxMaterial {
     }
 
     fn depth_stencil() -> Option<wgpu::DepthStencilState> {
-        None
+        Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        })
     }
 }

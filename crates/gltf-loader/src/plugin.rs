@@ -9,9 +9,6 @@ pub struct GLTFPlugin;
 impl Plugin for GLTFPlugin {
     fn build(&self, app: &mut app::App) {
         app.register_asset::<GLTFScene>();
-        app.add_system(
-            UpdateGroup::Update,
-            spawn_gltf_components,
-        );
+        app.add_system(UpdateGroup::Update, spawn_gltf_components);
     }
 }

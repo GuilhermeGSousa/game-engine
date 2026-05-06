@@ -9,8 +9,9 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{Query, query_filter::With},
-    resource::{Res, ResMut}, system::schedule::UpdateGroup,
+    query::{query_filter::With, Query},
+    resource::{Res, ResMut},
+    system::schedule::UpdateGroup,
 };
 use essential::{
     assets::asset_server::AssetServer,
@@ -86,10 +87,7 @@ pub fn run_game() {
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
         .add_system(UpdateGroup::Update, move_around)
-        .add_system(
-            UpdateGroup::Update,
-            spawn_on_button_press,
-        )
+        .add_system(UpdateGroup::Update, spawn_on_button_press)
         .add_system(UpdateGroup::Update, setup_state_machine)
         .add_system(UpdateGroup::Update, setup_animations)
         .add_system(UpdateGroup::Update, update_movement_fsm)

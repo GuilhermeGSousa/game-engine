@@ -1,4 +1,7 @@
-use std::{marker::PhantomData, thread::{self, ThreadId}};
+use std::{
+    marker::PhantomData,
+    thread::{self, ThreadId},
+};
 
 use derive_more::{Deref, DerefMut};
 

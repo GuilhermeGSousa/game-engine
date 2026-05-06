@@ -8,10 +8,10 @@ use crate::{
     },
     components::{
         camera::{camera_added, camera_changed},
-        light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
+        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
         mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
-        skeleton_component::{EmptySkeletonBuffer, skeleton_added, update_skeletons},
+        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
@@ -19,7 +19,11 @@ use crate::{
     material_plugin::DEFAULT_SHADER_SOURCE,
     queue::RenderQueue,
     render_asset::{
-        RenderAssetPlugin, render_material::RenderMaterial, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
+        render_material::RenderMaterial,
+        render_mesh::RenderMesh,
+        render_texture::{DummyRenderTexture, RenderTexture},
+        render_window::RenderWindow,
+        RenderAssetPlugin,
     },
     resources::{MainRenderPipeline, RenderContext},
     systems::{
@@ -28,7 +32,7 @@ use crate::{
     },
 };
 use app::plugins::Plugin;
-use ecs::{IntoSystemConfig, resource::Resource, system::schedule::UpdateGroup};
+use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
 use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};

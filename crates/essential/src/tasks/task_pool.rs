@@ -125,7 +125,6 @@ impl TaskPool {
 
                 let scope_ticker = scope_executor.ticker().unwrap();
 
-
                 Self::execute_scope(scope_ticker, get_results).await
             })
         }
@@ -133,8 +132,8 @@ impl TaskPool {
 
     async fn execute_scope<'scope, 'ticker, T>(
         scope_ticker: ThreadExecutorTicker<'scope, 'ticker>,
-        get_results: impl Future<Output = Vec<T>>) -> Vec<T> {
-
+        get_results: impl Future<Output = Vec<T>>,
+    ) -> Vec<T> {
         let execute_forever = async {
             loop {
                 let tick_forever = async {

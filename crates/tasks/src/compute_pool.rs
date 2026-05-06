@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use crate::tasks::task_pool::TaskPool;
+use crate::task_pool::TaskPool;
 
 static COMPUTE_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
 

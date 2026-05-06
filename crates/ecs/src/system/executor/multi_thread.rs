@@ -1,3 +1,5 @@
+use tasks::{compute_pool::ComputeTaskPool, task_pool::TaskPool};
+
 use crate::system::{
     executor::SystemExecutor,
     schedule::{CompiledScheduleData, SystemNodeIndex},
@@ -42,5 +44,9 @@ impl SystemExecutor for MultiThreadedExecutor {
         _compiled_data: &CompiledScheduleData,
         _world: &mut crate::World,
     ) {
+        ComputeTaskPool::get_or_init(TaskPool::new).scope(|_scope: &tasks::task_pool::ScopedTaskPool<'_, ()>|
+        {
+
+        });
     }
 }

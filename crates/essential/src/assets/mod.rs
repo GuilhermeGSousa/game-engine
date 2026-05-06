@@ -15,9 +15,6 @@ pub mod asset_store;
 pub mod handle;
 pub mod utils;
 
-pub mod compute_pool;
-pub mod load_pool;
-
 // Path to an asset in a virtual file system.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct AssetPath<'a> {

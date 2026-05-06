@@ -89,22 +89,21 @@ pub(crate) fn update_ui_interaction(
             && cursor.x <= loc.x + size.x
             && cursor.y >= loc.y
             && cursor.y <= loc.y + size.y
+            && best.is_none_or(|(_, z)| node.z_index > z)
         {
-            if best.map_or(true, |(_, z)| node.z_index > z) {
-                best = Some((entity, node.z_index));
-            }
+            best = Some((entity, node.z_index));
         }
     }
 
     **hovered = best.map(|(e, _)| e);
 
-    if input.get_mouse_button_state(MouseButton::Left) == InputState::Pressed {
-        if let Some((entity, _)) = best {
-            click_writer.write(UIClick {
-                entity,
-                position: cursor,
-            });
-        }
+    if input.get_mouse_button_state(MouseButton::Left) == InputState::Pressed
+        && let Some((entity, _)) = best
+    {
+        click_writer.write(UIClick {
+            entity,
+            position: cursor,
+        });
     }
 }
 

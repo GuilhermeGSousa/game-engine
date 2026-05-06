@@ -239,3 +239,9 @@ impl App {
         self.insert_resource(compiled_schedules);
     }
 }
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}

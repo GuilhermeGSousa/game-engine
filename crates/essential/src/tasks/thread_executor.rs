@@ -3,7 +3,7 @@ use std::{marker::PhantomData, thread::{self, ThreadId}};
 use derive_more::{Deref, DerefMut};
 
 type ExecutorInner<'a> = async_executor::Executor<'a>;
-type LocalExecutorInner<'a> = async_executor::LocalExecutor<'a>;
+// type LocalExecutorInner<'a> = async_executor::LocalExecutor<'a>;
 
 #[derive(Deref, DerefMut, Default, Debug)]
 pub struct Executor<'a>(ExecutorInner<'a>);

@@ -70,16 +70,16 @@ impl Schedule {
     /// Registers a [`SystemConfig`] into the graph, recursively registering owned dep
     /// systems first, then wiring explicit ordering edges.  Returns the [`NodeIndex`] of
     /// the newly registered system (used internally for edge wiring in recursive calls).
-    fn add_config(&mut self, config: SystemConfig) -> NodeIndex {
+    fn add_config(&mut self, config: SystemConfig) -> SystemNodeIndex {
         // 1. Register "after" deps first (they must run before this system).
-        let after_indices: Vec<NodeIndex> = config
+        let after_indices: Vec<SystemNodeIndex> = config
             .after
             .into_iter()
             .map(|dep| self.add_config(dep))
             .collect();
 
         // 2. Register "before" deps (they must run after this system).
-        let before_indices: Vec<NodeIndex> = config
+        let before_indices: Vec<SystemNodeIndex> = config
             .before
             .into_iter()
             .map(|dep| self.add_config(dep))
@@ -87,26 +87,26 @@ impl Schedule {
 
         // 3. Register this system.
         let access = config.system.access();
-        let node_idx = self.graph.add_node(SystemNode::new(config.system));
+        let node_idx: SystemNodeIndex = self.graph.add_node(SystemNode::new(config.system)).into();
 
         // 4. Implicit edges from access-pattern conflicts.
         for node_index in &self.system_ids {
             if let Some(other_system) = self.graph.node_weight(**node_index) {
                 if !SystemAccess::are_disjoint(&access, other_system.access()) {
-                    self.graph.add_edge(**node_index, node_idx, ());
+                    self.graph.add_edge(**node_index, *node_idx, ());
                 }
             }
         }
 
         // 5. Explicit ordering edges.
         for dep_idx in after_indices {
-            self.graph.add_edge(dep_idx, node_idx, ());
+            self.graph.add_edge(*dep_idx, *node_idx, ());
         }
         for dep_idx in before_indices {
-            self.graph.add_edge(node_idx, dep_idx, ());
+            self.graph.add_edge(*node_idx, *dep_idx, ());
         }
 
-        self.system_ids.push(node_idx.into());
+        self.system_ids.push(node_idx);
         node_idx
     }
 

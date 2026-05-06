@@ -4,7 +4,7 @@ use concurrent_queue::ConcurrentQueue;
 use futures_lite::future::FutureExt;
 use std::{future::Future, mem, num::NonZero, sync::Arc, thread::JoinHandle};
 
-use crate::tasks::thread_executor::{Executor, ThreadExecutor, ThreadExecutorTicker};
+use crate::thread_executor::{Executor, ThreadExecutor, ThreadExecutorTicker};
 
 use super::Task;
 

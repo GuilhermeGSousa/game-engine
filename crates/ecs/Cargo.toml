@@ -7,6 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+tasks = { path = "../tasks" }
 ecs-macros = { path = "macros" }
 any_vec = "0.14.0"
 anymap3 = "1.0.1"
@@ -14,5 +15,3 @@ typle = "0.10.6"
 log = "0.4.27"
 petgraph = { version = "0.8" }
 derive_more = { version = "2", features = ["full"] }
-
-rayon = "1.11.0"

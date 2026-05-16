@@ -28,6 +28,7 @@ gltf-loader = { path = "crates/gltf-loader" }
 obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
 skybox = { path = "crates/skybox" }
+terminal-render = { path = "crates/terminal-render" }
 cfg-if = "1.0.0"
 env_logger = "0.11.8"
 log = "0.4.27"

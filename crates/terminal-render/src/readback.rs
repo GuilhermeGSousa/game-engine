@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use wgpu::{ImageCopyTexture, ImageDataLayout, TextureAspect};
 
 pub struct TextureReadback {
     staging_buffer: wgpu::Buffer,
@@ -8,19 +7,16 @@ pub struct TextureReadback {
 }
 
 impl TextureReadback {
-    /// Create a new readback operation for a texture
     pub fn new(device: &wgpu::Device, texture: &wgpu::Texture) -> Result<Self> {
         let texture_extent = texture.size();
 
-        // Calculate bytes needed for one row (must be padded to 256-byte alignment for GPU)
         let bytes_per_pixel = 4; // RGBA
         let bytes_per_row_unaligned = texture_extent.width * bytes_per_pixel;
-        let bytes_per_row_padded = {
-            let align = 256;
-            ((bytes_per_row_unaligned + align - 1) / align) * align
-        };
+        // wgpu requires rows aligned to 256 bytes
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes_per_row = (bytes_per_row_unaligned + align - 1) / align * align;
 
-        let total_size = (bytes_per_row_padded * texture_extent.height) as u64;
+        let total_size = (bytes_per_row * texture_extent.height) as u64;
 
         let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Terminal Readback Staging Buffer"),
@@ -32,32 +28,31 @@ impl TextureReadback {
         Ok(Self {
             staging_buffer,
             texture_extent,
-            bytes_per_row: bytes_per_row_padded,
+            bytes_per_row,
         })
     }
 
-    /// Request readback of a texture to CPU
-    pub fn request_readback(
+    /// Copy a texture to the staging buffer and block until data is ready.
+    pub fn read_texture(
         &self,
         device: &wgpu::Device,
-        texture: &wgpu::Texture,
         queue: &wgpu::Queue,
-    ) -> Result<()> {
+        texture: &wgpu::Texture,
+    ) -> Result<Vec<u8>> {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Readback Encoder"),
         });
 
-        // Copy texture to staging buffer
         encoder.copy_texture_to_buffer(
-            ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
-                aspect: TextureAspect::All,
+                aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.staging_buffer,
-                layout: ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(self.bytes_per_row),
                     rows_per_image: Some(self.texture_extent.height),
@@ -67,49 +62,37 @@ impl TextureReadback {
         );
 
         queue.submit(std::iter::once(encoder.finish()));
-        Ok(())
-    }
 
-    /// Poll for readback result (non-blocking, returns None if not ready)
-    pub async fn poll_result(&self, device: &wgpu::Device) -> Result<Option<Vec<u8>>> {
+        // Map the buffer and wait for the GPU to finish
         let buffer_slice = self.staging_buffer.slice(..);
         let (tx, rx) = std::sync::mpsc::channel();
-
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             tx.send(result).ok();
         });
 
-        // Poll for a short time (non-blocking for one frame)
-        device.poll(wgpu::Maintain::Poll);
+        device.poll(wgpu::Maintain::Wait);
+        rx.recv()
+            .map_err(|e| anyhow!("Channel recv error: {}", e))?
+            .map_err(|e| anyhow!("Buffer map error: {}", e))?;
 
-        // Try to receive immediately (don't block)
-        match rx.try_recv() {
-            Ok(Ok(())) => {
-                // Buffer is mapped, read the data
-                let data = buffer_slice.get_mapped_range();
-                let result = data.to_vec();
-                drop(data);
-                self.staging_buffer.unmap();
+        // Strip row padding and return tightly-packed RGBA pixels
+        let data = buffer_slice.get_mapped_range();
+        let width = self.texture_extent.width as usize;
+        let height = self.texture_extent.height as usize;
+        let bytes_per_pixel = 4;
+        let padded_row = self.bytes_per_row as usize;
+        let tight_row = width * bytes_per_pixel;
 
-                // Return only the relevant pixel data (remove padding)
-                let bytes_per_pixel = 4;
-                let width = self.texture_extent.width as usize;
-                let height = self.texture_extent.height as usize;
-                let bytes_per_row_unpadded = width * bytes_per_pixel;
-                let bytes_per_row = self.bytes_per_row as usize;
-
-                let mut pixel_data = Vec::with_capacity(width * height * bytes_per_pixel);
-                for y in 0..height {
-                    let row_start = y * bytes_per_row;
-                    let row_end = row_start + bytes_per_row_unpadded;
-                    pixel_data.extend_from_slice(&result[row_start..row_end]);
-                }
-
-                Ok(Some(pixel_data))
-            }
-            Ok(Err(e)) => Err(anyhow!("Map async error: {}", e)),
-            Err(_) => Ok(None), // Not ready yet
+        let mut pixels = Vec::with_capacity(width * height * bytes_per_pixel);
+        for y in 0..height {
+            let start = y * padded_row;
+            pixels.extend_from_slice(&data[start..start + tight_row]);
         }
+
+        drop(data);
+        self.staging_buffer.unmap();
+
+        Ok(pixels)
     }
 
     pub fn width(&self) -> u32 {

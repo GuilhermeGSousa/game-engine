@@ -1,83 +1,60 @@
-use crate::{
-    AsciiConverter, ScreenBuffer, TerminalDevice, TextureReadbackResource,
-};
-use crossterm::style::SetForegroundColor;
+use crate::{readback::TextureReadback, resource::TerminalCamera, AsciiConverter, TerminalDevice};
 use ecs::{
-    query::Query,
+    query::{query_filter::With, Query},
     resource::{Res, ResMut},
-    system::System,
 };
-use essential::assets::asset_store::AssetStore;
 use render::{
-    components::camera::Camera, device::RenderDevice, queue::RenderQueue,
-    render_asset::render_texture::RenderTexture,
+    components::{camera::RenderCamera, render_entity::RenderEntity},
+    device::RenderDevice,
+    queue::RenderQueue,
 };
-use std::io::Write;
 
 pub fn terminal_output_system(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     mut terminal: ResMut<TerminalDevice>,
-    mut readback_res: ResMut<TextureReadbackResource>,
     converter: Res<AsciiConverter>,
-    render_textures: Res<AssetStore<RenderTexture>>,
+    terminal_cameras: Query<(&RenderEntity,), With<TerminalCamera>>,
+    render_cameras: Query<(&RenderCamera,)>,
 ) {
-    // Get terminal dimensions
+    terminal.update_size();
     let term_width = terminal.width();
     let term_height = terminal.height();
 
-    // Update terminal size if needed
-    let _ = terminal.update_size();
+    let Some((render_entity,)) = terminal_cameras.iter().next() else {
+        return;
+    };
+    let Some((render_camera,)) = render_cameras.get_entity(**render_entity) else {
+        return;
+    };
+    let Some(render_target) = &render_camera.render_target else {
+        return;
+    };
 
-    // If we have previous pixel data, convert and display it
-    if let Some(pixel_data) = readback_res.get_last_pixel_data() {
-        let (last_width, last_height) = readback_res.get_last_dimensions();
+    let texture = render_target.texture();
 
-        // Only render if dimensions match terminal
-        if last_width as usize == term_width && last_height as usize == term_height {
-            let screen_grid = converter.pixels_to_screen(pixel_data, term_width, term_height);
-
-            // Clear terminal
-            let _ = terminal.clear();
-
-            // Write to terminal using ANSI codes
-            let mut stdout = std::io::stdout();
-            for (y, row) in screen_grid.iter().enumerate() {
-                // Move cursor to start of line
-                let _ = write!(stdout, "\x1b[{};0H", y + 1);
-
-                for (x, (ch, color_code)) in row.iter().enumerate() {
-                    // Set color and write character
-                    let color_seq = format!("\x1b[38;5;{}m", color_code);
-                    let _ = write!(stdout, "{}{}", color_seq, ch);
-                }
-            }
-
-            // Reset color
-            let _ = write!(stdout, "\x1b[0m");
-            let _ = stdout.flush();
+    let readback = match TextureReadback::new(&device, texture) {
+        Ok(r) => r,
+        Err(e) => {
+            log::error!("terminal_output: readback init failed: {}", e);
+            return;
         }
+    };
+
+    let pixel_data = match readback.read_texture(&device, &queue, texture) {
+        Ok(d) => d,
+        Err(e) => {
+            log::error!("terminal_output: readback read failed: {}", e);
+            return;
+        }
+    };
+
+    let tex_width = readback.width() as usize;
+    let tex_height = readback.height() as usize;
+    if tex_width == 0 || tex_height == 0 {
+        return;
     }
 
-    // If we have a readback result pending, poll it (would need async handling)
-    // For now, we'll just set up the next frame's readback request
-
-    // Try to get render texture and request readback
-    if let Some(texture_handle) = readback_res.terminal_render_target() {
-        if let Some(render_texture) = render_textures.get(texture_handle) {
-            // Create new readback for this texture
-            if let Ok(readback) = crate::readback::TextureReadback::new(
-                &device,
-                &render_texture.texture,
-            ) {
-                let width = readback.width();
-                let height = readback.height();
-
-                // Request readback
-                let _ = readback.request_readback(&device, &render_texture.texture, &queue);
-
-                readback_res.set_readback(readback);
-            }
-        }
-    }
+    let screen_grid = converter.pixels_to_screen(&pixel_data, tex_width, tex_height);
+    terminal.render_frame(&screen_grid, tex_width, tex_height, term_width, term_height);
 }

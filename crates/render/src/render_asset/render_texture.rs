@@ -63,6 +63,10 @@ impl RenderTexture {
         }
     }
 
+    pub fn texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
+
     pub fn create_depth_texture(
         device: &wgpu::Device,
         width: u32,

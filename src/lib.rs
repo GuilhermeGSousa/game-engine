@@ -25,9 +25,9 @@ use obj_loader::{
 };
 use physics::{physics_state::PhysicsState, plugin::PhysicsPlugin, rigid_body::RigidBody};
 use render::{
-    assets::texture::TextureUsageSettings,
+    assets::texture::{Texture, TextureUsageSettings},
     components::{
-        camera::Camera,
+        camera::{Camera, RenderTarget},
         light::{LighType, Light, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
@@ -36,6 +36,8 @@ use render::{
     plugin::RenderPlugin,
 };
 use skybox::{material::SkyboxMaterial, plugin::SkyboxPlugin, SkyboxCube};
+use terminal_render::{TerminalCamera, TerminalRenderPlugin};
+
 use ui::plugin::UIPlugin;
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
@@ -75,7 +77,7 @@ pub fn run_game() {
     let mut app = App::empty();
     app.register_plugin(AssetManagerPlugin)
         .register_plugin(TimePlugin)
-        .register_plugin(WindowPlugin)
+        .register_plugin(WindowPlugin::headless())
         .register_plugin(RenderPlugin)
         .register_plugin(TransformPlugin)
         .register_plugin(PhysicsPlugin)
@@ -85,6 +87,7 @@ pub fn run_game() {
         .register_plugin(SkyboxPlugin)
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .register_plugin(UIPlugin)
+        .register_plugin(TerminalRenderPlugin)
         .add_system(app::update_group::UpdateGroup::Update, move_around)
         .add_system(
             app::update_group::UpdateGroup::Update,
@@ -106,7 +109,12 @@ fn spawn_player(
     mut cmd: CommandQueue,
     asset_server: Res<AssetServer>,
 ) {
-    let camera = Camera::default();
+    // Terminal render target: 320x200 texture (sampled down to terminal size at runtime)
+    let terminal_texture = asset_server.add(Texture::render_target(320, 200));
+    let terminal_camera = Camera {
+        render_target: RenderTarget::Texture(terminal_texture),
+        ..Camera::default()
+    };
 
     let skybox_material = SkyboxMaterial {
         texture: Some(asset_server.load_with_usage_settings(
@@ -161,7 +169,8 @@ fn spawn_player(
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
     ))
     .add_child((
-        camera,
+        terminal_camera,
+        TerminalCamera,
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
     ));
     cmd.spawn((light, light_transform));

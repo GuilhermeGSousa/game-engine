@@ -70,7 +70,22 @@ impl HasWindowHandle for Window {
     }
 }
 
-pub struct WindowPlugin;
+pub struct WindowPlugin {
+    /// Whether to show the OS window. Set to `false` for headless/terminal mode.
+    pub visible: bool,
+}
+
+impl WindowPlugin {
+    pub fn headless() -> Self {
+        Self { visible: false }
+    }
+}
+
+impl Default for WindowPlugin {
+    fn default() -> Self {
+        Self { visible: true }
+    }
+}
 
 fn winit_runner(mut app: App, event_loop: EventLoop<()>) -> AppExit {
     if app.plugin_state() == PluginsState::Ready {
@@ -108,7 +123,9 @@ impl Plugin for WindowPlugin {
             .expect("Failed to build event loop");
         event_loop.set_control_flow(ControlFlow::Poll);
 
-        let mut win_attr = WinitWindow::default_attributes().with_title("winit example");
+        let mut win_attr = WinitWindow::default_attributes()
+            .with_title("game-engine")
+            .with_visible(self.visible);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -120,7 +137,7 @@ impl Plugin for WindowPlugin {
             .create_window(win_attr)
             .expect("create window err.");
 
-        window.set_cursor_visible(true);
+        window.set_cursor_visible(self.visible);
         app.insert_resource(Input::new());
         app.insert_resource(Window::new(window));
         app.insert_resource(WindowEventLoopProxy(event_loop.create_proxy()));

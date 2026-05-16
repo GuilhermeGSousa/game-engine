@@ -1,6 +1,8 @@
 use super::terminal_device::Color;
 use super::colors::RgbToAnsiMapper;
+use ecs::resource::Resource;
 
+#[derive(Resource)]
 pub struct AsciiConverter {
     // Characters mapped by brightness (0-9, where 0 is darkest)
     // Using both ASCII intensity and Unicode box-drawing
@@ -10,8 +12,8 @@ pub struct AsciiConverter {
 
 impl AsciiConverter {
     pub fn new() -> Self {
-        // ASCII intensity characters from dark to bright
-        let chars = [' ', '·', '·', '·', ':',  '▓', '▒', '▓', '█', '█'];
+        // Brightness gradient from dark (index 0) to bright (index 9)
+        let chars = [' ', '.', ':', ';', '+', '=', '*', '#', '▓', '█'];
 
         Self {
             chars,

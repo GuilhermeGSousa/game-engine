@@ -3,12 +3,22 @@ name = "ecs"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["multithreaded"]
+multithreaded = ["dep:tasks", "dep:fixedbitset", "dep:concurrent-queue"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+tasks = { path = "../tasks", optional = true }
+ecs-macros = { path = "macros" }
 any_vec = "0.14.0"
 anymap3 = "1.0.1"
 typle = "0.10.6"
-ecs-macros = { path = "macros" }
 log = "0.4.27"
+petgraph = { version = "0.8" }
+derive_more = { version = "2", features = ["full"] }
+fixedbitset = { version = "0.5.7", optional = true }
+concurrent-queue = { version = "2.5.0", optional = true }
+crossbeam-channel = "0.5.0"

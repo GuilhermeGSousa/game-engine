@@ -2,7 +2,7 @@ use std::{any::TypeId, collections::HashSet};
 
 use crate::{component::Component, resource::Resource};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct SystemAccess {
     component_reads: HashSet<TypeId>,
     component_writes: HashSet<TypeId>,
@@ -10,6 +10,7 @@ pub struct SystemAccess {
     resource_writes: HashSet<TypeId>,
     reads_all: bool,
     writes_all: bool,
+    needs_apply: bool,
 }
 
 impl SystemAccess {
@@ -37,52 +38,56 @@ impl SystemAccess {
         self.writes_all = true;
     }
 
-    pub fn is_compatible(&self, other: &Self) -> bool {
-        if self.writes_all || other.writes_all {
+    pub fn set_needs_apply(&mut self) {
+        self.needs_apply = true;
+    }
+
+    pub fn needs_apply(&self) -> bool {
+        self.needs_apply
+    }
+
+    pub fn are_disjoint(a: &Self, b: &Self) -> bool {
+        if a.writes_all || b.writes_all {
             return false;
         }
 
         // Self reads all and other writes any
-        if self.reads_all
-            && (!other.component_writes.is_empty() || !other.resource_writes.is_empty())
-        {
+        if a.reads_all && (!b.component_writes.is_empty() || !b.resource_writes.is_empty()) {
             return false;
         }
 
         // Other reads all and self writes any
-        if other.reads_all
-            && (!self.component_writes.is_empty() || !self.resource_writes.is_empty())
-        {
+        if b.reads_all && (!a.component_writes.is_empty() || !a.resource_writes.is_empty()) {
             return false;
         }
 
         // Self reads component and other writes
-        if !self.component_reads.is_disjoint(&other.component_writes) {
+        if !a.component_reads.is_disjoint(&b.component_writes) {
             return false;
         }
 
         // Self writes component and other reads
-        if !self.component_writes.is_disjoint(&other.component_reads) {
+        if !a.component_writes.is_disjoint(&b.component_reads) {
             return false;
         }
 
         // Both write component
-        if !self.component_writes.is_disjoint(&other.component_writes) {
+        if !a.component_writes.is_disjoint(&b.component_writes) {
             return false;
         }
 
         // Self reads resource and other writes
-        if !self.resource_reads.is_disjoint(&other.resource_writes) {
+        if !a.resource_reads.is_disjoint(&b.resource_writes) {
             return false;
         }
 
         // Self writes resource and other reads
-        if !self.resource_writes.is_disjoint(&other.resource_reads) {
+        if !a.resource_writes.is_disjoint(&b.resource_reads) {
             return false;
         }
 
         // Both write resource
-        if !self.resource_writes.is_disjoint(&other.resource_writes) {
+        if !a.resource_writes.is_disjoint(&b.resource_writes) {
             return false;
         }
 

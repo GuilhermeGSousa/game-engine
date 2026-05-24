@@ -52,7 +52,9 @@ pub(crate) fn spawn_on_button_press(
     input: Res<Input>,
     asset_server: Res<AssetServer>,
 ) {
-    let (_, pos) = cameras.iter().next().expect("No camera found");
+    let Some((_, pos)) = cameras.iter().next() else {
+        return;
+    };
     let key_p = input.get_key_state(PhysicalKey::Code(KeyCode::KeyP));
 
     let mut mesh_transform = pos.clone();

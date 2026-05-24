@@ -1,11 +1,13 @@
-use ecs::resource::{ResMut, Resource};
+use ecs::{
+    resource::{ResMut, Resource},
+    system::schedule::UpdateGroup,
+};
 use std::sync::Arc;
 
 use crate::{input::Input, winit_events::WindowEvent, ApplicationWindowHandler};
 use app::{
     plugins::{Plugin, PluginsState},
     runner::AppExit,
-    update_group::UpdateGroup,
     App,
 };
 

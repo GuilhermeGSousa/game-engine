@@ -3,6 +3,10 @@ name = "app"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["multithreaded"]
+multithreaded = ["ecs/multithreaded"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -12,6 +16,7 @@ essential = { path = "../essential" }
 getrandom = { version = "0.2", features = ["js"] }
 uuid = { version = "1.18.1", features = ["v4", "js"] }
 cfg-if = "1"
+log = "0.4.27"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"

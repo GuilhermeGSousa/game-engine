@@ -13,7 +13,6 @@ pub mod asset_loader;
 pub mod asset_server;
 pub mod asset_store;
 pub mod handle;
-pub mod load_pool;
 pub mod utils;
 
 // Path to an asset in a virtual file system.

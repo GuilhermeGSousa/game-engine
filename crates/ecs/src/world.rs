@@ -350,6 +350,12 @@ impl World {
             .insert(ResourceStorage::new(resource, self.current_tick));
     }
 
+    // Inserts a resource into the world with its default value.
+    pub fn init_resource<T: Resource + Default>(&mut self) {
+        self.resources
+            .insert(ResourceStorage::new(T::default(), self.current_tick));
+    }
+
     /// Removes and returns the resource of type `T`, or `None` if it was not present.
     pub fn remove_resource<T: Resource + 'static>(&mut self) -> Option<T> {
         self.resources

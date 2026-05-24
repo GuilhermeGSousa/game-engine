@@ -6,6 +6,7 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use ecs::{resource::Resource, world};
+use tasks::load_pool::LoadTaskPool;
 
 use crate::{
     assets::{handle::StrongAssetHandle, AssetPath, LoadableAsset},
@@ -16,7 +17,6 @@ use super::{
     asset_container::AssetContainer,
     asset_store::AssetStore,
     handle::{AssetHandle, AssetLifetimeEvent},
-    load_pool::LoadTaskPool,
     Asset, AssetId,
 };
 

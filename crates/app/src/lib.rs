@@ -1,3 +1,7 @@
+#[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
+use ecs::system::executor::multi_thread::MultiThreadedExecutor;
+#[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
+use ecs::system::executor::single_thread::SingleThreadedExecutor;
 use ecs::{
     component::Component,
     events::{
@@ -9,10 +13,6 @@ use ecs::{
     world::World,
     IntoSystemConfig,
 };
-#[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
-use ecs::system::executor::multi_thread::MultiThreadedExecutor;
-#[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
-use ecs::system::executor::single_thread::SingleThreadedExecutor;
 use runner::AppExit;
 
 use essential::{

@@ -338,7 +338,7 @@ impl CompiledSchedules {
     }
 }
 
-pub(crate) fn is_sync_point(system: &Box<dyn System>) -> bool {
+pub(crate) fn is_sync_point(system: &dyn System) -> bool {
     system.system_type() == TypeId::of::<SyncPoint>()
 }
 

@@ -26,6 +26,7 @@ pub type BoxedSystem = Box<dyn System>;
 /// In normal use you don't implement this directly — plain Rust functions whose
 /// parameters implement [`SystemInput`] automatically implement [`IntoSystem`], which
 /// wraps them in a [`FunctionSystem`] that implements `System`.
+///
 pub trait System: Send + Sync + 'static {
     /// Returns the fully-qualified name of the underlying function or type.
     fn name(&self) -> &'static str;
@@ -49,6 +50,11 @@ pub trait System: Send + Sync + 'static {
         unsafe { self.run_unsafe(world_cell) };
     }
 
+    /// Unsafe version of run made to be used by multithreaded executors
+    /// # Safety
+    ///
+    /// It is up to the user to ensure that no other system that isn't disjoint from this one
+    /// is running simultaneously on this world
     unsafe fn run_unsafe(&mut self, world: UnsafeWorldCell);
 
     /// Applies any deferred mutations (e.g. spawned entities from [`CommandQueue`](crate::command::CommandQueue)).

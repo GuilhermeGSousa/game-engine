@@ -1,13 +1,8 @@
-use std::collections::HashMap;
-
 use animation::{
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeIndex},
     player::{AnimationHandleComponent, AnimationPlayer},
-    state_machine::{
-        AnimationFSMStateDefinition, AnimationFSMTrigger, AnimationFSMVariableType,
-        AnimationStateMachine, AnimationStateMachineTransitionDefinition,
-    },
+    state_machine::{AnimationFSMTrigger, AnimationFSMVariableType, AnimationStateMachine},
 };
 use ecs::{
     command::CommandQueue,

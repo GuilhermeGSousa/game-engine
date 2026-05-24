@@ -122,7 +122,7 @@ impl World {
                 }
 
                 archetype.remove_swap(location.row);
-
+                self.entity_store.free(entity);
             }
             None => panic!("Entity {:?} should exist in the world", entity),
         }

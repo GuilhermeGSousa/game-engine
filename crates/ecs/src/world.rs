@@ -122,7 +122,7 @@ impl World {
                 }
 
                 archetype.remove_swap(location.row);
-
+                self.entity_store.free(entity);
             }
             None => panic!("Entity {:?} should exist in the world", entity),
         }
@@ -348,6 +348,12 @@ impl World {
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
         self.resources
             .insert(ResourceStorage::new(resource, self.current_tick));
+    }
+
+    // Inserts a resource into the world with its default value.
+    pub fn init_resource<T: Resource + Default>(&mut self) {
+        self.resources
+            .insert(ResourceStorage::new(T::default(), self.current_tick));
     }
 
     /// Removes and returns the resource of type `T`, or `None` if it was not present.

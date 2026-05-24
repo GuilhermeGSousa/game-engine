@@ -140,7 +140,7 @@ impl SystemInput for CommandQueue<'_, '_> {
     }
 
     fn fill_access(access: &mut crate::system::access::SystemAccess) {
-        access.write_world();
+        access.set_needs_apply();
     }
 }
 

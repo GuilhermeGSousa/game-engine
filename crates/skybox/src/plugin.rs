@@ -15,7 +15,7 @@ impl Plugin for SkyboxPlugin {
         };
 
         let skybox_cube = SkyboxCube(
-            app.get_mut_resource::<AssetServer>()
+            app.get_resource_mut::<AssetServer>()
                 .expect("Could not find Mesh asset store")
                 .add(skybox_cube),
         );

@@ -14,12 +14,8 @@ use petgraph::{
 use crate::{
     clip::AnimationClip,
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode},
-    node::{
-        AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode,
-        AnimationStateMachineNode,
-    },
+    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
     player::ActiveNodeInstance,
-    state_machine::AnimationStateMachine,
     target::AnimationTarget,
 };
 

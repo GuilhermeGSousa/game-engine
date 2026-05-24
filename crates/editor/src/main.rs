@@ -9,6 +9,7 @@ use ecs::{
     component::Component,
     query::{Query, query_filter::With},
     resource::Res,
+    system::schedule::UpdateGroup,
 };
 use essential::{time::Time, transform::Transform};
 use glam::{Quat, Vec3, Vec4};
@@ -35,7 +36,7 @@ use plugin::EditorPlugin;
 fn main() {
     env_logger::init();
 
-    let mut app = App::empty();
+    let mut app = App::new();
     app.register_plugin(AssetManagerPlugin)
         .register_plugin(TimePlugin)
         .register_plugin(WindowPlugin)
@@ -43,8 +44,8 @@ fn main() {
         .register_plugin(TransformPlugin)
         .register_plugin(UIPlugin)
         .register_plugin(EditorPlugin)
-        .add_system(app::update_group::UpdateGroup::Startup, spawn_scene)
-        .add_system(app::update_group::UpdateGroup::Update, navigate_camera);
+        .add_system(UpdateGroup::Startup, spawn_scene)
+        .add_system(UpdateGroup::Update, navigate_camera);
 
     app.run();
 }

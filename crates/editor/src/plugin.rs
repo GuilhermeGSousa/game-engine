@@ -1,4 +1,5 @@
 use app::plugins::Plugin;
+use ecs::system::schedule::UpdateGroup;
 use essential::assets::asset_server::AssetServer;
 use render::assets::texture::Texture;
 
@@ -8,7 +9,7 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut app::App) {
-        app.add_system(app::update_group::UpdateGroup::Startup, spawn_editor_ui);
+        app.add_system(UpdateGroup::Startup, spawn_editor_ui);
     }
 
     fn finish(&self, app: &mut app::App) {

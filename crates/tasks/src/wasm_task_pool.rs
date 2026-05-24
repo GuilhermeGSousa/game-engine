@@ -1,4 +1,4 @@
-use super::task::Task;
+use crate::task::Task;
 use std::future::Future;
 
 pub struct TaskPool;

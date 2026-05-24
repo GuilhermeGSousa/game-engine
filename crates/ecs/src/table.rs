@@ -51,7 +51,7 @@ impl Column {
         self.data.get_unchecked(*row).downcast_ref()
     }
 
-    pub(crate) unsafe fn get_mut_unsafe<T: 'static>(
+    pub(crate) unsafe fn get_unsafe_mut<T: 'static>(
         &mut self,
         row: TableRowIndex,
     ) -> Option<MutableCellAccessor<'_, T>> {

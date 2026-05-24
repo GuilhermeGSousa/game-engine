@@ -1,6 +1,6 @@
 pub mod assets;
 pub mod blend;
-pub mod tasks;
+pub use tasks;
 pub mod time;
 pub mod transform;
 pub mod utils;

@@ -101,5 +101,6 @@ impl SystemAccess {
         self.resource_writes.extend(other.resource_writes);
         self.reads_all |= other.reads_all;
         self.writes_all |= other.writes_all;
+        self.needs_apply |= other.needs_apply;
     }
 }

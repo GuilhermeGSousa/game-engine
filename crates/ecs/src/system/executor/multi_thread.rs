@@ -18,7 +18,7 @@ pub struct MultiThreadedExecutor {
     running_systems: FixedBitSet,
     unapplied_systems: FixedBitSet,
     dependency_count: Vec<usize>,
-    pub dependants: Vec<Vec<usize>>,
+    dependants: Vec<Vec<usize>>,
 }
 
 impl SystemExecutor for MultiThreadedExecutor {
@@ -80,21 +80,21 @@ impl SystemExecutor for MultiThreadedExecutor {
                 }
                 self.ready_systems.clear();
 
-                let mut apply_defferred = false;
+                let mut apply_deferred = false;
                 while let Ok(finished_system) = queue.pop() {
                     self.running_systems.set(finished_system, false);
                     self.unapplied_systems.set(finished_system, true);
                     let sys: &mut Box<dyn System + 'static> =
                         unsafe { &mut *systems[finished_system].get() };
                     if is_sync_point(sys) {
-                        apply_defferred = true;
+                        apply_deferred = true;
                     }
 
                     for &dependant in &self.dependants[finished_system] {
                         self.dependency_count[dependant] -= 1;
                     }
                 }
-                if apply_defferred {
+                if apply_deferred {
                     for unapplied_system in self.unapplied_systems.ones() {
                         let sys = unsafe { &mut *systems[unapplied_system].get() };
                         sys.apply(world_cell.world_mut());

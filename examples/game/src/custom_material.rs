@@ -14,8 +14,9 @@
 /// 5. Attach `MaterialComponent::<UnlitMaterial>` to mesh entities instead of
 ///    the old `CustomMaterialComponent`.
 use bytemuck::{Pod, Zeroable};
-use essential::assets::Asset;
-use render::{AsBindGroup, Material};
+use game_engine::essential::assets::Asset;
+use game_engine::render::{self, AsBindGroup, Material};
+use game_engine::render::wgpu;
 
 /// GPU-side uniform for [`UnlitMaterial`].
 ///

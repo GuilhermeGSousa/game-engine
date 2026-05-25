@@ -15,6 +15,10 @@ pub mod resources;
 pub mod systems;
 pub mod wgpu_wrapper;
 
+/// Re-export wgpu so downstream crates that use `#[derive(AsBindGroup)]` can
+/// bring `wgpu` into scope via `use render::wgpu` without a direct dependency.
+pub use wgpu;
+
 /// Re-export the `AsBindGroup` derive macro so crates that depend on `render`
 /// do not need to add `render-macros` as a separate dependency.
 pub use render_macros::AsBindGroup;

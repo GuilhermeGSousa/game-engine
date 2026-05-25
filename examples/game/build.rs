@@ -11,7 +11,11 @@ fn manifest_dir() -> PathBuf {
 
 fn get_output_path() -> PathBuf {
     let build_type = env::var("PROFILE").unwrap();
-    manifest_dir().join("..").join("..").join("target").join(build_type)
+    manifest_dir()
+        .join("..")
+        .join("..")
+        .join("target")
+        .join(build_type)
 }
 
 fn main() -> anyhow::Result<()> {

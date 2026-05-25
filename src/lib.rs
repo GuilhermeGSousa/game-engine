@@ -29,15 +29,15 @@ pub struct DefaultPlugins;
 impl Plugin for DefaultPlugins {
     fn build(&self, app: &mut App) {
         app.register_plugin(AssetManagerPlugin)
-        .register_plugin(TimePlugin)
-        .register_plugin(WindowPlugin)
-        .register_plugin(RenderPlugin)
-        .register_plugin(TransformPlugin)
-        .register_plugin(PhysicsPlugin)
-        .register_plugin(AnimationPlugin)
-        .register_plugin(GLTFPlugin)
-        .register_plugin(OBJPlugin)
-        .register_plugin(SkyboxPlugin)
-        .register_plugin(UIPlugin);
+            .register_plugin(TimePlugin)
+            .register_plugin(WindowPlugin)
+            .register_plugin(RenderPlugin)
+            .register_plugin(TransformPlugin)
+            .register_plugin(PhysicsPlugin)
+            .register_plugin(AnimationPlugin)
+            .register_plugin(GLTFPlugin)
+            .register_plugin(OBJPlugin)
+            .register_plugin(SkyboxPlugin)
+            .register_plugin(UIPlugin);
     }
 }

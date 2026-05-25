@@ -15,8 +15,8 @@
 ///    the old `CustomMaterialComponent`.
 use bytemuck::{Pod, Zeroable};
 use game_engine::essential::assets::Asset;
-use game_engine::render::{self, AsBindGroup, Material};
 use game_engine::render::wgpu;
+use game_engine::render::{self, AsBindGroup, Material};
 
 /// GPU-side uniform for [`UnlitMaterial`].
 ///

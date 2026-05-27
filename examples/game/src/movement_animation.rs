@@ -1,23 +1,25 @@
-use animation::{
-    clip::AnimationClip,
-    graph::{AnimationGraph, AnimationNodeIndex},
-    player::{AnimationHandleComponent, AnimationPlayer},
-    state_machine::{AnimationFSMTrigger, AnimationFSMVariableType, AnimationStateMachine},
+use game_engine::{
+    animation::{
+        clip::AnimationClip,
+        graph::{AnimationGraph, AnimationNodeIndex},
+        player::{AnimationHandleComponent, AnimationPlayer},
+        state_machine::{AnimationFSMTrigger, AnimationFSMVariableType, AnimationStateMachine},
+    },
+    ecs::{
+        command::CommandQueue,
+        component::Component,
+        entity::Entity,
+        query::{query_filter::Without, Query},
+        resource::Res,
+    },
+    essential::{
+        assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
+        transform::Transform,
+    },
+    gltf_loader::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings},
+    render::components::camera::Camera,
+    window::input::{Input, InputState},
 };
-use ecs::{
-    command::CommandQueue,
-    component::Component,
-    entity::Entity,
-    query::{query_filter::Without, Query},
-    resource::Res,
-};
-use essential::{
-    assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
-    transform::Transform,
-};
-use gltf_loader::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings};
-use render::components::camera::Camera;
-use window::input::{Input, InputState};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 const GLB_ASSET: &str = "res/girl.glb";

@@ -103,6 +103,6 @@ pub(crate) fn present_window(mut render_window: ResMut<RenderWindow>) {
     render_window.present();
 }
 
-pub(crate) fn finish_render(mut device: ResMut<RenderDevice>, queue: Res<RenderQueue>) {
+pub fn finish_render(mut device: ResMut<RenderDevice>, queue: Res<RenderQueue>) {
     device.finish(&queue);
 }

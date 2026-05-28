@@ -22,6 +22,10 @@ pub struct RenderTexture {
 }
 
 impl RenderTexture {
+    pub fn texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
+
     pub fn from_texture(texture: &Texture, device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         let usage_settings = texture.usage_settings();
         let wgpu_texture = device.create_texture(&usage_settings.texture_descriptor);

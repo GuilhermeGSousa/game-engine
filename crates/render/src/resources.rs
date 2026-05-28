@@ -3,7 +3,7 @@ use std::{ops::Deref, sync::Arc};
 
 #[derive(Resource)]
 pub struct RenderContext {
-    pub(crate) surface: Arc<wgpu::Surface<'static>>,
+    pub(crate) surface: Option<Arc<wgpu::Surface<'static>>>,
     pub surface_config: wgpu::SurfaceConfiguration,
 }
 

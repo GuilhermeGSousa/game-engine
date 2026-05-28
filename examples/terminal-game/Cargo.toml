@@ -1,0 +1,16 @@
+[package]
+name = "terminal-game"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "terminal-game"
+path = "src/main.rs"
+
+[dependencies]
+app = { path = "../../crates/app" }
+ecs = { path = "../../crates/ecs" }
+essential = { path = "../../crates/essential" }
+render = { path = "../../crates/render" }
+terminal-renderer = { path = "../../crates/terminal-renderer" }
+glam = "0.30.1"

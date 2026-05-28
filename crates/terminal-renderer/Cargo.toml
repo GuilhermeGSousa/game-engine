@@ -1,0 +1,19 @@
+[package]
+name = "terminal-renderer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+app = { path = "../app" }
+ecs = { path = "../ecs" }
+render = { path = "../render" }
+wgpu = { version = "24.0.1", default-features = false, features = [
+    "wgsl",
+    "metal",
+    "naga-ir",
+    "fragile-send-sync-non-atomic-wasm",
+] }
+pollster = "0.4.0"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

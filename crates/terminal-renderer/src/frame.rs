@@ -28,7 +28,14 @@ pub struct TerminalFrame
 impl Widget for TerminalFrame {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
-        Self: Sized {
-            todo!()
+        Self: Sized,
+    {
+        for (row, line) in self.content.lines().enumerate() {
+            let y = area.y + row as u16;
+            if y >= area.bottom() {
+                break;
+            }
+            buf.set_stringn(area.x, y, line, area.width as usize, Style::default());
         }
+    }
 }

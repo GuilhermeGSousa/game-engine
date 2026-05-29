@@ -3,7 +3,11 @@ use ecs::{system::schedule::UpdateGroup, IntoSystemConfig};
 use render::{device::RenderDevice, systems::render::finish_render};
 
 use crate::{
-    frame::TerminalFrames, input::{TerminalInput, poll_terminal_input}, readback::{TerminalRenderState, print_terminal_frame}, runner::terminal_runner, terminal::Terminal
+    frame::TerminalFrames,
+    input::{poll_terminal_input, TerminalInput},
+    readback::{print_terminal_frame, TerminalRenderState},
+    runner::terminal_runner,
+    terminal::Terminal,
 };
 
 pub struct TerminalRendererPlugin;
@@ -27,19 +31,14 @@ impl Plugin for TerminalRendererPlugin {
                 "RenderDevice not found — make sure RenderPlugin is registered before TerminalRendererPlugin",
             );
             let terminal_size = app.get_resource::<Terminal>().unwrap().size().unwrap();
-            TerminalRenderState::new(&*device, terminal_size.width as u32, terminal_size.height as u32)
+            TerminalRenderState::new(
+                &*device,
+                terminal_size.width as u32,
+                terminal_size.height as u32,
+            )
         };
 
         app.insert_resource(state);
         app.insert_resource(TerminalInput::new());
-
-        crossterm::terminal::enable_raw_mode().expect("Failed to enable raw mode");
-        crossterm::execute!(
-            std::io::stdout(),
-            crossterm::event::EnableMouseCapture,
-            crossterm::cursor::Hide,
-            crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
-        )
-        .ok();
     }
 }

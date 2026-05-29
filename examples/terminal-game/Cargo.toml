@@ -8,6 +8,7 @@ name = "terminal-game"
 path = "src/main.rs"
 
 [dependencies]
+game-engine = { path = "../.." }
 app = { path = "../../crates/app" }
 ecs = { path = "../../crates/ecs" }
 essential = { path = "../../crates/essential" }

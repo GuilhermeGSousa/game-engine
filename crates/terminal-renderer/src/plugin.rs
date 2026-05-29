@@ -1,9 +1,11 @@
-use app::{plugins::Plugin, runner::ScheduleRunnerPlugin};
+use app::plugins::Plugin;
 use ecs::{system::schedule::UpdateGroup, IntoSystemConfig};
 use render::{device::RenderDevice, systems::render::finish_render};
 
 use crate::{
+    input::{poll_terminal_input, TerminalInput},
     readback::{print_terminal_frame, TerminalRenderState},
+    runner::terminal_runner,
     terminal_size::get_terminal_size,
 };
 
@@ -11,7 +13,8 @@ pub struct TerminalRendererPlugin;
 
 impl Plugin for TerminalRendererPlugin {
     fn build(&self, app: &mut app::App) {
-        app.register_plugin(ScheduleRunnerPlugin());
+        app.set_runner(terminal_runner);
+        app.add_system(UpdateGroup::Update, poll_terminal_input);
         app.add_system(
             UpdateGroup::LateRender,
             print_terminal_frame.after(finish_render),
@@ -29,10 +32,15 @@ impl Plugin for TerminalRendererPlugin {
         };
 
         app.insert_resource(state);
+        app.insert_resource(TerminalInput::new());
 
-        // Hide cursor and clear screen
-        print!("\x1b[?25l\x1b[2J");
-        use std::io::Write;
-        std::io::stdout().flush().ok();
+        crossterm::terminal::enable_raw_mode().expect("Failed to enable raw mode");
+        crossterm::execute!(
+            std::io::stdout(),
+            crossterm::event::EnableMouseCapture,
+            crossterm::cursor::Hide,
+            crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
+        )
+        .ok();
     }
 }

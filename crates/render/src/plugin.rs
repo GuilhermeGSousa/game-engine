@@ -146,16 +146,17 @@ impl Plugin for RenderPlugin {
             .add_system(UpdateGroup::LateUpdate, mesh_changed)
             .add_system(UpdateGroup::LateUpdate, light_added)
             .add_system(UpdateGroup::LateUpdate, light_changed)
-            .add_system(UpdateGroup::LateUpdate, skeleton_added)
-            .add_system(UpdateGroup::Render, update_skeletons)
-            .add_system(UpdateGroup::Render, prepare_lights_buffer)
-            .add_system(UpdateGroup::Render, render::main_renderpass)
-            .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
+            .add_system(UpdateGroup::LateUpdate, skeleton_added);
 
         if is_windowed {
             app.add_system(UpdateGroup::Update, update_window::request_window_resize)
                 .add_system(UpdateGroup::Render, update_window::update_render_window);
         }
+
+        app.add_system(UpdateGroup::Render, update_skeletons)
+            .add_system(UpdateGroup::Render, prepare_lights_buffer)
+            .add_system(UpdateGroup::Render, render::main_renderpass)
+            .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
     }
 
     fn ready(&self, app: &app::App) -> bool {

@@ -70,6 +70,10 @@ impl Transform {
         self.rotation = Quat::look_to_rh(direction, up);
     }
 
+    pub fn look_at(&mut self, center: Vec3, up: Vec3) {
+        self.rotation = Quat::look_at_rh(self.translation, center, up)
+    }
+
     pub fn local_x(&self) -> Vec3 {
         self.rotation * Vec3::X
     }

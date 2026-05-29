@@ -22,6 +22,7 @@ pub fn pixels_to_ascii(data: &[u8], width: u32, height: u32, padded_bpr: u32) ->
             let luma = (0.299 * r + 0.587 * g + 0.114 * b) as u8;
             out.push(luma_to_char(luma));
         }
+        out.push('\r');
         out.push('\n');
     }
     out
@@ -73,7 +74,10 @@ mod tests {
         for width in [1u32, 4, 16, 64, 80, 160, 256, 320] {
             let pbr = padded_bytes_per_row(width);
             assert_eq!(pbr % COPY_ROW_ALIGNMENT, 0, "width={width} pbr={pbr}");
-            assert!(pbr >= width * 4, "padded must be >= unpadded for width={width}");
+            assert!(
+                pbr >= width * 4,
+                "padded must be >= unpadded for width={width}"
+            );
         }
     }
 }

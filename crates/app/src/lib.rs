@@ -155,6 +155,18 @@ impl App {
         self.world.get_resource_mut()
     }
 
+    
+    pub fn with_resource<R: Resource, F, T: Resource>(&mut self, f: F)
+    where
+        F: FnOnce(R) -> T,
+    {
+        let Some(resource) = self.remove_resource::<R>() else {
+            return;
+        };
+        let output = f(resource);
+        self.insert_resource(output);
+    }
+
     /// Runs all per-frame schedules: FixedUpdate (as many times as needed), Update,
     /// LateUpdate, Render, LateRender.  Also advances the world tick at the end.
     pub fn update(&mut self) {

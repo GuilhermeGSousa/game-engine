@@ -2,8 +2,9 @@ pub mod ascii;
 pub mod input;
 pub mod plugin;
 pub mod readback;
+pub mod frame;
+pub mod terminal;
 mod runner;
-pub mod terminal_size;
 
 pub use crossterm::event::KeyCode as TerminalKeyCode;
 pub use crossterm::event::MouseButton as TerminalMouseButton;

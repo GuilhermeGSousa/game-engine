@@ -1,6 +1,5 @@
 use ecs::{
-    resource::{Res, Resource},
-    Component, Query, With,
+    Component, Query, ResMut, With, resource::{Res, Resource}
 };
 use render::{
     components::{camera::RenderCamera, render_entity::RenderEntity},
@@ -8,13 +7,11 @@ use render::{
     queue::RenderQueue,
 };
 
-use crate::ascii::{padded_bytes_per_row, pixels_to_ascii};
+use crate::{ascii::{padded_bytes_per_row, pixels_to_ascii}, frame::TerminalFrames, terminal::Terminal};
 
 #[derive(Resource)]
 pub struct TerminalRenderState {
     pub(crate) staging_buffer: wgpu::Buffer,
-    pub width: u32,
-    pub height: u32,
     pub(crate) padded_bpr: u32,
 }
 
@@ -29,8 +26,6 @@ impl TerminalRenderState {
         });
         Self {
             staging_buffer,
-            width,
-            height,
             padded_bpr,
         }
     }
@@ -47,6 +42,8 @@ pub fn print_terminal_frame(
     terminal_cameras: Query<&RenderEntity, With<TerminalOutput>>,
     render_cameras: Query<&RenderCamera>,
     state: Res<TerminalRenderState>,
+    terminal: Res<Terminal>,
+    mut frame: ResMut<TerminalFrames>
 ) {
     let render_entity = match terminal_cameras.iter().next() {
         Some(e) => e,
@@ -65,6 +62,8 @@ pub fn print_terminal_frame(
         label: Some("Terminal Readback"),
     });
 
+    let terminal_size = terminal.size().unwrap();
+
     encoder.copy_texture_to_buffer(
         rt.texture().as_image_copy(),
         wgpu::TexelCopyBufferInfo {
@@ -76,8 +75,8 @@ pub fn print_terminal_frame(
             },
         },
         wgpu::Extent3d {
-            width: state.width,
-            height: state.height,
+            width: terminal_size.width as u32,
+            height: terminal_size.height as u32,
             depth_or_array_layers: 1,
         },
     );
@@ -95,10 +94,12 @@ pub fn print_terminal_frame(
 
     {
         let data = buffer_slice.get_mapped_range();
-        let frame = pixels_to_ascii(&data, state.width, state.height, state.padded_bpr);
-        print!("\x1b[H{}", frame);
-        use std::io::Write;
-        std::io::stdout().flush().ok();
+        frame.push_data(
+            pixels_to_ascii(
+                &data, 
+                terminal_size.width as u32, 
+                terminal_size.height as u32, 
+                state.padded_bpr));
     }
 
     state.staging_buffer.unmap();

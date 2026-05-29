@@ -21,8 +21,7 @@ use render::{
     wgpu::naga::VectorSize::Quad,
 };
 use terminal_renderer::{
-    readback::TerminalRenderState, TerminalInput, TerminalKeyCode, TerminalOutput,
-    TerminalRendererPlugin,
+    TerminalInput, TerminalKeyCode, TerminalOutput, TerminalRendererPlugin, readback::TerminalRenderState, terminal::Terminal
 };
 
 #[derive(Component)]
@@ -50,12 +49,13 @@ fn main() {
 fn spawn_camera_terminal(
     mut cmd: CommandQueue,
     asset_server: Res<AssetServer>,
-    state: Res<TerminalRenderState>,
+    terminal: Res<Terminal>
 ) {
-    let rtt = asset_server.add(Texture::render_target(state.width, state.height));
+    let terminal_size = terminal.size().unwrap();
+    let rtt = asset_server.add(Texture::render_target(terminal_size.width as u32, terminal_size.height as u32));
 
     // Account for terminal cells being ~2x taller than wide
-    let aspect = (state.width as f32 * 0.5) / state.height as f32;
+    let aspect = (terminal_size.width as f32 * 0.5) / terminal_size.height as f32;
     let camera = Camera {
         aspect,
         render_target: RenderTarget::texture(rtt),

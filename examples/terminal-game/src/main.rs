@@ -9,6 +9,7 @@ use ecs::{command::CommandQueue, query::Query, resource::Res, Component, With};
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use game_engine::DefaultPlugins;
 use glam::{Quat, Vec3, Vec4};
+use ratatui::crossterm::event::KeyCode;
 use render::{
     assets::{material::StandardMaterial, mesh::Mesh, texture::Texture, vertex::Vertex},
     components::{
@@ -21,7 +22,7 @@ use render::{
     wgpu::naga::VectorSize::Quad,
 };
 use terminal_renderer::{
-    TerminalInput, TerminalKeyCode, TerminalOutput, TerminalRendererPlugin, readback::TerminalRenderState, terminal::TerminalContext
+    terminal::TerminalContext, TerminalInput, TerminalOutput, TerminalRendererPlugin,
 };
 
 #[derive(Component)]
@@ -49,10 +50,13 @@ fn main() {
 fn spawn_camera_terminal(
     mut cmd: CommandQueue,
     asset_server: Res<AssetServer>,
-    terminal: Res<TerminalContext>
+    terminal: Res<TerminalContext>,
 ) {
     let terminal_size = terminal.size().unwrap();
-    let rtt = asset_server.add(Texture::render_target(terminal_size.width as u32, terminal_size.height as u32));
+    let rtt = asset_server.add(Texture::render_target(
+        terminal_size.width as u32,
+        terminal_size.height as u32,
+    ));
 
     // Account for terminal cells being ~2x taller than wide
     let aspect = (terminal_size.width as f32 * 0.5) / terminal_size.height as f32;
@@ -117,34 +121,34 @@ fn move_camera(
 
     for mut transform in cameras.iter() {
         // WASD: translate along the camera's local axes
-        if input.is_key_active(TerminalKeyCode::Char('z')) {
+        if input.is_key_active(KeyCode::Char('z')) {
             let fwd = transform.forward();
             transform.translation += fwd * speed;
         }
-        if input.is_key_active(TerminalKeyCode::Char('s')) {
+        if input.is_key_active(KeyCode::Char('s')) {
             let bwd = transform.backward();
             transform.translation += bwd * speed;
         }
-        if input.is_key_active(TerminalKeyCode::Char('q')) {
+        if input.is_key_active(KeyCode::Char('q')) {
             let left = transform.left();
             transform.translation += left * speed;
         }
-        if input.is_key_active(TerminalKeyCode::Char('d')) {
+        if input.is_key_active(KeyCode::Char('d')) {
             let right = transform.right();
             transform.translation += right * speed;
         }
 
         // Arrow keys: yaw (left/right around world Y) and pitch (up/down around local X)
-        if input.is_key_active(TerminalKeyCode::Left) {
+        if input.is_key_active(KeyCode::Left) {
             transform.rotation = Quat::from_rotation_y(rot_speed) * transform.rotation;
         }
-        if input.is_key_active(TerminalKeyCode::Right) {
+        if input.is_key_active(KeyCode::Right) {
             transform.rotation = Quat::from_rotation_y(-rot_speed) * transform.rotation;
         }
-        if input.is_key_active(TerminalKeyCode::Up) {
+        if input.is_key_active(KeyCode::Up) {
             transform.rotation = transform.rotation * Quat::from_rotation_x(-rot_speed);
         }
-        if input.is_key_active(TerminalKeyCode::Down) {
+        if input.is_key_active(KeyCode::Down) {
             transform.rotation = transform.rotation * Quat::from_rotation_x(rot_speed);
         }
     }

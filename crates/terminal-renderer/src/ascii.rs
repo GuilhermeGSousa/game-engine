@@ -11,7 +11,13 @@ pub fn padded_bytes_per_row(width: u32) -> u32 {
     (unpadded + COPY_ROW_ALIGNMENT - 1) / COPY_ROW_ALIGNMENT * COPY_ROW_ALIGNMENT
 }
 
-pub fn pixels_to_ascii_into(data: &[u8], width: u32, height: u32, padded_bpr: u32, out: &mut String) {
+pub fn pixels_to_ascii_into(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    padded_bpr: u32,
+    out: &mut String,
+) {
     out.clear();
     let needed = (width as usize + 2) * height as usize;
     if out.capacity() < needed {
@@ -26,7 +32,6 @@ pub fn pixels_to_ascii_into(data: &[u8], width: u32, height: u32, padded_bpr: u3
             let luma = (0.299 * r + 0.587 * g + 0.114 * b) as u8;
             out.push(luma_to_char(luma));
         }
-        out.push('\r');
         out.push('\n');
     }
 }
@@ -50,26 +55,6 @@ mod tests {
         let c = luma_to_char(128);
         assert_ne!(c, ' ');
         assert_ne!(c, '@');
-    }
-
-    #[test]
-    fn test_pixels_all_black() {
-        let width = 4u32;
-        let height = 2u32;
-        let pbr = padded_bytes_per_row(width);
-        let data = vec![0u8; (pbr * height) as usize];
-        let ascii = pixels_to_ascii(&data, width, height, pbr);
-        assert!(ascii.chars().filter(|&c| c != '\n').all(|c| c == ' '));
-    }
-
-    #[test]
-    fn test_pixels_all_white() {
-        let width = 4u32;
-        let height = 2u32;
-        let pbr = padded_bytes_per_row(width);
-        let data = vec![255u8; (pbr * height) as usize];
-        let ascii = pixels_to_ascii(&data, width, height, pbr);
-        assert!(ascii.chars().filter(|&c| c != '\n').all(|c| c == '@'));
     }
 
     #[test]

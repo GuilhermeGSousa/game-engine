@@ -6,6 +6,7 @@ use crate::{
     frame::TerminalFrame,
     input::{poll_terminal_input, TerminalInput},
     readback::{print_terminal_frame, TerminalRenderState},
+    resize::{handle_terminal_resize, TerminalResizeEvent},
     runner::terminal_runner,
     terminal::TerminalContext,
 };
@@ -20,6 +21,9 @@ impl Plugin for TerminalRendererPlugin {
             UpdateGroup::LateRender,
             print_terminal_frame.after(finish_render),
         );
+        app.add_system(UpdateGroup::Update, handle_terminal_resize);
+
+        app.register_event::<TerminalResizeEvent>();
 
         app.insert_resource(TerminalFrame::default());
         app.insert_resource(TerminalContext::new(ratatui::init()));
@@ -30,7 +34,11 @@ impl Plugin for TerminalRendererPlugin {
             let device = app.get_resource::<RenderDevice>().expect(
                 "RenderDevice not found — make sure RenderPlugin is registered before TerminalRendererPlugin",
             );
-            let terminal_size = app.get_resource::<TerminalContext>().unwrap().size().unwrap();
+            let terminal_size = app
+                .get_resource::<TerminalContext>()
+                .unwrap()
+                .size()
+                .unwrap();
             TerminalRenderState::new(
                 &*device,
                 terminal_size.width as u32,

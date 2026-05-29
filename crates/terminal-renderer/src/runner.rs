@@ -1,6 +1,6 @@
 use app::{plugins::PluginsState, runner::AppExit, App};
-use crossterm::event::{self};
-use ratatui::{layout::{Constraint, Layout}, style::Stylize, text::Span};
+
+use ratatui::{crossterm::event, layout::{Constraint, Layout}, style::Stylize, text::Span};
 use ratatui::text::Line as TextLine;
 
 use crate::{TerminalInput, frame::TerminalFrame, terminal::TerminalContext};
@@ -15,6 +15,7 @@ pub(crate) fn terminal_runner(mut app: App) -> AppExit {
     }
 
     loop {
+        
         app.update();
 
         let mut terminal = app.remove_resource::<TerminalContext>().expect(

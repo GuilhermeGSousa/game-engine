@@ -1,5 +1,6 @@
 use ecs::{
-    Component, Query, ResMut, With, resource::{Res, Resource}
+    resource::{Res, Resource},
+    Component, Query, ResMut, With,
 };
 use render::{
     components::{camera::RenderCamera, render_entity::RenderEntity},
@@ -7,12 +8,14 @@ use render::{
     queue::RenderQueue,
 };
 
-use crate::{ascii::padded_bytes_per_row, frame::TerminalFrame, terminal::TerminalContext};
+use crate::{ascii::padded_bytes_per_row, frame::TerminalFrame};
 
 #[derive(Resource)]
 pub struct TerminalRenderState {
     pub(crate) staging_buffer: wgpu::Buffer,
     pub(crate) padded_bpr: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl TerminalRenderState {
@@ -24,9 +27,12 @@ impl TerminalRenderState {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
+
         Self {
             staging_buffer,
             padded_bpr,
+            width,
+            height,
         }
     }
 }
@@ -42,8 +48,7 @@ pub fn print_terminal_frame(
     terminal_cameras: Query<&RenderEntity, With<TerminalOutput>>,
     render_cameras: Query<&RenderCamera>,
     state: Res<TerminalRenderState>,
-    terminal: Res<TerminalContext>,
-    mut frame: ResMut<TerminalFrame>
+    mut frame: ResMut<TerminalFrame>,
 ) {
     let render_entity = match terminal_cameras.iter().next() {
         Some(e) => e,
@@ -62,8 +67,6 @@ pub fn print_terminal_frame(
         label: Some("Terminal Readback"),
     });
 
-    let terminal_size = terminal.size().unwrap();
-
     encoder.copy_texture_to_buffer(
         rt.texture().as_image_copy(),
         wgpu::TexelCopyBufferInfo {
@@ -75,8 +78,8 @@ pub fn print_terminal_frame(
             },
         },
         wgpu::Extent3d {
-            width: terminal_size.width as u32,
-            height: terminal_size.height as u32,
+            width: state.width,
+            height: state.height,
             depth_or_array_layers: 1,
         },
     );
@@ -94,12 +97,7 @@ pub fn print_terminal_frame(
 
     {
         let data = buffer_slice.get_mapped_range();
-        frame.write(
-            &data,
-            terminal_size.width as u32,
-            terminal_size.height as u32,
-            state.padded_bpr,
-        );
+        frame.write(&data, state.width, state.height, state.padded_bpr);
     }
 
     state.staging_buffer.unmap();

@@ -1,7 +1,12 @@
 use std::{collections::HashSet, time::Duration};
 
-use crossterm::event::{Event, KeyCode, KeyEventKind, MouseButton, MouseEventKind};
-use ecs::resource::{ResMut, Resource};
+use ecs::{
+    events::event_writer::EventWriter,
+    resource::{ResMut, Resource},
+};
+use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind, MouseButton, MouseEventKind};
+
+use crate::resize::TerminalResizeEvent;
 
 #[derive(Resource)]
 pub struct TerminalInput {
@@ -15,10 +20,16 @@ pub struct TerminalInput {
     prev_mouse_row: u16,
     mouse_buttons_held: HashSet<MouseButton>,
     scroll_delta: f32,
+    // Used by poll_terminal_input to detect size changes without relying on Event::Resize
+    last_terminal_size: (u16, u16),
 }
 
 impl TerminalInput {
     pub fn new() -> Self {
+        // Initialise last_terminal_size to the actual current size so the first
+        // frame doesn't spuriously emit a resize event.
+        let last_terminal_size =
+            ratatui::crossterm::terminal::size().unwrap_or((80, 24));
         Self {
             keys_active: HashSet::new(),
             keys_just_pressed: HashSet::new(),
@@ -28,6 +39,7 @@ impl TerminalInput {
             prev_mouse_row: 0,
             mouse_buttons_held: HashSet::new(),
             scroll_delta: 0.0,
+            last_terminal_size,
         }
     }
 
@@ -78,11 +90,27 @@ impl Default for TerminalInput {
     }
 }
 
-pub fn poll_terminal_input(mut input: ResMut<TerminalInput>) {
+pub(crate) fn poll_terminal_input(
+    mut input: ResMut<TerminalInput>,
+    mut events: EventWriter<TerminalResizeEvent>,
+) {
     input.begin_frame();
 
-    while crossterm::event::poll(Duration::ZERO).unwrap_or(false) {
-        match crossterm::event::read() {
+    // Detect resize by polling the terminal size directly each frame.
+    // Event::Resize from the crossterm event stream is unreliable when ratatui's
+    // backend also handles SIGWINCH, so we use an ioctl instead.
+    if let Ok(size) = ratatui::crossterm::terminal::size() {
+        if size != input.last_terminal_size {
+            input.last_terminal_size = size;
+            events.write(TerminalResizeEvent {
+                width: size.0,
+                height: size.1,
+            });
+        }
+    }
+
+    while ratatui::crossterm::event::poll(Duration::ZERO).unwrap_or(false) {
+        match ratatui::crossterm::event::read() {
             Ok(Event::Key(key_event)) => match key_event.kind {
                 KeyEventKind::Press => {
                     input.keys_just_pressed.insert(key_event.code);

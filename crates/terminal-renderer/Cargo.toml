@@ -14,9 +14,9 @@ wgpu = { version = "24.0.1", default-features = false, features = [
     "fragile-send-sync-non-atomic-wasm",
 ] }
 pollster = "0.4.0"
-crossterm = "0.29.0"
 ratatui = "0.30.0"
 derive_more = { version = "2", features = ["full"] }
+log = "0.4.26"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

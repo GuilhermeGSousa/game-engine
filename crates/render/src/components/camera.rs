@@ -119,6 +119,22 @@ pub struct RenderCamera {
     pub render_target: Option<RenderTexture>,
 }
 
+impl RenderCamera {
+    pub fn resize_render_target(
+        &mut self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        width: u32,
+        height: u32,
+    ) {
+        if self.render_target.is_some() {
+            self.render_target = Some(create_rtt(device, format, width, height));
+        }
+        self.depth_texture =
+            RenderTexture::create_depth_texture(device, width, height, "depth_texture");
+    }
+}
+
 pub(crate) fn camera_added(
     cameras: Query<(Entity, &Camera, &GlobalTranform, Option<&RenderEntity>), Added<(Camera,)>>,
     mut cmd: CommandQueue,
@@ -200,7 +216,7 @@ pub(crate) fn camera_added(
 /// The texture is owned exclusively by [`RenderCamera::color_target`].
 /// Viewports that want to display this camera's output look up the matching
 /// camera by handle ID and borrow the view directly — no shared allocation needed.
-pub(crate) fn create_rtt(
+pub fn create_rtt(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
     width: u32,

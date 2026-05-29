@@ -1,7 +1,7 @@
 use app::{plugins::PluginsState, runner::AppExit, App};
 use crossterm::event::{self, Event};
 
-use crate::{frame::TerminalFrames, terminal::Terminal};
+use crate::{TerminalInput, frame::TerminalFrames, terminal::Terminal};
 
 pub(crate) fn terminal_runner(mut app: App) -> AppExit {
     if app.plugin_state() != PluginsState::Finished {
@@ -20,7 +20,10 @@ pub(crate) fn terminal_runner(mut app: App) -> AppExit {
         );
 
         terminal.draw(|frame| {
-            let terminal_frame = app.get_resource_mut::<TerminalFrames>().expect("TerminalFrames resource does not exist, did you register the TerminalRender plugin?");
+            let terminal_frame = 
+                app
+                    .get_resource_mut::<TerminalFrames>()
+                    .expect("TerminalFrames resource does not exist, did you register the TerminalRender plugin?");
 
             if let Some(data) = terminal_frame.pop_data()
             {
@@ -29,11 +32,16 @@ pub(crate) fn terminal_runner(mut app: App) -> AppExit {
         }).unwrap();
 
         app.insert_resource(terminal);
-        if matches!(event::read().unwrap(), Event::Key(_)) {
-            break;
-        }
-    }
 
+        if app
+            .get_resource::<TerminalInput>()
+            .expect("TerminalInput resource does not exist, did you register the TerminalRender plugin?")
+            .is_key_active(event::KeyCode::Esc)
+            {
+                break;
+            }
+    }
+    
     ratatui::restore();
     AppExit::Success
 }

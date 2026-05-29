@@ -3,11 +3,11 @@ use ecs::{system::schedule::UpdateGroup, IntoSystemConfig};
 use render::{device::RenderDevice, systems::render::finish_render};
 
 use crate::{
-    frame::TerminalFrames,
+    frame::TerminalFrame,
     input::{poll_terminal_input, TerminalInput},
     readback::{print_terminal_frame, TerminalRenderState},
     runner::terminal_runner,
-    terminal::Terminal,
+    terminal::TerminalContext,
 };
 
 pub struct TerminalRendererPlugin;
@@ -21,8 +21,8 @@ impl Plugin for TerminalRendererPlugin {
             print_terminal_frame.after(finish_render),
         );
 
-        app.insert_resource(TerminalFrames::default());
-        app.insert_resource(Terminal::new(ratatui::init()));
+        app.insert_resource(TerminalFrame::default());
+        app.insert_resource(TerminalContext::new(ratatui::init()));
     }
 
     fn finish(&self, app: &mut app::App) {
@@ -30,7 +30,7 @@ impl Plugin for TerminalRendererPlugin {
             let device = app.get_resource::<RenderDevice>().expect(
                 "RenderDevice not found — make sure RenderPlugin is registered before TerminalRendererPlugin",
             );
-            let terminal_size = app.get_resource::<Terminal>().unwrap().size().unwrap();
+            let terminal_size = app.get_resource::<TerminalContext>().unwrap().size().unwrap();
             TerminalRenderState::new(
                 &*device,
                 terminal_size.width as u32,

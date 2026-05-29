@@ -1,7 +1,9 @@
 use app::{plugins::PluginsState, runner::AppExit, App};
-use crossterm::event::{self, Event};
+use crossterm::event::{self};
+use ratatui::{layout::{Constraint, Layout}, style::Stylize, text::Span};
+use ratatui::text::Line as TextLine;
 
-use crate::{TerminalInput, frame::TerminalFrames, terminal::Terminal};
+use crate::{TerminalInput, frame::TerminalFrame, terminal::TerminalContext};
 
 pub(crate) fn terminal_runner(mut app: App) -> AppExit {
     if app.plugin_state() != PluginsState::Finished {
@@ -15,19 +17,32 @@ pub(crate) fn terminal_runner(mut app: App) -> AppExit {
     loop {
         app.update();
 
-        let mut terminal = app.remove_resource::<Terminal>().expect(
+        let mut terminal = app.remove_resource::<TerminalContext>().expect(
             "Terminal resource does not exist, did you register the TerminalRender plugin?",
         );
 
         terminal.draw(|frame| {
             let terminal_frame = 
                 app
-                    .get_resource_mut::<TerminalFrames>()
+                    .get_resource_mut::<TerminalFrame>()
                     .expect("TerminalFrames resource does not exist, did you register the TerminalRender plugin?");
 
-            if let Some(data) = terminal_frame.pop_data()
+            // All this needs to be a user system
+            if let Some(data) = terminal_frame.current_frame()
             {
-                frame.render_widget(data, frame.area());
+                let vertical = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1);
+                let horizontal = Layout::horizontal([Constraint::Percentage(100)]).spacing(1);
+                let [top, main] = frame.area().layout(&vertical);
+                let [area] = main.layout(&horizontal);
+
+                
+                let title = TextLine::from_iter([
+                    Span::from("Canvas Widget").bold(),
+                    Span::from(" (Press 'q' to quit)"),
+                ]);
+
+                frame.render_widget(title.centered(), top);
+                frame.render_widget(data, area);
             }
         }).unwrap();
 

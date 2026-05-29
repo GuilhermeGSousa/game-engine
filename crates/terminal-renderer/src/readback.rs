@@ -7,7 +7,7 @@ use render::{
     queue::RenderQueue,
 };
 
-use crate::{ascii::{padded_bytes_per_row, pixels_to_ascii}, frame::TerminalFrames, terminal::Terminal};
+use crate::{ascii::padded_bytes_per_row, frame::TerminalFrame, terminal::TerminalContext};
 
 #[derive(Resource)]
 pub struct TerminalRenderState {
@@ -42,8 +42,8 @@ pub fn print_terminal_frame(
     terminal_cameras: Query<&RenderEntity, With<TerminalOutput>>,
     render_cameras: Query<&RenderCamera>,
     state: Res<TerminalRenderState>,
-    terminal: Res<Terminal>,
-    mut frame: ResMut<TerminalFrames>
+    terminal: Res<TerminalContext>,
+    mut frame: ResMut<TerminalFrame>
 ) {
     let render_entity = match terminal_cameras.iter().next() {
         Some(e) => e,
@@ -94,12 +94,12 @@ pub fn print_terminal_frame(
 
     {
         let data = buffer_slice.get_mapped_range();
-        frame.push_data(
-            pixels_to_ascii(
-                &data, 
-                terminal_size.width as u32, 
-                terminal_size.height as u32, 
-                state.padded_bpr));
+        frame.write(
+            &data,
+            terminal_size.width as u32,
+            terminal_size.height as u32,
+            state.padded_bpr,
+        );
     }
 
     state.staging_buffer.unmap();
@@ -107,7 +107,7 @@ pub fn print_terminal_frame(
 
 #[cfg(test)]
 mod tests {
-    use crate::ascii::{padded_bytes_per_row, pixels_to_ascii};
+    use crate::ascii::{padded_bytes_per_row, pixels_to_ascii_into};
 
     #[test]
     fn test_headless_gpu_render_produces_output() {
@@ -205,7 +205,8 @@ mod tests {
         rx.recv().unwrap().unwrap();
 
         let data = buffer_slice.get_mapped_range();
-        let ascii = pixels_to_ascii(&data, width, height, pbr);
+        let mut ascii = String::new();
+        pixels_to_ascii_into(&data, width, height, pbr, &mut ascii);
 
         assert!(!ascii.is_empty());
         assert!(

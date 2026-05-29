@@ -11,8 +11,12 @@ pub fn padded_bytes_per_row(width: u32) -> u32 {
     (unpadded + COPY_ROW_ALIGNMENT - 1) / COPY_ROW_ALIGNMENT * COPY_ROW_ALIGNMENT
 }
 
-pub fn pixels_to_ascii(data: &[u8], width: u32, height: u32, padded_bpr: u32) -> String {
-    let mut out = String::with_capacity((width as usize + 1) * height as usize);
+pub fn pixels_to_ascii_into(data: &[u8], width: u32, height: u32, padded_bpr: u32, out: &mut String) {
+    out.clear();
+    let needed = (width as usize + 2) * height as usize;
+    if out.capacity() < needed {
+        out.reserve(needed - out.capacity());
+    }
     for row in 0..height {
         for col in 0..width {
             let offset = (row * padded_bpr + col * 4) as usize;
@@ -25,7 +29,6 @@ pub fn pixels_to_ascii(data: &[u8], width: u32, height: u32, padded_bpr: u32) ->
         out.push('\r');
         out.push('\n');
     }
-    out
 }
 
 #[cfg(test)]

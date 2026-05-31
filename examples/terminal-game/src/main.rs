@@ -22,19 +22,31 @@ use render::{
     wgpu::naga::VectorSize::Quad,
 };
 use terminal_renderer::{
-    terminal::TerminalContext, TerminalInput, TerminalOutput, TerminalRendererPlugin,
+    terminal::TerminalContext, TerminalInput, TerminalOutput, TerminalRenderStrategy,
+    TerminalRendererPlugin,
 };
 
 #[derive(Component)]
 struct Cube;
 
 fn main() {
+    cfg_if::cfg_if! {
+        if #[cfg(target_arch = "wasm32")] {
+            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+            console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
+        } else {
+            env_logger::init();
+        }
+    }
+
     let mut app = App::new();
     app.register_plugin(AssetManagerPlugin)
         .register_plugin(TimePlugin)
         .register_plugin(RenderPlugin)
         .register_plugin(TransformPlugin)
-        .register_plugin(TerminalRendererPlugin)
+        .register_plugin(TerminalRendererPlugin::with_strategy(
+            TerminalRenderStrategy::Luminance,
+        ))
         .add_system(UpdateGroup::Startup, spawn_camera_terminal)
         .add_system(UpdateGroup::Startup, spawn_scene)
         .add_system(UpdateGroup::Update, rotate_cube)

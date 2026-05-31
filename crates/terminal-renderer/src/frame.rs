@@ -4,17 +4,15 @@ use ratatui::{
     widgets::{Block, Borders, Widget},
 };
 
-use crate::ascii::pixels_to_ascii_into;
-
 #[derive(Resource, Default)]
 pub struct TerminalFrame {
     buf: Option<String>,
 }
 
 impl TerminalFrame {
-    pub fn write(&mut self, data: &[u8], width: u32, height: u32, padded_bpr: u32) {
+    pub fn scoped_buffer(&mut self, f: impl FnOnce(&mut String)) {
         let mut buf = self.buf.take().unwrap_or_default();
-        pixels_to_ascii_into(data, width, height, padded_bpr, &mut buf);
+        f(&mut buf);
         self.buf = Some(buf);
     }
 

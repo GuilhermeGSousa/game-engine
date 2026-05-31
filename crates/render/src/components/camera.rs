@@ -120,6 +120,10 @@ pub struct RenderCamera {
 }
 
 impl RenderCamera {
+    pub fn depth_texture(&self) -> &RenderTexture {
+        &self.depth_texture
+    }
+
     pub fn resize_render_target(
         &mut self,
         device: &wgpu::Device,

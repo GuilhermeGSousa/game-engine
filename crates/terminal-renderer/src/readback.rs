@@ -1,14 +1,10 @@
 use ecs::{
     resource::{Res, Resource},
-    Component, Query, ResMut, With,
+    Component, Query, ResMut,
 };
-use render::{
-    components::{camera::RenderCamera, render_entity::RenderEntity},
-    device::RenderDevice,
-    queue::RenderQueue,
-};
+use render::{components::camera::RenderCamera, device::RenderDevice, queue::RenderQueue};
 
-use crate::{ascii::padded_bytes_per_row, frame::TerminalFrame};
+use crate::{ascii::padded_bytes_per_row, frame::TerminalFrame, strategy::TerminalRenderStrategy};
 
 #[derive(Resource)]
 pub struct TerminalRenderState {
@@ -16,11 +12,17 @@ pub struct TerminalRenderState {
     pub(crate) padded_bpr: u32,
     pub width: u32,
     pub height: u32,
+    pub strategy: TerminalRenderStrategy,
 }
 
 impl TerminalRenderState {
-    pub fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
-        let padded_bpr = padded_bytes_per_row(width);
+    pub fn new(
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+        strategy: TerminalRenderStrategy,
+    ) -> Self {
+        let padded_bpr = padded_bytes_per_row(width, strategy.readback_format());
         let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Terminal Readback Staging Buffer"),
             size: (padded_bpr * height) as u64,
@@ -33,6 +35,7 @@ impl TerminalRenderState {
             padded_bpr,
             width,
             height,
+            strategy,
         }
     }
 }
@@ -43,25 +46,16 @@ pub struct TerminalOutput;
 pub fn print_terminal_frame(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
-    // TerminalOutput lives on logical entities; RenderCamera lives on render entities.
-    // Bridge via RenderEntity which maps logical → render.
-    terminal_cameras: Query<&RenderEntity, With<TerminalOutput>>,
     render_cameras: Query<&RenderCamera>,
     state: Res<TerminalRenderState>,
     mut frame: ResMut<TerminalFrame>,
 ) {
-    let render_entity = match terminal_cameras.iter().next() {
+    let render_camera = match render_cameras.iter().next() {
         Some(e) => e,
         None => return,
     };
-    let camera = match render_cameras.get_entity(**render_entity) {
-        Some(c) => c,
-        None => return,
-    };
-    let rt = match &camera.render_target {
-        Some(rt) => rt,
-        None => return,
-    };
+
+    let rt = state.strategy.select_render_texture(render_camera);
 
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("Terminal Readback"),
@@ -97,7 +91,9 @@ pub fn print_terminal_frame(
 
     {
         let data = buffer_slice.get_mapped_range();
-        frame.write(&data, state.width, state.height, state.padded_bpr);
+        frame.scoped_buffer(|buffer| {
+            state.strategy.convert_pixels(&data, state.width, state.height, state.padded_bpr, buffer)
+        });
     }
 
     state.staging_buffer.unmap();
@@ -105,7 +101,7 @@ pub fn print_terminal_frame(
 
 #[cfg(test)]
 mod tests {
-    use crate::ascii::{padded_bytes_per_row, pixels_to_ascii_into};
+    use crate::{ascii::padded_bytes_per_row, strategy::pixels_to_ascii_into};
 
     #[test]
     fn test_headless_gpu_render_produces_output() {
@@ -166,7 +162,7 @@ mod tests {
             });
         }
 
-        let pbr = padded_bytes_per_row(width);
+        let pbr = padded_bytes_per_row(width, wgpu::TextureFormat::Rgba8Unorm);
         let staging = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Test Staging"),
             size: (pbr * height) as u64,

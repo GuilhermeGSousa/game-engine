@@ -5,8 +5,10 @@ pub mod plugin;
 pub mod readback;
 pub mod resize;
 mod runner;
+pub mod strategy;
 pub mod terminal;
 
 pub use input::TerminalInput;
 pub use plugin::TerminalRendererPlugin;
 pub use readback::TerminalOutput;
+pub use strategy::TerminalRenderStrategy;

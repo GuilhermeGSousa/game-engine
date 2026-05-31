@@ -8,10 +8,27 @@ use crate::{
     readback::{print_terminal_frame, TerminalRenderState},
     resize::{handle_terminal_resize, TerminalResizeEvent},
     runner::terminal_runner,
+    strategy::TerminalRenderStrategy,
     terminal::TerminalContext,
 };
 
-pub struct TerminalRendererPlugin;
+pub struct TerminalRendererPlugin {
+    pub strategy: TerminalRenderStrategy,
+}
+
+impl TerminalRendererPlugin {
+    pub fn with_strategy(strategy: TerminalRenderStrategy) -> Self {
+        Self { strategy }
+    }
+}
+
+impl Default for TerminalRendererPlugin {
+    fn default() -> Self {
+        Self {
+            strategy: TerminalRenderStrategy::Luminance,
+        }
+    }
+}
 
 impl Plugin for TerminalRendererPlugin {
     fn build(&self, app: &mut app::App) {
@@ -21,7 +38,7 @@ impl Plugin for TerminalRendererPlugin {
             UpdateGroup::LateRender,
             print_terminal_frame.after(finish_render),
         );
-        app.add_system(UpdateGroup::Update, handle_terminal_resize);
+        app.add_system(UpdateGroup::LateUpdate, handle_terminal_resize);
 
         app.register_event::<TerminalResizeEvent>();
 
@@ -43,6 +60,7 @@ impl Plugin for TerminalRendererPlugin {
                 &*device,
                 terminal_size.width as u32,
                 terminal_size.height as u32,
+                self.strategy,
             )
         };
 

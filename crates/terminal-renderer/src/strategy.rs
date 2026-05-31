@@ -90,27 +90,13 @@ pub fn depth_to_ascii_into(
         out.reserve(needed - out.capacity());
     }
 
-    // Camera defaults: znear = 0.1, zfar = 100.0
-    const ZNEAR: f32 = 0.1;
-    const ZFAR: f32 = 100.0;
-    // Linearized depth beyond this distance renders as background (space)
-    const MAX_VISIBLE_DEPTH: f32 = 20.0;
-
     for row in 0..height {
         for col in 0..width {
             let offset = (row * padded_bpr + col * 4) as usize;
             let bytes: [u8; 4] = data[offset..offset + 4].try_into().unwrap();
             let depth = f32::from_le_bytes(bytes);
 
-            let ch = if depth >= 1.0 {
-                ' ' // background — clear depth value
-            } else {
-                // Linearize: convert non-linear [0,1] to view-space distance
-                let linear_z = ZNEAR * ZFAR / (ZFAR - depth * (ZFAR - ZNEAR));
-                // Normalize over the visible range; invert so close = bright
-                let normalized = (1.0 - (linear_z / MAX_VISIBLE_DEPTH).min(1.0)).max(0.0);
-                luma_to_char((normalized * 255.0) as u8)
-            };
+            let ch = luma_to_char((depth * 255.0) as u8);
             out.push(ch);
         }
         out.push('\n');

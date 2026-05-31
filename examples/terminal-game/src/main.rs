@@ -45,7 +45,7 @@ fn main() {
         .register_plugin(RenderPlugin)
         .register_plugin(TransformPlugin)
         .register_plugin(TerminalRendererPlugin::with_strategy(
-            TerminalRenderStrategy::Luminance,
+            TerminalRenderStrategy::Depth,
         ))
         .add_system(UpdateGroup::Startup, spawn_camera_terminal)
         .add_system(UpdateGroup::Startup, spawn_scene)

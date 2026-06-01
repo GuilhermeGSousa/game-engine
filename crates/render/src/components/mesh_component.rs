@@ -1,12 +1,5 @@
 use ecs::{
-    command::CommandQueue,
-    component::Component,
-    entity::Entity,
-    query::{
-        query_filter::{Added, Changed},
-        Query,
-    },
-    resource::Res,
+    Added, CommandQueue, Entity, component::Component, query::{Query, query_filter::Changed}, resource::Res
 };
 use essential::{
     assets::{handle::AssetHandle, AssetId},
@@ -14,15 +7,7 @@ use essential::{
 };
 use wgpu::util::DeviceExt;
 
-use crate::{
-    assets::{material::StandardMaterial, mesh::Mesh},
-    components::{
-        material_component::MaterialComponent, render_entity::RenderEntity,
-        render_material_component::RenderMaterialComponent,
-    },
-    device::RenderDevice,
-    queue::RenderQueue,
-};
+use crate::{assets::mesh::Mesh, components::render_entity::RenderEntity, device::RenderDevice, queue::RenderQueue};
 
 #[derive(Component)]
 pub struct MeshComponent {
@@ -40,7 +25,6 @@ pub(crate) fn mesh_added(
         (
             Entity,
             &MeshComponent,
-            &MaterialComponent,
             &GlobalTranform,
             Option<&RenderEntity>,
         ),
@@ -49,7 +33,7 @@ pub(crate) fn mesh_added(
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
-    for (entity, mesh, material, transform, render_entity) in meshes.iter() {
+    for (entity, mesh, transform, render_entity) in meshes.iter() {
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&[transform.to_raw()]),
@@ -60,20 +44,19 @@ pub(crate) fn mesh_added(
             mesh_asset_id: mesh.handle.id(),
             transform: instance_buffer,
         };
-        let render_mat = RenderMaterialComponent::<StandardMaterial>::new(material.handle.id());
 
         match render_entity {
             Some(render_entity) => {
                 cmd.insert(instance, **render_entity);
-                cmd.insert(render_mat, **render_entity);
             }
             None => {
-                let new_render_entity = *cmd.spawn((instance, render_mat)).entity();
+                let new_render_entity = *cmd.spawn(instance).entity();
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
         }
     }
 }
+
 
 pub(crate) fn mesh_changed(
     meshes: Query<(&MeshComponent, &GlobalTranform, &RenderEntity), Changed<(Transform,)>>,

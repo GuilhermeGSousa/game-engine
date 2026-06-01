@@ -38,8 +38,6 @@ use ecs::{
     resource::{Res, ResMut, Resource},
     system::{schedule::UpdateGroup, system_input::SystemInputData},
 };
-use essential::transform::GlobalTranform;
-use wgpu::util::DeviceExt;
 
 use crate::{
     assets::material::{Material, ShaderRef},
@@ -136,40 +134,26 @@ impl<M: Material + 'static> RenderAsset for RenderMaterial<M> {
 
 /// Creates a render-world instance when a [`MeshComponent`] is added to an
 /// entity that also carries [`MaterialComponent<M>`].
-pub(crate) fn mesh_added<M: Material>(
+pub(crate) fn material_added<M: Material>(
     meshes: Query<
         (
             Entity,
-            &MeshComponent,
             &MaterialComponent<M>,
-            &GlobalTranform,
             Option<&RenderEntity>,
         ),
         Added<(MeshComponent,)>,
     >,
     mut cmd: CommandQueue,
-    device: Res<RenderDevice>,
 ) {
-    for (entity, mesh, material, transform, render_entity) in meshes.iter() {
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Material Instance Buffer"),
-            contents: bytemuck::cast_slice(&[transform.to_raw()]),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let instance = RenderMeshInstance {
-            mesh_asset_id: mesh.handle.id(),
-            transform: instance_buffer,
-        };
+    for (entity, material, render_entity) in meshes.iter() {
         let render_mat = RenderMaterialComponent::<M>::new(material.handle.id());
 
         match render_entity {
             Some(re) => {
-                cmd.insert(instance, **re);
                 cmd.insert(render_mat, **re);
             }
             None => {
-                let new_re = *cmd.spawn((instance, render_mat)).entity();
+                let new_re = *cmd.spawn(render_mat).entity();
                 cmd.insert(RenderEntity::new(new_re), entity);
             }
         }
@@ -215,7 +199,7 @@ pub(crate) fn material_renderpass<M: Material>(
                 view: color_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
+                    load: wgpu::LoadOp::Clear(render_camera.clear_color),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -340,7 +324,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         // in RenderMaterialComponent<M>.  Transform updates, however, are handled by the
         // shared mesh_changed system already registered by RenderPlugin, which iterates
         // over all entities with RenderEntity regardless of material type.
-        app.add_system(UpdateGroup::LateUpdate, mesh_added::<M>)
+        app.add_system(UpdateGroup::LateUpdate, material_added::<M>)
             .add_system(UpdateGroup::Render, material_renderpass::<M>);
     }
 
@@ -428,7 +412,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
+                topology: M::topology(),
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: M::cull_mode(),

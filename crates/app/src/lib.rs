@@ -224,10 +224,12 @@ impl App {
     /// Should be called once after all plugins have been registered and all async work is ready.
     pub fn finish_plugin_build(&mut self) {
         let mut hokeypokey: Box<dyn Plugin> = Box::new(HokeyPokeyPlugin);
-        for i in 0..self.plugins.len() {
+        let mut i = 0;
+        while i < self.plugins.len() {
             core::mem::swap(&mut self.plugins[i], &mut hokeypokey);
             hokeypokey.finish(self);
             core::mem::swap(&mut self.plugins[i], &mut hokeypokey);
+            i += 1;
         }
 
         self.plugin_state = PluginsState::Finished;

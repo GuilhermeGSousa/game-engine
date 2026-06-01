@@ -1,5 +1,5 @@
 use essential::assets::Asset;
-use render::AsBindGroup;
+use render::{AsBindGroup, Material};
 
 
 
@@ -12,3 +12,5 @@ pub(crate) struct DebugGizmoMaterial
 {
 
 }
+
+impl Material for DebugGizmoMaterial {}

@@ -1,42 +1,23 @@
 use crate::{
-    assets::{
-        material::StandardMaterial,
-        mesh::Mesh,
-        skeleton::Skeleton,
-        texture::Texture,
-        vertex::{Vertex, VertexBufferLayout},
-    },
-    components::{
+    MaterialPlugin, assets::{material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture}, components::{
         camera::{camera_added, camera_changed},
-        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
+        light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
         mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
-        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
+        skeleton_component::{EmptySkeletonBuffer, skeleton_added, update_skeletons},
         world_environment::WorldEnvironment,
-    },
-    device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
-    material_plugin::DEFAULT_SHADER_SOURCE,
-    queue::RenderQueue,
-    render_asset::{
-        render_material::RenderMaterial,
-        render_mesh::RenderMesh,
-        render_texture::{DummyRenderTexture, RenderTexture},
-        render_window::RenderWindow,
-        RenderAssetPlugin,
-    },
-    resources::{MainRenderPipeline, RenderContext},
-    systems::{
-        render::{self, finish_render, present_window},
+    }, device::RenderDevice, layouts::{CameraLayout, LightLayout, SkeletonLayout}, queue::RenderQueue, render_asset::{
+        RenderAssetPlugin, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
+    }, resources::RenderContext, systems::{
+        render::{finish_render, present_window},
         update_window,
-    },
+    }
 };
 use app::plugins::Plugin;
 use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
-use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};
-use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue, ShaderModuleDescriptor};
+use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
 
 pub struct RenderResources {
     pub device: Device,
@@ -132,12 +113,9 @@ impl Plugin for RenderPlugin {
         }
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
-            .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
-            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
-
+            .register_plugin(RenderAssetPlugin::<RenderTexture>::new());
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
-            .register_asset::<StandardMaterial>()
             .register_asset::<Skeleton>();
 
         app.add_system(UpdateGroup::LateUpdate, camera_added)
@@ -155,7 +133,6 @@ impl Plugin for RenderPlugin {
 
         app.add_system(UpdateGroup::Render, update_skeletons)
             .add_system(UpdateGroup::Render, prepare_lights_buffer)
-            .add_system(UpdateGroup::Render, render::main_renderpass)
             .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
     }
 
@@ -187,7 +164,7 @@ impl Plugin for RenderPlugin {
             .take()
             .unwrap();
 
-        let (surface_format, config) = if let Some(ref surface) = surface {
+        let config = if let Some(ref surface) = surface {
             let surface_caps = surface.get_capabilities(&adapter);
             let surface_format = surface_caps
                 .formats
@@ -211,10 +188,10 @@ impl Plugin for RenderPlugin {
             };
 
             surface.configure(&device, &config);
-            (surface_format, config)
+            config
         } else {
             let surface_format = wgpu::TextureFormat::Rgba8Unorm;
-            let config = wgpu::SurfaceConfiguration {
+            wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 format: surface_format,
                 width: 0,
@@ -223,79 +200,14 @@ impl Plugin for RenderPlugin {
                 alpha_mode: wgpu::CompositeAlphaMode::Opaque,
                 view_formats: vec![],
                 desired_maximum_frame_latency: 2,
-            };
-            (surface_format, config)
+            }
         };
 
-        let main_shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Standard Shader"),
-            source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER_SOURCE.into()),
-        });
-
         let camera_layouts = CameraLayout::new(&device);
-
-        let material_layouts = MaterialLayouts::new(&device);
 
         let light_layout = LightLayout::new(&device);
 
         let skeleton_layout = SkeletonLayout::new(&device);
-
-        // Setup render pipeline
-        let main_render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &material_layouts.main_material_layout,
-                    &camera_layouts.camera_layout,
-                    &*light_layout,
-                    &*skeleton_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-        let main_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&main_render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &main_shader,
-                entry_point: Some("vs_main"),
-                buffers: &[Vertex::describe(), GlobalTransformRaw::describe()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &main_shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
 
         app.register_component_lifecycle::<RenderEntity>();
 
@@ -307,19 +219,19 @@ impl Plugin for RenderPlugin {
                 surface,
                 surface_config: config,
             })
-            .insert_resource(MainRenderPipeline::new(main_render_pipeline))
             .insert_resource(RenderDevice {
                 device,
                 encoder: None,
             })
             .insert_resource(RenderQueue { queue })
             .insert_resource(RenderWindow::new())
-            .insert_resource(material_layouts)
             .insert_resource(camera_layouts)
             .insert_resource(light_layout)
             .insert_resource(skeleton_layout)
             .insert_resource(render_lights)
             .insert_resource(empty_skeleton_buffer)
             .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
+
+        app.register_plugin(MaterialPlugin::<StandardMaterial>::new());
     }
 }

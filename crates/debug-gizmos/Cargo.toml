@@ -1,7 +1,7 @@
 [package]
-name = "render"
+name = "debug-gizmos"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -10,12 +10,9 @@ crate-type = ["cdylib", "rlib"]
 app = { path = "../app" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
-window = { path = "../window" }
-render-macros = { path = "macros" }
 bitflags = "2.9.1"
 encase = { version = "0.11.1", features = ["glam"] }
 glam = { version = "0.30.1" }
-bytemuck = { version = "1.22.0", features = ["derive"] }
 env_logger = "0.11.6"
 log = "0.4.26"
 wgpu = { version = "24.0.1", default-features = false, features = [
@@ -30,7 +27,7 @@ pollster = "0.4.0"
 send_wrapper = { version = "0.6.0" }
 async-trait = "0.1.50"
 anyhow = "1.0.97"
-winit = { version = "0.30" }
+winit = { version = "0.30"}
 
 [dependencies.image]
 version = "0.25.5"

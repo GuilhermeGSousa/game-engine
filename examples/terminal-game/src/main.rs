@@ -4,6 +4,7 @@ use app::{
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
     App,
 };
+use debug_gizmos::plugin::DebugGizmosPlugin;
 use ecs::system::schedule::UpdateGroup;
 use ecs::{command::CommandQueue, query::Query, resource::Res, Component, With};
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
@@ -40,22 +41,25 @@ fn main() {
     }
 
     let mut app = App::new();
+
+    
     app.register_plugin(AssetManagerPlugin)
-        .register_plugin(TimePlugin)
-        .register_plugin(RenderPlugin)
-        .register_plugin(TransformPlugin)
-        .register_plugin(TerminalRendererPlugin::with_strategy(
-            TerminalRenderStrategy::Depth,
-        ))
-        .add_system(UpdateGroup::Startup, spawn_camera_terminal)
-        .add_system(UpdateGroup::Startup, spawn_scene)
-        .add_system(UpdateGroup::Update, rotate_cube)
-        .add_system(UpdateGroup::Update, move_camera);
+    .register_plugin(TimePlugin)
+    .register_plugin(RenderPlugin)
+    .register_plugin(TransformPlugin)
+    .register_plugin(TerminalRendererPlugin::with_strategy(
+        TerminalRenderStrategy::Depth,
+    ))
+    .add_system(UpdateGroup::Startup, spawn_camera_terminal)
+    .add_system(UpdateGroup::Startup, spawn_scene)
+    .add_system(UpdateGroup::Update, rotate_cube)
+    .add_system(UpdateGroup::Update, move_camera);
 
     // app.register_plugin(DefaultPlugins)
     //     .add_system(UpdateGroup::Startup, spawn_camera_windowed)
     //     .add_system(UpdateGroup::Startup, spawn_scene)
     //     .add_system(UpdateGroup::Update, rotate_cube);
+    app.register_plugin(DebugGizmosPlugin);
     app.run();
 }
 

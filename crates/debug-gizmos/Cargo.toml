@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 app = { path = "../app" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
+render = { path = "../render" }
 bitflags = "2.9.1"
 encase = { version = "0.11.1", features = ["glam"] }
 glam = { version = "0.30.1" }

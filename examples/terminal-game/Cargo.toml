@@ -13,6 +13,7 @@ app = { path = "../../crates/app" }
 ecs = { path = "../../crates/ecs" }
 essential = { path = "../../crates/essential" }
 render = { path = "../../crates/render" }
+debug-gizmos = { path = "../../crates/debug-gizmos" }
 terminal-renderer = { path = "../../crates/terminal-renderer" }
 glam = "0.30.1"
 ratatui = "0.30.0"

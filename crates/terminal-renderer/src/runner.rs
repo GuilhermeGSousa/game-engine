@@ -38,8 +38,8 @@ pub(crate) fn terminal_runner(mut app: App) -> AppExit {
 
                 
                 let title = TextLine::from_iter([
-                    Span::from("Canvas Widget").bold(),
-                    Span::from(" (Press 'q' to quit)"),
+                    Span::from("This is a Widget!").bold(),
+                    Span::from(" (Press 'ESC' to quit)"),
                 ]);
 
                 frame.render_widget(title.centered(), top);

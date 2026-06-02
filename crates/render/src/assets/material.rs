@@ -296,6 +296,19 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
     {
         wgpu::PrimitiveTopology::TriangleList
     }
+
+    /// Whether this material's render pass should clear the depth buffer to 1.0
+    /// before drawing.
+    ///
+    /// Defaults to `true`. Set to `false` for materials that render on top of
+    /// another pass (e.g. a material that always follows a skybox or opaque
+    /// pre-pass) so that depth values from earlier passes are preserved.
+    fn clear_depth() -> bool
+    where
+        Self: Sized,
+    {
+        true
+    }
 }
 
 impl Material for StandardMaterial {

@@ -183,6 +183,12 @@ pub(crate) fn material_renderpass<M: Material>(
     let encoder = device.command_encoder();
 
     for render_camera in render_cameras.iter() {
+        let depth_load = if M::clear_depth() {
+            wgpu::LoadOp::Clear(1.0)
+        } else {
+            wgpu::LoadOp::Load
+        };
+
         // Route to RTT for texture-targeted cameras, or to the swapchain for window cameras.
         let swapchain_view = render_window.get_view();
         let color_view: &wgpu::TextureView = match &render_camera.render_target {
@@ -199,7 +205,7 @@ pub(crate) fn material_renderpass<M: Material>(
                 view: color_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(render_camera.clear_color),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -207,7 +213,7 @@ pub(crate) fn material_renderpass<M: Material>(
                 wgpu::RenderPassDepthStencilAttachment {
                     view: &render_camera.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: depth_load,
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,

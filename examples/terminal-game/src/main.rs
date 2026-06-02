@@ -12,15 +12,12 @@ use game_engine::DefaultPlugins;
 use glam::{Quat, Vec3, Vec4};
 use ratatui::crossterm::event::KeyCode;
 use render::{
-    assets::{material::StandardMaterial, mesh::Mesh, texture::Texture, vertex::Vertex},
-    components::{
+    MaterialPlugin, assets::{material::StandardMaterial, mesh::Mesh, texture::Texture, vertex::Vertex}, components::{
         camera::{Camera, RenderTarget},
         light::{LighType, Light, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
-    },
-    plugin::RenderPlugin,
-    wgpu::naga::VectorSize::Quad,
+    }, plugin::RenderPlugin, wgpu::naga::VectorSize::Quad
 };
 use terminal_renderer::{
     terminal::TerminalContext, TerminalInput, TerminalOutput, TerminalRenderStrategy,
@@ -42,20 +39,16 @@ fn main() {
 
     let mut app = App::new();
 
-    
-    app.register_plugin(AssetManagerPlugin)
-    .register_plugin(TimePlugin)
-    .register_plugin(RenderPlugin)
-    .register_plugin(TransformPlugin)
-    .register_plugin(TerminalRendererPlugin::with_strategy(
-        TerminalRenderStrategy::Depth,
-    ))
-    .add_system(UpdateGroup::Startup, spawn_camera_terminal)
-    .add_system(UpdateGroup::Startup, spawn_scene)
-    .add_system(UpdateGroup::Update, rotate_cube)
-    .add_system(UpdateGroup::Update, move_camera);
+    app.register_plugin(DefaultPlugins::headless())
+        .register_plugin(TerminalRendererPlugin::with_strategy(
+            TerminalRenderStrategy::Luminance,
+        ))
+        .add_system(UpdateGroup::Startup, spawn_camera_terminal)
+        .add_system(UpdateGroup::Startup, spawn_scene)
+        .add_system(UpdateGroup::Update, rotate_cube)
+        .add_system(UpdateGroup::Update, move_camera);
 
-    // app.register_plugin(DefaultPlugins)
+    // app.register_plugin(DefaultPlugins::default())
     //     .add_system(UpdateGroup::Startup, spawn_camera_windowed)
     //     .add_system(UpdateGroup::Startup, spawn_scene)
     //     .add_system(UpdateGroup::Update, rotate_cube);

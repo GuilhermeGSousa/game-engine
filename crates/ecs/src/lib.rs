@@ -436,6 +436,40 @@ mod tests {
         assert_eq!(q.iter().count(), 1);
     }
 
+    // ----- tick preservation test -----
+
+    #[test]
+    fn component_ticks_preserved_after_sibling_insert() {
+        use crate::component::ComponentId;
+
+        let mut world = World::new();
+
+        // Advance to tick 1 so the added_tick for Health is distinct from the initial
+        // changed_tick (which is always 0), making each assertion unambiguous.
+        world.tick();
+
+        let entity = world.spawn(Health);
+
+        // Health was just added at tick 1.
+        assert!(world.was_component_added(entity, ComponentId::of::<Health>()));
+        assert!(world.was_component_changed(entity, ComponentId::of::<Health>()));
+
+        // Advance to tick 2 before inserting Position.
+        world.tick();
+
+        // Insert a second component — entity migrates to a new archetype.
+        world.insert_component(Position { x: 1.0, y: 2.0 }, entity);
+
+        // Health's added_tick must still be tick 1, not the new tick 2.
+        assert!(!world.was_component_added(entity, ComponentId::of::<Health>()));
+        // Health was never mutated, so changed_tick is still 0 — not the current tick 2.
+        assert!(!world.was_component_changed(entity, ComponentId::of::<Health>()));
+
+        // Position was freshly added at tick 2.
+        assert!(world.was_component_added(entity, ComponentId::of::<Position>()));
+        assert!(world.was_component_changed(entity, ComponentId::of::<Position>()));
+    }
+
     // ----- get_entity test -----
 
     #[test]

@@ -94,7 +94,7 @@ pub fn depth_to_ascii_into(
         for col in 0..width {
             let offset = (row * padded_bpr + col * 4) as usize;
             let bytes: [u8; 4] = data[offset..offset + 4].try_into().unwrap();
-            let depth = f32::from_le_bytes(bytes);
+            let depth = 1.0 - f32::from_le_bytes(bytes);
 
             let ch = luma_to_char((depth * 255.0) as u8);
             out.push(ch);

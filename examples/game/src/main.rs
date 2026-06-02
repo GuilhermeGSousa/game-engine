@@ -18,7 +18,7 @@ use game_engine::{
     obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent},
     physics::{physics_state::PhysicsState, rigid_body::RigidBody},
     render::{
-        assets::texture::TextureUsageSettings,
+        assets::{material::StandardMaterial, texture::TextureUsageSettings},
         components::{
             camera::Camera,
             light::{LighType, Light, SpotLight},
@@ -38,7 +38,7 @@ use wgpu_types::{
 };
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-use crate::custom_material::{TintUniform, UnlitMaterial};
+use crate::custom_material::UnlitMaterial;
 use crate::movement_animation::{
     setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
 };
@@ -54,6 +54,10 @@ const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 struct Player;
 
 fn main() {
+    #[cfg(not(target_arch = "wasm32"))]
+    std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
+        .expect("Failed to set working directory");
+
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -64,7 +68,7 @@ fn main() {
     }
 
     let mut app = App::new();
-    app.register_plugin(DefaultPlugins)
+    app.register_plugin(DefaultPlugins::default())
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
         .add_system(UpdateGroup::Update, move_around)
         .add_system(UpdateGroup::Update, spawn_on_button_press)
@@ -156,13 +160,11 @@ fn spawn_floor(
         Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
     let ground_collider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
     let ground_mesh = asset_server.load::<OBJAsset>(GROUND_ASSET);
-    let unlit_mat = asset_server.add(UnlitMaterial {
-        tint: TintUniform::new(0.2, 0.8, 1.0, 1.0),
-    });
+    let ground_mat = asset_server.add(StandardMaterial::new(None, None));
     cmd.spawn((
-        UnlitOBJSpawner {
+        OBJSpawner {
             mesh: ground_mesh,
-            material: unlit_mat,
+            material: ground_mat,
         },
         ground_collider,
         ground_transform,
@@ -170,14 +172,14 @@ fn spawn_floor(
 }
 
 #[derive(game_engine::ecs::component::Component)]
-struct UnlitOBJSpawner {
+struct OBJSpawner {
     mesh: game_engine::essential::assets::handle::AssetHandle<OBJAsset>,
-    material: game_engine::essential::assets::handle::AssetHandle<UnlitMaterial>,
+    material: game_engine::essential::assets::handle::AssetHandle<StandardMaterial>,
 }
 
 fn spawn_unlit_obj(
     mut cmd: CommandQueue,
-    spawners: game_engine::ecs::query::Query<(Entity, &UnlitOBJSpawner)>,
+    spawners: game_engine::ecs::query::Query<(Entity, &OBJSpawner)>,
     obj_assets: Res<game_engine::essential::assets::asset_store::AssetStore<OBJAsset>>,
 ) {
     for (entity, spawner) in spawners.iter() {
@@ -189,14 +191,14 @@ fn spawn_unlit_obj(
                             handle: obj_mesh.handle.clone(),
                         },
                         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-                        MaterialComponent::<UnlitMaterial> {
+                        MaterialComponent::<StandardMaterial> {
                             handle: spawner.material.clone(),
                         },
                     ))
                     .entity();
                 cmd.add_child(entity, child);
             }
-            cmd.remove::<UnlitOBJSpawner>(entity);
+            cmd.remove::<OBJSpawner>(entity);
         }
     }
 }

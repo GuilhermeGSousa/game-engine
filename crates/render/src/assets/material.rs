@@ -1,10 +1,14 @@
 use bytemuck::{Pod, Zeroable};
-use essential::assets::{Asset, handle::AssetHandle};
+use essential::assets::{handle::AssetHandle, Asset};
 use render_macros::AsBindGroup;
 
-use crate::{assets::texture::Texture, render_asset::{
-    AssetPreparationError, RenderAssets, render_texture::{DummyRenderTexture, RenderTexture}
-}};
+use crate::{
+    assets::texture::Texture,
+    render_asset::{
+        render_texture::{DummyRenderTexture, RenderTexture},
+        AssetPreparationError, RenderAssets,
+    },
+};
 
 use bitflags::bitflags;
 
@@ -115,7 +119,6 @@ impl StandardMaterial {
         diffuse_texture: Option<AssetHandle<Texture>>,
         normal_texture: Option<AssetHandle<Texture>>,
     ) -> Self {
-
         let mut flag_bits = MaterialFlags::empty();
         if diffuse_texture.is_some() {
             flag_bits |= MaterialFlags::HAS_DIFFUSE_TEXTURE;
@@ -151,7 +154,6 @@ impl StandardMaterial {
         self.normal_texture.as_ref()
     }
 }
-
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]

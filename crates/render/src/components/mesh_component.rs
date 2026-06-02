@@ -1,5 +1,8 @@
 use ecs::{
-    Added, CommandQueue, Entity, component::Component, query::{Query, query_filter::Changed}, resource::Res
+    component::Component,
+    query::{query_filter::Changed, Query},
+    resource::Res,
+    Added, CommandQueue, Entity,
 };
 use essential::{
     assets::{handle::AssetHandle, AssetId},
@@ -7,7 +10,10 @@ use essential::{
 };
 use wgpu::util::DeviceExt;
 
-use crate::{assets::mesh::Mesh, components::render_entity::RenderEntity, device::RenderDevice, queue::RenderQueue};
+use crate::{
+    assets::mesh::Mesh, components::render_entity::RenderEntity, device::RenderDevice,
+    queue::RenderQueue,
+};
 
 #[derive(Component)]
 pub struct MeshComponent {
@@ -56,7 +62,6 @@ pub(crate) fn mesh_added(
         }
     }
 }
-
 
 pub(crate) fn mesh_changed(
     meshes: Query<(&MeshComponent, &GlobalTranform, &RenderEntity), Changed<(Transform,)>>,

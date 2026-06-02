@@ -108,7 +108,7 @@ impl Archetype {
         &self.component_ids
     }
 
-    pub fn add_row(&mut self, row: TableRow, current_tick: u32) {
-        self.data_table.add_row(row, current_tick);
+    pub fn add_row(&mut self, row: TableRow) {
+        self.data_table.add_row(row);
     }
 }

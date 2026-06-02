@@ -1,17 +1,27 @@
 use crate::{
-    MaterialPlugin, assets::{material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture}, components::{
+    assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture},
+    components::{
         camera::{camera_added, camera_changed},
-        light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
+        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
         mesh_component::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
-        skeleton_component::{EmptySkeletonBuffer, skeleton_added, update_skeletons},
+        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
         world_environment::WorldEnvironment,
-    }, device::RenderDevice, layouts::{CameraLayout, LightLayout, SkeletonLayout}, queue::RenderQueue, render_asset::{
-        RenderAssetPlugin, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
-    }, resources::RenderContext, systems::{
+    },
+    device::RenderDevice,
+    layouts::{CameraLayout, LightLayout, SkeletonLayout},
+    queue::RenderQueue,
+    render_asset::{
+        render_mesh::RenderMesh,
+        render_texture::{DummyRenderTexture, RenderTexture},
+        render_window::RenderWindow,
+        RenderAssetPlugin,
+    },
+    resources::RenderContext,
+    systems::{
         render::{finish_render, present_window},
         update_window,
-    }
+    },
 };
 use app::plugins::Plugin;
 use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
@@ -231,7 +241,5 @@ impl Plugin for RenderPlugin {
             .insert_resource(render_lights)
             .insert_resource(empty_skeleton_buffer)
             .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
-
-        app.register_plugin(MaterialPlugin::<StandardMaterial>::new());
     }
 }

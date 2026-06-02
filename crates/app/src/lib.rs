@@ -13,6 +13,7 @@ use ecs::{
     world::World,
     IntoSystemConfig,
 };
+use log::info;
 use runner::AppExit;
 
 use essential::{
@@ -74,6 +75,7 @@ impl App {
     /// Calls [`Plugin::build`] immediately, then stores the plugin so that
     /// [`Plugin::ready`] and [`Plugin::finish`] can be polled later.
     pub fn register_plugin(&mut self, plugin: impl Plugin + 'static) -> &mut Self {
+        info!("Registering plugin: {}", plugin.name());
         plugin.build(self);
         self.plugins.push(Box::new(plugin));
         self
@@ -155,7 +157,6 @@ impl App {
         self.world.get_resource_mut()
     }
 
-    
     pub fn with_resource<R: Resource, F, T: Resource>(&mut self, f: F)
     where
         F: FnOnce(R) -> T,

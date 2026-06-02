@@ -177,22 +177,22 @@ impl World {
                 let mut removed_row = previous_archetype.remove_swap(location.row);
 
                 // Add new component to the removed row
-                removed_row.insert(AnyValueWrapper::<T>::new(component));
+                removed_row.insert(
+                    AnyValueWrapper::<T>::new(component),
+                    Tick::new(self.current_tick),
+                );
 
                 // Add row to new archetype
                 let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
                     Occupied(occupied_entry) => {
                         let new_archetype_index = *occupied_entry.get();
                         let new_archetype = &mut self.archetypes[*occupied_entry.get()];
-                        new_archetype.add_row(removed_row, self.current_tick);
+                        new_archetype.add_row(removed_row);
                         new_archetype_index
                     }
                     Vacant(vacant_entry) => {
                         let new_archetype_index = self.archetypes.len();
-                        let archetype = Archetype::new(
-                            Table::from_row(removed_row, self.current_tick),
-                            component_ids,
-                        );
+                        let archetype = Archetype::new(Table::from_row(removed_row), component_ids);
                         self.archetypes.push(archetype);
                         vacant_entry.insert(new_archetype_index);
                         new_archetype_index
@@ -252,15 +252,12 @@ impl World {
                     Occupied(occupied_entry) => {
                         let new_archetype_index = *occupied_entry.get();
                         let new_archetype = &mut self.archetypes[*occupied_entry.get()];
-                        new_archetype.add_row(removed_row, self.current_tick);
+                        new_archetype.add_row(removed_row);
                         new_archetype_index
                     }
                     Vacant(vacant_entry) => {
                         let new_archetype_index = self.archetypes.len();
-                        let archetype = Archetype::new(
-                            Table::from_row(removed_row, self.current_tick),
-                            component_ids,
-                        );
+                        let archetype = Archetype::new(Table::from_row(removed_row), component_ids);
                         self.archetypes.push(archetype);
                         vacant_entry.insert(new_archetype_index);
                         new_archetype_index

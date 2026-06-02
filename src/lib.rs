@@ -18,7 +18,7 @@ use app::{
 use gltf_loader::plugin::GLTFPlugin;
 use obj_loader::plugin::OBJPlugin;
 use physics::plugin::PhysicsPlugin;
-use render::plugin::RenderPlugin;
+use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
@@ -32,6 +32,7 @@ impl Plugin for DefaultPlugins {
             .register_plugin(TimePlugin)
             .register_plugin(WindowPlugin)
             .register_plugin(RenderPlugin)
+            .register_plugin(MaterialPlugin::<StandardMaterial>::new())
             .register_plugin(TransformPlugin)
             .register_plugin(PhysicsPlugin)
             .register_plugin(AnimationPlugin)

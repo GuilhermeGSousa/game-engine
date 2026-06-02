@@ -41,6 +41,10 @@ pub trait Plugin {
 
     /// Called after all plugins are ready; perform final, order-sensitive setup here.
     fn finish(&self, _app: &mut App) {}
+
+    fn name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
 }
 
 /// Plugin that inserts a [`Time`] resource and an `update_time` system.

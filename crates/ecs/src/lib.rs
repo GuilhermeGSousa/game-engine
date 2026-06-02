@@ -414,6 +414,28 @@ mod tests {
         assert_eq!(results[0].x, 2.0);
     }
 
+    // ----- Added filter after insert test -----
+
+    #[test]
+    fn added_filter_survives_insert() {
+        let mut world = World::new();
+
+        world.tick();
+
+        let entity = world.spawn(Health);
+
+        // Health was added this tick — the filter must match.
+        let q = Query::<Entity, Added<Health>>::new(world.as_unsafe_world_cell_mut());
+        assert_eq!(q.iter().count(), 1);
+
+        // Insert a second component on the same entity (moves it to a new archetype).
+        world.insert_component(Position { x: 1.0, y: 2.0 }, entity);
+
+        // Health was still added this tick — filter must still match.
+        let q = Query::<Entity, Added<Health>>::new(world.as_unsafe_world_cell_mut());
+        assert_eq!(q.iter().count(), 1);
+    }
+
     // ----- get_entity test -----
 
     #[test]

@@ -2,13 +2,15 @@ use app::Plugin;
 use essential::assets::asset_server::AssetServer;
 use render::MaterialPlugin;
 
-use crate::{material::DebugGizmoMaterial, shapes::GizmoShapes};
+use crate::{components::sphere_added, material::DebugGizmoMaterial, shapes::GizmoShapes};
 
 pub struct DebugGizmosPlugin;
 
 impl Plugin for DebugGizmosPlugin {
     fn build(&self, app: &mut app::App) {
         app.register_plugin(MaterialPlugin::<DebugGizmoMaterial>::new());
+
+        app.add_system(ecs::system::schedule::UpdateGroup::Update, sphere_added);
 
         let asset_server = app
             .get_resource::<AssetServer>()

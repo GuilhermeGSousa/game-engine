@@ -1,3 +1,4 @@
+use color::LinearRgba;
 use essential::assets::Asset;
 use render::{AsBindGroup, Material};
 
@@ -8,7 +9,28 @@ use render::{AsBindGroup, Material};
 )]
 pub(crate) struct DebugGizmoMaterial {
     #[uniform(0)]
-    pub color: [f32; 4],
+    pub color: LinearRgba,
 }
 
-impl Material for DebugGizmoMaterial {}
+impl Material for DebugGizmoMaterial {
+    fn depth_stencil() -> Option<wgpu::DepthStencilState>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    fn topology() -> wgpu::PrimitiveTopology
+    where
+        Self: Sized,
+    {
+        wgpu::PrimitiveTopology::LineList
+    }
+
+    fn clear_depth() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+}

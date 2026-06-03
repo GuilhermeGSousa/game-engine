@@ -12,6 +12,7 @@ game-engine = { path = "../.." }
 app = { path = "../../crates/app" }
 ecs = { path = "../../crates/ecs" }
 essential = { path = "../../crates/essential" }
+color = { path = "../../crates/color" }
 render = { path = "../../crates/render" }
 debug-gizmos = { path = "../../crates/debug-gizmos" }
 terminal-renderer = { path = "../../crates/terminal-renderer" }

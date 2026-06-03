@@ -1,8 +1,8 @@
-use ecs::{Added, CommandQueue, Component, Query, Res};
+use color::LinearRgba;
+use ecs::{Added, CommandQueue, Component, Entity, Query, Res};
 use essential::{assets::asset_server::AssetServer, transform::Transform};
 use glam::{Quat, Vec3};
 use render::{MaterialComponent, components::mesh_component::MeshComponent};
-use wgpu::Color;
 
 use crate::{material::DebugGizmoMaterial, shapes::GizmoShapes};
 
@@ -10,14 +10,14 @@ use crate::{material::DebugGizmoMaterial, shapes::GizmoShapes};
 pub struct GizmoLine {
     pub start: Vec3,
     pub end: Vec3,
-    pub color: Color,
+    pub color: LinearRgba,
 }
 
 #[derive(Component)]
 pub struct GizmoSphere {
     pub center: Vec3,
     pub radius: f32,
-    pub color: Color,
+    pub color: LinearRgba,
 }
 
 #[derive(Component)]
@@ -33,13 +33,13 @@ pub(crate) fn line_added(
 
 pub(crate) fn sphere_added(
     shapes: Res<GizmoShapes>,
-    query: Query<&GizmoSphere, Added<GizmoLine>>,
-    cmd: CommandQueue,
+    query: Query<(Entity, &GizmoSphere), Added<GizmoSphere>>,
+    mut cmd: CommandQueue,
     asset_server: Res<AssetServer>,
 ) {
-    for sphere in query.iter() {
+    for (_entity, sphere) in query.iter() {
         let material = MaterialComponent {
-            handle: asset_server.add(DebugGizmoMaterial { color: todo!() }),
+            handle: asset_server.add(DebugGizmoMaterial { color: sphere.color }),
         };
 
         cmd.spawn((
@@ -47,7 +47,13 @@ pub(crate) fn sphere_added(
                 handle: shapes.sphere.clone(),
             },
             material,
-            Transform::from_translation_rotation(sphere.center, Quat::IDENTITY),
+            Transform::from_translation_rotation_scale(
+                sphere.center,
+                Quat::IDENTITY,
+                Vec3::splat(sphere.radius),
+            ),
         ));
+
+        // Maybe despawn entity?
     }
 }

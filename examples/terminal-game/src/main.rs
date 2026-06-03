@@ -4,7 +4,8 @@ use app::{
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
     App,
 };
-use debug_gizmos::plugin::DebugGizmosPlugin;
+use color::LinearRgba;
+use debug_gizmos::{components::GizmoSphere, plugin::DebugGizmosPlugin};
 use ecs::system::schedule::UpdateGroup;
 use ecs::{command::CommandQueue, query::Query, resource::Res, Component, With};
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
@@ -39,19 +40,19 @@ fn main() {
 
     let mut app = App::new();
 
-    app.register_plugin(DefaultPlugins::headless())
-        .register_plugin(TerminalRendererPlugin::with_strategy(
-            TerminalRenderStrategy::Luminance,
-        ))
-        .add_system(UpdateGroup::Startup, spawn_camera_terminal)
-        .add_system(UpdateGroup::Startup, spawn_scene)
-        .add_system(UpdateGroup::Update, rotate_cube)
-        .add_system(UpdateGroup::Update, move_camera);
-
-    // app.register_plugin(DefaultPlugins::default())
-    //     .add_system(UpdateGroup::Startup, spawn_camera_windowed)
+    // app.register_plugin(DefaultPlugins::headless())
+    //     .register_plugin(TerminalRendererPlugin::with_strategy(
+    //         TerminalRenderStrategy::Luminance,
+    //     ))
+    //     .add_system(UpdateGroup::Startup, spawn_camera_terminal)
     //     .add_system(UpdateGroup::Startup, spawn_scene)
-    //     .add_system(UpdateGroup::Update, rotate_cube);
+    //     .add_system(UpdateGroup::Update, rotate_cube)
+    //     .add_system(UpdateGroup::Update, move_camera);
+
+    app.register_plugin(DefaultPlugins::default())
+        .add_system(UpdateGroup::Startup, spawn_camera_windowed)
+        .add_system(UpdateGroup::Startup, spawn_scene)
+        .add_system(UpdateGroup::Update, rotate_cube);
     app.register_plugin(DebugGizmosPlugin);
     app.run();
 }
@@ -107,10 +108,16 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         }),
     };
     let mut light_transform =
-        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 2.0), Quat::IDENTITY);
+        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
     light_transform.look_at(Vec3::ZERO, Vec3::Y);
 
+    cmd.spawn(GizmoSphere {
+        center: light_transform.translation,
+        radius: 0.1,
+        color: LinearRgba::GREEN,
+    });
     cmd.spawn((light, light_transform));
+    
 }
 
 fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {

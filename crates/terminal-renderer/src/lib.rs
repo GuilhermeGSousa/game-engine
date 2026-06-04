@@ -10,5 +10,5 @@ pub mod terminal;
 
 pub use input::TerminalInput;
 pub use plugin::TerminalRendererPlugin;
-pub use readback::TerminalOutput;
+pub use readback::{print_terminal_frame, TerminalOutput};
 pub use strategy::TerminalRenderStrategy;

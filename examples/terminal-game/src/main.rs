@@ -7,11 +7,16 @@ use app::{
 use color::LinearRgba;
 use debug_gizmos::{components::GizmoSphere, plugin::DebugGizmosPlugin};
 use ecs::system::schedule::UpdateGroup;
-use ecs::{command::CommandQueue, query::Query, resource::Res, Component, With};
+use ecs::{command::CommandQueue, query::Query, resource::{Res, ResMut}, Component, IntoSystemConfig, With};
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use game_engine::DefaultPlugins;
 use glam::{Quat, Vec3, Vec4};
-use ratatui::crossterm::event::KeyCode;
+use ratatui::{
+    crossterm::event::KeyCode,
+    layout::{Constraint, Layout},
+    style::Stylize,
+    text::{Line as TextLine, Span},
+};
 use render::{
     assets::{material::StandardMaterial, mesh::Mesh, texture::Texture, vertex::Vertex},
     components::{
@@ -25,8 +30,8 @@ use render::{
     MaterialPlugin,
 };
 use terminal_renderer::{
-    terminal::TerminalContext, TerminalInput, TerminalOutput, TerminalRenderStrategy,
-    TerminalRendererPlugin,
+    frame::TerminalFrame, print_terminal_frame, terminal::TerminalContext, TerminalInput,
+    TerminalOutput, TerminalRenderStrategy, TerminalRendererPlugin,
 };
 
 #[derive(Component)]
@@ -58,6 +63,7 @@ fn main() {
     //     .add_system(UpdateGroup::Startup, spawn_scene)
     //     .add_system(UpdateGroup::Update, rotate_cube);
     app.register_plugin(DebugGizmosPlugin);
+    app.add_system(UpdateGroup::LateRender, draw_terminal.after(print_terminal_frame));
     app.run();
 }
 
@@ -182,6 +188,25 @@ fn move_camera(
             transform.rotation = transform.rotation * Quat::from_rotation_x(rot_speed);
         }
     }
+}
+
+fn draw_terminal(mut terminal: ResMut<TerminalContext>, terminal_frame: Res<TerminalFrame>) {
+    terminal.draw(|frame| {
+        if let Some(data) = terminal_frame.current_frame() {
+            let vertical = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).spacing(1);
+            let horizontal = Layout::horizontal([Constraint::Percentage(100)]).spacing(1);
+            let [top, main] = frame.area().layout(&vertical);
+            let [area] = main.layout(&horizontal);
+
+            let title = TextLine::from_iter([
+                Span::from("This is a Widget!").bold(),
+                Span::from(" (Press 'ESC' to quit)"),
+            ]);
+
+            frame.render_widget(title.centered(), top);
+            frame.render_widget(data, area);
+        }
+    }).unwrap();
 }
 
 fn make_cube() -> Mesh {

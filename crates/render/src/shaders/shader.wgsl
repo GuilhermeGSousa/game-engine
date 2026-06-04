@@ -142,7 +142,7 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
 
     let view_dir = normalize(camera.view_pos - in.world_position);
 
-    var total_light = object_color * 1.0;
+    var total_light = object_color * 0.1;
 
     for (var i: i32 = 0; i < min(lights.light_count, MAX_LIGHT_COUNT); i = i + 1) {
 
@@ -166,15 +166,15 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         let halfway_dir = normalize(light_dir + view_dir);
         let specular = pow(max(dot(mapped_normal, halfway_dir), 0.0), 32.0);
 
-        var attenuation = 1.0;
+        var attenuation = light.intensity;
         if light_type == POINT_LIGHT {
             let light_distance = length(light_delta);
-            attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+            attenuation /= light_distance * light_distance;
         } else if light_type == SPOT_LIGHT {
             let cone_dir = normalize(light.direction.xyz);
             let angle_cos = dot(light_dir, cone_dir);
             let light_distance = length(light_delta);
-            attenuation = clamp(10.0 / light_distance * light_distance, 0.0, 1.0);
+            attenuation /= light_distance * light_distance;            
             attenuation *= step(light.cos_cone_angle, angle_cos);
         }
 

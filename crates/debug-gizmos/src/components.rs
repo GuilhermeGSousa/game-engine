@@ -21,14 +21,10 @@ pub struct GizmoSphere {
 }
 
 #[derive(Component)]
-pub struct GizmoCube {}
-
-pub(crate) fn line_added(
-    shapes: Res<GizmoShapes>,
-    query: Query<&GizmoLine, Added<GizmoLine>>,
-    cmd: CommandQueue,
-) {
-    for line in query.iter() {}
+pub struct GizmoCube {
+    pub center: Vec3,
+    pub size: Vec3,
+    pub color: LinearRgba,
 }
 
 pub(crate) fn sphere_added(
@@ -39,7 +35,9 @@ pub(crate) fn sphere_added(
 ) {
     for (_entity, sphere) in query.iter() {
         let material = MaterialComponent {
-            handle: asset_server.add(DebugGizmoMaterial { color: sphere.color }),
+            handle: asset_server.add(DebugGizmoMaterial {
+                color: sphere.color,
+            }),
         };
 
         cmd.spawn((
@@ -57,3 +55,6 @@ pub(crate) fn sphere_added(
         // Maybe despawn entity?
     }
 }
+
+// TODO: Implement cube and line gizmos
+// TODO: Add despawn timers

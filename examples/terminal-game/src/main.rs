@@ -13,12 +13,16 @@ use game_engine::DefaultPlugins;
 use glam::{Quat, Vec3, Vec4};
 use ratatui::crossterm::event::KeyCode;
 use render::{
-    MaterialPlugin, assets::{material::StandardMaterial, mesh::Mesh, texture::Texture, vertex::Vertex}, components::{
+    assets::{material::StandardMaterial, mesh::Mesh, texture::Texture, vertex::Vertex},
+    components::{
         camera::{Camera, RenderTarget},
         light::{LighType, Light, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
-    }, plugin::RenderPlugin, wgpu::naga::VectorSize::Quad
+    },
+    plugin::RenderPlugin,
+    wgpu::{self, naga::VectorSize::Quad},
+    MaterialPlugin,
 };
 use terminal_renderer::{
     terminal::TerminalContext, TerminalInput, TerminalOutput, TerminalRenderStrategy,
@@ -40,19 +44,19 @@ fn main() {
 
     let mut app = App::new();
 
-    // app.register_plugin(DefaultPlugins::headless())
-    //     .register_plugin(TerminalRendererPlugin::with_strategy(
-    //         TerminalRenderStrategy::Luminance,
-    //     ))
-    //     .add_system(UpdateGroup::Startup, spawn_camera_terminal)
-    //     .add_system(UpdateGroup::Startup, spawn_scene)
-    //     .add_system(UpdateGroup::Update, rotate_cube)
-    //     .add_system(UpdateGroup::Update, move_camera);
-
-    app.register_plugin(DefaultPlugins::default())
-        .add_system(UpdateGroup::Startup, spawn_camera_windowed)
+    app.register_plugin(DefaultPlugins::headless())
+        .register_plugin(TerminalRendererPlugin::with_strategy(
+            TerminalRenderStrategy::Luminance,
+        ))
+        .add_system(UpdateGroup::Startup, spawn_camera_terminal)
         .add_system(UpdateGroup::Startup, spawn_scene)
-        .add_system(UpdateGroup::Update, rotate_cube);
+        .add_system(UpdateGroup::Update, rotate_cube)
+        .add_system(UpdateGroup::Update, move_camera);
+
+    // app.register_plugin(DefaultPlugins::default())
+    //     .add_system(UpdateGroup::Startup, spawn_camera_windowed)
+    //     .add_system(UpdateGroup::Startup, spawn_scene)
+    //     .add_system(UpdateGroup::Update, rotate_cube);
     app.register_plugin(DebugGizmosPlugin);
     app.run();
 }
@@ -73,10 +77,16 @@ fn spawn_camera_terminal(
     let camera = Camera {
         aspect,
         render_target: RenderTarget::texture(rtt),
+        clear_color: wgpu::Color::BLACK,
         ..Camera::default()
     };
     cmd.spawn((
         camera,
+        Light {
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            intensity: 1.0,
+            light_type: LighType::Point,
+        },
         TerminalOutput,
         Transform::from_translation_rotation(Vec3::new(0.0, 0.0, 5.0), Quat::IDENTITY),
     ));
@@ -86,7 +96,12 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
     let camera = Camera::default();
     cmd.spawn((
         camera,
-        Transform::from_translation_rotation(Vec3::new(0.0, 0.0, 5.0), Quat::IDENTITY),
+        Light {
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            intensity: 1.0,
+            light_type: LighType::Point,
+        },
+        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
     ));
 }
 
@@ -117,7 +132,6 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         color: LinearRgba::GREEN,
     });
     cmd.spawn((light, light_transform));
-    
 }
 
 fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {
@@ -211,5 +225,7 @@ fn make_cube() -> Mesh {
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
 
-    Mesh { vertices, indices }
+    let mut mesh = Mesh { vertices, indices };
+    mesh.compute_tangents();
+    mesh
 }

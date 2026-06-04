@@ -135,14 +135,7 @@ impl<M: Material + 'static> RenderAsset for RenderMaterial<M> {
 /// Creates a render-world instance when a [`MeshComponent`] is added to an
 /// entity that also carries [`MaterialComponent<M>`].
 pub(crate) fn material_added<M: Material>(
-    meshes: Query<
-        (
-            Entity,
-            &MaterialComponent<M>,
-            Option<&RenderEntity>,
-        ),
-        Added<(MeshComponent,)>,
-    >,
+    meshes: Query<(Entity, &MaterialComponent<M>, Option<&RenderEntity>), Added<(MeshComponent,)>>,
     mut cmd: CommandQueue,
 ) {
     for (entity, material, render_entity) in meshes.iter() {
@@ -205,7 +198,7 @@ pub(crate) fn material_renderpass<M: Material>(
                 view: color_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
+                    load: wgpu::LoadOp::Clear(render_camera.clear_color),
                     store: wgpu::StoreOp::Store,
                 },
             })],

@@ -3,7 +3,6 @@ use std::ops::Deref;
 use ecs::resource::Resource;
 use wgpu::BindGroupLayoutDescriptor;
 
-
 #[derive(Resource)]
 pub(crate) struct CameraLayout {
     pub camera_layout: wgpu::BindGroupLayout,

@@ -4,7 +4,10 @@ use ecs::{
 };
 use render::{components::camera::RenderCamera, device::RenderDevice, queue::RenderQueue};
 
-use crate::{ascii::padded_bytes_per_row, frame::TerminalFrame, strategy::TerminalRenderStrategy};
+use crate::{
+    ascii::{padded_bytes_per_row, pixels_to_ascii_into},
+    frame::TerminalFrame,
+};
 
 #[derive(Resource)]
 pub struct TerminalRenderState {
@@ -12,17 +15,11 @@ pub struct TerminalRenderState {
     pub(crate) padded_bpr: u32,
     pub width: u32,
     pub height: u32,
-    pub strategy: TerminalRenderStrategy,
 }
 
 impl TerminalRenderState {
-    pub fn new(
-        device: &wgpu::Device,
-        width: u32,
-        height: u32,
-        strategy: TerminalRenderStrategy,
-    ) -> Self {
-        let padded_bpr = padded_bytes_per_row(width, strategy.readback_format());
+    pub fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
+        let padded_bpr = padded_bytes_per_row(width, wgpu::TextureFormat::Rgba8UnormSrgb);
         let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Terminal Readback Staging Buffer"),
             size: (padded_bpr * height) as u64,
@@ -35,7 +32,6 @@ impl TerminalRenderState {
             padded_bpr,
             width,
             height,
-            strategy,
         }
     }
 }
@@ -55,7 +51,10 @@ pub fn print_terminal_frame(
         None => return,
     };
 
-    let rt = state.strategy.select_render_texture(render_camera);
+    let rt = render_camera
+                .render_target
+                .as_ref()
+                .expect("Render target not found on camera — make sure the camera is configured for offscreen rendering");
 
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("Terminal Readback"),
@@ -89,19 +88,17 @@ pub fn print_terminal_frame(
     device.poll(wgpu::Maintain::Wait);
     rx.recv().unwrap().unwrap();
 
-    {
-        let data = buffer_slice.get_mapped_range();
-        frame.scoped_buffer(|buffer| {
-            state.strategy.convert_pixels(&data, state.width, state.height, state.padded_bpr, buffer)
-        });
-    }
+    let data = buffer_slice.get_mapped_range();
+    frame.scoped_buffer(|buffer| {
+        pixels_to_ascii_into(&data, state.width, state.height, state.padded_bpr, buffer);
+    });
 
     state.staging_buffer.unmap();
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{ascii::padded_bytes_per_row, strategy::pixels_to_ascii_into};
+    use crate::ascii::{padded_bytes_per_row, pixels_to_ascii_into};
 
     #[test]
     fn test_headless_gpu_render_produces_output() {

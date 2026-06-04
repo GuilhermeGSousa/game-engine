@@ -12,7 +12,7 @@ use essential::{
     },
     transform::Transform,
 };
-use glam::{Quat, Vec2, Vec3};
+use glam::{Quat, Vec3};
 use tobj::Model;
 
 use render::{

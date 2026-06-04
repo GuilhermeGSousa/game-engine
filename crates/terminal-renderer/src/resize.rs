@@ -35,8 +35,7 @@ pub(crate) fn handle_terminal_resize(
         return;
     }
 
-    let strategy = state.strategy;
-    *state = TerminalRenderState::new(&**device, w, h, strategy);
+    *state = TerminalRenderState::new(&**device, w, h);
 
     // Rebuild the RTT and depth texture on the terminal camera's render entity
     let Some(render_entity) = terminal_cameras.iter().next() else {

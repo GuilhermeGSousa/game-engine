@@ -2,6 +2,7 @@ use ecs::Resource;
 use essential::assets::handle::AssetHandle;
 use render::assets::{mesh::Mesh, vertex::Vertex};
 
+#[allow(unused)]
 #[derive(Resource)]
 pub(crate) struct GizmoShapes {
     pub(crate) line: AssetHandle<Mesh>,
@@ -33,9 +34,9 @@ impl GizmoShapes {
                 let angle = (i as f32 / SEGMENTS as f32) * std::f32::consts::TAU;
                 let (s, c) = angle.sin_cos();
                 let pos = match ring {
-                    0 => [c, s, 0.0],      // XY plane
-                    1 => [c, 0.0, s],      // XZ plane
-                    _ => [0.0, c, s],      // YZ plane
+                    0 => [c, s, 0.0], // XY plane
+                    1 => [c, 0.0, s], // XZ plane
+                    _ => [0.0, c, s], // YZ plane
                 };
                 let mut v = Vertex::default();
                 v.pos_coords = pos;
@@ -63,11 +64,14 @@ impl GizmoShapes {
             [-0.5,  0.5,  0.5], // 7
         ];
 
-        let vertices = corners.iter().map(|&pos| {
-            let mut v = Vertex::default();
-            v.pos_coords = pos;
-            v
-        }).collect();
+        let vertices = corners
+            .iter()
+            .map(|&pos| {
+                let mut v = Vertex::default();
+                v.pos_coords = pos;
+                v
+            })
+            .collect();
 
         #[rustfmt::skip]
         let indices = vec![

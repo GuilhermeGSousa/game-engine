@@ -28,8 +28,7 @@ impl TerminalInput {
     pub fn new() -> Self {
         // Initialise last_terminal_size to the actual current size so the first
         // frame doesn't spuriously emit a resize event.
-        let last_terminal_size =
-            ratatui::crossterm::terminal::size().unwrap_or((80, 24));
+        let last_terminal_size = ratatui::crossterm::terminal::size().unwrap_or((80, 24));
         Self {
             keys_active: HashSet::new(),
             keys_just_pressed: HashSet::new(),

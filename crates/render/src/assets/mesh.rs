@@ -25,8 +25,7 @@ impl Mesh {
             let normal = (pos1 - pos0).cross(pos2 - pos0).normalize();
 
             for i in [i0, i1, i2] {
-                self.vertices[i].normal =
-                    (normal + Vec3::from(self.vertices[i].normal)).into();
+                self.vertices[i].normal = (normal + Vec3::from(self.vertices[i].normal)).into();
                 triangles_included[i] += 1;
             }
         });
@@ -34,8 +33,9 @@ impl Mesh {
         for (i, n) in triangles_included.into_iter().enumerate() {
             if n > 0 {
                 let denom = 1.0 / n as f32;
-                self.vertices[i].normal =
-                    (Vec3::from(self.vertices[i].normal) * denom).normalize().into();
+                self.vertices[i].normal = (Vec3::from(self.vertices[i].normal) * denom)
+                    .normalize()
+                    .into();
             }
         }
 
@@ -84,8 +84,7 @@ impl Mesh {
             let bitangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
 
             for i in [i0, i1, i2] {
-                self.vertices[i].tangent =
-                    (tangent + Vec3::from(self.vertices[i].tangent)).into();
+                self.vertices[i].tangent = (tangent + Vec3::from(self.vertices[i].tangent)).into();
                 self.vertices[i].bitangent =
                     (bitangent + Vec3::from(self.vertices[i].bitangent)).into();
                 triangles_included[i] += 1;

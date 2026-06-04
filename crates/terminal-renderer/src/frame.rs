@@ -25,7 +25,9 @@ pub struct CurrentFrame<'a>(&'a str);
 
 impl Widget for CurrentFrame<'_> {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
-        let block = Block::default().borders(Borders::ALL).title("And this is also a widget!");
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title("And this is also a widget!");
         let inner = block.inner(area);
         block.render(area, buf);
 

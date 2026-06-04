@@ -37,7 +37,7 @@ impl LighType {
         match *self {
             LighType::Point => 0,
             LighType::Spot(_) => 1,
-            LighType::Directional => 1,
+            LighType::Directional => 2,
         }
     }
 }

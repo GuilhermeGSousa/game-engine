@@ -77,10 +77,12 @@ fn vs_main(
         instance.model_matrix_3,
     );
 
-    let rotation_matrix = mat3x3<f32>(
-        instance.model_matrix_0.xyz,
-        instance.model_matrix_1.xyz,
-        instance.model_matrix_2.xyz,
+    // Normalizing each column strips non-uniform scale, leaving the pure rotation.
+    // A pure rotation matrix is its own inverse-transpose, making this correct for normals.
+    let normal_matrix = mat3x3<f32>(
+        normalize(instance.model_matrix_0.xyz),
+        normalize(instance.model_matrix_1.xyz),
+        normalize(instance.model_matrix_2.xyz),
     );
 
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
@@ -100,9 +102,9 @@ fn vs_main(
 
     out.tex_coords = model.tex_coords;
     out.world_position = world_position.xyz;
-    out.world_normal = normalize(rotation_matrix * model.normal);
-    out.world_tangent = normalize(rotation_matrix * model.tangent);
-    out.world_bitangent = normalize(rotation_matrix * model.bitangent);
+    out.world_normal = normalize(normal_matrix * model.normal);
+    out.world_tangent = normalize(normal_matrix * model.tangent);
+    out.world_bitangent = normalize(normal_matrix * model.bitangent);
     return out;
 }
 

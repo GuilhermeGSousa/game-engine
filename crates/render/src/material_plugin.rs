@@ -153,6 +153,49 @@ pub(crate) fn material_added<M: Material>(
     }
 }
 
+/// Clears color and depth for all cameras at the start of each frame.
+///
+/// Runs before all `material_renderpass<M>` systems so every material pass can
+/// use `LoadOp::Load` without clobbering the previous pass's output.
+pub(crate) fn clear_cameras(
+    mut device: ResMut<RenderDevice>,
+    render_cameras: Query<&RenderCamera>,
+    render_window: Res<RenderWindow>,
+) {
+    let encoder = device.command_encoder();
+    for render_camera in render_cameras.iter() {
+        let swapchain_view = render_window.get_view();
+        let color_view: &wgpu::TextureView = match &render_camera.render_target {
+            Some(rt) => &rt.view,
+            None => match swapchain_view {
+                Some(v) => v,
+                None => continue,
+            },
+        };
+        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Clear Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: color_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(render_camera.clear_color),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &render_camera.depth_texture.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+    }
+}
+
 /// Render pass for meshes that use material `M`.
 ///
 /// Only processes entities tagged with [`RenderMaterialComponent<M>`] so
@@ -198,7 +241,7 @@ pub(crate) fn material_renderpass<M: Material>(
                 view: color_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(render_camera.clear_color),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
             })],

@@ -10,6 +10,7 @@ use crate::{
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, SkeletonLayout},
+    material_plugin::clear_cameras,
     queue::RenderQueue,
     render_asset::{
         render_mesh::RenderMesh,
@@ -141,7 +142,8 @@ impl Plugin for RenderPlugin {
                 .add_system(UpdateGroup::Render, update_window::update_render_window);
         }
 
-        app.add_system(UpdateGroup::Render, update_skeletons)
+        app.add_system(UpdateGroup::Render, clear_cameras)
+            .add_system(UpdateGroup::Render, update_skeletons)
             .add_system(UpdateGroup::Render, prepare_lights_buffer)
             .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
     }

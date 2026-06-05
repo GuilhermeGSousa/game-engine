@@ -5,7 +5,7 @@ use render::{device::RenderDevice, systems::render::finish_render};
 use crate::{
     frame::TerminalFrame,
     input::{poll_terminal_input, TerminalInput},
-    readback::{print_terminal_frame, TerminalRenderState},
+    readback::{readback_terminal_frame, TerminalRenderState},
     resize::{handle_terminal_resize, TerminalResizeEvent},
     runner::terminal_runner,
     terminal::TerminalContext,
@@ -19,7 +19,7 @@ impl Plugin for TerminalRendererPlugin {
         app.add_system(UpdateGroup::Update, poll_terminal_input);
         app.add_system(
             UpdateGroup::LateRender,
-            print_terminal_frame.after(finish_render),
+            readback_terminal_frame.after(finish_render),
         );
         app.add_system(UpdateGroup::LateUpdate, handle_terminal_resize);
 

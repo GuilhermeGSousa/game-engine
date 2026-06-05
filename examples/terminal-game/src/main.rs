@@ -39,7 +39,7 @@ use ratatui::{
 };
 #[cfg(feature = "terminal")]
 use terminal_renderer::{
-    frame::TerminalFrame, print_terminal_frame, terminal::TerminalContext, TerminalInput,
+    frame::TerminalFrame, terminal::TerminalContext, TerminalInput,
     TerminalOutput, TerminalRendererPlugin,
 };
 
@@ -79,7 +79,7 @@ fn main() {
             .add_system(UpdateGroup::Update, move_camera);
         app.add_system(
             UpdateGroup::LateRender,
-            draw_terminal.after(print_terminal_frame),
+            draw_terminal,
         );
     }
 
@@ -120,11 +120,11 @@ fn spawn_camera_terminal(
         camera,
         Light {
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
-            intensity: 1.0,
+            intensity: 100.0,
             light_type: LighType::Point,
         },
         TerminalOutput,
-        Transform::from_translation_rotation(Vec3::new(0.0, 0.0, 5.0), Quat::IDENTITY),
+        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
     ));
 }
 
@@ -140,7 +140,7 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         Cube,
         MeshComponent { handle: mesh },
         MaterialComponent::<StandardMaterial> { handle: material },
-        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
+        Transform::from_translation_rotation(Vec3::X * 2.0 + Vec3::Y * 2.0 + -Vec3::Z * 2.0, Quat::IDENTITY),
     ));
 
     let light = Light {

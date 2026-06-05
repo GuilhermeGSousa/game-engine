@@ -39,7 +39,7 @@ impl TerminalRenderState {
 #[derive(Component)]
 pub struct TerminalOutput;
 
-pub fn print_terminal_frame(
+pub fn readback_terminal_frame(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     render_cameras: Query<&RenderCamera>,

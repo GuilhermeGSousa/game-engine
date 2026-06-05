@@ -1,44 +1,52 @@
 use std::f32::consts::PI;
 
-use app::{
-    plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
-    App,
-};
+use app::App;
 use color::LinearRgba;
-use debug_gizmos::{components::GizmoSphere, plugin::DebugGizmosPlugin};
-use ecs::system::schedule::UpdateGroup;
+use debug_gizmos::components::GizmoSphere;
 use ecs::{
     command::CommandQueue,
     query::Query,
-    resource::{Res, ResMut},
-    Component, IntoSystemConfig, With,
+    resource::Res,
+    system::schedule::UpdateGroup,
+    Component, With,
 };
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
-use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 use glam::{Quat, Vec3, Vec4};
+use render::{
+    assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
+    components::{
+        light::{LighType, Light, SpotLight},
+        material_component::MaterialComponent,
+        mesh_component::MeshComponent,
+    },
+};
+
+#[cfg(feature = "terminal")]
+use ecs::{resource::ResMut, IntoSystemConfig};
+#[cfg(feature = "terminal")]
+use render::{
+    assets::texture::Texture,
+    components::camera::{Camera, RenderTarget},
+    wgpu,
+};
+#[cfg(feature = "terminal")]
 use ratatui::{
     crossterm::event::KeyCode,
     layout::{Constraint, Layout},
     style::Stylize,
     text::{Line as TextLine, Span},
 };
-use render::{
-    assets::{material::StandardMaterial, mesh::Mesh, texture::Texture, vertex::Vertex},
-    components::{
-        camera::{Camera, RenderTarget},
-        light::{LighType, Light, SpotLight},
-        material_component::MaterialComponent,
-        mesh_component::MeshComponent,
-    },
-    plugin::RenderPlugin,
-    wgpu::{self, naga::VectorSize::Quad},
-    MaterialPlugin,
-};
+#[cfg(feature = "terminal")]
 use terminal_renderer::{
     frame::TerminalFrame, print_terminal_frame, terminal::TerminalContext, TerminalInput,
     TerminalOutput, TerminalRendererPlugin,
 };
+
+#[cfg(not(feature = "terminal"))]
+use debug_gizmos::plugin::DebugGizmosPlugin;
+#[cfg(not(feature = "terminal"))]
+use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
 
@@ -61,26 +69,34 @@ fn main() {
 
     let mut app = App::new();
 
-    // app.register_plugin(DefaultPlugins::headless())
-    //     .register_plugin(TerminalRendererPlugin)
-    //     .add_system(UpdateGroup::Startup, spawn_camera_terminal)
-    //     .add_system(UpdateGroup::Startup, spawn_scene)
-    //     .add_system(UpdateGroup::Update, rotate_cube)
-    //     .add_system(UpdateGroup::Update, move_camera);
-    // app.add_system(
-    //     UpdateGroup::LateRender,
-    //     draw_terminal.after(print_terminal_frame),
-    // );
-    app.register_plugin(DefaultPlugins::default())
-        .add_system(UpdateGroup::Startup, spawn_camera_windowed)
-        .add_system(UpdateGroup::Startup, spawn_scene)
-        .add_system(UpdateGroup::Update, rotate_cube)
-        .add_system(UpdateGroup::Update, first_person_player_fly);
-    app.register_plugin(DebugGizmosPlugin);
+    #[cfg(feature = "terminal")]
+    {
+        app.register_plugin(DefaultPlugins::headless())
+            .register_plugin(TerminalRendererPlugin)
+            .add_system(UpdateGroup::Startup, spawn_camera_terminal)
+            .add_system(UpdateGroup::Startup, spawn_scene)
+            .add_system(UpdateGroup::Update, rotate_cube)
+            .add_system(UpdateGroup::Update, move_camera);
+        app.add_system(
+            UpdateGroup::LateRender,
+            draw_terminal.after(print_terminal_frame),
+        );
+    }
+
+    #[cfg(not(feature = "terminal"))]
+    {
+        app.register_plugin(DefaultPlugins::default())
+            .add_system(UpdateGroup::Startup, spawn_camera_windowed)
+            .add_system(UpdateGroup::Startup, spawn_scene)
+            .add_system(UpdateGroup::Update, rotate_cube)
+            .add_system(UpdateGroup::Update, first_person_player_fly);
+        app.register_plugin(DebugGizmosPlugin);
+    }
 
     app.run();
 }
 
+#[cfg(feature = "terminal")]
 fn spawn_camera_terminal(
     mut cmd: CommandQueue,
     asset_server: Res<AssetServer>,
@@ -112,6 +128,7 @@ fn spawn_camera_terminal(
     ));
 }
 
+#[cfg(not(feature = "terminal"))]
 fn spawn_camera_windowed(mut cmd: CommandQueue) {
     spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0));
 }
@@ -154,6 +171,7 @@ fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {
     }
 }
 
+#[cfg(feature = "terminal")]
 fn move_camera(
     cameras: Query<&mut Transform, With<Camera>>,
     input: Res<TerminalInput>,
@@ -163,7 +181,6 @@ fn move_camera(
     let rot_speed = 2.0 * time.delta().as_secs_f32();
 
     for mut transform in cameras.iter() {
-        // WASD: translate along the camera's local axes
         if input.is_key_active(KeyCode::Char('z')) {
             let fwd = transform.forward();
             transform.translation += fwd * speed;
@@ -181,7 +198,6 @@ fn move_camera(
             transform.translation += right * speed;
         }
 
-        // Arrow keys: yaw (left/right around world Y) and pitch (up/down around local X)
         if input.is_key_active(KeyCode::Left) {
             transform.rotation = Quat::from_rotation_y(rot_speed) * transform.rotation;
         }
@@ -197,6 +213,7 @@ fn move_camera(
     }
 }
 
+#[cfg(feature = "terminal")]
 fn draw_terminal(mut terminal: ResMut<TerminalContext>, terminal_frame: Res<TerminalFrame>) {
     terminal
         .draw(|frame| {
@@ -231,14 +248,13 @@ fn make_cube() -> Mesh {
         [-0.5, 0.5, 0.5],
     ];
 
-    // (face normal, 4 vertex indices forming a quad)
     let faces: [([f32; 3], [usize; 4]); 6] = [
-        ([0.0, 0.0, -1.0], [0, 3, 2, 1]), // back
-        ([0.0, 0.0, 1.0], [4, 5, 6, 7]),  // front
-        ([-1.0, 0.0, 0.0], [0, 4, 7, 3]), // left
-        ([1.0, 0.0, 0.0], [1, 2, 6, 5]),  // right
-        ([0.0, -1.0, 0.0], [0, 1, 5, 4]), // bottom
-        ([0.0, 1.0, 0.0], [3, 7, 6, 2]),  // top
+        ([0.0, 0.0, -1.0], [0, 3, 2, 1]),
+        ([0.0, 0.0, 1.0], [4, 5, 6, 7]),
+        ([-1.0, 0.0, 0.0], [0, 4, 7, 3]),
+        ([1.0, 0.0, 0.0], [1, 2, 6, 5]),
+        ([0.0, -1.0, 0.0], [0, 1, 5, 4]),
+        ([0.0, 1.0, 0.0], [3, 7, 6, 2]),
     ];
 
     let uvs: [[f32; 2]; 4] = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
@@ -256,7 +272,6 @@ fn make_cube() -> Mesh {
                 ..Vertex::default()
             });
         }
-        // Two triangles per face
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
 

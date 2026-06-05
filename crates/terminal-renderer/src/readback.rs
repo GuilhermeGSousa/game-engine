@@ -88,10 +88,12 @@ pub fn print_terminal_frame(
     device.poll(wgpu::Maintain::Wait);
     rx.recv().unwrap().unwrap();
 
-    let data = buffer_slice.get_mapped_range();
-    frame.scoped_buffer(|buffer| {
-        pixels_to_ascii_into(&data, state.width, state.height, state.padded_bpr, buffer);
-    });
+    {
+        let data = buffer_slice.get_mapped_range();
+        frame.scoped_buffer(|buffer| {
+            pixels_to_ascii_into(&data, state.width, state.height, state.padded_bpr, buffer);
+        });
+    }
 
     state.staging_buffer.unmap();
 }

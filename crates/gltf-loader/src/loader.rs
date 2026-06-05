@@ -520,7 +520,24 @@ pub(crate) fn spawn_gltf_components(
                         );
                     }
 
-                    // TODO: Spawn the rest of the primitives as children
+                    for (mesh, material_index) in primitives {
+                        if let Some(material_index) = material_index {
+                            let child = *cmd.spawn(gltf_node.transform.clone()).entity();
+                            cmd.insert(
+                                MeshComponent {
+                                    handle: mesh.clone(),
+                                },
+                                child,
+                            );
+                            cmd.insert(
+                                MaterialComponent {
+                                    handle: asset.materials[*material_index].clone(),
+                                },
+                                child,
+                            );
+                            cmd.add_child(node_entities[node_index], child);
+                        }
+                    }
                 }
 
                 if let Some(skeleton_index) = gltf_node.skeleton {

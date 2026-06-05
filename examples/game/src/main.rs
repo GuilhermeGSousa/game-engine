@@ -6,13 +6,12 @@ use game_engine::{
         command::CommandQueue,
         component::Component,
         entity::Entity,
-        query::{query_filter::With, Query},
+        query::Query,
         resource::{Res, ResMut},
         system::schedule::{Schedules, UpdateGroup},
     },
     essential::{
         assets::asset_server::AssetServer,
-        time::Time,
         transform::{GlobalTranform, Transform},
     },
     obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent},
@@ -31,6 +30,7 @@ use game_engine::{
     window::input::{Input, InputState},
     DefaultPlugins,
 };
+use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 use glam::{Quat, Vec3, Vec4};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
@@ -50,9 +50,6 @@ const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
-#[derive(Component)]
-struct Player;
-
 fn main() {
     #[cfg(not(target_arch = "wasm32"))]
     std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
@@ -70,7 +67,7 @@ fn main() {
     let mut app = App::new();
     app.register_plugin(DefaultPlugins::default())
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
-        .add_system(UpdateGroup::Update, move_around)
+        .add_system(UpdateGroup::Update, first_person_player_fly)
         .add_system(UpdateGroup::Update, spawn_on_button_press)
         .add_system(UpdateGroup::Update, setup_state_machine)
         .add_system(UpdateGroup::Update, setup_animations)
@@ -89,8 +86,6 @@ fn spawn_player(
     mut cmd: CommandQueue,
     asset_server: Res<AssetServer>,
 ) {
-    let camera = Camera::default();
-
     let skybox_material = SkyboxMaterial {
         texture: Some(asset_server.load_with_usage_settings(
             SKYBOX_TEXTURE,
@@ -139,14 +134,8 @@ fn spawn_player(
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
     light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
 
-    cmd.spawn((
-        Player,
-        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-    ))
-    .add_child((
-        camera,
-        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
-    ));
+    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0));
+
     cmd.spawn((light, light_transform));
 }
 
@@ -201,53 +190,6 @@ fn spawn_unlit_obj(
             cmd.remove::<OBJSpawner>(entity);
         }
     }
-}
-
-fn move_around(
-    players: Query<&mut Transform, With<Player>>,
-    cameras: Query<&mut Transform, With<Camera>>,
-    input: Res<Input>,
-    time: Res<Time>,
-) {
-    let Some(mut player_transform) = players.iter().next() else {
-        return;
-    };
-
-    let Some(mut camera_transform) = cameras.iter().next() else {
-        return;
-    };
-
-    let displacement = 10.0 * time.delta().as_secs_f32();
-
-    let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyD));
-    let key_a = input.get_key_state(PhysicalKey::Code(KeyCode::KeyA));
-    let key_w = input.get_key_state(PhysicalKey::Code(KeyCode::KeyW));
-    let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
-
-    let right = player_transform.right();
-    let left = player_transform.left();
-    let forward = player_transform.forward();
-    let back = player_transform.backward();
-
-    if key_d == InputState::Pressed || key_d == InputState::Down {
-        player_transform.translation += right * displacement;
-    }
-    if key_a == InputState::Pressed || key_a == InputState::Down {
-        player_transform.translation += left * displacement;
-    }
-    if key_w == InputState::Pressed || key_w == InputState::Down {
-        player_transform.translation += forward * displacement;
-    }
-    if key_s == InputState::Pressed || key_s == InputState::Down {
-        player_transform.translation += back * displacement;
-    }
-
-    let sensitivity = -0.5;
-    let mouse_delta = input.mouse_delta();
-    let yaw_delta = sensitivity * mouse_delta.x * time.delta().as_secs_f32();
-    let pitch_delta = sensitivity * mouse_delta.y * time.delta().as_secs_f32();
-    player_transform.rotation *= Quat::from_axis_angle(Vec3::Y, yaw_delta);
-    camera_transform.rotation *= Quat::from_axis_angle(Vec3::X, pitch_delta);
 }
 
 fn spawn_with_collider(

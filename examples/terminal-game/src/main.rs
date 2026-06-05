@@ -14,7 +14,8 @@ use ecs::{
     Component, IntoSystemConfig, With,
 };
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
-use game_engine::DefaultPlugins;
+use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
+use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 use glam::{Quat, Vec3, Vec4};
 use ratatui::{
     crossterm::event::KeyCode,
@@ -39,6 +40,8 @@ use terminal_renderer::{
     TerminalOutput, TerminalRendererPlugin,
 };
 
+const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
+
 #[derive(Component)]
 struct Cube;
 
@@ -52,24 +55,29 @@ fn main() {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
+        .expect("Failed to set working directory");
+
     let mut app = App::new();
 
-    app.register_plugin(DefaultPlugins::headless())
-        .register_plugin(TerminalRendererPlugin)
-        .add_system(UpdateGroup::Startup, spawn_camera_terminal)
+    // app.register_plugin(DefaultPlugins::headless())
+    //     .register_plugin(TerminalRendererPlugin)
+    //     .add_system(UpdateGroup::Startup, spawn_camera_terminal)
+    //     .add_system(UpdateGroup::Startup, spawn_scene)
+    //     .add_system(UpdateGroup::Update, rotate_cube)
+    //     .add_system(UpdateGroup::Update, move_camera);
+    // app.add_system(
+    //     UpdateGroup::LateRender,
+    //     draw_terminal.after(print_terminal_frame),
+    // );
+    app.register_plugin(DefaultPlugins::default())
+        .add_system(UpdateGroup::Startup, spawn_camera_windowed)
         .add_system(UpdateGroup::Startup, spawn_scene)
         .add_system(UpdateGroup::Update, rotate_cube)
-        .add_system(UpdateGroup::Update, move_camera);
-
-    // app.register_plugin(DefaultPlugins::default())
-    //     .add_system(UpdateGroup::Startup, spawn_camera_windowed)
-    //     .add_system(UpdateGroup::Startup, spawn_scene)
-    //     .add_system(UpdateGroup::Update, rotate_cube);
+        .add_system(UpdateGroup::Update, first_person_player_fly);
     app.register_plugin(DebugGizmosPlugin);
-    app.add_system(
-        UpdateGroup::LateRender,
-        draw_terminal.after(print_terminal_frame),
-    );
+
     app.run();
 }
 
@@ -105,16 +113,7 @@ fn spawn_camera_terminal(
 }
 
 fn spawn_camera_windowed(mut cmd: CommandQueue) {
-    let camera = Camera::default();
-    cmd.spawn((
-        camera,
-        Light {
-            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
-            intensity: 1.0,
-            light_type: LighType::Point,
-        },
-        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
-    ));
+    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0));
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
@@ -144,6 +143,8 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         color: LinearRgba::GREEN,
     });
     cmd.spawn((light, light_transform));
+
+    cmd.spawn(GLTFSpawnerComponent(asset_server.load(SPONZA_PATH)));
 }
 
 fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {

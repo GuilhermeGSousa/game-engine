@@ -111,6 +111,12 @@ impl Table {
             .insert(ComponentId::of::<T>(), Column::new::<T>());
     }
 
+    pub(crate) fn merge(&mut self, other: Table) {
+        for (id, column) in other.columns {
+            self.columns.entry(id).or_insert(column);
+        }
+    }
+
     pub fn add_row(&mut self, mut row: TableRow) {
         self.columns.iter_mut().for_each(|(key, value)| {
             if let Some(added_col) = row.data.get_mut(key) {

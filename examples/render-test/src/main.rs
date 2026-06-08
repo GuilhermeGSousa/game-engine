@@ -130,7 +130,7 @@ fn spawn_camera_terminal(
 
 #[cfg(not(feature = "terminal"))]
 fn spawn_camera_windowed(mut cmd: CommandQueue) {
-    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0));
+    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0), ());
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {

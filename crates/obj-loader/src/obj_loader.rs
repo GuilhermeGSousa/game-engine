@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader, Cursor};
 
+use anyhow::Context;
 use async_trait::async_trait;
 use ecs::{
     command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
@@ -63,9 +64,15 @@ impl AssetLoader for OBJLoader {
         path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         _usage_setting: <Self::Asset as LoadableAsset>::UsageSettings,
-    ) -> Result<Self::Asset, ()> {
+    ) -> anyhow::Result<Self::Asset> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);
+
+        let obj_parent = path
+            .to_path()
+            .parent()
+            .context("OBJ path has no parent directory")?
+            .to_path_buf();
 
         let mat_handles = BufReader::new(obj_cursor.clone())
             .lines()
@@ -74,7 +81,7 @@ impl AssetLoader for OBJLoader {
                 if line.starts_with("mtllib") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() > 1 {
-                        let mtl_path = path.to_path().parent().unwrap().join(parts[1]);
+                        let mtl_path = obj_parent.join(parts[1]);
                         Some(load_context.asset_server().load::<MTLMaterial>(mtl_path))
                     } else {
                         None
@@ -95,7 +102,12 @@ impl AssetLoader for OBJLoader {
             move |_| async move { Err(tobj::LoadError::GenericFailure) },
         )
         .await
-        .map_err(|_| ())?;
+        .with_context(|| {
+            format!(
+                "failed to parse OBJ file '{}'",
+                path.to_path().display()
+            )
+        })?;
 
         let meshes = models
             .iter()

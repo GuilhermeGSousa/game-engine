@@ -1,4 +1,5 @@
 use crate::loaders::texture_loader::TextureLoader;
+use anyhow::Context;
 use essential::assets::{Asset, LoadableAsset};
 use image::{DynamicImage, GenericImageView};
 use wgpu::TextureUsages;
@@ -41,9 +42,11 @@ pub struct Texture {
 }
 
 impl Texture {
-    #[allow(clippy::result_unit_err)]
-    pub fn from_bytes(bytes: &[u8], mut usage_settings: TextureUsageSettings) -> Result<Self, ()> {
-        let img = image::load_from_memory(bytes).map_err(|_| ())?;
+    pub fn from_bytes(
+        bytes: &[u8],
+        mut usage_settings: TextureUsageSettings,
+    ) -> anyhow::Result<Self> {
+        let img = image::load_from_memory(bytes).context("failed to decode image from bytes")?;
         let dimensions = img.dimensions();
 
         if usage_settings.texture_descriptor.size.width == 0

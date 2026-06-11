@@ -1,3 +1,4 @@
+use anyhow::Context;
 use essential::assets::{
     asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, AssetPath,
     LoadableAsset,
@@ -19,22 +20,14 @@ impl AssetLoader for TextureLoader {
         path: AssetPath<'static>,
         _load_context: &mut AssetLoadContext,
         usage_settings: <Self::Asset as LoadableAsset>::UsageSettings,
-    ) -> Result<Self::Asset, ()> {
-        let data = load_binary(path).await;
+    ) -> anyhow::Result<Self::Asset> {
+        let data = load_binary(path.clone()).await?;
 
-        match data {
-            Ok(data) => {
-                let texture = Texture::from_bytes(&data, usage_settings);
-                match texture {
-                    Ok(texture) => {
-                        return Ok(texture);
-                    }
-                    Err(_) => {
-                        return Err(());
-                    }
-                }
-            }
-            Err(_) => Err(()),
-        }
+        Texture::from_bytes(&data, usage_settings).with_context(|| {
+            format!(
+                "failed to create texture from '{}'",
+                path.to_path().display()
+            )
+        })
     }
 }

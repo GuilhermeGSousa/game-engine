@@ -165,6 +165,7 @@ impl AssetServer {
 
         let server = self.clone();
         let task = LoadTaskPool::get_or_init(TaskPool::new).spawn(async move {
+            let log_path = path.clone();
             let asset = asset_loader
                 .load(path, &mut AssetLoadContext::new(server), usage_settings)
                 .await;
@@ -174,7 +175,13 @@ impl AssetServer {
                         .send(AssetLoadEvent::Loaded(LoadedAsset::new(id, asset)))
                         .unwrap();
                 }
-                Err(_) => {
+                Err(error) => {
+                    log::error!(
+                        "Failed to load asset '{}' (type {}): {:#}",
+                        log_path.to_path().display(),
+                        std::any::type_name::<A>(),
+                        error
+                    );
                     sender.send(AssetLoadEvent::LoadFailed(id)).unwrap();
                 }
             }

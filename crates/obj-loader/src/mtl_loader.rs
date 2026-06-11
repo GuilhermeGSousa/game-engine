@@ -1,5 +1,6 @@
 use std::io::{BufReader, Cursor};
 
+use anyhow::Context;
 use async_trait::async_trait;
 use essential::assets::{
     Asset, AssetPath, LoadableAsset, asset_loader::AssetLoader, asset_server::AssetLoadContext,
@@ -34,36 +35,31 @@ impl AssetLoader for MTLLoader {
         path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         _usage_setting: <Self::Asset as LoadableAsset>::UsageSettings,
-    ) -> Result<Self::Asset, ()> {
+    ) -> anyhow::Result<Self::Asset> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);
-        let mat = tobj::load_mtl_buf(&mut BufReader::new(obj_cursor));
+        let (mats, _) = tobj::load_mtl_buf(&mut BufReader::new(obj_cursor)).with_context(|| {
+            format!(
+                "failed to parse MTL file '{}'",
+                path.to_path().display()
+            )
+        })?;
 
-        match mat {
-            Ok((mats, _)) => {
-                let mut material = StandardMaterial::new(None, None);
-                for m in mats {
-                    if let Some(diffuse_texture) = m.diffuse_texture {
-                        let texture_handle =
-                            load_context.asset_server().load::<Texture>(diffuse_texture);
-                        material.set_diffuse_texture(texture_handle);
-                    }
-
-                    if let Some(normal_texture) = m.normal_texture {
-                        let texture_handle =
-                            load_context.asset_server().load::<Texture>(normal_texture);
-                        material.set_normal_texture(texture_handle);
-                    }
-                }
-
-                return Ok(MTLMaterial {
-                    material: load_context.asset_server().add(material),
-                });
+        let mut material = StandardMaterial::new(None, None);
+        for m in mats {
+            if let Some(diffuse_texture) = m.diffuse_texture {
+                let texture_handle = load_context.asset_server().load::<Texture>(diffuse_texture);
+                material.set_diffuse_texture(texture_handle);
             }
-            Err(_) => {
-                eprintln!("Failed to load MTL file: {}", path.to_path().display());
-                return Err(());
+
+            if let Some(normal_texture) = m.normal_texture {
+                let texture_handle = load_context.asset_server().load::<Texture>(normal_texture);
+                material.set_normal_texture(texture_handle);
             }
         }
+
+        Ok(MTLMaterial {
+            material: load_context.asset_server().add(material),
+        })
     }
 }

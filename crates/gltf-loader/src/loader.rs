@@ -10,7 +10,7 @@ use animation::{
     root::AnimationRootBone,
     target::AnimationTarget,
 };
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use async_trait::async_trait;
 use ecs::{
     command::CommandQueue,
@@ -118,8 +118,9 @@ impl AssetLoader for GLTFLoader {
         load_context: &mut essential::assets::asset_server::AssetLoadContext,
         usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
     ) -> anyhow::Result<Self::Asset> {
-        let (document, buffers, images) = gltf::import(path.to_path())
-            .with_context(|| format!("failed to import GLTF file '{}'", path.to_path().display()))?;
+        let (document, buffers, images) = gltf::import(path.to_path()).with_context(|| {
+            format!("failed to import GLTF file '{}'", path.to_path().display())
+        })?;
 
         let nodes = document
             .nodes()

@@ -38,12 +38,8 @@ impl AssetLoader for MTLLoader {
     ) -> anyhow::Result<Self::Asset> {
         let obj_text = load_to_string(path.clone()).await?;
         let obj_cursor = Cursor::new(obj_text);
-        let (mats, _) = tobj::load_mtl_buf(&mut BufReader::new(obj_cursor)).with_context(|| {
-            format!(
-                "failed to parse MTL file '{}'",
-                path.to_path().display()
-            )
-        })?;
+        let (mats, _) = tobj::load_mtl_buf(&mut BufReader::new(obj_cursor))
+            .with_context(|| format!("failed to parse MTL file '{}'", path.to_path().display()))?;
 
         let mut material = StandardMaterial::new(None, None);
         for m in mats {

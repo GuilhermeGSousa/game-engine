@@ -102,12 +102,7 @@ impl AssetLoader for OBJLoader {
             move |_| async move { Err(tobj::LoadError::GenericFailure) },
         )
         .await
-        .with_context(|| {
-            format!(
-                "failed to parse OBJ file '{}'",
-                path.to_path().display()
-            )
-        })?;
+        .with_context(|| format!("failed to parse OBJ file '{}'", path.to_path().display()))?;
 
         let meshes = models
             .iter()

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use cfg_if::cfg_if;
 
 use super::AssetPath;
@@ -12,47 +13,51 @@ fn format_url<'a>(path: AssetPath<'a>) -> reqwest::Url {
     base.join(path.to_string()).unwrap()
 }
 
-pub async fn load_to_string<'a>(path: AssetPath<'a>) -> Result<String, ()> {
+pub async fn load_to_string<'a>(path: AssetPath<'a>) -> anyhow::Result<String> {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             let url = format_url(path);
-            let txt = reqwest::get(url)
+            let txt = reqwest::get(url.clone())
                 .await
-                .map_err(|_| ())?
+                .with_context(|| format!("HTTP request for asset '{}' failed", url))?
                 .text()
                 .await
-                .map_err(|_| ())?;
+                .with_context(|| format!("failed to read response body for asset '{}'", url))?;
         } else {
-            let path = std::env::current_exe().unwrap().parent().unwrap()
-                .join(path.normalized_path);
-            let txt = std::fs::read_to_string(&path).map_err(|_|
-                {
-                    println!("Failed to load file: {}", &path.display());
-                })?;
+            let exe_path = std::env::current_exe()
+                .context("could not determine executable path")?;
+            let exe_dir = exe_path
+                .parent()
+                .context("could not determine executable directory")?;
+            let path = exe_dir.join(path.normalized_path);
+            let txt = std::fs::read_to_string(&path)
+                .with_context(|| format!("failed to read file '{}'", path.display()))?;
         }
     }
 
     Ok(txt)
 }
 
-pub async fn load_binary<'a>(path: AssetPath<'a>) -> Result<Vec<u8>, ()> {
+pub async fn load_binary<'a>(path: AssetPath<'a>) -> anyhow::Result<Vec<u8>> {
     cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             let url = format_url(path);
-            let data = reqwest::get(url)
+            let data = reqwest::get(url.clone())
                 .await
-                .map_err(|_| ())?
+                .with_context(|| format!("HTTP request for asset '{}' failed", url))?
                 .bytes()
                 .await
-                .map_err(|_| ())?
+                .with_context(|| format!("failed to read response body for asset '{}'", url))?
                 .to_vec();
         } else {
-            let path = std::env::current_exe().unwrap().parent().unwrap()
-                .join(path.normalized_path);
-            let data = std::fs::read(&path).map_err(|_|
-                {
-                    println!("Failed to load file: {}", &path.display());
-                })?;
+            let exe_path = std::env::current_exe()
+                .context("could not determine executable path")?;
+            let exe_dir = exe_path
+                .parent()
+                .context("could not determine executable directory")?;
+            let path = exe_dir.join(path.normalized_path);
+            let data = std::fs::read(&path)
+                .with_context(|| format!("failed to read file '{}'", path.display()))?;
         }
     }
 

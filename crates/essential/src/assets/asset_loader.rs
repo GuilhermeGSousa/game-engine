@@ -13,5 +13,5 @@ pub trait AssetLoader: Send + Sync + 'static {
         path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         usage_setting: <Self::Asset as LoadableAsset>::UsageSettings,
-    ) -> Result<Self::Asset, ()>;
+    ) -> anyhow::Result<Self::Asset>;
 }

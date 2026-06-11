@@ -9,6 +9,7 @@ essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 render = { path = "../render" }
 tobj = { version = "4.0.3", default-features = false, features = ["async"] }
+anyhow = "1.0.97"
 async-trait = "0.1.50"
 glam = { version = "0.30.1" }
 

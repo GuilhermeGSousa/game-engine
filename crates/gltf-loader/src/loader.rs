@@ -10,6 +10,7 @@ use animation::{
     root::AnimationRootBone,
     target::AnimationTarget,
 };
+use anyhow::{Context, bail};
 use async_trait::async_trait;
 use ecs::{
     command::CommandQueue,
@@ -116,8 +117,10 @@ impl AssetLoader for GLTFLoader {
         path: essential::assets::AssetPath<'static>,
         load_context: &mut essential::assets::asset_server::AssetLoadContext,
         usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
-    ) -> Result<Self::Asset, ()> {
-        let (document, buffers, images) = gltf::import(path.to_path()).unwrap();
+    ) -> anyhow::Result<Self::Asset> {
+        let (document, buffers, images) = gltf::import(path.to_path()).with_context(|| {
+            format!("failed to import GLTF file '{}'", path.to_path().display())
+        })?;
 
         let nodes = document
             .nodes()
@@ -125,26 +128,9 @@ impl AssetLoader for GLTFLoader {
             .collect();
 
         let mut textures = Vec::new();
-        for data in images {
-            let image = match data.format {
-                gltf::image::Format::R8 => image::DynamicImage::ImageLuma8(
-                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                        .expect("Out of memory loading image."),
-                ),
-                gltf::image::Format::R8G8 => image::DynamicImage::ImageLumaA8(
-                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                        .expect("Out of memory loading image."),
-                ),
-                gltf::image::Format::R8G8B8 => image::DynamicImage::ImageRgb8(
-                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                        .expect("Out of memory loading image."),
-                ),
-                gltf::image::Format::R8G8B8A8 => image::DynamicImage::ImageRgba8(
-                    ImageBuffer::from_vec(data.width, data.height, data.pixels)
-                        .expect("Out of memory loading image."),
-                ),
-                _ => panic!("Image format usupported (for now)"),
-            };
+        for (image_index, data) in images.into_iter().enumerate() {
+            let image = GLTFLoader::dynamic_image_from_gltf(data)
+                .with_context(|| format!("failed to load GLTF image at index {}", image_index))?;
             let texture = Texture::from_dynamic_image(image);
             textures.push(load_context.asset_server().add(texture));
         }
@@ -169,11 +155,20 @@ impl AssetLoader for GLTFLoader {
             let mut primitives = Vec::new();
             let mut materials = Vec::new();
             for gltf_primitive in mesh.primitives() {
-                primitives.push(GLTFLoader::load_primitive(
-                    &buffers,
-                    &gltf_primitive,
-                    load_context.asset_server(),
-                )?);
+                primitives.push(
+                    GLTFLoader::load_primitive(
+                        &buffers,
+                        &gltf_primitive,
+                        load_context.asset_server(),
+                    )
+                    .with_context(|| {
+                        format!(
+                            "failed to load primitive {} of mesh '{}'",
+                            gltf_primitive.index(),
+                            mesh.name().unwrap_or("<unnamed>")
+                        )
+                    })?,
+                );
                 materials.push(gltf_primitive.material().index());
             }
 
@@ -315,11 +310,39 @@ impl AssetLoader for GLTFLoader {
 }
 
 impl GLTFLoader {
+    fn dynamic_image_from_gltf(data: gltf::image::Data) -> anyhow::Result<image::DynamicImage> {
+        let (width, height, format) = (data.width, data.height, data.format);
+        let buffer_error = || {
+            format!(
+                "image buffer does not match dimensions {}x{} for format {:?}",
+                width, height, format
+            )
+        };
+
+        let image = match format {
+            gltf::image::Format::R8 => image::DynamicImage::ImageLuma8(
+                ImageBuffer::from_vec(width, height, data.pixels).with_context(buffer_error)?,
+            ),
+            gltf::image::Format::R8G8 => image::DynamicImage::ImageLumaA8(
+                ImageBuffer::from_vec(width, height, data.pixels).with_context(buffer_error)?,
+            ),
+            gltf::image::Format::R8G8B8 => image::DynamicImage::ImageRgb8(
+                ImageBuffer::from_vec(width, height, data.pixels).with_context(buffer_error)?,
+            ),
+            gltf::image::Format::R8G8B8A8 => image::DynamicImage::ImageRgba8(
+                ImageBuffer::from_vec(width, height, data.pixels).with_context(buffer_error)?,
+            ),
+            format => bail!("unsupported GLTF image format {:?}", format),
+        };
+
+        Ok(image)
+    }
+
     fn load_primitive(
         buffers: &[Data],
         gltf_primitive: &Primitive,
         asset_server: &AssetServer,
-    ) -> Result<AssetHandle<Mesh>, ()> {
+    ) -> anyhow::Result<AssetHandle<Mesh>> {
         let mut primitive = Mesh {
             vertices: Vec::new(),
             indices: Vec::new(),
@@ -327,14 +350,17 @@ impl GLTFLoader {
 
         let reader = gltf_primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-        primitive.indices = match reader.read_indices().ok_or(())? {
+        primitive.indices = match reader
+            .read_indices()
+            .context("GLTF primitive has no indices")?
+        {
             gltf::mesh::util::ReadIndices::U8(iter) => iter.map(|i| i as u32).collect(),
             gltf::mesh::util::ReadIndices::U16(iter) => iter.map(|i| i as u32).collect(),
             gltf::mesh::util::ReadIndices::U32(iter) => iter.collect(),
         };
         primitive.vertices = reader
             .read_positions()
-            .ok_or(())?
+            .context("GLTF primitive has no vertex positions")?
             .map(|pos| Vertex {
                 pos_coords: pos,
                 uv_coords: [0.0; 2],
@@ -353,7 +379,7 @@ impl GLTFLoader {
                         primitive.vertices[index].uv_coords = uvs;
                     });
                 }
-                _ => return Err(()),
+                _ => bail!("unsupported GLTF texture coordinate format (expected F32)"),
             }
         }
 
@@ -401,7 +427,7 @@ impl GLTFLoader {
                         primitive.vertices[index].bone_weights = weight;
                     });
                 }
-                _ => return Err(()),
+                _ => bail!("unsupported GLTF bone weight format (expected F32)"),
             }
         }
 

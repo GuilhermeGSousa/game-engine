@@ -63,8 +63,9 @@ impl AssetLoader for MTLLoader {
             }
 
             if let Some(diffuse) = m.diffuse {
-                material
-                    .set_base_color_factor(glam::Vec4::new(diffuse[0], diffuse[1], diffuse[2], 1.0));
+                material.set_base_color_factor(glam::Vec4::new(
+                    diffuse[0], diffuse[1], diffuse[2], 1.0,
+                ));
             }
 
             if let Some(shininess) = m.shininess {

@@ -134,7 +134,7 @@ fn spawn_player(
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
     light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
 
-    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0));
+    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0), ());
 
     cmd.spawn((light, light_transform));
 }

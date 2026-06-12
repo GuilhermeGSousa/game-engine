@@ -147,9 +147,8 @@ where
     T: Tuple,
     T<_>: ComponentBundle,
 {
-    fn get_component_ids() -> Vec<ComponentId>
-    {
-       let mut type_ids = Vec::new();
+    fn get_component_ids() -> Vec<ComponentId> {
+        let mut type_ids = Vec::new();
         for typle_index!(i) in 0..T::LEN {
             type_ids.extend(<T<{ i }>>::get_component_ids());
         }
@@ -174,8 +173,7 @@ where
         archetype: &mut Archetype,
         entity: Entity,
         current_tick: u32,
-    ) -> TableRowIndex
-    {
+    ) -> TableRowIndex {
         let table_row = TableRowIndex::new(archetype.len());
         archetype.add_entity(entity);
         self.write_components(archetype, current_tick);
@@ -188,14 +186,12 @@ where
         current_tick: u32,
         entity: Entity,
         row: TableRowIndex,
-    )
-    {
+    ) {
         archetype.insert_entity(entity, row);
         self.insert_components(archetype, current_tick, row);
     }
 
-    fn generate_empty_table() -> Table
-    {
+    fn generate_empty_table() -> Table {
         let mut table = Table::new();
         for typle_index!(i) in 0..T::LEN {
             table.merge(<T<{ i }>>::generate_empty_table());

@@ -6,13 +6,17 @@ use render::components::camera::Camera;
 #[derive(Component)]
 pub struct Player;
 
-pub fn spawn_first_person_player<T: ComponentBundle + 'static>(cmd: &mut CommandQueue, pos: Vec3, extra_components: T) {
+pub fn spawn_first_person_player<T: ComponentBundle + 'static>(
+    cmd: &mut CommandQueue,
+    pos: Vec3,
+    extra_components: T,
+) {
     let camera = Camera::default();
 
     cmd.spawn((
         Player,
         Transform::from_translation_rotation(pos, Quat::IDENTITY),
-        extra_components
+        extra_components,
     ))
     .add_child((
         camera,

@@ -4,11 +4,8 @@ use app::App;
 use color::LinearRgba;
 use debug_gizmos::components::GizmoSphere;
 use ecs::{
-    command::CommandQueue,
-    query::Query,
-    resource::Res,
-    system::schedule::UpdateGroup,
-    Component, With,
+    command::CommandQueue, query::Query, resource::Res, system::schedule::UpdateGroup, Component,
+    With,
 };
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
@@ -25,12 +22,6 @@ use render::{
 #[cfg(feature = "terminal")]
 use ecs::{resource::ResMut, IntoSystemConfig};
 #[cfg(feature = "terminal")]
-use render::{
-    assets::texture::Texture,
-    components::camera::{Camera, RenderTarget},
-    wgpu,
-};
-#[cfg(feature = "terminal")]
 use ratatui::{
     crossterm::event::KeyCode,
     layout::{Constraint, Layout},
@@ -38,9 +29,15 @@ use ratatui::{
     text::{Line as TextLine, Span},
 };
 #[cfg(feature = "terminal")]
+use render::{
+    assets::texture::Texture,
+    components::camera::{Camera, RenderTarget},
+    wgpu,
+};
+#[cfg(feature = "terminal")]
 use terminal_renderer::{
-    frame::TerminalFrame, terminal::TerminalContext, TerminalInput,
-    TerminalOutput, TerminalRendererPlugin,
+    frame::TerminalFrame, terminal::TerminalContext, TerminalInput, TerminalOutput,
+    TerminalRendererPlugin,
 };
 
 #[cfg(not(feature = "terminal"))]
@@ -77,10 +74,7 @@ fn main() {
             .add_system(UpdateGroup::Startup, spawn_scene)
             .add_system(UpdateGroup::Update, rotate_cube)
             .add_system(UpdateGroup::Update, move_camera);
-        app.add_system(
-            UpdateGroup::LateRender,
-            draw_terminal,
-        );
+        app.add_system(UpdateGroup::LateRender, draw_terminal);
     }
 
     #[cfg(not(feature = "terminal"))]
@@ -140,7 +134,10 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
         Cube,
         MeshComponent { handle: mesh },
         MaterialComponent::<StandardMaterial> { handle: material },
-        Transform::from_translation_rotation(Vec3::X * 2.0 + Vec3::Y * 2.0 + -Vec3::Z * 2.0, Quat::IDENTITY),
+        Transform::from_translation_rotation(
+            Vec3::X * 2.0 + Vec3::Y * 2.0 + -Vec3::Z * 2.0,
+            Quat::IDENTITY,
+        ),
     ));
 
     let light = Light {

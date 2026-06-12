@@ -31,15 +31,6 @@ pub struct TintUniform {
     pub _padding: [f32; 4],
 }
 
-impl TintUniform {
-    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
-        Self {
-            color: [r, g, b, a],
-            _padding: [0.0; 4],
-        }
-    }
-}
-
 /// Custom unlit material — renders every fragment with a solid `tint` colour.
 ///
 /// Attach it to a mesh entity via `MaterialComponent::<UnlitMaterial>`:

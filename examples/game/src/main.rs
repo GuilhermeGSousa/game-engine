@@ -6,19 +6,18 @@ use game_engine::{
         command::CommandQueue,
         component::Component,
         entity::Entity,
-        query::{query_filter::With, Query},
+        query::Query,
         resource::{Res, ResMut},
         system::schedule::{Schedules, UpdateGroup},
     },
     essential::{
         assets::asset_server::AssetServer,
-        time::Time,
         transform::{GlobalTranform, Transform},
     },
     obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent},
     physics::{physics_state::PhysicsState, rigid_body::RigidBody},
     render::{
-        assets::texture::TextureUsageSettings,
+        assets::{material::StandardMaterial, texture::TextureUsageSettings},
         components::{
             camera::Camera,
             light::{LighType, Light, SpotLight},
@@ -31,6 +30,7 @@ use game_engine::{
     window::input::{Input, InputState},
     DefaultPlugins,
 };
+use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 use glam::{Quat, Vec3, Vec4};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
@@ -38,7 +38,7 @@ use wgpu_types::{
 };
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-use crate::custom_material::{TintUniform, UnlitMaterial};
+use crate::custom_material::UnlitMaterial;
 use crate::movement_animation::{
     setup_animations, setup_state_machine, spawn_on_button_press, update_movement_fsm,
 };
@@ -50,10 +50,11 @@ const MESH_ASSET: &str = "res/sphere.obj";
 const GROUND_ASSET: &str = "res/ground.obj";
 const SKYBOX_TEXTURE: &str = "res/Ryfjallet-cubemap.png";
 
-#[derive(Component)]
-struct Player;
-
 fn main() {
+    #[cfg(not(target_arch = "wasm32"))]
+    std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
+        .expect("Failed to set working directory");
+
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -64,9 +65,9 @@ fn main() {
     }
 
     let mut app = App::new();
-    app.register_plugin(DefaultPlugins)
+    app.register_plugin(DefaultPlugins::default())
         .register_plugin(MaterialPlugin::<UnlitMaterial>::new())
-        .add_system(UpdateGroup::Update, move_around)
+        .add_system(UpdateGroup::Update, first_person_player_fly)
         .add_system(UpdateGroup::Update, spawn_on_button_press)
         .add_system(UpdateGroup::Update, setup_state_machine)
         .add_system(UpdateGroup::Update, setup_animations)
@@ -85,8 +86,6 @@ fn spawn_player(
     mut cmd: CommandQueue,
     asset_server: Res<AssetServer>,
 ) {
-    let camera = Camera::default();
-
     let skybox_material = SkyboxMaterial {
         texture: Some(asset_server.load_with_usage_settings(
             SKYBOX_TEXTURE,
@@ -135,14 +134,8 @@ fn spawn_player(
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
     light_transform.rotation = Quat::from_euler(glam::EulerRot::XYZ, PI / 2.0, 0.0, 0.0);
 
-    cmd.spawn((
-        Player,
-        Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-    ))
-    .add_child((
-        camera,
-        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
-    ));
+    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0), ());
+
     cmd.spawn((light, light_transform));
 }
 
@@ -156,13 +149,11 @@ fn spawn_floor(
         Transform::from_translation_rotation(Vec3::Y * (-2.0 * height), Quat::IDENTITY);
     let ground_collider = physics_state.make_cuboid(100.0, height, 100.0, &ground_transform, None);
     let ground_mesh = asset_server.load::<OBJAsset>(GROUND_ASSET);
-    let unlit_mat = asset_server.add(UnlitMaterial {
-        tint: TintUniform::new(0.2, 0.8, 1.0, 1.0),
-    });
+    let ground_mat = asset_server.add(StandardMaterial::new(None, None));
     cmd.spawn((
-        UnlitOBJSpawner {
+        OBJSpawner {
             mesh: ground_mesh,
-            material: unlit_mat,
+            material: ground_mat,
         },
         ground_collider,
         ground_transform,
@@ -170,14 +161,14 @@ fn spawn_floor(
 }
 
 #[derive(game_engine::ecs::component::Component)]
-struct UnlitOBJSpawner {
+struct OBJSpawner {
     mesh: game_engine::essential::assets::handle::AssetHandle<OBJAsset>,
-    material: game_engine::essential::assets::handle::AssetHandle<UnlitMaterial>,
+    material: game_engine::essential::assets::handle::AssetHandle<StandardMaterial>,
 }
 
 fn spawn_unlit_obj(
     mut cmd: CommandQueue,
-    spawners: game_engine::ecs::query::Query<(Entity, &UnlitOBJSpawner)>,
+    spawners: game_engine::ecs::query::Query<(Entity, &OBJSpawner)>,
     obj_assets: Res<game_engine::essential::assets::asset_store::AssetStore<OBJAsset>>,
 ) {
     for (entity, spawner) in spawners.iter() {
@@ -189,63 +180,16 @@ fn spawn_unlit_obj(
                             handle: obj_mesh.handle.clone(),
                         },
                         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
-                        MaterialComponent::<UnlitMaterial> {
+                        MaterialComponent::<StandardMaterial> {
                             handle: spawner.material.clone(),
                         },
                     ))
                     .entity();
                 cmd.add_child(entity, child);
             }
-            cmd.remove::<UnlitOBJSpawner>(entity);
+            cmd.remove::<OBJSpawner>(entity);
         }
     }
-}
-
-fn move_around(
-    players: Query<&mut Transform, With<Player>>,
-    cameras: Query<&mut Transform, With<Camera>>,
-    input: Res<Input>,
-    time: Res<Time>,
-) {
-    let Some(mut player_transform) = players.iter().next() else {
-        return;
-    };
-
-    let Some(mut camera_transform) = cameras.iter().next() else {
-        return;
-    };
-
-    let displacement = 10.0 * time.delta().as_secs_f32();
-
-    let key_d = input.get_key_state(PhysicalKey::Code(KeyCode::KeyD));
-    let key_a = input.get_key_state(PhysicalKey::Code(KeyCode::KeyA));
-    let key_w = input.get_key_state(PhysicalKey::Code(KeyCode::KeyW));
-    let key_s = input.get_key_state(PhysicalKey::Code(KeyCode::KeyS));
-
-    let right = player_transform.right();
-    let left = player_transform.left();
-    let forward = player_transform.forward();
-    let back = player_transform.backward();
-
-    if key_d == InputState::Pressed || key_d == InputState::Down {
-        player_transform.translation += right * displacement;
-    }
-    if key_a == InputState::Pressed || key_a == InputState::Down {
-        player_transform.translation += left * displacement;
-    }
-    if key_w == InputState::Pressed || key_w == InputState::Down {
-        player_transform.translation += forward * displacement;
-    }
-    if key_s == InputState::Pressed || key_s == InputState::Down {
-        player_transform.translation += back * displacement;
-    }
-
-    let sensitivity = -0.5;
-    let mouse_delta = input.mouse_delta();
-    let yaw_delta = sensitivity * mouse_delta.x * time.delta().as_secs_f32();
-    let pitch_delta = sensitivity * mouse_delta.y * time.delta().as_secs_f32();
-    player_transform.rotation *= Quat::from_axis_angle(Vec3::Y, yaw_delta);
-    camera_transform.rotation *= Quat::from_axis_angle(Vec3::X, pitch_delta);
 }
 
 fn spawn_with_collider(

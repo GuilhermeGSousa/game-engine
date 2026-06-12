@@ -18,26 +18,42 @@ use app::{
 use gltf_loader::plugin::GLTFPlugin;
 use obj_loader::plugin::OBJPlugin;
 use physics::plugin::PhysicsPlugin;
-use render::plugin::RenderPlugin;
+use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
 
 /// Registers all standard engine plugins in the conventional order.
-pub struct DefaultPlugins;
+#[derive(Default)]
+pub struct DefaultPlugins {
+    headless: bool,
+}
+
+impl DefaultPlugins {
+    pub fn headless() -> Self {
+        Self { headless: true }
+    }
+}
 
 impl Plugin for DefaultPlugins {
     fn build(&self, app: &mut App) {
         app.register_plugin(AssetManagerPlugin)
-            .register_plugin(TimePlugin)
-            .register_plugin(WindowPlugin)
-            .register_plugin(RenderPlugin)
+            .register_plugin(TimePlugin);
+
+        if !self.headless {
+            app.register_plugin(WindowPlugin);
+        }
+        app.register_plugin(RenderPlugin)
+            .register_plugin(SkyboxPlugin)
+            .register_plugin(MaterialPlugin::<StandardMaterial>::new())
             .register_plugin(TransformPlugin)
             .register_plugin(PhysicsPlugin)
             .register_plugin(AnimationPlugin)
             .register_plugin(GLTFPlugin)
-            .register_plugin(OBJPlugin)
-            .register_plugin(SkyboxPlugin)
-            .register_plugin(UIPlugin);
+            .register_plugin(OBJPlugin);
+
+        if !self.headless {
+            app.register_plugin(UIPlugin);
+        }
     }
 }

@@ -54,6 +54,10 @@ impl Material for SkyboxMaterial {
         false
     }
 
+    fn clear_depth() -> bool {
+        true
+    }
+
     fn cull_mode() -> Option<wgpu::Face> {
         Some(wgpu::Face::Front)
     }

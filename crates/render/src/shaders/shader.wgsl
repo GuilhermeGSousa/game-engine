@@ -77,10 +77,12 @@ fn vs_main(
         instance.model_matrix_3,
     );
 
-    let rotation_matrix = mat3x3<f32>(
-        instance.model_matrix_0.xyz,
-        instance.model_matrix_1.xyz,
-        instance.model_matrix_2.xyz,
+    // Normalizing each column strips non-uniform scale, leaving the pure rotation.
+    // A pure rotation matrix is its own inverse-transpose, making this correct for normals.
+    let normal_matrix = mat3x3<f32>(
+        normalize(instance.model_matrix_0.xyz),
+        normalize(instance.model_matrix_1.xyz),
+        normalize(instance.model_matrix_2.xyz),
     );
 
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
@@ -100,9 +102,9 @@ fn vs_main(
 
     out.tex_coords = model.tex_coords;
     out.world_position = world_position.xyz;
-    out.world_normal = normalize(rotation_matrix * model.normal);
-    out.world_tangent = normalize(rotation_matrix * model.tangent);
-    out.world_bitangent = normalize(rotation_matrix * model.bitangent);
+    out.world_normal = normalize(normal_matrix * model.normal);
+    out.world_tangent = normalize(normal_matrix * model.tangent);
+    out.world_bitangent = normalize(normal_matrix * model.bitangent);
     return out;
 }
 
@@ -166,15 +168,15 @@ fn phong_fs(in: VertexOutput) -> vec4<f32> {
         let halfway_dir = normalize(light_dir + view_dir);
         let specular = pow(max(dot(mapped_normal, halfway_dir), 0.0), 32.0);
 
-        var attenuation = 1.0;
+        var attenuation = light.intensity;
         if light_type == POINT_LIGHT {
             let light_distance = length(light_delta);
-            attenuation = clamp(10.0 / light_distance, 0.0, 1.0);
+            attenuation /= light_distance * light_distance;
         } else if light_type == SPOT_LIGHT {
             let cone_dir = normalize(light.direction.xyz);
             let angle_cos = dot(light_dir, cone_dir);
             let light_distance = length(light_delta);
-            attenuation = clamp(10.0 / light_distance * light_distance, 0.0, 1.0);
+            attenuation /= light_distance * light_distance;            
             attenuation *= step(light.cos_cone_angle, angle_cos);
         }
 

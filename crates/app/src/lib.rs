@@ -13,6 +13,7 @@ use ecs::{
     world::World,
     IntoSystemConfig,
 };
+use log::info;
 use runner::AppExit;
 
 use essential::{
@@ -74,6 +75,7 @@ impl App {
     /// Calls [`Plugin::build`] immediately, then stores the plugin so that
     /// [`Plugin::ready`] and [`Plugin::finish`] can be polled later.
     pub fn register_plugin(&mut self, plugin: impl Plugin + 'static) -> &mut Self {
+        info!("Registering plugin: {}", plugin.name());
         plugin.build(self);
         self.plugins.push(Box::new(plugin));
         self
@@ -155,6 +157,17 @@ impl App {
         self.world.get_resource_mut()
     }
 
+    pub fn with_resource<R: Resource, F, T: Resource>(&mut self, f: F)
+    where
+        F: FnOnce(R) -> T,
+    {
+        let Some(resource) = self.remove_resource::<R>() else {
+            return;
+        };
+        let output = f(resource);
+        self.insert_resource(output);
+    }
+
     /// Runs all per-frame schedules: FixedUpdate (as many times as needed), Update,
     /// LateUpdate, Render, LateRender.  Also advances the world tick at the end.
     pub fn update(&mut self) {
@@ -212,10 +225,12 @@ impl App {
     /// Should be called once after all plugins have been registered and all async work is ready.
     pub fn finish_plugin_build(&mut self) {
         let mut hokeypokey: Box<dyn Plugin> = Box::new(HokeyPokeyPlugin);
-        for i in 0..self.plugins.len() {
+        let mut i = 0;
+        while i < self.plugins.len() {
             core::mem::swap(&mut self.plugins[i], &mut hokeypokey);
             hokeypokey.finish(self);
             core::mem::swap(&mut self.plugins[i], &mut hokeypokey);
+            i += 1;
         }
 
         self.plugin_state = PluginsState::Finished;

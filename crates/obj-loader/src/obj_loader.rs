@@ -12,7 +12,7 @@ use essential::{
     },
     transform::Transform,
 };
-use glam::{Quat, Vec2, Vec3};
+use glam::{Quat, Vec3};
 use tobj::Model;
 
 use render::{
@@ -149,12 +149,17 @@ impl AssetLoader for OBJLoader {
                     OBJLoader::compute_normals(m, &mut vertices);
                 }
 
-                OBJLoader::compute_tangents(m, &mut vertices);
-
-                let handle = load_context.asset_server().add(Mesh {
+                let mut mesh = Mesh {
                     vertices,
                     indices: m.mesh.indices.clone(),
-                });
+                };
+
+                if requires_normal_computation {
+                    mesh.compute_normals();
+                }
+
+                mesh.compute_tangents();
+                let handle = load_context.asset_server().add(mesh);
 
                 OBJMesh {
                     handle,
@@ -171,6 +176,7 @@ impl AssetLoader for OBJLoader {
 }
 
 impl OBJLoader {
+    #[deprecated(note = "use Mesh::compute_normals instead")]
     fn compute_normals(model: &Model, vertices: &mut [Vertex]) {
         let mut triangles_included = vec![0; vertices.len()];
 
@@ -196,73 +202,6 @@ impl OBJLoader {
         for (i, n) in triangles_included.into_iter().enumerate() {
             let denom = 1.0 / n as f32;
             vertices[i].normal = (Vec3::from(vertices[i].normal) * denom).normalize().into();
-        }
-    }
-
-    fn compute_tangents(model: &Model, vertices: &mut [Vertex]) {
-        if model.mesh.texcoords.is_empty() {
-            for v in vertices.iter_mut() {
-                let normal = Vec3::from(v.normal);
-                let t = if normal.x.abs() > normal.y.abs() {
-                    Vec3::new(normal.z, 0.0, -normal.x).normalize()
-                } else {
-                    Vec3::new(0.0, -normal.z, normal.y).normalize()
-                };
-                v.tangent = t.into();
-                v.bitangent = normal.cross(t).into();
-            }
-            return;
-        }
-
-        let mut triangles_included = vec![0; vertices.len()];
-
-        model.mesh.indices.chunks(3).for_each(|index_chunk| {
-            let v0 = vertices[index_chunk[0] as usize];
-            let v1 = vertices[index_chunk[1] as usize];
-            let v2 = vertices[index_chunk[2] as usize];
-
-            let pos0: Vec3 = v0.pos_coords.into();
-            let pos1: Vec3 = v1.pos_coords.into();
-            let pos2: Vec3 = v2.pos_coords.into();
-
-            let uv0: Vec2 = v0.uv_coords.into();
-            let uv1: Vec2 = v1.uv_coords.into();
-            let uv2: Vec2 = v2.uv_coords.into();
-
-            let delta_pos1 = pos1 - pos0;
-            let delta_pos2 = pos2 - pos0;
-
-            let delta_uv1 = uv1 - uv0;
-            let delta_uv2 = uv2 - uv0;
-
-            let r = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x);
-            let tangent = (delta_pos1 * delta_uv2.y - delta_pos2 * delta_uv1.y) * r;
-            let bitangent = (delta_pos2 * delta_uv1.x - delta_pos1 * delta_uv2.x) * -r;
-
-            vertices[index_chunk[0] as usize].tangent =
-                (tangent + Vec3::from(vertices[index_chunk[0] as usize].tangent)).into();
-            vertices[index_chunk[1] as usize].tangent =
-                (tangent + Vec3::from(vertices[index_chunk[1] as usize].tangent)).into();
-            vertices[index_chunk[2] as usize].tangent =
-                (tangent + Vec3::from(vertices[index_chunk[2] as usize].tangent)).into();
-
-            vertices[index_chunk[0] as usize].bitangent =
-                (bitangent + Vec3::from(vertices[index_chunk[0] as usize].bitangent)).into();
-            vertices[index_chunk[1] as usize].bitangent =
-                (bitangent + Vec3::from(vertices[index_chunk[1] as usize].bitangent)).into();
-            vertices[index_chunk[2] as usize].bitangent =
-                (bitangent + Vec3::from(vertices[index_chunk[2] as usize].bitangent)).into();
-
-            triangles_included[index_chunk[0] as usize] += 1;
-            triangles_included[index_chunk[1] as usize] += 1;
-            triangles_included[index_chunk[2] as usize] += 1;
-        });
-
-        for (i, n) in triangles_included.into_iter().enumerate() {
-            let denom = 1.0 / n as f32;
-            let v = &mut vertices[i];
-            v.tangent = (Vec3::from(v.tangent) * denom).into();
-            v.bitangent = (Vec3::from(v.bitangent) * denom).into();
         }
     }
 }

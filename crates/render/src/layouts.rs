@@ -3,23 +3,6 @@ use std::ops::Deref;
 use ecs::resource::Resource;
 use wgpu::BindGroupLayoutDescriptor;
 
-use crate::assets::material::{AsBindGroup, StandardMaterial};
-
-#[derive(Resource)]
-pub(crate) struct MaterialLayouts {
-    pub main_material_layout: wgpu::BindGroupLayout,
-}
-
-impl MaterialLayouts {
-    pub fn new(device: &wgpu::Device) -> Self {
-        let main_material_layout = StandardMaterial::bind_group_layout(device);
-
-        Self {
-            main_material_layout,
-        }
-    }
-}
-
 #[derive(Resource)]
 pub(crate) struct CameraLayout {
     pub camera_layout: wgpu::BindGroupLayout,

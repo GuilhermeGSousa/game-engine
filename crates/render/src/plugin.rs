@@ -1,11 +1,5 @@
 use crate::{
-    assets::{
-        material::StandardMaterial,
-        mesh::Mesh,
-        skeleton::Skeleton,
-        texture::Texture,
-        vertex::{Vertex, VertexBufferLayout},
-    },
+    assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture},
     components::{
         camera::{camera_added, camera_changed},
         light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
@@ -15,38 +9,34 @@ use crate::{
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, MaterialLayouts, SkeletonLayout},
-    material_plugin::DEFAULT_SHADER_SOURCE,
+    layouts::{CameraLayout, LightLayout, SkeletonLayout},
+    material_plugin::clear_cameras,
     queue::RenderQueue,
     render_asset::{
-        render_material::RenderMaterial,
         render_mesh::RenderMesh,
         render_texture::{DummyRenderTexture, RenderTexture},
         render_window::RenderWindow,
         RenderAssetPlugin,
     },
-    resources::{MainRenderPipeline, RenderContext},
+    resources::RenderContext,
     systems::{
-        render::{self, finish_render, present_window},
+        render::{finish_render, present_window},
         update_window,
     },
 };
 use app::plugins::Plugin;
 use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
-use essential::transform::GlobalTransformRaw;
 use glam::Vec4;
 use std::sync::{Arc, Mutex};
-use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue, ShaderModuleDescriptor};
-use window::plugin::Window;
-use winit::window::Window as WinitWindow;
+use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
 
-pub struct RenderResources(
-    pub Device,
-    pub Queue,
-    pub Adapter,
-    pub Instance,
-    Arc<wgpu::Surface<'static>>,
-);
+pub struct RenderResources {
+    pub device: Device,
+    pub queue: Queue,
+    pub adapter: Adapter,
+    pub instance: Instance,
+    pub surface: Option<Arc<wgpu::Surface<'static>>>,
+}
 
 #[derive(Resource)]
 struct FutureRenderResources(Arc<Mutex<Option<RenderResources>>>);
@@ -54,19 +44,23 @@ struct FutureRenderResources(Arc<Mutex<Option<RenderResources>>>);
 pub struct RenderPlugin;
 
 impl RenderPlugin {
-    async fn initialize_renderer(window_handle: Arc<WinitWindow>) -> RenderResources {
+    async fn initialize_renderer(
+        window_handle: Option<Arc<winit::window::Window>>,
+    ) -> RenderResources {
         let instance: Instance = wgpu::Instance::default();
 
-        let surface: Arc<wgpu::Surface<'_>> = Arc::new(
-            instance
-                .create_surface(Arc::clone(&window_handle))
-                .expect("Error creating surface."),
-        );
+        let surface = window_handle.as_ref().map(|handle| {
+            Arc::new(
+                instance
+                    .create_surface(Arc::clone(handle))
+                    .expect("Error creating surface."),
+            )
+        });
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
+                compatible_surface: surface.as_deref(),
                 force_fallback_adapter: false,
             })
             .await
@@ -76,8 +70,6 @@ impl RenderPlugin {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     required_features: wgpu::Features::empty(),
-                    // WebGL doesn't support all of wgpu's features, so if
-                    // we're building for the web, we'll have to disable some.
                     required_limits: if cfg!(target_arch = "wasm32") {
                         Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits())
                     } else {
@@ -86,11 +78,18 @@ impl RenderPlugin {
                     label: None,
                     memory_hints: MemoryHints::Performance,
                 },
-                None, // Trace path
+                None,
             )
             .await
             .unwrap();
-        RenderResources(device, queue, adapter, instance, surface)
+
+        RenderResources {
+            device,
+            queue,
+            adapter,
+            instance,
+            surface,
+        }
     }
 }
 
@@ -101,26 +100,33 @@ impl Plugin for RenderPlugin {
             future_render_resources_wrapper.clone(),
         ));
 
-        let window = app.get_resource::<Window>().unwrap();
-        let window_handle = Arc::clone(&window.window_handle);
-        let async_renderer_initialization = async move {
-            let resources = RenderPlugin::initialize_renderer(window_handle).await;
-            *future_render_resources_wrapper.lock().unwrap() = Some(resources);
-        };
+        let is_windowed = app.get_resource::<window::plugin::Window>().is_some();
 
-        #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(async_renderer_initialization);
+        if is_windowed {
+            let window = app.get_resource::<window::plugin::Window>().unwrap();
+            let window_handle = Arc::clone(&window.window_handle);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        pollster::block_on(async_renderer_initialization);
+            let async_init = async move {
+                let resources = RenderPlugin::initialize_renderer(Some(window_handle)).await;
+                *future_render_resources_wrapper.lock().unwrap() = Some(resources);
+            };
+
+            #[cfg(target_arch = "wasm32")]
+            wasm_bindgen_futures::spawn_local(async_init);
+            #[cfg(not(target_arch = "wasm32"))]
+            pollster::block_on(async_init);
+        } else {
+            let async_init = async move {
+                let resources = RenderPlugin::initialize_renderer(None).await;
+                *future_render_resources_wrapper.lock().unwrap() = Some(resources);
+            };
+            pollster::block_on(async_init);
+        }
 
         app.register_plugin(RenderAssetPlugin::<RenderMesh>::new())
-            .register_plugin(RenderAssetPlugin::<RenderTexture>::new())
-            .register_plugin(RenderAssetPlugin::<RenderMaterial>::new());
-
+            .register_plugin(RenderAssetPlugin::<RenderTexture>::new());
         app.register_asset::<Mesh>()
             .register_asset::<Texture>()
-            .register_asset::<StandardMaterial>()
             .register_asset::<Skeleton>();
 
         app.add_system(UpdateGroup::LateUpdate, camera_added)
@@ -129,13 +135,16 @@ impl Plugin for RenderPlugin {
             .add_system(UpdateGroup::LateUpdate, mesh_changed)
             .add_system(UpdateGroup::LateUpdate, light_added)
             .add_system(UpdateGroup::LateUpdate, light_changed)
-            .add_system(UpdateGroup::LateUpdate, skeleton_added)
-            .add_system(UpdateGroup::Update, update_window::request_window_resize)
-            .add_system(UpdateGroup::Render, update_window::update_render_window)
+            .add_system(UpdateGroup::LateUpdate, skeleton_added);
+
+        if is_windowed {
+            app.add_system(UpdateGroup::Update, update_window::request_window_resize)
+                .add_system(UpdateGroup::Render, update_window::update_render_window);
+        }
+
+        app.add_system(UpdateGroup::Render, clear_cameras)
             .add_system(UpdateGroup::Render, update_skeletons)
             .add_system(UpdateGroup::Render, prepare_lights_buffer)
-            .add_system(UpdateGroup::Render, render::main_renderpass)
-            // .add_system(UpdateGroup::LateRender, render::finish_render)
             .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
     }
 
@@ -152,7 +161,13 @@ impl Plugin for RenderPlugin {
     }
 
     fn finish(&self, app: &mut app::App) {
-        let RenderResources(device, queue, adapter, _instance, surface) = app
+        let RenderResources {
+            device,
+            queue,
+            adapter,
+            instance: _instance,
+            surface,
+        } = app
             .remove_resource::<FutureRenderResources>()
             .unwrap()
             .0
@@ -161,120 +176,67 @@ impl Plugin for RenderPlugin {
             .take()
             .unwrap();
 
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_caps.formats[0]);
+        let config = if let Some(ref surface) = surface {
+            let surface_caps = surface.get_capabilities(&adapter);
+            let surface_format = surface_caps
+                .formats
+                .iter()
+                .find(|f| f.is_srgb())
+                .copied()
+                .unwrap_or(surface_caps.formats[0]);
 
-        let window = app.get_resource::<Window>().unwrap();
-        let size = window.size();
+            let window = app.get_resource::<window::plugin::Window>().unwrap();
+            let size = window.size();
 
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.0,
-            height: size.1,
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
+            let config = wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                format: surface_format,
+                width: size.0,
+                height: size.1,
+                present_mode: surface_caps.present_modes[0],
+                alpha_mode: surface_caps.alpha_modes[0],
+                view_formats: vec![],
+                desired_maximum_frame_latency: 2,
+            };
+
+            surface.configure(&device, &config);
+            config
+        } else {
+            let surface_format = wgpu::TextureFormat::Rgba8Unorm;
+            wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                format: surface_format,
+                width: 0,
+                height: 0,
+                present_mode: wgpu::PresentMode::Fifo,
+                alpha_mode: wgpu::CompositeAlphaMode::Opaque,
+                view_formats: vec![],
+                desired_maximum_frame_latency: 2,
+            }
         };
 
-        let main_shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Standard Shader"),
-            source: wgpu::ShaderSource::Wgsl(DEFAULT_SHADER_SOURCE.into()),
-        });
-
         let camera_layouts = CameraLayout::new(&device);
-
-        let material_layouts = MaterialLayouts::new(&device);
 
         let light_layout = LightLayout::new(&device);
 
         let skeleton_layout = SkeletonLayout::new(&device);
 
-        // Setup render pipeline
-        let main_render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &material_layouts.main_material_layout,
-                    &camera_layouts.camera_layout,
-                    &*light_layout,
-                    &*skeleton_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-        let main_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&main_render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &main_shader,
-                entry_point: Some("vs_main"),
-                buffers: &[Vertex::describe(), GlobalTransformRaw::describe()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                // 3.
-                module: &main_shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    // 4.
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // 2.
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
-
         app.register_component_lifecycle::<RenderEntity>();
 
         let render_lights = RenderLights::new(&device, &light_layout);
         let empty_skeleton_buffer = EmptySkeletonBuffer::new(&device, &skeleton_layout);
+
         app.insert_resource(DummyRenderTexture::new(&device))
             .insert_resource(RenderContext {
                 surface,
                 surface_config: config,
             })
-            .insert_resource(MainRenderPipeline::new(main_render_pipeline))
             .insert_resource(RenderDevice {
                 device,
                 encoder: None,
             })
             .insert_resource(RenderQueue { queue })
             .insert_resource(RenderWindow::new())
-            .insert_resource(material_layouts)
             .insert_resource(camera_layouts)
             .insert_resource(light_layout)
             .insert_resource(skeleton_layout)

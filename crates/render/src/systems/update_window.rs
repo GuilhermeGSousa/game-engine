@@ -32,9 +32,12 @@ pub(crate) fn update_render_window(
     device: Res<RenderDevice>,
     render_cameras: Query<(&mut RenderCamera,)>,
 ) {
+    let Some(surface) = context.surface.clone() else {
+        return;
+    };
+
     if window.has_changed() {
         let size = window.size();
-        let surface = context.surface.clone();
         context.surface_config.width = size.0;
         context.surface_config.height = size.1;
         surface.configure(&device, &context.surface_config);
@@ -48,7 +51,7 @@ pub(crate) fn update_render_window(
         }
     }
 
-    if let Ok(output) = context.surface.get_current_texture() {
+    if let Ok(output) = surface.get_current_texture() {
         render_window.set_swapchain_texture(output);
     }
 }

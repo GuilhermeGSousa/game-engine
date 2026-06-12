@@ -2,10 +2,8 @@
 
 - Add simple audio component
 - Parallel rendering
-- System scheduling
 - Finish implementing blend trees
-- Improve rendering APIs:
-    - Better way of defining render passes
-    - User defined materials
-    - User defined shaders
+- Complete Gameplay crate
+- Replace Color usage to use the new Color crate
+- Improve error handling when loading assets
 - Rename engine (and fine a good name!)

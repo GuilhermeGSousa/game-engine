@@ -56,6 +56,14 @@ impl Transform {
         }
     }
 
+    pub fn from_translation_rotation_scale(translation: Vec3, rotation: Quat, scale: Vec3) -> Self {
+        Self {
+            translation,
+            rotation,
+            scale,
+        }
+    }
+
     pub fn from_matrix(matrix: &[[f32; 4]; 4]) -> Self {
         let (scale, rotation, translation) =
             Mat4::from_cols_array_2d(matrix).to_scale_rotation_translation();
@@ -68,6 +76,10 @@ impl Transform {
 
     pub fn look_to(&mut self, direction: Vec3, up: Vec3) {
         self.rotation = Quat::look_to_rh(direction, up);
+    }
+
+    pub fn look_at(&mut self, center: Vec3, up: Vec3) {
+        self.rotation = Quat::look_at_rh(self.translation, center, up)
     }
 
     pub fn local_x(&self) -> Vec3 {

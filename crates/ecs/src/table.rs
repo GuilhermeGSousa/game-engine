@@ -86,16 +86,16 @@ impl Table {
         }
     }
 
-    pub(crate) fn from_row(mut removed_row: TableRow, tick: u32) -> Self {
+    pub(crate) fn from_row(mut removed_row: TableRow) -> Self {
         let mut columns = HashMap::new();
 
         removed_row.data.drain().for_each(|(key, value)| {
             columns.insert(
                 key,
                 Column {
-                    data: value,
-                    added_ticks: vec![Tick::new(tick)],
-                    changed_ticks: vec![Tick::new(0)],
+                    data: value.component_data,
+                    added_ticks: vec![value.added_tick],
+                    changed_ticks: vec![value.changed_tick],
                 },
             );
         });
@@ -111,13 +111,18 @@ impl Table {
             .insert(ComponentId::of::<T>(), Column::new::<T>());
     }
 
-    pub fn add_row(&mut self, mut row: TableRow, current_tick: u32) {
-        self.columns.iter_mut().for_each(|(key, value)| {
-            value.added_ticks.push(Tick::new(current_tick));
-            value.changed_ticks.push(Tick::new(0));
+    pub(crate) fn merge(&mut self, other: Table) {
+        for (id, column) in other.columns {
+            self.columns.entry(id).or_insert(column);
+        }
+    }
 
+    pub fn add_row(&mut self, mut row: TableRow) {
+        self.columns.iter_mut().for_each(|(key, value)| {
             if let Some(added_col) = row.data.get_mut(key) {
-                value.data.push(added_col.pop().unwrap());
+                value.data.push(added_col.component_data.pop().unwrap());
+                value.added_ticks.push(added_col.added_tick);
+                value.changed_ticks.push(added_col.changed_tick);
             }
         });
 
@@ -187,13 +192,21 @@ impl Table {
             .columns
             .iter_mut()
             .map(|(id, col)| {
-                let index = *row;
-                col.added_ticks.swap_remove(index);
-                col.changed_ticks.swap_remove(index);
+                let index: usize = *row;
+                let removed_added_tick = col.added_ticks.swap_remove(index);
+                let removed_changed_tick = col.changed_ticks.swap_remove(index);
 
                 let mut new_col_vec = col.clone_empty_data();
                 new_col_vec.push(col.data.swap_remove(index));
-                (*id, new_col_vec)
+
+                (
+                    *id,
+                    TableRowData {
+                        component_data: new_col_vec,
+                        added_tick: removed_added_tick,
+                        changed_tick: removed_changed_tick,
+                    },
+                )
             })
             .collect();
 
@@ -210,17 +223,37 @@ impl Default for Table {
     }
 }
 
+pub(crate) struct TableRowData {
+    component_data: AnyVec,
+    added_tick: Tick,
+    changed_tick: Tick,
+}
+
+impl TableRowData {
+    fn make_empty<T: Component>(tick: Tick) -> TableRowData {
+        TableRowData {
+            component_data: AnyVec::new::<T>(),
+            added_tick: tick,
+            changed_tick: tick,
+        }
+    }
+}
+
 pub struct TableRow {
-    pub(crate) data: HashMap<ComponentId, AnyVec>,
+    pub(crate) data: HashMap<ComponentId, TableRowData>,
     pub(crate) entity: Entity,
 }
 
 impl TableRow {
-    pub fn insert<T: Component>(&mut self, raw_value: AnyValueWrapper<T>) {
-        self.data
+    pub fn insert<T: Component>(&mut self, raw_value: AnyValueWrapper<T>, current_tick: Tick) {
+        let table_row_data = self
+            .data
             .entry(TypeId::of::<T>())
-            .or_insert(AnyVec::new::<T>())
-            .push(raw_value);
+            .or_insert(TableRowData::make_empty::<T>(current_tick));
+
+        table_row_data.component_data.push(raw_value);
+        table_row_data.added_tick.set(*current_tick);
+        table_row_data.changed_tick.set(*current_tick);
     }
 
     pub fn remove<T: Component>(&mut self) {

@@ -28,6 +28,12 @@ pub trait ComponentBundle: Send + Sync {
     );
 
     fn generate_empty_table() -> Table;
+
+    #[doc(hidden)]
+    fn write_components(self, archetype: &mut Archetype, current_tick: u32);
+
+    #[doc(hidden)]
+    fn insert_components(self, archetype: &mut Archetype, current_tick: u32, row: TableRowIndex);
 }
 
 impl<T> ComponentBundle for T
@@ -66,7 +72,72 @@ where
         table.add_column::<T>();
         table
     }
+
+    fn write_components(self, archetype: &mut Archetype, current_tick: u32) {
+        archetype.add_component(AnyValueWrapper::<T>::new(self), current_tick);
+    }
+
+    fn insert_components(self, archetype: &mut Archetype, current_tick: u32, row: TableRowIndex) {
+        archetype.insert_component(AnyValueWrapper::<T>::new(self), current_tick, row);
+    }
 }
+
+// #[allow(unused_mut)]
+// #[allow(unused_variables)]
+// #[typle(Tuple for 0..=12)]
+// impl<T> ComponentBundle for T
+// where
+//     T: Tuple,
+//     T<_>: Component,
+// {
+//     fn get_component_ids() -> Vec<TypeId> {
+//         let mut type_ids = Vec::new();
+//         for typle_index!(i) in 0..T::LEN {
+//             type_ids.push(TypeId::of::<T<{ i }>>());
+//         }
+//         type_ids.sort();
+//         type_ids
+//     }
+
+//     fn generate_empty_table() -> Table {
+//         let mut table: Table = Table::new();
+//         for typle_index!(i) in 0..T::LEN {
+//             table.add_column::<T<{ i }>>();
+//         }
+//         table
+//     }
+
+//     fn add_row_to_archetype(
+//         self,
+//         archetype: &mut Archetype,
+//         entity: Entity,
+//         current_tick: u32,
+//     ) -> TableRowIndex {
+//         let table_row = TableRowIndex::new(archetype.len());
+//         archetype.add_entity(entity);
+//         for typle_index!(i) in 0..T::LEN {
+//             archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]), current_tick);
+//         }
+//         table_row
+//     }
+
+//     fn insert_to_archetype(
+//         self,
+//         archetype: &mut Archetype,
+//         current_tick: u32,
+//         entity: Entity,
+//         row: TableRowIndex,
+//     ) {
+//         archetype.insert_entity(entity, row);
+//         for typle_index!(i) in 0..T::LEN {
+//             archetype.insert_component(
+//                 AnyValueWrapper::<T<{ i }>>::new(self[[i]]),
+//                 current_tick,
+//                 row,
+//             );
+//         }
+//     }
+// }
 
 #[allow(unused_mut)]
 #[allow(unused_variables)]
@@ -74,23 +145,27 @@ where
 impl<T> ComponentBundle for T
 where
     T: Tuple,
-    T<_>: Component,
+    T<_>: ComponentBundle,
 {
-    fn get_component_ids() -> Vec<TypeId> {
+    fn get_component_ids() -> Vec<ComponentId> {
         let mut type_ids = Vec::new();
         for typle_index!(i) in 0..T::LEN {
-            type_ids.push(TypeId::of::<T<{ i }>>());
+            type_ids.extend(<T<{ i }>>::get_component_ids());
         }
         type_ids.sort();
         type_ids
     }
 
-    fn generate_empty_table() -> Table {
-        let mut table: Table = Table::new();
+    fn write_components(self, archetype: &mut Archetype, current_tick: u32) {
         for typle_index!(i) in 0..T::LEN {
-            table.add_column::<T<{ i }>>();
+            self[[i]].write_components(archetype, current_tick);
         }
-        table
+    }
+
+    fn insert_components(self, archetype: &mut Archetype, current_tick: u32, row: TableRowIndex) {
+        for typle_index!(i) in 0..T::LEN {
+            self[[i]].insert_components(archetype, current_tick, row);
+        }
     }
 
     fn add_row_to_archetype(
@@ -101,9 +176,7 @@ where
     ) -> TableRowIndex {
         let table_row = TableRowIndex::new(archetype.len());
         archetype.add_entity(entity);
-        for typle_index!(i) in 0..T::LEN {
-            archetype.add_component(AnyValueWrapper::<T<{ i }>>::new(self[[i]]), current_tick);
-        }
+        self.write_components(archetype, current_tick);
         table_row
     }
 
@@ -115,12 +188,14 @@ where
         row: TableRowIndex,
     ) {
         archetype.insert_entity(entity, row);
+        self.insert_components(archetype, current_tick, row);
+    }
+
+    fn generate_empty_table() -> Table {
+        let mut table = Table::new();
         for typle_index!(i) in 0..T::LEN {
-            archetype.insert_component(
-                AnyValueWrapper::<T<{ i }>>::new(self[[i]]),
-                current_tick,
-                row,
-            );
+            table.merge(<T<{ i }>>::generate_empty_table());
         }
+        table
     }
 }

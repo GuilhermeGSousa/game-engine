@@ -40,14 +40,29 @@ struct BindingField<'a> {
 struct MaterialAttr {
     vertex_shader: Option<Expr>,
     fragment_shader: Option<Expr>,
-    /// When `Some(true/false)`, the macro generates `needs_lighting()` in the
-    /// `Material` impl.  When `None`, no `Material` impl is emitted for this method.
+    /// `needs_camera()` override.  Defaults to `true` in the trait.
+    camera: Option<bool>,
+    /// `needs_lighting()` override.  Defaults to `false` in the trait.
     lighting: Option<bool>,
-    /// When `Some(true/false)`, the macro generates `needs_skeleton()`.
+    /// `needs_skeleton()` override.  Defaults to `false` in the trait.
     skeleton: Option<bool>,
-    /// When `Some(true)`, the macro generates `cull_mode() -> None` (disables
-    /// back-face culling).  When `Some(false)` or `None`, back-face culling is kept.
+    /// `cull_mode()` override: `"back"`, `"front"`, or `"none"`.
+    cull_mode: Option<String>,
+    /// Legacy alias: `double_sided = true` maps to `cull_mode = "none"`.
+    /// Ignored when `cull_mode` is also set.
     double_sided: Option<bool>,
+    /// `topology()` override: `"triangle_list"` or `"line_list"`.
+    topology: Option<String>,
+    /// `clear_depth()` override.  Defaults to `true` in the trait.
+    clear_depth: Option<bool>,
+    /// `depth_stencil()` override: `"none"`, `"default"`, or `"read_only"`.
+    ///
+    /// - `"none"` → returns `None` (no depth/stencil)
+    /// - `"default"` → depth write + `Less` compare (same as trait default)
+    /// - `"read_only"` → depth test without write, `LessEqual` compare (skybox)
+    depth_stencil: Option<String>,
+    /// `vertex_layouts()` override: an arbitrary Rust expression.
+    vertex_layouts: Option<Expr>,
 }
 
 /// Parse the integer literal inside an attribute like `#[texture(0)]`.
@@ -106,6 +121,13 @@ fn parse_bool_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<bool> 
     Ok(lit.value)
 }
 
+/// Parse a `key = "string"` string literal from a nested-meta value.
+fn parse_str_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<String> {
+    let value = meta.value()?;
+    let lit: syn::LitStr = value.parse()?;
+    Ok(lit.value())
+}
+
 /// Extract binding fields from a struct's named fields.
 fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
     let mut bindings = Vec::new();
@@ -143,19 +165,31 @@ fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
 /// Supported keys:
 /// - `vertex_shader = <expr>` — WGSL source for the vertex stage
 /// - `fragment_shader = <expr>` — WGSL source for the fragment stage
-/// - `lighting = true|false` — opt-in to the engine lighting bind group and
-///   generate a `Material` impl override for `needs_lighting()`
-/// - `skeleton = true|false` — opt-in to the engine skeleton bind group and
-///   generate a `Material` impl override for `needs_skeleton()`
-/// - `double_sided = true|false` — disable back-face culling in the generated
-///   `Material` impl (`cull_mode() -> None`)
+/// - `camera = true|false` — override `needs_camera()` (trait default: `true`)
+/// - `lighting = true|false` — override `needs_lighting()` (trait default: `false`)
+/// - `skeleton = true|false` — override `needs_skeleton()` (trait default: `false`)
+/// - `cull_mode = "back"|"front"|"none"` — override `cull_mode()`
+/// - `double_sided = true|false` — legacy alias; prefer `cull_mode = "none"`
+/// - `topology = "triangle_list"|"line_list"` — override `topology()`
+/// - `clear_depth = true|false` — override `clear_depth()` (trait default: `true`)
+/// - `depth_stencil = "none"|"default"|"read_only"` — override `depth_stencil()`
+/// - `vertex_layouts = <expr>` — override `vertex_layouts()`
+///
+/// When any Material-related key is present, `derive_as_bind_group` also emits
+/// `impl Material for YourStruct { … }` with the appropriate overrides.
 fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
     let mut result = MaterialAttr {
         vertex_shader: None,
         fragment_shader: None,
+        camera: None,
         lighting: None,
         skeleton: None,
+        cull_mode: None,
         double_sided: None,
+        topology: None,
+        clear_depth: None,
+        depth_stencil: None,
+        vertex_layouts: None,
     };
     for attr in attrs {
         if !attr.path().is_ident("material") {
@@ -168,12 +202,25 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
             } else if meta.path.is_ident("fragment_shader") {
                 let value = meta.value()?;
                 result.fragment_shader = Some(value.parse()?);
+            } else if meta.path.is_ident("camera") {
+                result.camera = Some(parse_bool_value(&meta)?);
             } else if meta.path.is_ident("lighting") {
                 result.lighting = Some(parse_bool_value(&meta)?);
             } else if meta.path.is_ident("skeleton") {
                 result.skeleton = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("cull_mode") {
+                result.cull_mode = Some(parse_str_value(&meta)?);
             } else if meta.path.is_ident("double_sided") {
                 result.double_sided = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("topology") {
+                result.topology = Some(parse_str_value(&meta)?);
+            } else if meta.path.is_ident("clear_depth") {
+                result.clear_depth = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("depth_stencil") {
+                result.depth_stencil = Some(parse_str_value(&meta)?);
+            } else if meta.path.is_ident("vertex_layouts") {
+                let value = meta.value()?;
+                result.vertex_layouts = Some(value.parse()?);
             }
             Ok(())
         });
@@ -378,7 +425,111 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
     }
 }
 
-/// `#[derive(AsBindGroup)]` — automatically implement [`AsBindGroup`] for a struct.
+/// Returns true when the `mat_attr` contains at least one key that requires
+/// generating `impl Material`.
+fn has_material_overrides(m: &MaterialAttr) -> bool {
+    m.camera.is_some()
+        || m.lighting.is_some()
+        || m.skeleton.is_some()
+        || m.cull_mode.is_some()
+        || m.double_sided.is_some()
+        || m.topology.is_some()
+        || m.clear_depth.is_some()
+        || m.depth_stencil.is_some()
+        || m.vertex_layouts.is_some()
+}
+
+/// Generate the body of `impl Material for <Name>` from the parsed attribute.
+fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
+    let camera_fn = m.camera.map(|val| quote! {
+        fn needs_camera() -> bool { #val }
+    }).unwrap_or_default();
+
+    let lighting_fn = m.lighting.map(|val| quote! {
+        fn needs_lighting() -> bool { #val }
+    }).unwrap_or_default();
+
+    let skeleton_fn = m.skeleton.map(|val| quote! {
+        fn needs_skeleton() -> bool { #val }
+    }).unwrap_or_default();
+
+    // `cull_mode` takes precedence over the legacy `double_sided`.
+    let cull_mode_fn = if let Some(ref cm) = m.cull_mode {
+        let expr = match cm.as_str() {
+            "front" => quote! { Some(wgpu::Face::Front) },
+            "none"  => quote! { None },
+            _       => quote! { Some(wgpu::Face::Back) },
+        };
+        quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
+    } else if let Some(double_sided) = m.double_sided {
+        let expr = if double_sided {
+            quote! { None }
+        } else {
+            quote! { Some(wgpu::Face::Back) }
+        };
+        quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
+    } else {
+        quote! {}
+    };
+
+    let topology_fn = m.topology.as_deref().map(|topo| {
+        let expr = match topo {
+            "line_list" => quote! { wgpu::PrimitiveTopology::LineList },
+            _           => quote! { wgpu::PrimitiveTopology::TriangleList },
+        };
+        quote! { fn topology() -> wgpu::PrimitiveTopology { #expr } }
+    }).unwrap_or_default();
+
+    let clear_depth_fn = m.clear_depth.map(|val| quote! {
+        fn clear_depth() -> bool { #val }
+    }).unwrap_or_default();
+
+    let depth_stencil_fn = m.depth_stencil.as_deref().map(|ds| {
+        let expr = match ds {
+            "none" => quote! { None },
+            "read_only" => quote! {
+                Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                })
+            },
+            _ => quote! {
+                Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                })
+            },
+        };
+        quote! { fn depth_stencil() -> Option<wgpu::DepthStencilState> { #expr } }
+    }).unwrap_or_default();
+
+    let vertex_layouts_fn = m.vertex_layouts.as_ref().map(|expr| quote! {
+        fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>> { #expr }
+    }).unwrap_or_default();
+
+    quote! {
+        impl render::assets::material::Material for #name {
+            #camera_fn
+            #lighting_fn
+            #skeleton_fn
+            #cull_mode_fn
+            #topology_fn
+            #clear_depth_fn
+            #depth_stencil_fn
+            #vertex_layouts_fn
+        }
+    }
+}
+
+/// `#[derive(AsBindGroup)]` — automatically implement [`AsBindGroup`] for a struct,
+/// and optionally [`Material`] when any Material-related keys are present in
+/// `#[material(...)]`.
 ///
 /// # Field attributes
 ///
@@ -388,22 +539,26 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
 /// | `#[sampler(N)]` | *(any)*                             | Sampler binding at slot *N* (FRAGMENT stage) |
 /// | `#[uniform(N)]` | `T: bytemuck::Pod + bytemuck::Zeroable` | Uniform buffer at slot *N*               |
 ///
-/// # Struct attributes
+/// # Struct attributes (`#[material(...)]`)
 ///
-/// ```text
-/// #[material(
-///     vertex_shader = include_str!("vs.wgsl"),
-///     fragment_shader = include_str!("fs.wgsl"),
-///     lighting = true,      // generates Material::needs_lighting() = true
-///     skeleton = true,      // generates Material::needs_skeleton() = true
-///     double_sided = true,  // generates Material::cull_mode() = None
-/// )]
-/// ```
+/// | Key              | Values                                    | Trait method overridden   |
+/// |------------------|-------------------------------------------|---------------------------|
+/// | `vertex_shader`  | `<expr>`                                  | `AsBindGroup::vertex_shader()` |
+/// | `fragment_shader`| `<expr>`                                  | `AsBindGroup::fragment_shader()` |
+/// | `camera`         | `true \| false`                           | `needs_camera()` (default `true`) |
+/// | `lighting`       | `true \| false`                           | `needs_lighting()` (default `false`) |
+/// | `skeleton`       | `true \| false`                           | `needs_skeleton()` (default `false`) |
+/// | `cull_mode`      | `"back" \| "front" \| "none"`            | `cull_mode()` (default `Back`) |
+/// | `double_sided`   | `true \| false`                           | `cull_mode()` legacy alias |
+/// | `topology`       | `"triangle_list" \| "line_list"`          | `topology()` |
+/// | `clear_depth`    | `true \| false`                           | `clear_depth()` (default `true`) |
+/// | `depth_stencil`  | `"none" \| "default" \| "read_only"`     | `depth_stencil()` |
+/// | `vertex_layouts` | `<expr>`                                  | `vertex_layouts()` |
 ///
-/// When `lighting`, `skeleton`, or `double_sided` are present, the macro also
-/// emits `impl Material for YourStruct { … }` with the appropriate overrides,
-/// so you no longer need to write that impl by hand.  Materials that omit these
-/// keys keep their manually-written `impl Material`.
+/// When any of the Material keys above are present, the macro also emits
+/// `impl Material for YourStruct { … }` with the appropriate method overrides.
+/// Materials that only set `vertex_shader`/`fragment_shader` keep their manually
+/// written `impl Material` (backward compatible).
 #[proc_macro_derive(AsBindGroup, attributes(texture, sampler, uniform, material))]
 pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -412,11 +567,11 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let mat_attr = parse_material_attr(&input.attrs);
 
     let vertex_shader_expr = match mat_attr.vertex_shader {
-        Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
+        Some(ref expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
     let fragment_shader_expr = match mat_attr.fragment_shader {
-        Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
+        Some(ref expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
 
@@ -444,28 +599,11 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let layout_fn = gen_bind_group_layout(&bindings, name);
     let bind_group_fn = gen_create_bind_group(&bindings, name);
 
-    // Emit `impl Material` only when at least one Material-related flag was set
-    // in `#[material(...)]`.  This is backward-compatible: materials that only
-    // set `vertex_shader`/`fragment_shader` keep their hand-written `impl Material`.
-    let material_impl =
-        if mat_attr.lighting.is_some() || mat_attr.skeleton.is_some() || mat_attr.double_sided.is_some() {
-            let lighting_val = mat_attr.lighting.unwrap_or(false);
-            let skeleton_val = mat_attr.skeleton.unwrap_or(false);
-            let cull_mode_expr = if mat_attr.double_sided.unwrap_or(false) {
-                quote! { None }
-            } else {
-                quote! { Some(wgpu::Face::Back) }
-            };
-            quote! {
-                impl render::assets::material::Material for #name {
-                    fn needs_lighting() -> bool { #lighting_val }
-                    fn needs_skeleton() -> bool { #skeleton_val }
-                    fn cull_mode() -> Option<wgpu::Face> { #cull_mode_expr }
-                }
-            }
-        } else {
-            quote! {}
-        };
+    let material_impl = if has_material_overrides(&mat_attr) {
+        gen_material_impl(name, &mat_attr)
+    } else {
+        quote! {}
+    };
 
     let expanded = quote! {
         impl render::assets::material::AsBindGroup for #name {

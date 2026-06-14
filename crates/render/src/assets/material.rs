@@ -105,7 +105,9 @@ pub trait AsBindGroup {
 #[derive(Asset, AsBindGroup, Default)]
 #[material(
     vertex_shader = include_str!("../shaders/shader.wgsl"),
-    fragment_shader = include_str!("../shaders/shader.wgsl")
+    fragment_shader = include_str!("../shaders/shader.wgsl"),
+    lighting = true,
+    skeleton = true,
 )]
 pub struct StandardMaterial {
     #[texture(0)]
@@ -271,6 +273,42 @@ impl StandardMaterial {
     pub fn occlusion_strength(&self) -> f32 {
         self.uniform.occlusion_strength
     }
+
+    /// Enable alpha-cutout (mask) mode with the given threshold.
+    /// Fragments whose base-color alpha is below `cutoff` are discarded.
+    pub fn set_alpha_cutoff(&mut self, cutoff: f32) {
+        self.uniform.alpha_cutoff = cutoff;
+        self.uniform.flags |= MaterialFlags::ALPHA_CUTOUT;
+    }
+
+    pub fn with_alpha_cutoff(mut self, cutoff: f32) -> Self {
+        self.set_alpha_cutoff(cutoff);
+        self
+    }
+
+    /// Returns the alpha cutoff threshold if alpha-cutout mode is active.
+    pub fn alpha_cutoff(&self) -> Option<f32> {
+        if self.uniform.flags.contains(MaterialFlags::ALPHA_CUTOUT) {
+            Some(self.uniform.alpha_cutoff)
+        } else {
+            None
+        }
+    }
+
+    /// Scale UV coordinates for all texture samples.  Defaults to `[1.0, 1.0]`
+    /// (no scaling).  Values greater than 1 tile the texture more densely.
+    pub fn set_uv_scale(&mut self, scale: [f32; 2]) {
+        self.uniform.uv_scale = scale;
+    }
+
+    pub fn with_uv_scale(mut self, scale: [f32; 2]) -> Self {
+        self.set_uv_scale(scale);
+        self
+    }
+
+    pub fn uv_scale(&self) -> [f32; 2] {
+        self.uniform.uv_scale
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -288,12 +326,25 @@ bitflags! {
         const HAS_METALLIC_ROUGHNESS_TEXTURE = 1 << 2;
         const HAS_EMISSIVE_TEXTURE = 1 << 3;
         const HAS_OCCLUSION_TEXTURE = 1 << 4;
+        const ALPHA_CUTOUT = 1 << 5;
     }
 }
 
 /// GPU-side material parameters.  The field order and padding must match the
-/// `MaterialUniform` struct in `shaders/shader.wgsl` (WGSL uniform layout:
-/// `vec4` and `vec3` align to 16 bytes, scalars pack into the `vec3` tail).
+/// `MaterialUniform` struct in `shaders/shader.wgsl`.
+///
+/// Layout (64 bytes, 16-byte aligned):
+/// ```text
+///  0..16  base_color_factor  vec4<f32>
+/// 16..28  emissive_factor    vec3<f32>
+/// 28..32  metallic_factor    f32
+/// 32..36  roughness_factor   f32
+/// 36..40  occlusion_strength f32
+/// 40..44  flags              u32
+/// 44..48  alpha_cutoff       f32
+/// 48..56  uv_scale           vec2<f32>
+/// 56..64  _padding           vec2<u32>
+/// ```
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub(crate) struct MaterialUniform {
@@ -303,10 +354,12 @@ pub(crate) struct MaterialUniform {
     roughness_factor: f32,
     occlusion_strength: f32,
     flags: MaterialFlags,
-    _padding: u32,
+    alpha_cutoff: f32,
+    uv_scale: [f32; 2],
+    _padding: [u32; 2],
 }
 
-const _: () = assert!(std::mem::size_of::<MaterialUniform>() == 48);
+const _: () = assert!(std::mem::size_of::<MaterialUniform>() == 64);
 
 impl Default for MaterialUniform {
     fn default() -> Self {
@@ -317,7 +370,9 @@ impl Default for MaterialUniform {
             roughness_factor: 0.5,
             occlusion_strength: 1.0,
             flags: MaterialFlags::empty(),
-            _padding: 0,
+            alpha_cutoff: 0.5,
+            uv_scale: [1.0, 1.0],
+            _padding: [0; 2],
         }
     }
 }
@@ -461,11 +516,3 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
     }
 }
 
-impl Material for StandardMaterial {
-    fn needs_lighting() -> bool {
-        true
-    }
-    fn needs_skeleton() -> bool {
-        true
-    }
-}

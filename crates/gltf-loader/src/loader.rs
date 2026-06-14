@@ -182,6 +182,11 @@ impl AssetLoader for GLTFLoader {
                 material.set_occlusion_texture(texture_handle(info.texture(), false));
             }
 
+            if gltf_material.alpha_mode() == gltf::material::AlphaMode::Mask {
+                // GLTF spec default for alphaCutoff is 0.5 when alpha_mode is MASK.
+                material.set_alpha_cutoff(gltf_material.alpha_cutoff().unwrap_or(0.5));
+            }
+
             materials.push(load_context.asset_server().add(material));
         }
 

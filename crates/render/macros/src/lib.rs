@@ -36,6 +36,20 @@ struct BindingField<'a> {
     kind: BindingKind,
 }
 
+/// Parsed contents of the struct-level `#[material(...)]` attribute.
+struct MaterialAttr {
+    vertex_shader: Option<Expr>,
+    fragment_shader: Option<Expr>,
+    /// When `Some(true/false)`, the macro generates `needs_lighting()` in the
+    /// `Material` impl.  When `None`, no `Material` impl is emitted for this method.
+    lighting: Option<bool>,
+    /// When `Some(true/false)`, the macro generates `needs_skeleton()`.
+    skeleton: Option<bool>,
+    /// When `Some(true)`, the macro generates `cull_mode() -> None` (disables
+    /// back-face culling).  When `Some(false)` or `None`, back-face culling is kept.
+    double_sided: Option<bool>,
+}
+
 /// Parse the integer literal inside an attribute like `#[texture(0)]`.
 fn parse_index_from_attr(attr: &syn::Attribute) -> Option<u32> {
     match &attr.meta {
@@ -85,6 +99,13 @@ fn parse_texture_attr(attr: &syn::Attribute) -> Option<(u32, TextureViewDimensio
     parser.parse2(list.tokens.clone()).ok()
 }
 
+/// Parse a `key = true/false` boolean from a nested-meta value.
+fn parse_bool_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<bool> {
+    let value = meta.value()?;
+    let lit: syn::LitBool = value.parse()?;
+    Ok(lit.value)
+}
+
 /// Extract binding fields from a struct's named fields.
 fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
     let mut bindings = Vec::new();
@@ -117,13 +138,25 @@ fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
     bindings
 }
 
-/// Parse `vertex_shader` / `fragment_shader` from the struct-level `#[material(...)]` attribute.
+/// Parse the struct-level `#[material(...)]` attribute into a [`MaterialAttr`].
 ///
-/// Each value may be a string literal (`"..."`) or any Rust expression that
-/// evaluates to `&'static str` at compile time, such as `include_str!(...)`.
-fn parse_material_attr(attrs: &[syn::Attribute]) -> (Option<Expr>, Option<Expr>) {
-    let mut vertex: Option<Expr> = None;
-    let mut fragment: Option<Expr> = None;
+/// Supported keys:
+/// - `vertex_shader = <expr>` — WGSL source for the vertex stage
+/// - `fragment_shader = <expr>` — WGSL source for the fragment stage
+/// - `lighting = true|false` — opt-in to the engine lighting bind group and
+///   generate a `Material` impl override for `needs_lighting()`
+/// - `skeleton = true|false` — opt-in to the engine skeleton bind group and
+///   generate a `Material` impl override for `needs_skeleton()`
+/// - `double_sided = true|false` — disable back-face culling in the generated
+///   `Material` impl (`cull_mode() -> None`)
+fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
+    let mut result = MaterialAttr {
+        vertex_shader: None,
+        fragment_shader: None,
+        lighting: None,
+        skeleton: None,
+        double_sided: None,
+    };
     for attr in attrs {
         if !attr.path().is_ident("material") {
             continue;
@@ -131,17 +164,21 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> (Option<Expr>, Option<Expr>)
         let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("vertex_shader") {
                 let value = meta.value()?;
-                let expr: Expr = value.parse()?;
-                vertex = Some(expr);
+                result.vertex_shader = Some(value.parse()?);
             } else if meta.path.is_ident("fragment_shader") {
                 let value = meta.value()?;
-                let expr: Expr = value.parse()?;
-                fragment = Some(expr);
+                result.fragment_shader = Some(value.parse()?);
+            } else if meta.path.is_ident("lighting") {
+                result.lighting = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("skeleton") {
+                result.skeleton = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("double_sided") {
+                result.double_sided = Some(parse_bool_value(&meta)?);
             }
             Ok(())
         });
     }
-    (vertex, fragment)
+    result
 }
 
 /// Generate the `bind_group_layout` method body.
@@ -354,22 +391,31 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
 /// # Struct attributes
 ///
 /// ```text
-/// #[material(vertex_shader = "path/to/vs.wgsl", fragment_shader = "path/to/fs.wgsl")]
+/// #[material(
+///     vertex_shader = include_str!("vs.wgsl"),
+///     fragment_shader = include_str!("fs.wgsl"),
+///     lighting = true,      // generates Material::needs_lighting() = true
+///     skeleton = true,      // generates Material::needs_skeleton() = true
+///     double_sided = true,  // generates Material::cull_mode() = None
+/// )]
 /// ```
 ///
-/// When omitted, [`ShaderRef::Default`] is used for both shader stages.
+/// When `lighting`, `skeleton`, or `double_sided` are present, the macro also
+/// emits `impl Material for YourStruct { … }` with the appropriate overrides,
+/// so you no longer need to write that impl by hand.  Materials that omit these
+/// keys keep their manually-written `impl Material`.
 #[proc_macro_derive(AsBindGroup, attributes(texture, sampler, uniform, material))]
 pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
 
-    let (vertex_shader_lit, fragment_shader_lit) = parse_material_attr(&input.attrs);
+    let mat_attr = parse_material_attr(&input.attrs);
 
-    let vertex_shader_expr = match vertex_shader_lit {
+    let vertex_shader_expr = match mat_attr.vertex_shader {
         Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
-    let fragment_shader_expr = match fragment_shader_lit {
+    let fragment_shader_expr = match mat_attr.fragment_shader {
         Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
@@ -398,6 +444,29 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let layout_fn = gen_bind_group_layout(&bindings, name);
     let bind_group_fn = gen_create_bind_group(&bindings, name);
 
+    // Emit `impl Material` only when at least one Material-related flag was set
+    // in `#[material(...)]`.  This is backward-compatible: materials that only
+    // set `vertex_shader`/`fragment_shader` keep their hand-written `impl Material`.
+    let material_impl =
+        if mat_attr.lighting.is_some() || mat_attr.skeleton.is_some() || mat_attr.double_sided.is_some() {
+            let lighting_val = mat_attr.lighting.unwrap_or(false);
+            let skeleton_val = mat_attr.skeleton.unwrap_or(false);
+            let cull_mode_expr = if mat_attr.double_sided.unwrap_or(false) {
+                quote! { None }
+            } else {
+                quote! { Some(wgpu::Face::Back) }
+            };
+            quote! {
+                impl render::assets::material::Material for #name {
+                    fn needs_lighting() -> bool { #lighting_val }
+                    fn needs_skeleton() -> bool { #skeleton_val }
+                    fn cull_mode() -> Option<wgpu::Face> { #cull_mode_expr }
+                }
+            }
+        } else {
+            quote! {}
+        };
+
     let expanded = quote! {
         impl render::assets::material::AsBindGroup for #name {
             fn vertex_shader() -> render::assets::material::ShaderRef {
@@ -412,6 +481,8 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
 
             #bind_group_fn
         }
+
+        #material_impl
     };
 
     expanded.into()

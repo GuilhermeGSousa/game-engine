@@ -6,6 +6,7 @@ const HAS_NORMAL_TEXTURE = 1u << 1u;
 const HAS_METALLIC_ROUGHNESS_TEXTURE = 1u << 2u;
 const HAS_EMISSIVE_TEXTURE = 1u << 3u;
 const HAS_OCCLUSION_TEXTURE = 1u << 4u;
+const ALPHA_CUTOUT = 1u << 5u;
 
 const POINT_LIGHT = 0u;
 const SPOT_LIGHT = 1u;
@@ -16,6 +17,17 @@ const AMBIENT_INTENSITY = 0.03;
 // Roughness below this produces a near-singular specular lobe.
 const MIN_ROUGHNESS = 0.045;
 
+// Must match MaterialUniform in material.rs (64 bytes, 16-byte aligned).
+// Layout:
+//  0..16  base_color_factor  vec4<f32>
+// 16..28  emissive_factor    vec3<f32>
+// 28..32  metallic_factor    f32
+// 32..36  roughness_factor   f32
+// 36..40  occlusion_strength f32
+// 40..44  flags              u32
+// 44..48  alpha_cutoff       f32
+// 48..56  uv_scale           vec2<f32>
+// 56..64  _padding           vec2<u32>
 struct MaterialUniform {
     base_color_factor: vec4<f32>,
     emissive_factor: vec3<f32>,
@@ -23,7 +35,9 @@ struct MaterialUniform {
     roughness_factor: f32,
     occlusion_strength: f32,
     flags: u32,
-    _padding: u32,
+    alpha_cutoff: f32,
+    uv_scale: vec2<f32>,
+    _padding: vec2<u32>,
 }
 
 struct Light {
@@ -159,6 +173,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
 fn pbr_fs(in: VertexOutput) -> vec4<f32> {
     let base_color = sample_base_color(in.tex_coords) * material.base_color_factor;
+
+    // Alpha cutout: discard transparent fragments for mask-mode materials.
+    if (material.flags & ALPHA_CUTOUT) != 0u && base_color.a < material.alpha_cutoff {
+        discard;
+    }
+
     let metallic_roughness = sample_metallic_roughness(in.tex_coords);
     let metallic = metallic_roughness.b * material.metallic_factor;
     let roughness = clamp(metallic_roughness.g * material.roughness_factor, MIN_ROUGHNESS, 1.0);
@@ -259,40 +279,45 @@ fn aces_tonemap(color: vec3<f32>) -> vec3<f32> {
 }
 
 fn sample_base_color(tex_coords: vec2<f32>) -> vec4<f32> {
+    let scaled = tex_coords * material.uv_scale;
     if (material.flags & HAS_BASE_COLOR_TEXTURE) != 0u {
-        return textureSample(t_base_color, s_base_color, tex_coords);
+        return textureSample(t_base_color, s_base_color, scaled);
     } else {
         return vec4<f32>(1.0);
     }
 }
 
 fn sample_normal(tex_coords: vec2<f32>) -> vec4<f32> {
+    let scaled = tex_coords * material.uv_scale;
     if (material.flags & HAS_NORMAL_TEXTURE) != 0u {
-        return textureSample(t_normal, s_normal, tex_coords);
+        return textureSample(t_normal, s_normal, scaled);
     } else {
         return vec4<f32>(0.5, 0.5, 1.0, 1.0); // Default flat normal
     }
 }
 
 fn sample_metallic_roughness(tex_coords: vec2<f32>) -> vec4<f32> {
+    let scaled = tex_coords * material.uv_scale;
     if (material.flags & HAS_METALLIC_ROUGHNESS_TEXTURE) != 0u {
-        return textureSample(t_metallic_roughness, s_metallic_roughness, tex_coords);
+        return textureSample(t_metallic_roughness, s_metallic_roughness, scaled);
     } else {
         return vec4<f32>(1.0); // Factors apply unmodified
     }
 }
 
 fn sample_emissive(tex_coords: vec2<f32>) -> vec4<f32> {
+    let scaled = tex_coords * material.uv_scale;
     if (material.flags & HAS_EMISSIVE_TEXTURE) != 0u {
-        return textureSample(t_emissive, s_emissive, tex_coords);
+        return textureSample(t_emissive, s_emissive, scaled);
     } else {
         return vec4<f32>(1.0); // Factor applies unmodified
     }
 }
 
 fn sample_occlusion(tex_coords: vec2<f32>) -> vec4<f32> {
+    let scaled = tex_coords * material.uv_scale;
     if (material.flags & HAS_OCCLUSION_TEXTURE) != 0u {
-        return textureSample(t_occlusion, s_occlusion, tex_coords);
+        return textureSample(t_occlusion, s_occlusion, scaled);
     } else {
         return vec4<f32>(1.0); // Unoccluded
     }

@@ -102,7 +102,7 @@ pub trait AsBindGroup {
 ///
 /// Use this as a starting point, or define your own material by implementing
 /// [`AsBindGroup`] (manually or via `#[derive(AsBindGroup)]`).
-#[derive(Asset, AsBindGroup)]
+#[derive(Asset, AsBindGroup, Default)]
 #[material(
     vertex_shader = include_str!("../shaders/shader.wgsl"),
     fragment_shader = include_str!("../shaders/shader.wgsl")
@@ -130,19 +130,6 @@ pub struct StandardMaterial {
 
     #[uniform(10)]
     uniform: MaterialUniform,
-}
-
-impl Default for StandardMaterial {
-    fn default() -> Self {
-        Self {
-            base_color_texture: None,
-            normal_texture: None,
-            metallic_roughness_texture: None,
-            emissive_texture: None,
-            occlusion_texture: None,
-            uniform: MaterialUniform::default(),
-        }
-    }
 }
 
 impl StandardMaterial {

@@ -141,10 +141,10 @@ impl AssetLoader for GLTFLoader {
                 gltf_material
                     .pbr_metallic_roughness()
                     .base_color_texture()
-                    .map(|texture| textures[texture.texture().index()].clone()),
+                    .map(|texture| textures[texture.texture().source().index()].clone()),
                 gltf_material
                     .normal_texture()
-                    .map(|texture| textures[texture.texture().index()].clone()),
+                    .map(|texture| textures[texture.texture().source().index()].clone()),
             );
 
             materials.push(load_context.asset_server().add(material));

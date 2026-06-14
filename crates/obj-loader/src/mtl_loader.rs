@@ -7,7 +7,10 @@ use essential::assets::{
     handle::AssetHandle, utils::load_to_string,
 };
 
-use render::assets::{material::StandardMaterial, texture::Texture};
+use render::assets::{
+    material::StandardMaterial,
+    texture::{Texture, TextureUsageSettings},
+};
 
 #[derive(Asset)]
 pub struct MTLMaterial {
@@ -45,12 +48,29 @@ impl AssetLoader for MTLLoader {
         for m in mats {
             if let Some(diffuse_texture) = m.diffuse_texture {
                 let texture_handle = load_context.asset_server().load::<Texture>(diffuse_texture);
-                material.set_diffuse_texture(texture_handle);
+                material.set_base_color_texture(texture_handle);
             }
 
             if let Some(normal_texture) = m.normal_texture {
-                let texture_handle = load_context.asset_server().load::<Texture>(normal_texture);
+                // Normal maps store directions, not colors; load linear.
+                let texture_handle = load_context
+                    .asset_server()
+                    .load_with_usage_settings::<Texture>(
+                        normal_texture,
+                        TextureUsageSettings::linear(),
+                    );
                 material.set_normal_texture(texture_handle);
+            }
+
+            if let Some(diffuse) = m.diffuse {
+                material.set_base_color_factor(glam::Vec4::new(
+                    diffuse[0], diffuse[1], diffuse[2], 1.0,
+                ));
+            }
+
+            if let Some(shininess) = m.shininess {
+                // Map Blinn-Phong shininess to an equivalent GGX roughness.
+                material.set_roughness_factor((2.0 / (shininess + 2.0)).sqrt().clamp(0.045, 1.0));
             }
         }
 

@@ -35,6 +35,16 @@ impl Default for TextureUsageSettings {
     }
 }
 
+impl TextureUsageSettings {
+    /// Settings for non-color data textures (normal maps, metallic-roughness,
+    /// occlusion).  These must not be sRGB-decoded when sampled.
+    pub fn linear() -> Self {
+        let mut settings = Self::default();
+        settings.texture_descriptor.format = TextureFormat::Rgba8Unorm;
+        settings
+    }
+}
+
 #[derive(Asset)]
 pub struct Texture {
     data: Vec<u8>,
@@ -88,6 +98,20 @@ impl Texture {
     }
 
     pub fn from_dynamic_image(image: DynamicImage) -> Self {
+        Self::from_dynamic_image_with_format(image, TextureFormat::Rgba8UnormSrgb)
+    }
+
+    /// Like [`Texture::from_dynamic_image`], but for non-color data textures
+    /// (normal maps, metallic-roughness, occlusion) that must not be
+    /// sRGB-decoded when sampled.
+    pub fn from_dynamic_image_linear(image: DynamicImage) -> Self {
+        Self::from_dynamic_image_with_format(image, TextureFormat::Rgba8Unorm)
+    }
+
+    /// Like [`Texture::from_dynamic_image`], but with an explicit texture
+    /// format.  Use [`TextureFormat::Rgba8Unorm`] for non-color data such as
+    /// normal maps, metallic-roughness, and occlusion textures.
+    pub fn from_dynamic_image_with_format(image: DynamicImage, format: TextureFormat) -> Self {
         let mut usage_settings = TextureUsageSettings::default();
 
         let extent = Extent3d {
@@ -97,7 +121,7 @@ impl Texture {
         };
 
         usage_settings.texture_descriptor.size = extent;
-        usage_settings.texture_descriptor.format = TextureFormat::Rgba8UnormSrgb;
+        usage_settings.texture_descriptor.format = format;
 
         Self {
             data: image.to_rgba8().into_raw(),

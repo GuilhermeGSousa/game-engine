@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use essential::assets::{handle::AssetHandle, Asset};
+use glam::{Vec3, Vec4};
 use render_macros::AsBindGroup;
 
 use crate::{
@@ -18,7 +19,7 @@ use bitflags::bitflags;
 
 /// A reference to a WGSL shader source.
 ///
-/// Pass [`ShaderRef::Default`] to use the engine's built-in Phong shader, or
+/// Pass [`ShaderRef::Default`] to use the engine's built-in PBR shader, or
 /// [`ShaderRef::Source`] to supply your own WGSL source string.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ShaderRef {
@@ -87,16 +88,21 @@ pub trait AsBindGroup {
     ) -> Result<wgpu::BindGroup, AssetPreparationError>;
 }
 
-// // ────────────────────────────────────────────────────────────────────────────
-// // StandardMaterial — the engine's built-in Phong material
-// // ────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// StandardMaterial — the engine's built-in PBR material
+// ────────────────────────────────────────────────────────────────────────────
 
-// /// The engine's built-in Phong-shaded material with optional diffuse and normal
-// /// maps.
-// ///
-// /// Use this as a starting point, or define your own material by implementing
-// /// [`AsBindGroup`] (manually or via `#[derive(AsBindGroup)]`).
-#[derive(Asset, AsBindGroup)]
+/// The engine's built-in physically based (metallic/roughness) material.
+///
+/// Follows the glTF PBR conventions: the metallic-roughness texture stores
+/// roughness in the green channel and metalness in the blue channel, and the
+/// occlusion texture stores ambient occlusion in the red channel.  Texture
+/// samples are multiplied by the corresponding scalar factors, so untextured
+/// materials are fully described by the factors alone.
+///
+/// Use this as a starting point, or define your own material by implementing
+/// [`AsBindGroup`] (manually or via `#[derive(AsBindGroup)]`).
+#[derive(Asset, AsBindGroup, Default)]
 #[material(
     vertex_shader = include_str!("../shaders/shader.wgsl"),
     fragment_shader = include_str!("../shaders/shader.wgsl")
@@ -104,56 +110,172 @@ pub trait AsBindGroup {
 pub struct StandardMaterial {
     #[texture(0)]
     #[sampler(1)]
-    diffuse_texture: Option<AssetHandle<Texture>>,
+    base_color_texture: Option<AssetHandle<Texture>>,
 
     #[texture(2)]
     #[sampler(3)]
     normal_texture: Option<AssetHandle<Texture>>,
 
-    #[uniform(4)]
-    flags: MaterialUniform,
+    #[texture(4)]
+    #[sampler(5)]
+    metallic_roughness_texture: Option<AssetHandle<Texture>>,
+
+    #[texture(6)]
+    #[sampler(7)]
+    emissive_texture: Option<AssetHandle<Texture>>,
+
+    #[texture(8)]
+    #[sampler(9)]
+    occlusion_texture: Option<AssetHandle<Texture>>,
+
+    #[uniform(10)]
+    uniform: MaterialUniform,
 }
 
 impl StandardMaterial {
     pub fn new(
-        diffuse_texture: Option<AssetHandle<Texture>>,
+        base_color_texture: Option<AssetHandle<Texture>>,
         normal_texture: Option<AssetHandle<Texture>>,
     ) -> Self {
-        let mut flag_bits = MaterialFlags::empty();
-        if diffuse_texture.is_some() {
-            flag_bits |= MaterialFlags::HAS_DIFFUSE_TEXTURE;
+        let mut material = Self::default();
+        if let Some(texture) = base_color_texture {
+            material.set_base_color_texture(texture);
         }
-        if normal_texture.is_some() {
-            flag_bits |= MaterialFlags::HAS_NORMAL_TEXTURE;
+        if let Some(texture) = normal_texture {
+            material.set_normal_texture(texture);
         }
-
-        Self {
-            diffuse_texture,
-            normal_texture,
-            flags: MaterialUniform {
-                flags: flag_bits,
-                _padding: [0; 3],
-                _padding2: [0; 4],
-            },
-        }
+        material
     }
 
+    pub fn with_base_color_factor(mut self, factor: Vec4) -> Self {
+        self.set_base_color_factor(factor);
+        self
+    }
+
+    pub fn with_metallic_roughness_texture(mut self, texture: AssetHandle<Texture>) -> Self {
+        self.set_metallic_roughness_texture(texture);
+        self
+    }
+
+    pub fn with_emissive_texture(mut self, texture: AssetHandle<Texture>) -> Self {
+        self.set_emissive_texture(texture);
+        self
+    }
+
+    pub fn with_occlusion_texture(mut self, texture: AssetHandle<Texture>) -> Self {
+        self.set_occlusion_texture(texture);
+        self
+    }
+
+    pub fn set_base_color_texture(&mut self, texture: AssetHandle<Texture>) {
+        self.base_color_texture = Some(texture);
+        self.uniform.flags |= MaterialFlags::HAS_BASE_COLOR_TEXTURE;
+    }
+
+    pub fn base_color_texture(&self) -> Option<&AssetHandle<Texture>> {
+        self.base_color_texture.as_ref()
+    }
+
+    #[deprecated(note = "renamed to `set_base_color_texture`")]
     pub fn set_diffuse_texture(&mut self, texture: AssetHandle<Texture>) {
-        self.diffuse_texture = Some(texture);
+        self.set_base_color_texture(texture);
     }
 
+    #[deprecated(note = "renamed to `base_color_texture`")]
     pub fn diffuse_texture(&self) -> Option<&AssetHandle<Texture>> {
-        self.diffuse_texture.as_ref()
+        self.base_color_texture()
     }
 
     pub fn set_normal_texture(&mut self, texture: AssetHandle<Texture>) {
         self.normal_texture = Some(texture);
+        self.uniform.flags |= MaterialFlags::HAS_NORMAL_TEXTURE;
     }
 
     pub fn normal_texture(&self) -> Option<&AssetHandle<Texture>> {
         self.normal_texture.as_ref()
     }
+
+    pub fn set_metallic_roughness_texture(&mut self, texture: AssetHandle<Texture>) {
+        self.metallic_roughness_texture = Some(texture);
+        self.uniform.flags |= MaterialFlags::HAS_METALLIC_ROUGHNESS_TEXTURE;
+    }
+
+    pub fn metallic_roughness_texture(&self) -> Option<&AssetHandle<Texture>> {
+        self.metallic_roughness_texture.as_ref()
+    }
+
+    pub fn set_emissive_texture(&mut self, texture: AssetHandle<Texture>) {
+        self.emissive_texture = Some(texture);
+        self.uniform.flags |= MaterialFlags::HAS_EMISSIVE_TEXTURE;
+    }
+
+    pub fn emissive_texture(&self) -> Option<&AssetHandle<Texture>> {
+        self.emissive_texture.as_ref()
+    }
+
+    pub fn set_occlusion_texture(&mut self, texture: AssetHandle<Texture>) {
+        self.occlusion_texture = Some(texture);
+        self.uniform.flags |= MaterialFlags::HAS_OCCLUSION_TEXTURE;
+    }
+
+    pub fn occlusion_texture(&self) -> Option<&AssetHandle<Texture>> {
+        self.occlusion_texture.as_ref()
+    }
+
+    /// Multiplied with the base color texture (or used directly when no
+    /// texture is set).  Linear RGBA; defaults to white.
+    pub fn set_base_color_factor(&mut self, factor: Vec4) {
+        self.uniform.base_color_factor = factor.to_array();
+    }
+
+    pub fn base_color_factor(&self) -> Vec4 {
+        Vec4::from_array(self.uniform.base_color_factor)
+    }
+
+    /// Multiplied with the blue channel of the metallic-roughness texture.
+    /// Defaults to `0.0`.
+    pub fn set_metallic_factor(&mut self, factor: f32) {
+        self.uniform.metallic_factor = factor;
+    }
+
+    pub fn metallic_factor(&self) -> f32 {
+        self.uniform.metallic_factor
+    }
+
+    /// Multiplied with the green channel of the metallic-roughness texture.
+    /// Defaults to `0.5`.
+    pub fn set_roughness_factor(&mut self, factor: f32) {
+        self.uniform.roughness_factor = factor;
+    }
+
+    pub fn roughness_factor(&self) -> f32 {
+        self.uniform.roughness_factor
+    }
+
+    /// Multiplied with the emissive texture (or used directly when no texture
+    /// is set).  Linear RGB; defaults to black (no emission).
+    pub fn set_emissive_factor(&mut self, factor: Vec3) {
+        self.uniform.emissive_factor = factor.to_array();
+    }
+
+    pub fn emissive_factor(&self) -> Vec3 {
+        Vec3::from_array(self.uniform.emissive_factor)
+    }
+
+    /// Blends the occlusion texture's effect from none (`0.0`) to full
+    /// (`1.0`, the default).
+    pub fn set_occlusion_strength(&mut self, strength: f32) {
+        self.uniform.occlusion_strength = strength;
+    }
+
+    pub fn occlusion_strength(&self) -> f32 {
+        self.uniform.occlusion_strength
+    }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// MaterialFlags / MaterialUniform (used by StandardMaterial)
+// ────────────────────────────────────────────────────────────────────────────
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -161,17 +283,43 @@ pub struct MaterialFlags(u32);
 
 bitflags! {
     impl MaterialFlags: u32 {
-        const HAS_DIFFUSE_TEXTURE = 1 << 0;
+        const HAS_BASE_COLOR_TEXTURE = 1 << 0;
         const HAS_NORMAL_TEXTURE = 1 << 1;
+        const HAS_METALLIC_ROUGHNESS_TEXTURE = 1 << 2;
+        const HAS_EMISSIVE_TEXTURE = 1 << 3;
+        const HAS_OCCLUSION_TEXTURE = 1 << 4;
     }
 }
 
+/// GPU-side material parameters.  The field order and padding must match the
+/// `MaterialUniform` struct in `shaders/shader.wgsl` (WGSL uniform layout:
+/// `vec4` and `vec3` align to 16 bytes, scalars pack into the `vec3` tail).
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub(crate) struct MaterialUniform {
-    pub(crate) flags: MaterialFlags,
-    pub(crate) _padding: [u32; 3],
-    pub(crate) _padding2: [u32; 4],
+    base_color_factor: [f32; 4],
+    emissive_factor: [f32; 3],
+    metallic_factor: f32,
+    roughness_factor: f32,
+    occlusion_strength: f32,
+    flags: MaterialFlags,
+    _padding: u32,
+}
+
+const _: () = assert!(std::mem::size_of::<MaterialUniform>() == 48);
+
+impl Default for MaterialUniform {
+    fn default() -> Self {
+        Self {
+            base_color_factor: [1.0; 4],
+            emissive_factor: [0.0; 3],
+            metallic_factor: 0.0,
+            roughness_factor: 0.5,
+            occlusion_strength: 1.0,
+            flags: MaterialFlags::empty(),
+            _padding: 0,
+        }
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────

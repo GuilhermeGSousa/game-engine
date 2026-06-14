@@ -124,40 +124,14 @@ fn spawn_camera_terminal(
 
 #[cfg(not(feature = "terminal"))]
 fn spawn_camera_windowed(mut cmd: CommandQueue) {
-    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0), ());
+    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0),  Light {
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            intensity: 100.0,
+            light_type: LighType::Point,
+        });
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
-    let mesh = asset_server.add(make_cube());
-    let material = asset_server.add(StandardMaterial::new(None, None));
-    cmd.spawn((
-        Cube,
-        MeshComponent { handle: mesh },
-        MaterialComponent::<StandardMaterial> { handle: material },
-        Transform::from_translation_rotation(
-            Vec3::X * 2.0 + Vec3::Y * 2.0 + -Vec3::Z * 2.0,
-            Quat::IDENTITY,
-        ),
-    ));
-
-    let light = Light {
-        color: Vec4::new(1.0, 0.0, 1.0, 1.0),
-        intensity: 10.0,
-        light_type: LighType::Spot(SpotLight {
-            cone_angle: 50.0 * PI / 180.0,
-        }),
-    };
-    let mut light_transform =
-        Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY);
-    light_transform.look_at(Vec3::ZERO, Vec3::Y);
-
-    cmd.spawn(GizmoSphere {
-        center: light_transform.translation,
-        radius: 0.1,
-        color: LinearRgba::GREEN,
-    });
-    cmd.spawn((light, light_transform));
-
     cmd.spawn(GLTFSpawnerComponent(asset_server.load(SPONZA_PATH)));
 }
 

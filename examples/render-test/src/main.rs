@@ -124,11 +124,15 @@ fn spawn_camera_terminal(
 
 #[cfg(not(feature = "terminal"))]
 fn spawn_camera_windowed(mut cmd: CommandQueue) {
-    spawn_first_person_player(&mut cmd, Vec3::new(0.0, 2.0, 0.0),  Light {
+    spawn_first_person_player(
+        &mut cmd,
+        Vec3::new(0.0, 2.0, 0.0),
+        Light {
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
-            intensity: 100.0,
+            intensity: 10.0,
             light_type: LighType::Point,
-        });
+        },
+    );
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {

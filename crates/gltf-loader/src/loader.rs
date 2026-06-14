@@ -26,7 +26,7 @@ use essential::{
     },
     transform::Transform,
 };
-use glam::Mat4;
+use glam::{Mat4, Vec3, Vec4};
 use gltf::{Node, Primitive, buffer::Data};
 
 use image::ImageBuffer;
@@ -127,25 +127,60 @@ impl AssetLoader for GLTFLoader {
             .map(|node| GLTFLoader::extract_node(&node))
             .collect();
 
-        let mut textures = Vec::new();
+        let mut decoded_images = Vec::new();
         for (image_index, data) in images.into_iter().enumerate() {
             let image = GLTFLoader::dynamic_image_from_gltf(data)
                 .with_context(|| format!("failed to load GLTF image at index {}", image_index))?;
-            let texture = Texture::from_dynamic_image(image);
-            textures.push(load_context.asset_server().add(texture));
+            decoded_images.push(image);
         }
+
+        // Color textures (base color, emissive) are sRGB-encoded while data
+        // textures (normal, metallic-roughness, occlusion) are linear.  An
+        // image can be referenced in both roles, so texture assets are
+        // created lazily per (image, color space) pair.
+        let mut texture_cache: HashMap<(usize, bool), AssetHandle<Texture>> = HashMap::new();
+        let mut texture_handle = |texture: gltf::Texture<'_>, srgb: bool| {
+            let image_index = texture.source().index();
+            texture_cache
+                .entry((image_index, srgb))
+                .or_insert_with(|| {
+                    let image = decoded_images[image_index].clone();
+                    let texture = if srgb {
+                        Texture::from_dynamic_image(image)
+                    } else {
+                        Texture::from_dynamic_image_linear(image)
+                    };
+                    load_context.asset_server().add(texture)
+                })
+                .clone()
+        };
 
         let mut materials = Vec::new();
         for gltf_material in document.materials() {
-            let material = StandardMaterial::new(
-                gltf_material
-                    .pbr_metallic_roughness()
-                    .base_color_texture()
-                    .map(|texture| textures[texture.texture().source().index()].clone()),
+            let pbr = gltf_material.pbr_metallic_roughness();
+            let mut material = StandardMaterial::new(
+                pbr.base_color_texture()
+                    .map(|info| texture_handle(info.texture(), true)),
                 gltf_material
                     .normal_texture()
-                    .map(|texture| textures[texture.texture().source().index()].clone()),
+                    .map(|info| texture_handle(info.texture(), false)),
             );
+
+            material.set_base_color_factor(Vec4::from_array(pbr.base_color_factor()));
+            material.set_metallic_factor(pbr.metallic_factor());
+            material.set_roughness_factor(pbr.roughness_factor());
+            material.set_emissive_factor(Vec3::from_array(gltf_material.emissive_factor()));
+
+            if let Some(info) = pbr.metallic_roughness_texture() {
+                material.set_metallic_roughness_texture(texture_handle(info.texture(), false));
+            }
+            if let Some(info) = gltf_material.emissive_texture() {
+                material.set_emissive_texture(texture_handle(info.texture(), true));
+            }
+            if let Some(info) = gltf_material.occlusion_texture() {
+                material.set_occlusion_strength(info.strength());
+                material.set_occlusion_texture(texture_handle(info.texture(), false));
+            }
 
             materials.push(load_context.asset_server().add(material));
         }
@@ -391,7 +426,14 @@ impl GLTFLoader {
 
         if let Some(tangents) = reader.read_tangents() {
             tangents.enumerate().for_each(|(index, tangent)| {
-                primitive.vertices[index].tangent = [tangent[0], tangent[1], tangent[2]];
+                let vertex = &mut primitive.vertices[index];
+                vertex.tangent = [tangent[0], tangent[1], tangent[2]];
+                // GLTF tangents are vec4; w stores the handedness sign used
+                // to reconstruct the bitangent.
+                let bitangent = Vec3::from_array(vertex.normal)
+                    .cross(Vec3::new(tangent[0], tangent[1], tangent[2]))
+                    * tangent[3];
+                vertex.bitangent = bitangent.to_array();
             });
         }
 

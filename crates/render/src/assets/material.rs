@@ -515,4 +515,3 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
         true
     }
 }
-

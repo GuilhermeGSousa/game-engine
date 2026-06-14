@@ -441,24 +441,39 @@ fn has_material_overrides(m: &MaterialAttr) -> bool {
 
 /// Generate the body of `impl Material for <Name>` from the parsed attribute.
 fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
-    let camera_fn = m.camera.map(|val| quote! {
-        fn needs_camera() -> bool { #val }
-    }).unwrap_or_default();
+    let camera_fn = m
+        .camera
+        .map(|val| {
+            quote! {
+                fn needs_camera() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
 
-    let lighting_fn = m.lighting.map(|val| quote! {
-        fn needs_lighting() -> bool { #val }
-    }).unwrap_or_default();
+    let lighting_fn = m
+        .lighting
+        .map(|val| {
+            quote! {
+                fn needs_lighting() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
 
-    let skeleton_fn = m.skeleton.map(|val| quote! {
-        fn needs_skeleton() -> bool { #val }
-    }).unwrap_or_default();
+    let skeleton_fn = m
+        .skeleton
+        .map(|val| {
+            quote! {
+                fn needs_skeleton() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
 
     // `cull_mode` takes precedence over the legacy `double_sided`.
     let cull_mode_fn = if let Some(ref cm) = m.cull_mode {
         let expr = match cm.as_str() {
             "front" => quote! { Some(wgpu::Face::Front) },
-            "none"  => quote! { None },
-            _       => quote! { Some(wgpu::Face::Back) },
+            "none" => quote! { None },
+            _ => quote! { Some(wgpu::Face::Back) },
         };
         quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
     } else if let Some(double_sided) = m.double_sided {
@@ -472,46 +487,65 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
         quote! {}
     };
 
-    let topology_fn = m.topology.as_deref().map(|topo| {
-        let expr = match topo {
-            "line_list" => quote! { wgpu::PrimitiveTopology::LineList },
-            _           => quote! { wgpu::PrimitiveTopology::TriangleList },
-        };
-        quote! { fn topology() -> wgpu::PrimitiveTopology { #expr } }
-    }).unwrap_or_default();
+    let topology_fn = m
+        .topology
+        .as_deref()
+        .map(|topo| {
+            let expr = match topo {
+                "line_list" => quote! { wgpu::PrimitiveTopology::LineList },
+                _ => quote! { wgpu::PrimitiveTopology::TriangleList },
+            };
+            quote! { fn topology() -> wgpu::PrimitiveTopology { #expr } }
+        })
+        .unwrap_or_default();
 
-    let clear_depth_fn = m.clear_depth.map(|val| quote! {
-        fn clear_depth() -> bool { #val }
-    }).unwrap_or_default();
+    let clear_depth_fn = m
+        .clear_depth
+        .map(|val| {
+            quote! {
+                fn clear_depth() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
 
-    let depth_stencil_fn = m.depth_stencil.as_deref().map(|ds| {
-        let expr = match ds {
-            "none" => quote! { None },
-            "read_only" => quote! {
-                Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                })
-            },
-            _ => quote! {
-                Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                })
-            },
-        };
-        quote! { fn depth_stencil() -> Option<wgpu::DepthStencilState> { #expr } }
-    }).unwrap_or_default();
+    let depth_stencil_fn = m
+        .depth_stencil
+        .as_deref()
+        .map(|ds| {
+            let expr = match ds {
+                "none" => quote! { None },
+                "read_only" => quote! {
+                    Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: false,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    })
+                },
+                _ => quote! {
+                    Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    })
+                },
+            };
+            quote! { fn depth_stencil() -> Option<wgpu::DepthStencilState> { #expr } }
+        })
+        .unwrap_or_default();
 
-    let vertex_layouts_fn = m.vertex_layouts.as_ref().map(|expr| quote! {
-        fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>> { #expr }
-    }).unwrap_or_default();
+    let vertex_layouts_fn = m
+        .vertex_layouts
+        .as_ref()
+        .map(|expr| {
+            quote! {
+                fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>> { #expr }
+            }
+        })
+        .unwrap_or_default();
 
     quote! {
         impl render::assets::material::Material for #name {

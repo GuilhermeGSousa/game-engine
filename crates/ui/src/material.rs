@@ -78,4 +78,3 @@ impl Default for UIMaterial {
         Self::flat([1.0, 1.0, 1.0, 1.0])
     }
 }
-

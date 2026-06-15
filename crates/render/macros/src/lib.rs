@@ -48,9 +48,6 @@ struct MaterialAttr {
     skeleton: Option<bool>,
     /// `cull_mode()` override: `"back"`, `"front"`, or `"none"`.
     cull_mode: Option<String>,
-    /// Legacy alias: `double_sided = true` maps to `cull_mode = "none"`.
-    /// Ignored when `cull_mode` is also set.
-    double_sided: Option<bool>,
     /// `topology()` override: `"triangle_list"` or `"line_list"`.
     topology: Option<String>,
     /// `clear_depth()` override.  Defaults to `true` in the trait.
@@ -169,7 +166,6 @@ fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
 /// - `lighting = true|false` — override `needs_lighting()` (trait default: `false`)
 /// - `skeleton = true|false` — override `needs_skeleton()` (trait default: `false`)
 /// - `cull_mode = "back"|"front"|"none"` — override `cull_mode()`
-/// - `double_sided = true|false` — legacy alias; prefer `cull_mode = "none"`
 /// - `topology = "triangle_list"|"line_list"` — override `topology()`
 /// - `clear_depth = true|false` — override `clear_depth()` (trait default: `true`)
 /// - `depth_stencil = "none"|"default"|"read_only"` — override `depth_stencil()`
@@ -185,7 +181,6 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
         lighting: None,
         skeleton: None,
         cull_mode: None,
-        double_sided: None,
         topology: None,
         clear_depth: None,
         depth_stencil: None,
@@ -210,8 +205,6 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
                 result.skeleton = Some(parse_bool_value(&meta)?);
             } else if meta.path.is_ident("cull_mode") {
                 result.cull_mode = Some(parse_str_value(&meta)?);
-            } else if meta.path.is_ident("double_sided") {
-                result.double_sided = Some(parse_bool_value(&meta)?);
             } else if meta.path.is_ident("topology") {
                 result.topology = Some(parse_str_value(&meta)?);
             } else if meta.path.is_ident("clear_depth") {
@@ -454,24 +447,14 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
         })
         .unwrap_or_default();
 
-    // `cull_mode` takes precedence over the legacy `double_sided`.
-    let cull_mode_fn = if let Some(ref cm) = m.cull_mode {
-        let expr = match cm.as_str() {
+    let cull_mode_fn = m.cull_mode.as_deref().map(|cm| {
+        let expr = match cm {
             "front" => quote! { Some(wgpu::Face::Front) },
-            "none" => quote! { None },
-            _ => quote! { Some(wgpu::Face::Back) },
+            "none"  => quote! { None },
+            _       => quote! { Some(wgpu::Face::Back) },
         };
         quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
-    } else if let Some(double_sided) = m.double_sided {
-        let expr = if double_sided {
-            quote! { None }
-        } else {
-            quote! { Some(wgpu::Face::Back) }
-        };
-        quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
-    } else {
-        quote! {}
-    };
+    }).unwrap_or_default();
 
     let topology_fn = m
         .topology
@@ -569,7 +552,6 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
 /// | `lighting`       | `true \| false`                           | `needs_lighting()` (default `false`) |
 /// | `skeleton`       | `true \| false`                           | `needs_skeleton()` (default `false`) |
 /// | `cull_mode`      | `"back" \| "front" \| "none"`            | `cull_mode()` (default `Back`) |
-/// | `double_sided`   | `true \| false`                           | `cull_mode()` legacy alias |
 /// | `topology`       | `"triangle_list" \| "line_list"`          | `topology()` |
 /// | `clear_depth`    | `true \| false`                           | `clear_depth()` (default `true`) |
 /// | `depth_stencil`  | `"none" \| "default" \| "read_only"`     | `depth_stencil()` |

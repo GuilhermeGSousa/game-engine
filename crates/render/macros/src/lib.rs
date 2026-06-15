@@ -175,8 +175,8 @@ fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
 /// - `depth_stencil = "none"|"default"|"read_only"` — override `depth_stencil()`
 /// - `vertex_layouts = <expr>` — override `vertex_layouts()`
 ///
-/// When any Material-related key is present, `derive_as_bind_group` also emits
-/// `impl Material for YourStruct { … }` with the appropriate overrides.
+/// `derive_as_bind_group` always emits `impl Material for YourStruct { … }`.
+/// Methods whose keys are absent use the trait's default implementations.
 fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
     let mut result = MaterialAttr {
         vertex_shader: None,
@@ -425,20 +425,6 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
     }
 }
 
-/// Returns true when the `mat_attr` contains at least one key that requires
-/// generating `impl Material`.
-fn has_material_overrides(m: &MaterialAttr) -> bool {
-    m.camera.is_some()
-        || m.lighting.is_some()
-        || m.skeleton.is_some()
-        || m.cull_mode.is_some()
-        || m.double_sided.is_some()
-        || m.topology.is_some()
-        || m.clear_depth.is_some()
-        || m.depth_stencil.is_some()
-        || m.vertex_layouts.is_some()
-}
-
 /// Generate the body of `impl Material for <Name>` from the parsed attribute.
 fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
     let camera_fn = m
@@ -589,10 +575,8 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
 /// | `depth_stencil`  | `"none" \| "default" \| "read_only"`     | `depth_stencil()` |
 /// | `vertex_layouts` | `<expr>`                                  | `vertex_layouts()` |
 ///
-/// When any of the Material keys above are present, the macro also emits
-/// `impl Material for YourStruct { … }` with the appropriate method overrides.
-/// Materials that only set `vertex_shader`/`fragment_shader` keep their manually
-/// written `impl Material` (backward compatible).
+/// The macro always emits `impl Material for YourStruct { … }`.  Methods whose
+/// keys are absent fall back to the trait's default implementations.
 #[proc_macro_derive(AsBindGroup, attributes(texture, sampler, uniform, material))]
 pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -633,11 +617,7 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let layout_fn = gen_bind_group_layout(&bindings, name);
     let bind_group_fn = gen_create_bind_group(&bindings, name);
 
-    let material_impl = if has_material_overrides(&mat_attr) {
-        gen_material_impl(name, &mat_attr)
-    } else {
-        quote! {}
-    };
+    let material_impl = gen_material_impl(name, &mat_attr);
 
     let expanded = quote! {
         impl render::assets::material::AsBindGroup for #name {

@@ -447,14 +447,18 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
         })
         .unwrap_or_default();
 
-    let cull_mode_fn = m.cull_mode.as_deref().map(|cm| {
-        let expr = match cm {
-            "front" => quote! { Some(wgpu::Face::Front) },
-            "none"  => quote! { None },
-            _       => quote! { Some(wgpu::Face::Back) },
-        };
-        quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
-    }).unwrap_or_default();
+    let cull_mode_fn = m
+        .cull_mode
+        .as_deref()
+        .map(|cm| {
+            let expr = match cm {
+                "front" => quote! { Some(wgpu::Face::Front) },
+                "none" => quote! { None },
+                _ => quote! { Some(wgpu::Face::Back) },
+            };
+            quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
+        })
+        .unwrap_or_default();
 
     let topology_fn = m
         .topology

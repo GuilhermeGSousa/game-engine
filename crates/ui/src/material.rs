@@ -1,6 +1,6 @@
 use ecs::component::Component;
 use essential::assets::Asset;
-use render::{AsBindGroup, assets::material::Material, assets::vertex::VertexBufferLayout};
+use render::{AsBindGroup, assets::vertex::VertexBufferLayout};
 
 use crate::vertex::UIVertex;
 
@@ -24,7 +24,10 @@ use crate::vertex::UIVertex;
 #[derive(Component, Asset, AsBindGroup)]
 #[material(
     vertex_shader = include_str!("shaders/ui.wgsl"),
-    fragment_shader = include_str!("shaders/ui.wgsl")
+    fragment_shader = include_str!("shaders/ui.wgsl"),
+    camera = false,
+    depth_stencil = "none",
+    vertex_layouts = vec![UIVertex::describe()],
 )]
 pub struct UIMaterial {
     /// Background fill colour (RGBA, values in `[0.0, 1.0]`).
@@ -73,27 +76,5 @@ impl UIMaterial {
 impl Default for UIMaterial {
     fn default() -> Self {
         Self::flat([1.0, 1.0, 1.0, 1.0])
-    }
-}
-
-impl Material for UIMaterial {
-    fn needs_camera() -> bool {
-        false
-    }
-
-    fn needs_lighting() -> bool {
-        false
-    }
-
-    fn needs_skeleton() -> bool {
-        false
-    }
-
-    fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>> {
-        vec![UIVertex::describe()]
-    }
-
-    fn depth_stencil() -> Option<wgpu::DepthStencilState> {
-        None
     }
 }

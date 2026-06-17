@@ -16,7 +16,7 @@
 use bytemuck::{Pod, Zeroable};
 use game_engine::essential::assets::Asset;
 use game_engine::render::wgpu;
-use game_engine::render::{self, AsBindGroup, Material};
+use game_engine::render::{self, AsBindGroup};
 
 /// GPU-side uniform for [`UnlitMaterial`].
 ///
@@ -49,22 +49,12 @@ pub struct TintUniform {
 #[derive(Asset, AsBindGroup)]
 #[material(
     vertex_shader = include_str!("shaders/unlit.wgsl"),
-    fragment_shader = include_str!("shaders/unlit.wgsl")
+    fragment_shader = include_str!("shaders/unlit.wgsl"),
+    lighting = false,
+    skeleton = false,
 )]
 pub struct UnlitMaterial {
     /// Tint colour uniform uploaded to the GPU at binding 0.
     #[uniform(0)]
     pub tint: TintUniform,
-}
-
-/// [`UnlitMaterial`] uses only the camera bind group.
-/// Lighting and skeleton bindings are absent from the pipeline, so the WGSL
-/// shader does not need to declare `@group(2)` or `@group(3)`.
-impl Material for UnlitMaterial {
-    fn needs_lighting() -> bool {
-        false
-    }
-    fn needs_skeleton() -> bool {
-        false
-    }
 }

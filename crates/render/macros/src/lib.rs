@@ -36,6 +36,32 @@ struct BindingField<'a> {
     kind: BindingKind,
 }
 
+/// Parsed contents of the struct-level `#[material(...)]` attribute.
+struct MaterialAttr {
+    vertex_shader: Option<Expr>,
+    fragment_shader: Option<Expr>,
+    /// `needs_camera()` override.  Defaults to `true` in the trait.
+    camera: Option<bool>,
+    /// `needs_lighting()` override.  Defaults to `false` in the trait.
+    lighting: Option<bool>,
+    /// `needs_skeleton()` override.  Defaults to `false` in the trait.
+    skeleton: Option<bool>,
+    /// `cull_mode()` override: `"back"`, `"front"`, or `"none"`.
+    cull_mode: Option<String>,
+    /// `topology()` override: `"triangle_list"` or `"line_list"`.
+    topology: Option<String>,
+    /// `clear_depth()` override.  Defaults to `true` in the trait.
+    clear_depth: Option<bool>,
+    /// `depth_stencil()` override: `"none"`, `"default"`, or `"read_only"`.
+    ///
+    /// - `"none"` → returns `None` (no depth/stencil)
+    /// - `"default"` → depth write + `Less` compare (same as trait default)
+    /// - `"read_only"` → depth test without write, `LessEqual` compare (skybox)
+    depth_stencil: Option<String>,
+    /// `vertex_layouts()` override: an arbitrary Rust expression.
+    vertex_layouts: Option<Expr>,
+}
+
 /// Parse the integer literal inside an attribute like `#[texture(0)]`.
 fn parse_index_from_attr(attr: &syn::Attribute) -> Option<u32> {
     match &attr.meta {
@@ -85,6 +111,20 @@ fn parse_texture_attr(attr: &syn::Attribute) -> Option<(u32, TextureViewDimensio
     parser.parse2(list.tokens.clone()).ok()
 }
 
+/// Parse a `key = true/false` boolean from a nested-meta value.
+fn parse_bool_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<bool> {
+    let value = meta.value()?;
+    let lit: syn::LitBool = value.parse()?;
+    Ok(lit.value)
+}
+
+/// Parse a `key = "string"` string literal from a nested-meta value.
+fn parse_str_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<String> {
+    let value = meta.value()?;
+    let lit: syn::LitStr = value.parse()?;
+    Ok(lit.value())
+}
+
 /// Extract binding fields from a struct's named fields.
 fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
     let mut bindings = Vec::new();
@@ -117,13 +157,35 @@ fn collect_binding_fields(fields: &syn::FieldsNamed) -> Vec<BindingField<'_>> {
     bindings
 }
 
-/// Parse `vertex_shader` / `fragment_shader` from the struct-level `#[material(...)]` attribute.
+/// Parse the struct-level `#[material(...)]` attribute into a [`MaterialAttr`].
 ///
-/// Each value may be a string literal (`"..."`) or any Rust expression that
-/// evaluates to `&'static str` at compile time, such as `include_str!(...)`.
-fn parse_material_attr(attrs: &[syn::Attribute]) -> (Option<Expr>, Option<Expr>) {
-    let mut vertex: Option<Expr> = None;
-    let mut fragment: Option<Expr> = None;
+/// Supported keys:
+/// - `vertex_shader = <expr>` — WGSL source for the vertex stage
+/// - `fragment_shader = <expr>` — WGSL source for the fragment stage
+/// - `camera = true|false` — override `needs_camera()` (trait default: `true`)
+/// - `lighting = true|false` — override `needs_lighting()` (trait default: `false`)
+/// - `skeleton = true|false` — override `needs_skeleton()` (trait default: `false`)
+/// - `cull_mode = "back"|"front"|"none"` — override `cull_mode()`
+/// - `topology = "triangle_list"|"line_list"` — override `topology()`
+/// - `clear_depth = true|false` — override `clear_depth()` (trait default: `true`)
+/// - `depth_stencil = "none"|"default"|"read_only"` — override `depth_stencil()`
+/// - `vertex_layouts = <expr>` — override `vertex_layouts()`
+///
+/// `derive_as_bind_group` always emits `impl Material for YourStruct { … }`.
+/// Methods whose keys are absent use the trait's default implementations.
+fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
+    let mut result = MaterialAttr {
+        vertex_shader: None,
+        fragment_shader: None,
+        camera: None,
+        lighting: None,
+        skeleton: None,
+        cull_mode: None,
+        topology: None,
+        clear_depth: None,
+        depth_stencil: None,
+        vertex_layouts: None,
+    };
     for attr in attrs {
         if !attr.path().is_ident("material") {
             continue;
@@ -131,17 +193,32 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> (Option<Expr>, Option<Expr>)
         let _ = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("vertex_shader") {
                 let value = meta.value()?;
-                let expr: Expr = value.parse()?;
-                vertex = Some(expr);
+                result.vertex_shader = Some(value.parse()?);
             } else if meta.path.is_ident("fragment_shader") {
                 let value = meta.value()?;
-                let expr: Expr = value.parse()?;
-                fragment = Some(expr);
+                result.fragment_shader = Some(value.parse()?);
+            } else if meta.path.is_ident("camera") {
+                result.camera = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("lighting") {
+                result.lighting = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("skeleton") {
+                result.skeleton = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("cull_mode") {
+                result.cull_mode = Some(parse_str_value(&meta)?);
+            } else if meta.path.is_ident("topology") {
+                result.topology = Some(parse_str_value(&meta)?);
+            } else if meta.path.is_ident("clear_depth") {
+                result.clear_depth = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("depth_stencil") {
+                result.depth_stencil = Some(parse_str_value(&meta)?);
+            } else if meta.path.is_ident("vertex_layouts") {
+                let value = meta.value()?;
+                result.vertex_layouts = Some(value.parse()?);
             }
             Ok(())
         });
     }
-    (vertex, fragment)
+    result
 }
 
 /// Generate the `bind_group_layout` method body.
@@ -341,7 +418,125 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
     }
 }
 
-/// `#[derive(AsBindGroup)]` — automatically implement [`AsBindGroup`] for a struct.
+/// Generate the body of `impl Material for <Name>` from the parsed attribute.
+fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
+    let camera_fn = m
+        .camera
+        .map(|val| {
+            quote! {
+                fn needs_camera() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
+
+    let lighting_fn = m
+        .lighting
+        .map(|val| {
+            quote! {
+                fn needs_lighting() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
+
+    let skeleton_fn = m
+        .skeleton
+        .map(|val| {
+            quote! {
+                fn needs_skeleton() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
+
+    let cull_mode_fn = m
+        .cull_mode
+        .as_deref()
+        .map(|cm| {
+            let expr = match cm {
+                "front" => quote! { Some(wgpu::Face::Front) },
+                "none" => quote! { None },
+                _ => quote! { Some(wgpu::Face::Back) },
+            };
+            quote! { fn cull_mode() -> Option<wgpu::Face> { #expr } }
+        })
+        .unwrap_or_default();
+
+    let topology_fn = m
+        .topology
+        .as_deref()
+        .map(|topo| {
+            let expr = match topo {
+                "line_list" => quote! { wgpu::PrimitiveTopology::LineList },
+                _ => quote! { wgpu::PrimitiveTopology::TriangleList },
+            };
+            quote! { fn topology() -> wgpu::PrimitiveTopology { #expr } }
+        })
+        .unwrap_or_default();
+
+    let clear_depth_fn = m
+        .clear_depth
+        .map(|val| {
+            quote! {
+                fn clear_depth() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
+
+    let depth_stencil_fn = m
+        .depth_stencil
+        .as_deref()
+        .map(|ds| {
+            let expr = match ds {
+                "none" => quote! { None },
+                "read_only" => quote! {
+                    Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: false,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    })
+                },
+                _ => quote! {
+                    Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    })
+                },
+            };
+            quote! { fn depth_stencil() -> Option<wgpu::DepthStencilState> { #expr } }
+        })
+        .unwrap_or_default();
+
+    let vertex_layouts_fn = m
+        .vertex_layouts
+        .as_ref()
+        .map(|expr| {
+            quote! {
+                fn vertex_layouts() -> Vec<wgpu::VertexBufferLayout<'static>> { #expr }
+            }
+        })
+        .unwrap_or_default();
+
+    quote! {
+        impl render::assets::material::Material for #name {
+            #camera_fn
+            #lighting_fn
+            #skeleton_fn
+            #cull_mode_fn
+            #topology_fn
+            #clear_depth_fn
+            #depth_stencil_fn
+            #vertex_layouts_fn
+        }
+    }
+}
+
+/// `#[derive(AsBindGroup)]` — automatically implement [`AsBindGroup`] for a struct,
+/// and optionally [`Material`] when any Material-related keys are present in
+/// `#[material(...)]`.
 ///
 /// # Field attributes
 ///
@@ -351,26 +546,36 @@ fn gen_create_bind_group(bindings: &[BindingField<'_>], struct_name: &Ident) -> 
 /// | `#[sampler(N)]` | *(any)*                             | Sampler binding at slot *N* (FRAGMENT stage) |
 /// | `#[uniform(N)]` | `T: bytemuck::Pod + bytemuck::Zeroable` | Uniform buffer at slot *N*               |
 ///
-/// # Struct attributes
+/// # Struct attributes (`#[material(...)]`)
 ///
-/// ```text
-/// #[material(vertex_shader = "path/to/vs.wgsl", fragment_shader = "path/to/fs.wgsl")]
-/// ```
+/// | Key              | Values                                    | Trait method overridden   |
+/// |------------------|-------------------------------------------|---------------------------|
+/// | `vertex_shader`  | `<expr>`                                  | `AsBindGroup::vertex_shader()` |
+/// | `fragment_shader`| `<expr>`                                  | `AsBindGroup::fragment_shader()` |
+/// | `camera`         | `true \| false`                           | `needs_camera()` (default `true`) |
+/// | `lighting`       | `true \| false`                           | `needs_lighting()` (default `false`) |
+/// | `skeleton`       | `true \| false`                           | `needs_skeleton()` (default `false`) |
+/// | `cull_mode`      | `"back" \| "front" \| "none"`            | `cull_mode()` (default `Back`) |
+/// | `topology`       | `"triangle_list" \| "line_list"`          | `topology()` |
+/// | `clear_depth`    | `true \| false`                           | `clear_depth()` (default `true`) |
+/// | `depth_stencil`  | `"none" \| "default" \| "read_only"`     | `depth_stencil()` |
+/// | `vertex_layouts` | `<expr>`                                  | `vertex_layouts()` |
 ///
-/// When omitted, [`ShaderRef::Default`] is used for both shader stages.
+/// The macro always emits `impl Material for YourStruct { … }`.  Methods whose
+/// keys are absent fall back to the trait's default implementations.
 #[proc_macro_derive(AsBindGroup, attributes(texture, sampler, uniform, material))]
 pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
 
-    let (vertex_shader_lit, fragment_shader_lit) = parse_material_attr(&input.attrs);
+    let mat_attr = parse_material_attr(&input.attrs);
 
-    let vertex_shader_expr = match vertex_shader_lit {
-        Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
+    let vertex_shader_expr = match mat_attr.vertex_shader {
+        Some(ref expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
-    let fragment_shader_expr = match fragment_shader_lit {
-        Some(expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
+    let fragment_shader_expr = match mat_attr.fragment_shader {
+        Some(ref expr) => quote! { render::assets::material::ShaderRef::Source(#expr) },
         None => quote! { render::assets::material::ShaderRef::Default },
     };
 
@@ -398,6 +603,8 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
     let layout_fn = gen_bind_group_layout(&bindings, name);
     let bind_group_fn = gen_create_bind_group(&bindings, name);
 
+    let material_impl = gen_material_impl(name, &mat_attr);
+
     let expanded = quote! {
         impl render::assets::material::AsBindGroup for #name {
             fn vertex_shader() -> render::assets::material::ShaderRef {
@@ -412,6 +619,8 @@ pub fn derive_as_bind_group(input: TokenStream) -> TokenStream {
 
             #bind_group_fn
         }
+
+        #material_impl
     };
 
     expanded.into()

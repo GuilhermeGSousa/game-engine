@@ -1,7 +1,7 @@
 use encase::{ShaderType, UniformBuffer};
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
-    transform::GlobalTranform,
+    transform::GlobalTransform,
 };
 
 use ecs::{
@@ -58,8 +58,18 @@ pub struct Camera {
 }
 
 impl Camera {
+    /// Creates a perspective camera with the given field-of-view (radians) and aspect ratio.
+    /// Uses sensible defaults for near/far planes and clear colour.
+    pub fn perspective(fovy: f32, aspect: f32) -> Self {
+        Self {
+            fovy,
+            aspect,
+            ..Default::default()
+        }
+    }
+
     pub fn build_projection_matrix(&self) -> Mat4 {
-        Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar)
+        Mat4::perspective_rh(self.fovy, self.aspect, self.znear, self.zfar)
     }
 }
 
@@ -67,7 +77,7 @@ impl Default for Camera {
     fn default() -> Self {
         Self {
             aspect: 1.0,
-            fovy: 45.0,
+            fovy: std::f32::consts::FRAC_PI_4,
             znear: 0.1,
             zfar: 100.0,
             clear_color: wgpu::Color {
@@ -96,7 +106,7 @@ impl CameraUniform {
         }
     }
 
-    pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTranform) {
+    pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTransform) {
         self.view_pos = transform.translation();
         self.view_proj =
             OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
@@ -140,7 +150,7 @@ impl RenderCamera {
 }
 
 pub(crate) fn camera_added(
-    cameras: Query<(Entity, &Camera, &GlobalTranform, Option<&RenderEntity>), Added<(Camera,)>>,
+    cameras: Query<(Entity, &Camera, &GlobalTransform, Option<&RenderEntity>), Added<(Camera,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
@@ -260,7 +270,7 @@ pub fn create_rtt(
 }
 
 pub(crate) fn camera_changed(
-    cameras: Query<(&Camera, &GlobalTranform, &RenderEntity)>,
+    cameras: Query<(&Camera, &GlobalTransform, &RenderEntity)>,
     render_cameras: Query<(&mut RenderCamera,)>,
     queue: Res<RenderQueue>,
 ) {

@@ -13,7 +13,7 @@ use glam::{Quat, Vec3, Vec4};
 use render::{
     assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
     components::{
-        light::{LighType, Light, SpotLight},
+        light::{Light, LightType, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
     },
@@ -115,7 +115,7 @@ fn spawn_camera_terminal(
         Light {
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
             intensity: 100.0,
-            light_type: LighType::Point,
+            light_type: LightType::Point,
         },
         TerminalOutput,
         Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
@@ -130,7 +130,7 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
         Light {
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
             intensity: 10.0,
-            light_type: LighType::Point,
+            light_type: LightType::Point,
         },
     );
 }

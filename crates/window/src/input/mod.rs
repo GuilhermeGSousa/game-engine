@@ -46,6 +46,21 @@ impl Input {
         }
     }
 
+    pub fn is_just_pressed(&self, key: PhysicalKey) -> bool {
+        self.get_key_state(key) == InputState::Pressed
+    }
+
+    pub fn is_held(&self, key: PhysicalKey) -> bool {
+        matches!(
+            self.get_key_state(key),
+            InputState::Pressed | InputState::Down
+        )
+    }
+
+    pub fn is_just_released(&self, key: PhysicalKey) -> bool {
+        self.get_key_state(key) == InputState::Released
+    }
+
     pub fn mouse_delta(&self) -> Vec2 {
         self.mouse_delta
     }
@@ -59,6 +74,21 @@ impl Input {
             Some(state) => *state,
             None => InputState::Up,
         }
+    }
+
+    pub fn is_mouse_button_just_pressed(&self, button: MouseButton) -> bool {
+        self.get_mouse_button_state(button) == InputState::Pressed
+    }
+
+    pub fn is_mouse_button_held(&self, button: MouseButton) -> bool {
+        matches!(
+            self.get_mouse_button_state(button),
+            InputState::Pressed | InputState::Down
+        )
+    }
+
+    pub fn is_mouse_button_just_released(&self, button: MouseButton) -> bool {
+        self.get_mouse_button_state(button) == InputState::Released
     }
 
     /// Characters typed this frame (text input, after modifier keys are applied).

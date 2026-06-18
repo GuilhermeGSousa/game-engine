@@ -16,7 +16,7 @@ use glam::{Quat, Vec3, Vec4};
 use render::{
     components::{
         camera::{Camera, RenderTarget},
-        light::{LighType, Light, SpotLight},
+        light::{Light, LightType, SpotLight},
     },
     plugin::RenderPlugin,
 };
@@ -79,8 +79,8 @@ fn spawn_scene(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) {
         Light {
             color: Vec4::new(1.0, 0.95, 0.85, 1.0),
             intensity: 15.0,
-            light_type: LighType::Spot(SpotLight {
-                cone_angle: 60.0 * PI / 180.0,
+            light_type: LightType::Spot(SpotLight {
+                cone_angle: 60.0_f32.to_radians(),
             }),
         },
         light_transform,

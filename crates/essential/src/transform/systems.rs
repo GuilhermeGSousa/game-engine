@@ -9,11 +9,11 @@ use ecs::{
     },
 };
 
-use crate::transform::{GlobalTranform, Transform};
+use crate::transform::{GlobalTransform, Transform};
 
 pub fn update_simple_entities(
     roots: Query<
-        (&Transform, &mut GlobalTranform),
+        (&Transform, &mut GlobalTransform),
         (Changed<Transform>, Without<ChildOf>, Without<Children>),
     >,
 ) {
@@ -23,8 +23,8 @@ pub fn update_simple_entities(
 }
 
 pub fn propagate_global_transforms(
-    roots: Query<(&Children, &mut GlobalTranform, &Transform), Without<ChildOf>>,
-    transform_query: Query<(Entity, &mut GlobalTranform, &Transform, Option<&Children>)>,
+    roots: Query<(&Children, &mut GlobalTransform, &Transform), Without<ChildOf>>,
+    transform_query: Query<(Entity, &mut GlobalTransform, &Transform, Option<&Children>)>,
 ) {
     for (root_children, mut root_global_transform, root_local_transform) in roots.iter() {
         root_global_transform.set_matrix(root_local_transform.compute_matrix());
@@ -33,9 +33,9 @@ pub fn propagate_global_transforms(
 }
 
 fn propagate_to_children(
-    parent_transform: &GlobalTranform,
+    parent_transform: &GlobalTransform,
     children: &Children,
-    transform_query: &Query<(Entity, &mut GlobalTranform, &Transform, Option<&Children>)>,
+    transform_query: &Query<(Entity, &mut GlobalTransform, &Transform, Option<&Children>)>,
 ) {
     for child in children {
         if let Some((_, mut child_global_transform, child_local_transform, grand_children)) =

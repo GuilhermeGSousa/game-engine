@@ -51,7 +51,10 @@ impl Input {
     }
 
     pub fn is_held(&self, key: PhysicalKey) -> bool {
-        matches!(self.get_key_state(key), InputState::Pressed | InputState::Down)
+        matches!(
+            self.get_key_state(key),
+            InputState::Pressed | InputState::Down
+        )
     }
 
     pub fn is_just_released(&self, key: PhysicalKey) -> bool {
@@ -78,7 +81,10 @@ impl Input {
     }
 
     pub fn is_mouse_button_held(&self, button: MouseButton) -> bool {
-        matches!(self.get_mouse_button_state(button), InputState::Pressed | InputState::Down)
+        matches!(
+            self.get_mouse_button_state(button),
+            InputState::Pressed | InputState::Down
+        )
     }
 
     pub fn is_mouse_button_just_released(&self, button: MouseButton) -> bool {

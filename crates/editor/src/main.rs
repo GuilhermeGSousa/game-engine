@@ -16,7 +16,7 @@ use glam::{Quat, Vec3, Vec4};
 use render::{
     components::{
         camera::{Camera, RenderTarget},
-        light::{LightType, Light, SpotLight},
+        light::{Light, LightType, SpotLight},
     },
     plugin::RenderPlugin,
 };

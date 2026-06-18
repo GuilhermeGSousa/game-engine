@@ -13,7 +13,7 @@ use glam::{Quat, Vec3, Vec4};
 use render::{
     assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
     components::{
-        light::{LightType, Light, SpotLight},
+        light::{Light, LightType, SpotLight},
         material_component::MaterialComponent,
         mesh_component::MeshComponent,
     },

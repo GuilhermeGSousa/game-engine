@@ -20,7 +20,7 @@ use game_engine::{
         assets::{material::StandardMaterial, texture::TextureUsageSettings},
         components::{
             camera::Camera,
-            light::{LightType, Light, SpotLight},
+            light::{Light, LightType, SpotLight},
             material_component::MaterialComponent,
             mesh_component::MeshComponent,
         },

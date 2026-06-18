@@ -80,7 +80,7 @@ fn spawn_scene(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) {
             color: Vec4::new(1.0, 0.95, 0.85, 1.0),
             intensity: 15.0,
             light_type: LightType::Spot(SpotLight {
-                cone_angle: 60.0,
+                cone_angle: 60.0_f32.to_radians(),
             }),
         },
         light_transform,

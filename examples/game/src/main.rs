@@ -127,7 +127,7 @@ fn spawn_player(
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
         intensity: 10.0,
         light_type: LightType::Spot(SpotLight {
-            cone_angle: 50.0,
+            cone_angle: 50.0_f32.to_radians(),
         }),
     };
     let mut light_transform =

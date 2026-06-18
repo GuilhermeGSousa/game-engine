@@ -58,18 +58,18 @@ pub struct Camera {
 }
 
 impl Camera {
-    /// Creates a perspective camera with the given field-of-view (degrees) and aspect ratio.
+    /// Creates a perspective camera with the given field-of-view (radians) and aspect ratio.
     /// Uses sensible defaults for near/far planes and clear colour.
-    pub fn perspective(fovy_degrees: f32, aspect: f32) -> Self {
+    pub fn perspective(fovy: f32, aspect: f32) -> Self {
         Self {
-            fovy: fovy_degrees,
+            fovy,
             aspect,
             ..Default::default()
         }
     }
 
     pub fn build_projection_matrix(&self) -> Mat4 {
-        Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar)
+        Mat4::perspective_rh(self.fovy, self.aspect, self.znear, self.zfar)
     }
 }
 
@@ -77,7 +77,7 @@ impl Default for Camera {
     fn default() -> Self {
         Self {
             aspect: 1.0,
-            fovy: 45.0,
+            fovy: std::f32::consts::FRAC_PI_4,
             znear: 0.1,
             zfar: 100.0,
             clear_color: wgpu::Color {

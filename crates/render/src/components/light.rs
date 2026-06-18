@@ -151,7 +151,7 @@ pub(crate) fn light_added(
             direction: -local_z,
             light_type: light.light_type.index(),
             cos_cone_angle: match &light.light_type {
-                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle.to_radians()),
+                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
                 _ => 0.0,
             },
         };
@@ -180,7 +180,7 @@ pub(crate) fn light_changed(
             render_light.intensity = light.intensity;
             render_light.light_type = light.light_type.index();
             render_light.cos_cone_angle = match &light.light_type {
-                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle.to_radians()),
+                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
                 _ => 0.0,
             };
         }

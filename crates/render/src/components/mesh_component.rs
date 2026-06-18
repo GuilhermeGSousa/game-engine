@@ -6,7 +6,7 @@ use ecs::{
 };
 use essential::{
     assets::{handle::AssetHandle, AssetId},
-    transform::{GlobalTranform, Transform},
+    transform::{GlobalTransform, Transform},
 };
 use wgpu::util::DeviceExt;
 
@@ -31,7 +31,7 @@ pub(crate) fn mesh_added(
         (
             Entity,
             &MeshComponent,
-            &GlobalTranform,
+            &GlobalTransform,
             Option<&RenderEntity>,
         ),
         Added<(MeshComponent,)>,
@@ -64,7 +64,7 @@ pub(crate) fn mesh_added(
 }
 
 pub(crate) fn mesh_changed(
-    meshes: Query<(&MeshComponent, &GlobalTranform, &RenderEntity), Changed<(Transform,)>>,
+    meshes: Query<(&MeshComponent, &GlobalTransform, &RenderEntity), Changed<(Transform,)>>,
     render_meshes: Query<(&mut RenderMeshInstance,)>,
     queue: Res<RenderQueue>,
 ) {

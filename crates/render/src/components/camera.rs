@@ -1,7 +1,7 @@
 use encase::{ShaderType, UniformBuffer};
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
-    transform::GlobalTranform,
+    transform::GlobalTransform,
 };
 
 use ecs::{
@@ -58,6 +58,16 @@ pub struct Camera {
 }
 
 impl Camera {
+    /// Creates a perspective camera with the given field-of-view (degrees) and aspect ratio.
+    /// Uses sensible defaults for near/far planes and clear colour.
+    pub fn perspective(fovy_degrees: f32, aspect: f32) -> Self {
+        Self {
+            fovy: fovy_degrees,
+            aspect,
+            ..Default::default()
+        }
+    }
+
     pub fn build_projection_matrix(&self) -> Mat4 {
         Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar)
     }
@@ -96,7 +106,7 @@ impl CameraUniform {
         }
     }
 
-    pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTranform) {
+    pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTransform) {
         self.view_pos = transform.translation();
         self.view_proj =
             OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
@@ -140,7 +150,7 @@ impl RenderCamera {
 }
 
 pub(crate) fn camera_added(
-    cameras: Query<(Entity, &Camera, &GlobalTranform, Option<&RenderEntity>), Added<(Camera,)>>,
+    cameras: Query<(Entity, &Camera, &GlobalTransform, Option<&RenderEntity>), Added<(Camera,)>>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
@@ -260,7 +270,7 @@ pub fn create_rtt(
 }
 
 pub(crate) fn camera_changed(
-    cameras: Query<(&Camera, &GlobalTranform, &RenderEntity)>,
+    cameras: Query<(&Camera, &GlobalTransform, &RenderEntity)>,
     render_cameras: Query<(&mut RenderCamera,)>,
     queue: Res<RenderQueue>,
 ) {

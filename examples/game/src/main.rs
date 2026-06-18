@@ -12,7 +12,7 @@ use game_engine::{
     },
     essential::{
         assets::asset_server::AssetServer,
-        transform::{GlobalTranform, Transform},
+        transform::{GlobalTransform, Transform},
     },
     obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent},
     physics::{physics_state::PhysicsState, rigid_body::RigidBody},
@@ -20,7 +20,7 @@ use game_engine::{
         assets::{material::StandardMaterial, texture::TextureUsageSettings},
         components::{
             camera::Camera,
-            light::{LighType, Light, SpotLight},
+            light::{LightType, Light, SpotLight},
             material_component::MaterialComponent,
             mesh_component::MeshComponent,
         },
@@ -126,8 +126,8 @@ fn spawn_player(
     let light = Light {
         color: Vec4::new(1.0, 0.0, 1.0, 1.0),
         intensity: 10.0,
-        light_type: LighType::Spot(SpotLight {
-            cone_angle: 50.0 * PI / 180.0,
+        light_type: LightType::Spot(SpotLight {
+            cone_angle: 50.0,
         }),
     };
     let mut light_transform =
@@ -193,7 +193,7 @@ fn spawn_unlit_obj(
 }
 
 fn spawn_with_collider(
-    cameras: Query<(&Camera, &GlobalTranform)>,
+    cameras: Query<(&Camera, &GlobalTransform)>,
     mut cmd: CommandQueue,
     input: Res<Input>,
     asset_server: Res<AssetServer>,

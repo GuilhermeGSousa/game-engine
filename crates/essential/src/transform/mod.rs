@@ -19,7 +19,7 @@ impl Component for Transform {
 
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
-            let global_transform = GlobalTranform::new(
+            let global_transform = GlobalTransform::new(
                 world
                     .get_component_for_entity::<Transform>(context.entity)
                     .unwrap()
@@ -32,8 +32,14 @@ impl Component for Transform {
 
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
-            world.remove_component::<GlobalTranform>(context.entity, false);
+            world.remove_component::<GlobalTransform>(context.entity, false);
         })
+    }
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self::IDENTITY
     }
 }
 
@@ -62,6 +68,45 @@ impl Transform {
             rotation,
             scale,
         }
+    }
+
+    pub fn from_translation(translation: Vec3) -> Self {
+        Self {
+            translation,
+            rotation: Quat::IDENTITY,
+            scale: Vec3::ONE,
+        }
+    }
+
+    pub fn from_rotation(rotation: Quat) -> Self {
+        Self {
+            translation: Vec3::ZERO,
+            rotation,
+            scale: Vec3::ONE,
+        }
+    }
+
+    pub fn from_scale(scale: Vec3) -> Self {
+        Self {
+            translation: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            scale,
+        }
+    }
+
+    pub fn with_translation(mut self, translation: Vec3) -> Self {
+        self.translation = translation;
+        self
+    }
+
+    pub fn with_rotation(mut self, rotation: Quat) -> Self {
+        self.rotation = rotation;
+        self
+    }
+
+    pub fn with_scale(mut self, scale: Vec3) -> Self {
+        self.scale = scale;
+        self
     }
 
     pub fn from_matrix(matrix: &[[f32; 4]; 4]) -> Self {
@@ -120,9 +165,9 @@ impl Transform {
 }
 
 #[derive(Component)]
-pub struct GlobalTranform(Affine3A);
+pub struct GlobalTransform(Affine3A);
 
-impl GlobalTranform {
+impl GlobalTransform {
     pub fn new(transform: Mat4) -> Self {
         Self(Affine3A::from_mat4(transform))
     }

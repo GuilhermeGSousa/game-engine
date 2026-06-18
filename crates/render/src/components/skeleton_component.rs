@@ -14,7 +14,7 @@ use ecs::{
 use encase::UniformBuffer;
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
-    transform::GlobalTranform,
+    transform::GlobalTransform,
 };
 use glam::Mat4;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, BufferDescriptor, Device};
@@ -115,7 +115,7 @@ pub(crate) fn skeleton_added(
 pub(crate) fn update_skeletons(
     skeletons: Query<(&SkeletonComponent, &RenderEntity)>,
     render_skeletons: Query<&RenderSkeletonComponent>,
-    transforms: Query<&GlobalTranform>,
+    transforms: Query<&GlobalTransform>,
     skeleton_assets: Res<AssetStore<Skeleton>>,
     queue: Res<RenderQueue>,
 ) {

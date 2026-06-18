@@ -7,7 +7,7 @@ use ecs::{
 };
 
 use encase::{ShaderType, UniformBuffer};
-use essential::transform::GlobalTranform;
+use essential::transform::GlobalTransform;
 use glam::{Vec3, Vec4};
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
@@ -19,25 +19,25 @@ const MAX_LIGHTS: usize = 128;
 pub struct Light {
     pub color: Vec4,
     pub intensity: f32,
-    pub light_type: LighType,
+    pub light_type: LightType,
 }
 
 pub struct SpotLight {
     pub cone_angle: f32,
 }
 
-pub enum LighType {
+pub enum LightType {
     Point,
     Spot(SpotLight),
     Directional,
 }
 
-impl LighType {
+impl LightType {
     pub fn index(&self) -> u32 {
         match *self {
-            LighType::Point => 0,
-            LighType::Spot(_) => 1,
-            LighType::Directional => 2,
+            LightType::Point => 0,
+            LightType::Spot(_) => 1,
+            LightType::Directional => 2,
         }
     }
 }
@@ -139,7 +139,7 @@ pub(crate) fn prepare_lights_buffer(
 }
 
 pub(crate) fn light_added(
-    lights: Query<(Entity, &Light, &GlobalTranform, Option<&RenderEntity>), Added<Light>>,
+    lights: Query<(Entity, &Light, &GlobalTransform, Option<&RenderEntity>), Added<Light>>,
     mut cmd: CommandQueue,
 ) {
     for (entity, light, light_transform, render_entity) in lights.iter() {
@@ -151,7 +151,7 @@ pub(crate) fn light_added(
             direction: -local_z,
             light_type: light.light_type.index(),
             cos_cone_angle: match &light.light_type {
-                LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle.to_radians()),
                 _ => 0.0,
             },
         };
@@ -168,7 +168,7 @@ pub(crate) fn light_added(
 }
 
 pub(crate) fn light_changed(
-    lights: Query<(&Light, &GlobalTranform, &RenderEntity)>,
+    lights: Query<(&Light, &GlobalTransform, &RenderEntity)>,
     render_lights: Query<&mut RenderLight>,
 ) {
     for (light, transform, render_entity) in lights.iter() {
@@ -180,7 +180,7 @@ pub(crate) fn light_changed(
             render_light.intensity = light.intensity;
             render_light.light_type = light.light_type.index();
             render_light.cos_cone_angle = match &light.light_type {
-                LighType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle.to_radians()),
                 _ => 0.0,
             };
         }

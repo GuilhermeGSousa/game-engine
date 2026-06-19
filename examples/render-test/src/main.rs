@@ -9,7 +9,7 @@ use ecs::{
 };
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
-use glam::{Quat, Vec3, Vec4};
+use glam::{Quat, Vec3};
 use render::{
     assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
     components::{
@@ -107,13 +107,13 @@ fn spawn_camera_terminal(
     let camera = Camera {
         aspect,
         render_target: RenderTarget::texture(rtt),
-        clear_color: wgpu::Color::BLACK,
+        clear_color: LinearRgba::BLACK,
         ..Camera::default()
     };
     cmd.spawn((
         camera,
         Light {
-            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            color: LinearRgba::WHITE,
             intensity: 100.0,
             light_type: LightType::Point,
         },
@@ -128,7 +128,7 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
         &mut cmd,
         Vec3::new(0.0, 2.0, 0.0),
         Light {
-            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            color: LinearRgba::WHITE,
             intensity: 10.0,
             light_type: LightType::Point,
         },

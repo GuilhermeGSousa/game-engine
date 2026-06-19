@@ -6,7 +6,7 @@ use crate::{Hsl, Srgba};
 ///
 /// Values are in the range [0.0, 1.0] in linear light.
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable, encase::ShaderType)]
 pub struct LinearRgba {
     pub r: f32,
     pub g: f32,

@@ -1,3 +1,4 @@
+use color::LinearRgba;
 use ecs::{
     command::CommandQueue,
     component::Component,
@@ -17,7 +18,7 @@ const MAX_LIGHTS: usize = 128;
 
 #[derive(Component)]
 pub struct Light {
-    pub color: Vec4,
+    pub color: LinearRgba,
     pub intensity: f32,
     pub light_type: LightType,
 }
@@ -52,7 +53,7 @@ pub(crate) struct LightsUniform {
 pub struct RenderLight {
     pub(crate) translation: Vec3,
     pub(crate) intensity: f32,
-    pub(crate) color: Vec4,
+    pub(crate) color: LinearRgba,
     pub(crate) direction: Vec3,
     pub(crate) light_type: u32,
 
@@ -65,7 +66,7 @@ impl RenderLight {
         Self {
             translation: Vec3::ZERO,
             intensity: 0.0,
-            color: Vec4::ZERO,
+            color: LinearRgba::TRANSPARENT,
             direction: Vec3::ZERO,
             light_type: 0,
             cos_cone_angle: 0.0,

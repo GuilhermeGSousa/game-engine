@@ -12,7 +12,8 @@ use ecs::{
     system::schedule::UpdateGroup,
 };
 use essential::{time::Time, transform::Transform};
-use glam::{Quat, Vec3, Vec4};
+use color::LinearRgba;
+use glam::{Quat, Vec3};
 use render::{
     components::{
         camera::{Camera, RenderTarget},
@@ -77,7 +78,7 @@ fn spawn_scene(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) {
 
     cmd.spawn((
         Light {
-            color: Vec4::new(1.0, 0.95, 0.85, 1.0),
+            color: LinearRgba::new(1.0, 0.95, 0.85, 1.0),
             intensity: 15.0,
             light_type: LightType::Spot(SpotLight {
                 cone_angle: 60.0_f32.to_radians(),

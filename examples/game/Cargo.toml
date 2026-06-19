@@ -13,6 +13,7 @@ warnings = "deny"
 [dependencies]
 game-engine = { path = "../.." }
 gameplay = { path = "../../crates/gameplay" }
+color = { path = "../../crates/color" }
 bytemuck = { version = "1.22.0", features = ["derive"] }
 cfg-if = "1.0.0"
 env_logger = "0.11.8"

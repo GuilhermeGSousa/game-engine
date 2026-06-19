@@ -1,3 +1,4 @@
+use color::LinearRgba;
 use ecs::component::Component;
 use essential::assets::Asset;
 use render::{AsBindGroup, assets::vertex::VertexBufferLayout};
@@ -15,10 +16,10 @@ use crate::vertex::UIVertex;
 /// # Example
 /// ```rust,ignore
 /// UIMaterial {
-///     color: [0.15, 0.15, 0.15, 1.0],
-///     border_color: [0.4, 0.4, 0.4, 1.0],
+///     color: LinearRgba::new(0.15, 0.15, 0.15, 1.0),
+///     border_color: LinearRgba::new(0.4, 0.4, 0.4, 1.0),
 ///     border_width: 1.0,
-///     ..UIMaterial::flat([0.15, 0.15, 0.15, 1.0])
+///     ..UIMaterial::flat(LinearRgba::new(0.15, 0.15, 0.15, 1.0))
 /// }
 /// ```
 #[derive(Component, Asset, AsBindGroup)]
@@ -32,11 +33,11 @@ use crate::vertex::UIVertex;
 pub struct UIMaterial {
     /// Background fill colour (RGBA, values in `[0.0, 1.0]`).
     #[uniform(0)]
-    pub color: [f32; 4],
+    pub color: LinearRgba,
 
     /// Border outline colour (RGBA).  Only visible when `border_width > 0`.
     #[uniform(1)]
-    pub border_color: [f32; 4],
+    pub border_color: LinearRgba,
 
     /// GPU-side border parameters — **do not set manually**.
     ///
@@ -53,17 +54,17 @@ pub struct UIMaterial {
 
 impl UIMaterial {
     /// A plain filled rectangle with no border.
-    pub fn flat(color: [f32; 4]) -> Self {
+    pub fn flat(color: LinearRgba) -> Self {
         Self {
             color,
-            border_color: [0.0; 4],
+            border_color: LinearRgba::TRANSPARENT,
             border_width: 0.0,
             border_params: [0.0; 4],
         }
     }
 
     /// A filled rectangle with a solid-colour border.
-    pub fn with_border(color: [f32; 4], border_color: [f32; 4], border_width: f32) -> Self {
+    pub fn with_border(color: LinearRgba, border_color: LinearRgba, border_width: f32) -> Self {
         Self {
             color,
             border_color,
@@ -75,6 +76,6 @@ impl UIMaterial {
 
 impl Default for UIMaterial {
     fn default() -> Self {
-        Self::flat([1.0, 1.0, 1.0, 1.0])
+        Self::flat(LinearRgba::WHITE)
     }
 }

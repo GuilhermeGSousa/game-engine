@@ -26,7 +26,8 @@ use essential::{
     },
     transform::Transform,
 };
-use glam::{Mat4, Vec3, Vec4};
+use color::LinearRgba;
+use glam::{Mat4, Vec3};
 use gltf::{Node, Primitive, buffer::Data};
 
 use image::ImageBuffer;
@@ -166,7 +167,7 @@ impl AssetLoader for GLTFLoader {
                     .map(|info| texture_handle(info.texture(), false)),
             );
 
-            material.set_base_color_factor(Vec4::from_array(pbr.base_color_factor()));
+            material.set_base_color_factor(LinearRgba::from(pbr.base_color_factor()));
             material.set_metallic_factor(pbr.metallic_factor());
             material.set_roughness_factor(pbr.roughness_factor());
             material.set_emissive_factor(Vec3::from_array(gltf_material.emissive_factor()));

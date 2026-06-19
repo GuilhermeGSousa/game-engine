@@ -26,7 +26,7 @@ use crate::{
 };
 use app::plugins::Plugin;
 use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
-use glam::Vec4;
+use color::LinearRgba;
 use std::sync::{Arc, Mutex};
 use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
 
@@ -242,6 +242,6 @@ impl Plugin for RenderPlugin {
             .insert_resource(skeleton_layout)
             .insert_resource(render_lights)
             .insert_resource(empty_skeleton_buffer)
-            .insert_resource(WorldEnvironment::new(Vec4::new(0.1, 0.1, 0.1, 0.1)));
+            .insert_resource(WorldEnvironment::new(LinearRgba::new(0.1, 0.1, 0.1, 0.1)));
     }
 }

@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
+use color::LinearRgba;
 use essential::assets::{handle::AssetHandle, Asset};
-use glam::{Vec3, Vec4};
+use glam::Vec3;
 use render_macros::AsBindGroup;
 
 use crate::{
@@ -149,7 +150,7 @@ impl StandardMaterial {
         material
     }
 
-    pub fn with_base_color_factor(mut self, factor: Vec4) -> Self {
+    pub fn with_base_color_factor(mut self, factor: LinearRgba) -> Self {
         self.set_base_color_factor(factor);
         self
     }
@@ -226,12 +227,12 @@ impl StandardMaterial {
 
     /// Multiplied with the base color texture (or used directly when no
     /// texture is set).  Linear RGBA; defaults to white.
-    pub fn set_base_color_factor(&mut self, factor: Vec4) {
-        self.uniform.base_color_factor = factor.to_array();
+    pub fn set_base_color_factor(&mut self, factor: LinearRgba) {
+        self.uniform.base_color_factor = factor;
     }
 
-    pub fn base_color_factor(&self) -> Vec4 {
-        Vec4::from_array(self.uniform.base_color_factor)
+    pub fn base_color_factor(&self) -> LinearRgba {
+        self.uniform.base_color_factor
     }
 
     /// Multiplied with the blue channel of the metallic-roughness texture.
@@ -348,7 +349,7 @@ bitflags! {
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub(crate) struct MaterialUniform {
-    base_color_factor: [f32; 4],
+    base_color_factor: LinearRgba,
     emissive_factor: [f32; 3],
     metallic_factor: f32,
     roughness_factor: f32,
@@ -364,7 +365,7 @@ const _: () = assert!(std::mem::size_of::<MaterialUniform>() == 64);
 impl Default for MaterialUniform {
     fn default() -> Self {
         Self {
-            base_color_factor: [1.0; 4],
+            base_color_factor: LinearRgba::WHITE,
             emissive_factor: [0.0; 3],
             metallic_factor: 0.0,
             roughness_factor: 0.5,

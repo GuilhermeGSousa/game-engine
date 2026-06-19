@@ -31,7 +31,8 @@ use game_engine::{
     DefaultPlugins,
 };
 use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
-use glam::{Quat, Vec3, Vec4};
+use color::LinearRgba;
+use glam::{Quat, Vec3};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
     TextureViewDescriptor, TextureViewDimension,
@@ -124,7 +125,7 @@ fn spawn_player(
     ));
 
     let light = Light {
-        color: Vec4::new(1.0, 0.0, 1.0, 1.0),
+        color: LinearRgba::new(1.0, 0.0, 1.0, 1.0),
         intensity: 10.0,
         light_type: LightType::Spot(SpotLight {
             cone_angle: 50.0_f32.to_radians(),

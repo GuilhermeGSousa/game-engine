@@ -9,7 +9,7 @@ use ecs::{
 
 use encase::{ShaderType, UniformBuffer};
 use essential::transform::GlobalTransform;
-use glam::{Vec3, Vec4};
+use glam::Vec3;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
 use crate::{components::render_entity::RenderEntity, layouts::LightLayout, queue::RenderQueue};

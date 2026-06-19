@@ -8,6 +8,6 @@ name = "physics-test"
 path = "src/main.rs"
 
 [dependencies]
-jolt_physics = { path = "../../crates/jolt_physics" }
-essential = { path = "../../crates/essential" }
+game-engine = { path = "../.." }
 glam = "0.30.1"
+env_logger = "0.11.8"

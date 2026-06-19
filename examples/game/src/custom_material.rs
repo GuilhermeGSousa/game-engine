@@ -14,6 +14,7 @@
 /// 5. Attach `MaterialComponent::<UnlitMaterial>` to mesh entities instead of
 ///    the old `CustomMaterialComponent`.
 use bytemuck::{Pod, Zeroable};
+use color::LinearRgba;
 use game_engine::essential::assets::Asset;
 use game_engine::render::wgpu;
 use game_engine::render::{self, AsBindGroup};
@@ -26,7 +27,7 @@ use game_engine::render::{self, AsBindGroup};
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct TintUniform {
     /// RGBA tint colour applied to the whole mesh.
-    pub color: [f32; 4],
+    pub color: LinearRgba,
     /// Explicit padding — keeps the struct at 32 bytes (two `vec4`s).
     pub _padding: [f32; 4],
 }

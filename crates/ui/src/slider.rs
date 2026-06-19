@@ -1,3 +1,4 @@
+use color::LinearRgba;
 use ecs::{
     command::CommandQueue,
     component::Component,
@@ -85,7 +86,7 @@ pub(crate) fn setup_slider_visuals(
                     height: UIValue::Percent(1.0),
                     ..Default::default()
                 },
-                UIMaterial::flat([0.25, 0.55, 0.95, 1.0]),
+                UIMaterial::flat(LinearRgba::new(0.25, 0.55, 0.95, 1.0)),
             ))
             .entity();
         cmd.add_child(entity, fill);

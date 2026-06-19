@@ -178,7 +178,12 @@ pub(crate) fn clear_cameras(
                 view: color_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(render_camera.clear_color),
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: render_camera.clear_color.r as f64,
+                        g: render_camera.clear_color.g as f64,
+                        b: render_camera.clear_color.b as f64,
+                        a: render_camera.clear_color.a as f64,
+                    }),
                     store: wgpu::StoreOp::Store,
                 },
             })],

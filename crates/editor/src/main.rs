@@ -4,6 +4,7 @@ use app::{
     App,
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
 };
+use color::LinearRgba;
 use ecs::{
     command::CommandQueue,
     component::Component,
@@ -12,7 +13,6 @@ use ecs::{
     system::schedule::UpdateGroup,
 };
 use essential::{time::Time, transform::Transform};
-use color::LinearRgba;
 use glam::{Quat, Vec3};
 use render::{
     components::{

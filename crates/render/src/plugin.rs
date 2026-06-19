@@ -25,8 +25,8 @@ use crate::{
     },
 };
 use app::plugins::Plugin;
-use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
 use color::LinearRgba;
+use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
 use std::sync::{Arc, Mutex};
 use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
 

@@ -12,6 +12,7 @@ use animation::{
 };
 use anyhow::{Context, bail};
 use async_trait::async_trait;
+use color::LinearRgba;
 use ecs::{
     command::CommandQueue,
     component::Component,
@@ -26,7 +27,6 @@ use essential::{
     },
     transform::Transform,
 };
-use color::LinearRgba;
 use glam::{Mat4, Vec3};
 use gltf::{Node, Primitive, buffer::Data};
 

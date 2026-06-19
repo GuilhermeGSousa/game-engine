@@ -1,5 +1,6 @@
 use std::f32::consts::PI;
 
+use color::LinearRgba;
 use game_engine::{
     app::App,
     ecs::{
@@ -31,7 +32,6 @@ use game_engine::{
     DefaultPlugins,
 };
 use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
-use color::LinearRgba;
 use glam::{Quat, Vec3};
 use wgpu_types::{
     Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,

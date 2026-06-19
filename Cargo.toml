@@ -29,11 +29,11 @@ ecs = { path = "crates/ecs" }
 gltf-loader = { path = "crates/gltf-loader" }
 obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
-physics = { path = "crates/physics" }
+jolt_physics = { path = "crates/jolt_physics" }
 skybox = { path = "crates/skybox" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wgpu = { version = "24.0.1", features = ["webgl"] }
 
-[profile.dev.package.rapier3d]
+[profile.dev.package.joltc-sys]
 opt-level = 3

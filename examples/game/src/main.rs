@@ -15,7 +15,7 @@ use game_engine::{
         transform::{GlobalTransform, Transform},
     },
     obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent},
-    physics::{physics_state::PhysicsState, rigid_body::RigidBody},
+    jolt_physics::{physics_state::PhysicsState, rigid_body::RigidBody},
     render::{
         assets::{material::StandardMaterial, texture::TextureUsageSettings},
         components::{

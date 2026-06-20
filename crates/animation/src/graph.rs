@@ -1,9 +1,6 @@
 use std::{collections::HashMap, ops::Deref};
 
-use essential::{
-    assets::{Asset, handle::AssetHandle},
-    transform::Transform,
-};
+use essential::assets::{Asset, handle::AssetHandle};
 use log::warn;
 use petgraph::{
     Direction::Outgoing,
@@ -13,10 +10,10 @@ use petgraph::{
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode},
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedPose},
     node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
     player::ActiveNodeInstance,
-    target::AnimationTarget,
+    pose::{Pose, PoseLayout},
 };
 
 type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
@@ -192,16 +189,23 @@ impl AnimationGraphInstance {
             });
     }
 
+    /// Evaluates this graph into `out`, a full-skeleton pose pre-seeded with the bind pose.
+    ///
+    /// Uses a single post-order traversal with pooled pose buffers from `evaluator`, so no
+    /// per-node or per-frame allocation occurs.  `evaluator` is shared with nested
+    /// sub-graphs (state machines); a `stack_base` marker keeps those evaluations isolated.
     pub(crate) fn evaluate(
         &self,
-        target: &AnimationTarget,
+        layout: &PoseLayout,
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
+        evaluator: &mut AnimationGraphEvaluator,
+        out: &mut Pose,
+    ) {
         let Some(graph) = self.get_animation_graph(context) else {
-            return Transform::IDENTITY;
+            return;
         };
 
-        let mut graph_evaluator = AnimationGraphEvaluator::new();
+        let stack_base = evaluator.stack_len();
 
         for node_index in graph.iter_post_order() {
             let Some(node) = graph.get_node(node_index) else {
@@ -215,31 +219,54 @@ impl AnimationGraphInstance {
                 continue;
             };
 
-            let evaluated_inputs = graph
-                .get_node_inputs(node_index)
-                .filter_map(|_| graph_evaluator.pop_evaluation())
-                .collect::<Vec<_>>();
+            let input_count = graph.get_node_inputs(node_index).count();
 
-            let state_context = AnimationGraphContext {
-                animation_clips: context.animation_clips,
-                animation_graphs: context.animation_graphs,
-            };
+            // Output buffer for this node, seeded with the bind pose.
+            let mut output = evaluator.acquire(layout);
 
-            graph_evaluator.push_evaluation(EvaluatedNode {
-                transform: node_state.node_instance.evaluate(
-                    node,
-                    target,
-                    &evaluated_inputs,
-                    &state_context,
-                ),
+            // Move the children's poses off the stack into a scratch list that does not
+            // borrow the evaluator, leaving it free for nodes that evaluate sub-graphs.
+            let mut inputs = std::mem::take(&mut evaluator.inputs_scratch);
+            inputs.clear();
+            for _ in 0..input_count {
+                if evaluator.stack_len() <= stack_base {
+                    break;
+                }
+                if let Some(evaluated) = evaluator.pop() {
+                    inputs.push(evaluated.pose);
+                }
+            }
+
+            node_state
+                .node_instance
+                .evaluate(node, layout, &inputs, context, evaluator, &mut output);
+
+            for pose in inputs.drain(..) {
+                evaluator.release(pose);
+            }
+            evaluator.inputs_scratch = inputs;
+
+            evaluator.push(EvaluatedPose {
+                pose: output,
                 weight: node_state.weight,
             });
         }
 
-        graph_evaluator
-            .pop_evaluation()
-            .map(|evaluated_node| evaluated_node.transform)
-            .unwrap_or(Transform::IDENTITY)
+        // The remaining entry above `stack_base` is this graph's result.
+        if evaluator.stack_len() > stack_base
+            && let Some(result) = evaluator.pop()
+        {
+            let mut result_pose = result.pose;
+            std::mem::swap(out, &mut result_pose);
+            evaluator.release(result_pose);
+        }
+
+        // Defensively recycle anything this sub-evaluation left behind.
+        while evaluator.stack_len() > stack_base {
+            if let Some(extra) = evaluator.pop() {
+                evaluator.release(extra.pose);
+            }
+        }
     }
 
     pub(crate) fn get_animation_graph<'a>(

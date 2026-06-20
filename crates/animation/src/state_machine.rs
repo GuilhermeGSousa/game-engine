@@ -1,18 +1,17 @@
 use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::evaluation::EvaluatedNode;
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
-use crate::target::AnimationTarget;
+use crate::pose::{Pose, PoseLayout};
 use crate::transition::AnimationTransitionBlender;
 use crate::transition::blend_stack::BlendStack;
 use crate::{
-    evaluation::AnimationGraphContext,
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     node::{AnimationNode, AnimationNodeInstance},
 };
 
 use derive_more::Deref;
-use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
+use essential::{assets::handle::AssetHandle, utils::AsAny};
 
 pub struct AnimationFSMStateDefinition<'a> {
     pub name: &'a str,
@@ -263,12 +262,19 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
     fn evaluate(
         &self,
         _node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        _evaluated_inputs: &[EvaluatedNode],
+        layout: &PoseLayout,
+        _inputs: &[Pose],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
-        self.blend_stack
-            .sample(target, &self.state_graph_instances, context)
+        evaluator: &mut AnimationGraphEvaluator,
+        output: &mut Pose,
+    ) {
+        self.blend_stack.sample(
+            layout,
+            &self.state_graph_instances,
+            context,
+            evaluator,
+            output,
+        );
     }
 }
 

@@ -1,7 +1,10 @@
 use ecs::{
     component::Component,
     entity::Entity,
-    query::{Query, query_filter::Changed},
+    query::{
+        Query,
+        query_filter::{Added, Changed},
+    },
     resource::Res,
 };
 use essential::{assets::asset_store::AssetStore, time::Time, transform::Transform};
@@ -12,7 +15,7 @@ use crate::{
     evaluation::AnimationGraphContext,
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
-    root::AnimationRootBone,
+    pose::AnimationSkeleton,
 };
 
 #[derive(Component)]
@@ -21,33 +24,52 @@ pub struct AnimationTarget {
     pub animator: Entity,
 }
 
-pub(crate) fn animate_targets(
-    animation_players: Query<&AnimationPlayer>,
-    animation_targets: Query<(
-        &mut Transform,
-        &AnimationTarget,
-        Option<&mut AnimationRootBone>,
-    )>,
-    animation_graphs: Res<AssetStore<AnimationGraph>>,
-    animation_clips: Res<AssetStore<AnimationClip>>,
+/// Consumes the loader-provided [`AnimationSkeleton`] into the player's pose layout, once,
+/// when the skeleton is first attached.
+pub(crate) fn build_pose_layouts(
+    animation_players: Query<&mut AnimationPlayer>,
+    skeletons: Query<(Entity, &AnimationSkeleton), Added<AnimationSkeleton>>,
 ) {
-    for (mut target_transform, animation_target, animation_root) in animation_targets.iter() {
-        let Some(animation_player) = animation_players.get_entity(animation_target.animator) else {
+    for (entity, skeleton) in skeletons.iter() {
+        let Some(mut animation_player) = animation_players.get_entity(entity) else {
             continue;
         };
 
-        let graph_instance = animation_player.graph_instance();
+        animation_player.set_layout(skeleton.bones.clone());
+    }
+}
 
-        if let Some(_animation_root) = animation_root {
-            // TODO: Accumulate root motion and store it in animation_root
-        } else {
-            **target_transform = graph_instance.evaluate(
-                animation_target,
-                &AnimationGraphContext {
-                    animation_clips: &animation_clips,
-                    animation_graphs: &animation_graphs,
-                },
-            );
+/// Evaluates each player's graph exactly once per frame into its full-skeleton pose.
+pub(crate) fn evaluate_animations(
+    animation_players: Query<&mut AnimationPlayer>,
+    animation_clips: Res<AssetStore<AnimationClip>>,
+    animation_graphs: Res<AssetStore<AnimationGraph>>,
+) {
+    for mut animation_player in animation_players.iter() {
+        animation_player.evaluate(&AnimationGraphContext {
+            animation_clips: &animation_clips,
+            animation_graphs: &animation_graphs,
+        });
+    }
+}
+
+/// Writes each player's evaluated pose back onto its individual bone transforms.
+pub(crate) fn apply_poses(
+    animation_players: Query<&AnimationPlayer>,
+    transforms: Query<&mut Transform>,
+) {
+    for animation_player in animation_players.iter() {
+        let pose = animation_player.current_pose();
+
+        for (index, bone) in animation_player.layout().bones().iter().enumerate() {
+            if bone.is_root {
+                // TODO: Accumulate root motion; leave the root bone's transform untouched.
+                continue;
+            }
+
+            if let Some(mut transform) = transforms.get_entity(bone.entity) {
+                **transform = pose.transforms[index].clone();
+            }
         }
     }
 }

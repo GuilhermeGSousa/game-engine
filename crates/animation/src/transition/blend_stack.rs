@@ -1,9 +1,7 @@
-use essential::{blend::Blendable, transform::Transform};
-
 use crate::{
-    evaluation::AnimationGraphContext,
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     graph::{AnimationGraphInstances, GraphId},
-    target::AnimationTarget,
+    pose::{Pose, PoseLayout},
     transition::AnimationTransitionBlender,
 };
 
@@ -30,25 +28,26 @@ impl BlendStack {
 impl AnimationTransitionBlender for BlendStack {
     fn sample(
         &self,
-        target: &AnimationTarget,
+        layout: &PoseLayout,
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
-    ) -> essential::transform::Transform {
-        let mut result = graph_instances
-            .get(self.current_graph)
-            .map(|graph_instance| graph_instance.evaluate(target, context))
-            .unwrap_or(Transform::IDENTITY);
-
-        for layer in &self.layers {
-            let layer_transform = graph_instances
-                .get(layer.graph_id)
-                .map(|graph_instance| graph_instance.evaluate(target, context))
-                .unwrap_or(Transform::IDENTITY);
-
-            result = Transform::interpolate(result, layer_transform, layer.weight);
+        evaluator: &mut AnimationGraphEvaluator,
+        output: &mut Pose,
+    ) {
+        // Evaluate the active graph into the output pose (left at bind if it's missing).
+        if let Some(graph_instance) = graph_instances.get(self.current_graph) {
+            graph_instance.evaluate(layout, context, evaluator, output);
         }
 
-        result
+        // Blend each transitioning layer on top, using a pooled temporary pose.
+        for layer in &self.layers {
+            let mut layer_pose = evaluator.acquire(layout);
+            if let Some(graph_instance) = graph_instances.get(layer.graph_id) {
+                graph_instance.evaluate(layout, context, evaluator, &mut layer_pose);
+            }
+            output.interpolate_into(&layer_pose, layer.weight);
+            evaluator.release(layer_pose);
+        }
     }
 
     fn update(

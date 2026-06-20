@@ -5,9 +5,10 @@ use essential::assets::handle::AssetHandle;
 use log::info;
 
 use crate::{
-    evaluation::AnimationGraphContext,
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
+    pose::{Pose, PoseBone, PoseLayout},
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
@@ -30,6 +31,9 @@ impl ActiveNodeInstance {
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
     graph_instance: AnimationGraphInstance,
+    layout: PoseLayout,
+    current_pose: Pose,
+    evaluator: AnimationGraphEvaluator,
 }
 
 impl AnimationPlayer {
@@ -75,8 +79,37 @@ impl AnimationPlayer {
         self.graph_instance.update(delta_time, context);
     }
 
-    pub(crate) fn graph_instance(&self) -> &AnimationGraphInstance {
-        &self.graph_instance
+    /// Installs the skeleton this player drives and sizes the pose buffer accordingly.
+    pub(crate) fn set_layout(&mut self, bones: Vec<PoseBone>) {
+        self.layout = PoseLayout::from_bones(bones);
+        self.layout.seed(&mut self.current_pose);
+    }
+
+    /// Evaluates the graph once into `current_pose` for the whole skeleton.
+    pub(crate) fn evaluate(&mut self, context: &AnimationGraphContext) {
+        if self.layout.is_empty() {
+            return;
+        }
+
+        // Disjoint borrows so the graph can read the layout while writing the pose using the
+        // player-owned evaluator (whose pools persist across frames).
+        let Self {
+            graph_instance,
+            layout,
+            current_pose,
+            evaluator,
+        } = self;
+
+        layout.seed(current_pose);
+        graph_instance.evaluate(layout, context, evaluator, current_pose);
+    }
+
+    pub fn layout(&self) -> &PoseLayout {
+        &self.layout
+    }
+
+    pub fn current_pose(&self) -> &Pose {
+        &self.current_pose
     }
 }
 

@@ -1,21 +1,22 @@
-use essential::transform::Transform;
-
 use crate::{
-    evaluation::AnimationGraphContext,
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     graph::{AnimationGraphInstances, GraphId},
-    target::AnimationTarget,
+    pose::{Pose, PoseLayout},
 };
 
 pub(crate) mod blend_stack;
 pub(crate) mod inertialization_blender;
 
 pub(crate) trait AnimationTransitionBlender {
+    /// Samples the blender into `output`, a full-skeleton pose pre-seeded with the bind pose.
     fn sample(
         &self,
-        target: &AnimationTarget,
+        layout: &PoseLayout,
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
-    ) -> Transform;
+        evaluator: &mut AnimationGraphEvaluator,
+        output: &mut Pose,
+    );
 
     fn update(
         &mut self,

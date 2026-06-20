@@ -1,23 +1,29 @@
 use std::any::Any;
 
-use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
+use essential::{assets::handle::AssetHandle, utils::AsAny};
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphContext, EvaluatedNode},
-    target::AnimationTarget,
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
+    pose::{Pose, PoseLayout},
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
     fn reset(&mut self);
 
+    /// Evaluates this node into `output`, a full-skeleton pose pre-seeded with the bind pose.
+    ///
+    /// `inputs` are the already-evaluated poses of this node's children.  `evaluator` is the
+    /// shared pool/stack, used only by nodes that evaluate sub-graphs (e.g. state machines).
     fn evaluate(
         &self,
         node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        evaluated_inputs: &[EvaluatedNode],
+        layout: &PoseLayout,
+        inputs: &[Pose],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform;
+        evaluator: &mut AnimationGraphEvaluator,
+        output: &mut Pose,
+    );
 
     fn update(
         &mut self,
@@ -51,15 +57,17 @@ impl AnimationNodeInstance for NoneInstance {
     fn evaluate(
         &self,
         _node: &dyn AnimationNode,
-        _target: &AnimationTarget,
-        evaluated_inputs: &[EvaluatedNode],
+        _layout: &PoseLayout,
+        inputs: &[Pose],
         _context: &AnimationGraphContext<'_>,
-    ) -> Transform {
-        evaluated_inputs
-            .first()
-            .map(|evaluated_node| &evaluated_node.transform)
-            .unwrap_or(&Transform::IDENTITY)
-            .clone()
+        _evaluator: &mut AnimationGraphEvaluator,
+        output: &mut Pose,
+    ) {
+        // Pass-through: forward the first input if there is one, otherwise leave the
+        // bind-seeded pose untouched.
+        if let Some(first) = inputs.first() {
+            output.transforms.clone_from(&first.transforms);
+        }
     }
 }
 
@@ -115,30 +123,35 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn evaluate(
         &self,
         node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        _evaluated_inputs: &[EvaluatedNode],
+        layout: &PoseLayout,
+        _inputs: &[Pose],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
+        _evaluator: &mut AnimationGraphEvaluator,
+        output: &mut Pose,
+    ) {
         let Some(animation_clip) = node
             .as_any()
             .downcast_ref::<AnimationClipNode>()
             .and_then(|animation_clip| context.animation_clips.get(&animation_clip.clip))
         else {
-            return Transform::IDENTITY;
+            return;
         };
 
-        // Find the channel for this animation target
-        let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
-            return Transform::IDENTITY;
-        };
+        // Sample every animated bone in the skeleton into the pose.  Bones with no channel
+        // in this clip keep their seeded bind transform.
+        for (index, bone) in layout.bones().iter().enumerate() {
+            let Some(target_id) = bone.target_id else {
+                continue;
+            };
+            let Some(animation_channels) = animation_clip.get_channels(&target_id) else {
+                continue;
+            };
 
-        // Based on the current time of the animation player + delta time, interpolate the target's transform
-        let mut target_transform = Transform::IDENTITY;
-        for animation_channel in animation_channels {
-            animation_channel.sample_transform(self.current_time(), &mut target_transform);
+            let target_transform = &mut output.transforms[index];
+            for animation_channel in animation_channels {
+                animation_channel.sample_transform(self.current_time(), target_transform);
+            }
         }
-
-        target_transform
     }
 
     fn update(

@@ -32,15 +32,13 @@ use gltf::{Node, Primitive, buffer::Data};
 
 use image::ImageBuffer;
 use log::warn;
+use mesh::{mesh::MeshComponent, skeleton::SkeletonComponent};
 use render::{
     assets::{
         material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture,
         vertex::Vertex,
     },
-    components::{
-        material_component::MaterialComponent, mesh_component::MeshComponent,
-        skeleton_component::SkeletonComponent,
-    },
+    components::material::MaterialComponent,
 };
 use uuid::Uuid;
 

@@ -24,6 +24,7 @@ app = { path = "crates/app" }
 animation = { path = "crates/animation" }
 essential = { path = "crates/essential" }
 render = { path = "crates/render" }
+mesh = { path = "crates/mesh" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 gltf-loader = { path = "crates/gltf-loader" }

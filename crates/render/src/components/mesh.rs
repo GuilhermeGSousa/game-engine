@@ -5,20 +5,13 @@ use ecs::{
     Added, CommandQueue, Entity,
 };
 use essential::{
-    assets::{handle::AssetHandle, AssetId},
+    assets::AssetId,
     transform::{GlobalTransform, Transform},
 };
+use mesh::mesh::MeshComponent;
 use wgpu::util::DeviceExt;
 
-use crate::{
-    assets::mesh::Mesh, components::render_entity::RenderEntity, device::RenderDevice,
-    queue::RenderQueue,
-};
-
-#[derive(Component)]
-pub struct MeshComponent {
-    pub handle: AssetHandle<Mesh>,
-}
+use crate::{components::render_entity::RenderEntity, device::RenderDevice, queue::RenderQueue};
 
 #[derive(Component)]
 pub(crate) struct RenderMeshInstance {

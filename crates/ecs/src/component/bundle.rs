@@ -191,6 +191,7 @@ where
         self.insert_components(archetype, current_tick, row);
     }
 
+    #[allow(clippy::let_and_return)]
     fn generate_empty_table() -> Table {
         let mut table = Table::new();
         for typle_index!(i) in 0..T::LEN {

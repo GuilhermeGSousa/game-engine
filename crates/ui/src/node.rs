@@ -18,10 +18,8 @@ use glam::Vec2;
 use log::warn;
 use render::{
     assets::{material::AsBindGroup, texture::Texture},
-    components::{
-        camera::{Camera, RenderCamera, RenderTarget},
-        render_entity::RenderEntity,
-    },
+    components::camera::{Camera, RenderCamera, RenderTarget},
+    components::render_entity::RenderEntity,
     device::RenderDevice,
     render_asset::{
         RenderAssets,

@@ -3,7 +3,7 @@ use ecs::{Added, CommandQueue, Component, Entity, Query, Res};
 use essential::{assets::asset_server::AssetServer, transform::Transform};
 use glam::{Quat, Vec3};
 use mesh::MeshComponent;
-use render::{MaterialComponent};
+use render::MaterialComponent;
 
 use crate::{material::DebugGizmoMaterial, shapes::GizmoShapes};
 

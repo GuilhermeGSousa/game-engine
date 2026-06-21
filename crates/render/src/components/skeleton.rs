@@ -1,8 +1,8 @@
 use std::ops::Deref;
 
 use crate::{
-    assets::skeleton::Skeleton, device::RenderDevice,
-    layouts::SkeletonLayout, queue::RenderQueue, components::render_entity::RenderEntity,
+    assets::skeleton::Skeleton, components::render_entity::RenderEntity, device::RenderDevice,
+    layouts::SkeletonLayout, queue::RenderQueue,
 };
 use ecs::{
     command::CommandQueue,
@@ -12,17 +12,13 @@ use ecs::{
     resource::{Res, Resource},
 };
 use encase::UniformBuffer;
-use essential::{
-    assets::asset_store::AssetStore,
-    transform::GlobalTransform,
-};
+use essential::{assets::asset_store::AssetStore, transform::GlobalTransform};
 use glam::Mat4;
 use mesh::skeleton::SkeletonComponent;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, BufferDescriptor, Device};
 
 const MAX_SKELETON_BONES: usize = 256;
 const BONE_SIZE: usize = size_of::<Mat4>();
-
 
 #[derive(Component)]
 pub struct RenderSkeletonComponent {

@@ -10,39 +10,58 @@ use ecs::{
 };
 use mesh::mesh::MeshComponent;
 
-use crate::{Material, assets::material::ShaderRef, components::{camera::RenderCamera, light::RenderLights, material::{MaterialComponent, RenderMaterialComponent}, mesh::RenderMeshInstance, render_entity::RenderEntity, skeleton::{EmptySkeletonBuffer, RenderSkeletonComponent}}, device::RenderDevice, layouts::{CameraLayout, LightLayout, SkeletonLayout}, render_asset::{AssetPreparationError, RenderAsset, RenderAssetPlugin, RenderAssets, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow}, resources::RenderContext};
+use crate::{
+    assets::material::ShaderRef,
+    components::{
+        camera::RenderCamera,
+        light::RenderLights,
+        material::{MaterialComponent, RenderMaterialComponent},
+        mesh::RenderMeshInstance,
+        render_entity::RenderEntity,
+        skeleton::{EmptySkeletonBuffer, RenderSkeletonComponent},
+    },
+    device::RenderDevice,
+    layouts::{CameraLayout, LightLayout, SkeletonLayout},
+    render_asset::{
+        render_mesh::RenderMesh,
+        render_texture::{DummyRenderTexture, RenderTexture},
+        render_window::RenderWindow,
+        AssetPreparationError, RenderAsset, RenderAssetPlugin, RenderAssets,
+    },
+    resources::RenderContext,
+    Material,
+};
 
-
-/// Generic material plugin.
-///
-/// Registering `MaterialPlugin::<M>::new()` sets up everything needed to render
-/// meshes that use material type `M`:
-///
-/// * Registers `M` as an asset type.
-/// * Creates a `wgpu::RenderPipeline` whose layout is built from `M`'s own bind
-///   group layout plus whichever engine bind groups `M` declares it needs via
-///   [`Material::needs_camera`], [`Material::needs_lighting`] and
-///   [`Material::needs_skeleton`].
-/// * Adds a render pass (`material_renderpass<M>`) that only processes mesh
-///   entities carrying [`MaterialComponent<M>`].
-///
-/// # Using a custom material
-///
-/// 1. Derive (or manually implement) [`AsBindGroup`] for your type, then implement
-///    [`Material`] (usually with default methods).
-/// 2. Register the plugin: `app.register_plugin(MaterialPlugin::<MyMaterial>::new())`.
-/// 3. Attach [`MaterialComponent::<MyMaterial>`] + [`MeshComponent`] to an entity.
-///
-/// # Shader bind-group convention
-///
-/// | Group | Contents                         | Condition                      |
-/// |-------|----------------------------------|--------------------------------|
-/// | 0     | Material's own bindings          | always                         |
-/// | 1     | Camera uniform                   | `M::needs_camera()` → true     |
-/// | 2     | Lighting uniform                 | `M::needs_lighting()` → true   |
-/// | 3     | Skeleton (bone) uniforms         | `M::needs_skeleton()` → true   |
-///
-/// Your WGSL only needs to declare the groups that your material actually uses.
+// Generic material plugin.
+//
+// Registering `MaterialPlugin::<M>::new()` sets up everything needed to render
+// meshes that use material type `M`:
+//
+// * Registers `M` as an asset type.
+// * Creates a `wgpu::RenderPipeline` whose layout is built from `M`'s own bind
+//   group layout plus whichever engine bind groups `M` declares it needs via
+//   [`Material::needs_camera`], [`Material::needs_lighting`] and
+//   [`Material::needs_skeleton`].
+// * Adds a render pass (`material_renderpass<M>`) that only processes mesh
+//   entities carrying [`MaterialComponent<M>`].
+//
+// # Using a custom material
+//
+// 1. Derive (or manually implement) [`AsBindGroup`] for your type, then implement
+//    [`Material`] (usually with default methods).
+// 2. Register the plugin: `app.register_plugin(MaterialPlugin::<MyMaterial>::new())`.
+// 3. Attach [`MaterialComponent::<MyMaterial>`] + [`MeshComponent`] to an entity.
+//
+// # Shader bind-group convention
+//
+// | Group | Contents                         | Condition                      |
+// |-------|----------------------------------|--------------------------------|
+// | 0     | Material's own bindings          | always                         |
+// | 1     | Camera uniform                   | `M::needs_camera()` → true     |
+// | 2     | Lighting uniform                 | `M::needs_lighting()` → true   |
+// | 3     | Skeleton (bone) uniforms         | `M::needs_skeleton()` → true   |
+//
+// Your WGSL only needs to declare the groups that your material actually uses.
 
 // ─── Default (built-in) shader source ────────────────────────────────────────
 
@@ -50,12 +69,12 @@ pub(crate) const DEFAULT_SHADER_SOURCE: &str = include_str!("shaders/shader.wgsl
 
 // ─── MaterialPipeline ─────────────────────────────────────────────────────────
 
-/// Stores the wgpu render pipeline and material bind-group layout for `M`.
-///
-/// Inserted as a resource by [`MaterialPlugin<M>::finish`].
+// Stores the wgpu render pipeline and material bind-group layout for `M`.
+//
+// Inserted as a resource by [`MaterialPlugin<M>::finish`].
 pub struct MaterialPipeline<M: 'static> {
     pub pipeline: wgpu::RenderPipeline,
-    /// The `@group(0)` bind-group layout for `M`'s own data.
+    // The `@group(0)` bind-group layout for `M`'s own data.
     pub bind_group_layout: wgpu::BindGroupLayout,
     _marker: PhantomData<fn() -> M>,
 }
@@ -77,10 +96,10 @@ impl<M: 'static> Resource for MaterialPipeline<M> {
     }
 }
 
-/// GPU-side representation of a prepared `M` instance.
-///
-/// Stores the `wgpu::BindGroup` built from the material's data and ready to be
-/// bound at `@group(0)` during the material render pass.
+// GPU-side representation of a prepared `M` instance.
+//
+// Stores the `wgpu::BindGroup` built from the material's data and ready to be
+// bound at `@group(0)` during the material render pass.
 pub struct RenderMaterial<M: 'static> {
     pub bind_group: wgpu::BindGroup,
     _marker: PhantomData<fn() -> M>,
@@ -115,8 +134,8 @@ impl<M: Material + 'static> RenderAsset for RenderMaterial<M> {
 
 // ─── Systems ──────────────────────────────────────────────────────────────────
 
-/// Creates a render-world instance when a [`MeshComponent`] is added to an
-/// entity that also carries [`MaterialComponent<M>`].
+// Creates a render-world instance when a [`MeshComponent`] is added to an
+// entity that also carries [`MaterialComponent<M>`].
 pub(crate) fn material_added<M: Material>(
     meshes: Query<(Entity, &MaterialComponent<M>, Option<&RenderEntity>), Added<(MeshComponent,)>>,
     mut cmd: CommandQueue,
@@ -136,10 +155,10 @@ pub(crate) fn material_added<M: Material>(
     }
 }
 
-/// Clears color and depth for all cameras at the start of each frame.
-///
-/// Runs before all `material_renderpass<M>` systems so every material pass can
-/// use `LoadOp::Load` without clobbering the previous pass's output.
+// Clears color and depth for all cameras at the start of each frame.
+//
+// Runs before all `material_renderpass<M>` systems so every material pass can
+// use `LoadOp::Load` without clobbering the previous pass's output.
 pub(crate) fn clear_cameras(
     mut device: ResMut<RenderDevice>,
     render_cameras: Query<&RenderCamera>,
@@ -184,11 +203,11 @@ pub(crate) fn clear_cameras(
     }
 }
 
-/// Render pass for meshes that use material `M`.
-///
-/// Only processes entities tagged with [`RenderMaterialComponent<M>`] so
-/// multiple `MaterialPlugin` instantiations for different material types can
-/// coexist without interfering with each other.
+// Render pass for meshes that use material `M`.
+//
+// Only processes entities tagged with [`RenderMaterialComponent<M>`] so
+// multiple `MaterialPlugin` instantiations for different material types can
+// coexist without interfering with each other.
 pub(crate) fn material_renderpass<M: Material>(
     pipeline: Res<MaterialPipeline<M>>,
     mut device: ResMut<RenderDevice>,
@@ -286,25 +305,25 @@ pub(crate) fn material_renderpass<M: Material>(
 
 // ─── MaterialPlugin ───────────────────────────────────────────────────────────
 
-/// Register this plugin to enable rendering with material `M`.
-///
-/// ```rust,ignore
-/// app.register_plugin(MaterialPlugin::<UnlitMaterial>::new());
-/// ```
-///
-/// The plugin uses `M`'s [`Material`] flags to build a pipeline layout that
-/// contains only the bind groups the shaders actually need.  Shader code
-/// therefore never has to declare unused `@group(N)` bindings.
-///
-/// # Pipeline-only mode
-///
-/// For materials that have their own custom render pass (e.g. skybox, UI)
-/// you can use [`MaterialPlugin::pipeline_only`] to create just the
-/// [`MaterialPipeline<M>`] resource without registering the generic mesh
-/// rendering systems.
+// Register this plugin to enable rendering with material `M`.
+//
+// ```rust,ignore
+// app.register_plugin(MaterialPlugin::<UnlitMaterial>::new());
+// ```
+//
+// The plugin uses `M`'s [`Material`] flags to build a pipeline layout that
+// contains only the bind groups the shaders actually need.  Shader code
+// therefore never has to declare unused `@group(N)` bindings.
+//
+// # Pipeline-only mode
+//
+// For materials that have their own custom render pass (e.g. skybox, UI)
+// you can use [`MaterialPlugin::pipeline_only`] to create just the
+// [`MaterialPipeline<M>`] resource without registering the generic mesh
+// rendering systems.
 pub struct MaterialPlugin<M: Material> {
-    /// When `true`, only the [`MaterialPipeline<M>`] resource is set up.
-    /// No asset registration and no mesh rendering systems are added.
+    // When `true`, only the [`MaterialPipeline<M>`] resource is set up.
+    // No asset registration and no mesh rendering systems are added.
     pipeline_only: bool,
     _marker: PhantomData<fn() -> M>,
 }
@@ -319,17 +338,17 @@ impl<M: Material> Default for MaterialPlugin<M> {
 }
 
 impl<M: Material> MaterialPlugin<M> {
-    /// Full material plugin: registers the asset type, the render-asset
-    /// pipeline, and the generic mesh rendering systems.
+    // Full material plugin: registers the asset type, the render-asset
+    // pipeline, and the generic mesh rendering systems.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Pipeline-only mode: only creates the [`MaterialPipeline<M>`] resource.
-    ///
-    /// Use this when the material has its own custom render pass (e.g. skybox,
-    /// UI) and you only need the wgpu pipeline to be built from the material's
-    /// trait methods without the generic mesh rendering systems.
+    // Pipeline-only mode: only creates the [`MaterialPipeline<M>`] resource.
+    //
+    // Use this when the material has its own custom render pass (e.g. skybox,
+    // UI) and you only need the wgpu pipeline to be built from the material's
+    // trait methods without the generic mesh rendering systems.
     pub fn pipeline_only() -> Self {
         Self {
             pipeline_only: true,

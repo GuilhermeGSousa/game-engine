@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use ecs::component::Component;
-use essential::assets::{AssetId, handle::AssetHandle};
+use essential::assets::{handle::AssetHandle, AssetId};
 
-use crate::{Material, assets::material::StandardMaterial};
+use crate::{assets::material::StandardMaterial, Material};
 
 /// Attach this component (alongside [`MeshComponent`]) to an entity to tell the engine
 /// which material the mesh should be rendered with.
@@ -15,7 +15,6 @@ use crate::{Material, assets::material::StandardMaterial};
 pub struct MaterialComponent<M: Material + Send + Sync + 'static = StandardMaterial> {
     pub handle: AssetHandle<M>,
 }
-
 
 /// Render-world component placed on mesh entities to identify which material
 /// asset they use for a specific material type `M`.

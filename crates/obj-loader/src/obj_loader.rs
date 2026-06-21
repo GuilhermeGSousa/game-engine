@@ -18,7 +18,7 @@ use tobj::Model;
 
 use render::{
     assets::{mesh::Mesh, vertex::Vertex},
-    components::{material::MaterialComponent},
+    components::material::MaterialComponent,
 };
 
 use crate::mtl_loader::MTLMaterial;

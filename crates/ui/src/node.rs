@@ -19,11 +19,12 @@ use log::warn;
 use render::{
     assets::{material::AsBindGroup, texture::Texture},
     components::camera::{Camera, RenderCamera, RenderTarget},
+    components::render_entity::RenderEntity,
     device::RenderDevice,
     render_asset::{
         RenderAssets,
         render_texture::{DummyRenderTexture, RenderTexture},
-    }, components::render_entity::RenderEntity,
+    },
 };
 use taffy::{
     AvailableSpace, Dimension, FlexDirection, LengthPercentage, LengthPercentageAuto, NodeId, Rect,

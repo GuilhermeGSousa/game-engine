@@ -13,4 +13,3 @@ pub use light::Light;
 pub use material::MaterialComponent;
 pub use render_entity::RenderEntity;
 pub use world_environment::WorldEnvironment;
-

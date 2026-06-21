@@ -11,7 +11,7 @@ use essential::{
 use mesh::mesh::MeshComponent;
 use wgpu::util::DeviceExt;
 
-use crate::{device::RenderDevice, queue::RenderQueue, components::render_entity::RenderEntity};
+use crate::{components::render_entity::RenderEntity, device::RenderDevice, queue::RenderQueue};
 
 #[derive(Component)]
 pub(crate) struct RenderMeshInstance {

@@ -1,5 +1,5 @@
 use ecs::{Component, Entity};
-use essential::assets::{Asset, handle::AssetHandle};
+use essential::assets::{handle::AssetHandle, Asset};
 use glam::Mat4;
 
 #[derive(Asset)]
@@ -26,13 +26,11 @@ impl SkeletonComponent {
         Self { skeleton, bones }
     }
 
-    pub fn skeleton(&self) -> &AssetHandle<Skeleton>
-    {
+    pub fn skeleton(&self) -> &AssetHandle<Skeleton> {
         &self.skeleton
     }
 
-    pub fn bones(&self) -> &Vec<Entity>
-    {
+    pub fn bones(&self) -> &Vec<Entity> {
         &self.bones
     }
 }

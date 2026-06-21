@@ -3,13 +3,13 @@ pub use app;
 pub use ecs;
 pub use essential;
 pub use gltf_loader;
+pub use mesh;
 pub use obj_loader;
 pub use physics;
 pub use render;
 pub use skybox;
 pub use ui;
 pub use window;
-pub use mesh;
 
 use animation::plugin::AnimationPlugin;
 use app::{

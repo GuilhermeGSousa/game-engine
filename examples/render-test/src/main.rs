@@ -1,4 +1,3 @@
-
 use app::App;
 use color::LinearRgba;
 use ecs::{

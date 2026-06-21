@@ -1,5 +1,5 @@
 use ecs::Component;
-use essential::assets::{Asset, handle::AssetHandle};
+use essential::assets::{handle::AssetHandle, Asset};
 use glam::{Vec2, Vec3};
 
 use crate::vertex::Vertex;

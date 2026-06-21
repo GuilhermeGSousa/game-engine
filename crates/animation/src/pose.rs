@@ -1,30 +1,11 @@
 use std::collections::HashMap;
 
-use ecs::{component::Component, entity::Entity};
 use essential::{blend::Blendable, transform::Transform};
 use uuid::Uuid;
 
-/// A single bone in a player's skeleton, in skeleton order.
-///
-/// Built once at setup and stored inside a [`PoseLayout`].  It carries everything the
-/// animation graph needs to evaluate and apply a full pose: the bone entity to write the
-/// result back to, the animation-channel key (for bones that are actually animated), and
-/// the bind/rest local transform used to seed un-animated bones.
-#[derive(Clone)]
-pub struct PoseBone {
-    /// Entity whose `Transform` the evaluated pose is written back to.
-    pub entity: Entity,
-    /// Animation-clip channel key.  `Some` only for bones that appear in a clip; `None`
-    /// bones keep their bind pose.
-    pub target_id: Option<Uuid>,
-    /// Rest/bind local transform, used as the seed value for this bone every frame.
-    pub bind_local: Transform,
-    /// `true` for the skeleton's root-motion bone (see `apply_poses`).
-    pub is_root: bool,
-}
-
-/// A full-skeleton pose: one local [`Transform`] per bone, indexed by the bone's position
-/// in the owning [`PoseLayout`].  This is the unit the animation graph passes between nodes.
+/// A full-skeleton pose: one local [`Transform`] per bone, indexed by the bone's position in
+/// the owning skeleton (see [`mesh::skeleton::SkeletonComponent::bones`]).  This is the unit
+/// the animation graph passes between nodes.
 #[derive(Default, Clone)]
 pub struct Pose {
     pub transforms: Vec<Transform>,
@@ -41,44 +22,47 @@ impl Pose {
     }
 }
 
-/// Stable, per-player description of the skeleton the graph animates.
+/// Per-player, animation-specific description of a skeleton's bones, indexed in
+/// [`SkeletonComponent::bones`](mesh::skeleton::SkeletonComponent::bones) order.
 ///
-/// Owns the ordered bone list plus fast lookups: target-id → bone index (for clip sampling)
-/// and a cached bind pose (for seeding pose buffers cheaply).
+/// It deliberately holds *only* the data the skeleton component does not: the animation
+/// channel id of each bone (for clip sampling and IK lookups) and the bind/rest pose used to
+/// seed evaluation.  The bone entities themselves are read live from the
+/// `SkeletonComponent`, so they are not duplicated here.
 #[derive(Default)]
 pub struct PoseLayout {
-    bones: Vec<PoseBone>,
+    target_ids: Vec<Option<Uuid>>,
     index_of_target: HashMap<Uuid, usize>,
     bind_pose: Vec<Transform>,
 }
 
 impl PoseLayout {
-    pub fn from_bones(bones: Vec<PoseBone>) -> Self {
+    /// Builds a layout from parallel per-bone data (same order as the skeleton's bones).
+    pub fn new(target_ids: Vec<Option<Uuid>>, bind_pose: Vec<Transform>) -> Self {
         let mut index_of_target = HashMap::new();
-        let mut bind_pose = Vec::with_capacity(bones.len());
-        for (index, bone) in bones.iter().enumerate() {
-            if let Some(id) = bone.target_id {
-                index_of_target.insert(id, index);
+        for (index, target_id) in target_ids.iter().enumerate() {
+            if let Some(id) = target_id {
+                index_of_target.insert(*id, index);
             }
-            bind_pose.push(bone.bind_local.clone());
         }
         Self {
-            bones,
+            target_ids,
             index_of_target,
             bind_pose,
         }
     }
 
     pub fn len(&self) -> usize {
-        self.bones.len()
+        self.bind_pose.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.bones.is_empty()
+        self.bind_pose.is_empty()
     }
 
-    pub fn bones(&self) -> &[PoseBone] {
-        &self.bones
+    /// Per-bone animation channel ids; `None` for un-animated bones.
+    pub fn target_ids(&self) -> &[Option<Uuid>] {
+        &self.target_ids
     }
 
     /// Resolves the bone index for an animated target, if present in this skeleton.
@@ -93,27 +77,10 @@ impl PoseLayout {
     }
 }
 
-/// Hand-off component carrying the ordered bone list a player drives.
-///
-/// Inserted by the glTF loader on the player entity and consumed once (via the
-/// `build_pose_layouts` system) into the player's [`PoseLayout`].  This keeps the animation
-/// crate free of a dependency on the render crate, where the skeleton GPU data lives.
-#[derive(Component)]
-pub struct AnimationSkeleton {
-    pub bones: Vec<PoseBone>,
-}
-
-impl AnimationSkeleton {
-    pub fn new(bones: Vec<PoseBone>) -> Self {
-        Self { bones }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::evaluation::AnimationGraphEvaluator;
-    use ecs::world::World;
     use glam::Vec3;
 
     fn translation(x: f32) -> Transform {
@@ -123,33 +90,17 @@ mod tests {
         }
     }
 
-    fn two_bone_layout(world: &mut World) -> (PoseLayout, Uuid) {
-        let animated = world.spawn(Transform::IDENTITY);
-        let un_animated = world.spawn(Transform::IDENTITY);
+    fn two_bone_layout() -> (PoseLayout, Uuid) {
         let target_id = Uuid::new_v4();
-
-        let bones = vec![
-            PoseBone {
-                entity: animated,
-                target_id: Some(target_id),
-                bind_local: translation(1.0),
-                is_root: false,
-            },
-            PoseBone {
-                entity: un_animated,
-                target_id: None,
-                bind_local: translation(2.0),
-                is_root: true,
-            },
-        ];
-
-        (PoseLayout::from_bones(bones), target_id)
+        // bone 0 is animated, bone 1 is not.
+        let target_ids = vec![Some(target_id), None];
+        let bind_pose = vec![translation(1.0), translation(2.0)];
+        (PoseLayout::new(target_ids, bind_pose), target_id)
     }
 
     #[test]
     fn layout_resolves_targets_and_seeds_bind_pose() {
-        let mut world = World::new();
-        let (layout, target_id) = two_bone_layout(&mut world);
+        let (layout, target_id) = two_bone_layout();
 
         assert_eq!(layout.len(), 2);
         assert_eq!(layout.index_of(&target_id), Some(0));
@@ -165,8 +116,7 @@ mod tests {
 
     #[test]
     fn evaluator_acquire_reseeds_recycled_buffers() {
-        let mut world = World::new();
-        let (layout, _) = two_bone_layout(&mut world);
+        let (layout, _) = two_bone_layout();
         let mut evaluator = AnimationGraphEvaluator::new();
 
         let mut pose = evaluator.acquire(&layout);

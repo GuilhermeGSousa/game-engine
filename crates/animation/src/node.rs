@@ -139,11 +139,11 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 
         // Sample every animated bone in the skeleton into the pose.  Bones with no channel
         // in this clip keep their seeded bind transform.
-        for (index, bone) in layout.bones().iter().enumerate() {
-            let Some(target_id) = bone.target_id else {
+        for (index, target_id) in layout.target_ids().iter().enumerate() {
+            let Some(target_id) = target_id else {
                 continue;
             };
-            let Some(animation_channels) = animation_clip.get_channels(&target_id) else {
+            let Some(animation_channels) = animation_clip.get_channels(target_id) else {
                 continue;
             };
 

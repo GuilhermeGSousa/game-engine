@@ -7,7 +7,6 @@ use std::{
 use animation::{
     clip::{AnimationChanelOutput, AnimationChannel, AnimationClip},
     player::AnimationPlayer,
-    pose::{AnimationSkeleton, PoseBone},
     root::AnimationRootBone,
     target::AnimationTarget,
 };
@@ -542,15 +541,6 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
 
-            // Reverse the target map so a skeleton bone (by node index) can recover its
-            // animation-channel id and its driving animation root (the player entity).
-            let mut node_to_target_id: HashMap<usize, Uuid> = HashMap::new();
-            let mut node_to_animator: HashMap<usize, usize> = HashMap::new();
-            for (target_id, info) in &asset.target_id_to_node_idx {
-                node_to_target_id.insert(info.node_index, *target_id);
-                node_to_animator.insert(info.node_index, info.root_index);
-            }
-
             // Insert MeshComponents and AnimationPlayers
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
                 if let Some(gltf_mesh_index) = gltf_node.mesh {
@@ -611,30 +601,6 @@ pub(crate) fn spawn_gltf_components(
                         cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
                     }
                     cmd.insert(skeleton_component, node_entities[node_index]);
-
-                    // Build the full-skeleton pose layout for the player driving this
-                    // skeleton: every bone, in order, with its bind transform and (for
-                    // animated bones) its channel id. Un-animated bones keep their bind pose.
-                    let mut pose_bones = Vec::with_capacity(gltf_skeleton.bones.len());
-                    let mut animator_node: Option<usize> = None;
-                    for &bone_node_index in &gltf_skeleton.bones {
-                        if let Some(root_index) = node_to_animator.get(&bone_node_index) {
-                            animator_node = Some(*root_index);
-                        }
-                        pose_bones.push(PoseBone {
-                            entity: node_entities[bone_node_index],
-                            target_id: node_to_target_id.get(&bone_node_index).copied(),
-                            bind_local: asset.nodes[bone_node_index].transform.clone(),
-                            is_root: gltf_skeleton.root_bone == Some(bone_node_index),
-                        });
-                    }
-
-                    if let Some(animator_node) = animator_node {
-                        cmd.insert(
-                            AnimationSkeleton::new(pose_bones),
-                            node_entities[animator_node],
-                        );
-                    }
                 }
 
                 if asset.animation_roots.contains(&node_index) {

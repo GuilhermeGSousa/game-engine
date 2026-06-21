@@ -1,14 +1,15 @@
 use std::ops::Deref;
 
-use ecs::component::Component;
-use essential::assets::handle::AssetHandle;
+use ecs::{component::Component, entity::Entity};
+use essential::{assets::handle::AssetHandle, transform::Transform};
 use log::info;
+use uuid::Uuid;
 
 use crate::{
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
-    pose::{Pose, PoseBone, PoseLayout},
+    pose::{Pose, PoseLayout},
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
@@ -34,6 +35,9 @@ pub struct AnimationPlayer {
     layout: PoseLayout,
     current_pose: Pose,
     evaluator: AnimationGraphEvaluator,
+    /// Entity holding the `SkeletonComponent` this player drives (bones are read from there
+    /// rather than duplicated on the player).
+    skeleton_entity: Option<Entity>,
 }
 
 impl AnimationPlayer {
@@ -79,10 +83,19 @@ impl AnimationPlayer {
         self.graph_instance.update(delta_time, context);
     }
 
-    /// Installs the skeleton this player drives and sizes the pose buffer accordingly.
-    pub(crate) fn set_layout(&mut self, bones: Vec<PoseBone>) {
-        self.layout = PoseLayout::from_bones(bones);
+    /// Installs the animation-specific layout this player drives and sizes the pose buffer.
+    pub(crate) fn set_layout(&mut self, target_ids: Vec<Option<Uuid>>, bind_pose: Vec<Transform>) {
+        self.layout = PoseLayout::new(target_ids, bind_pose);
         self.layout.seed(&mut self.current_pose);
+    }
+
+    /// Records the entity whose `SkeletonComponent` lists this player's bones.
+    pub(crate) fn set_skeleton_entity(&mut self, entity: Entity) {
+        self.skeleton_entity = Some(entity);
+    }
+
+    pub fn skeleton_entity(&self) -> Option<Entity> {
+        self.skeleton_entity
     }
 
     /// Evaluates the graph once into `current_pose` for the whole skeleton.
@@ -98,6 +111,7 @@ impl AnimationPlayer {
             layout,
             current_pose,
             evaluator,
+            ..
         } = self;
 
         layout.seed(current_pose);

@@ -4,9 +4,7 @@ use ecs::{
     Event, Query, With,
 };
 use render::{
-    components::{camera::RenderCamera, render_entity::RenderEntity},
-    device::RenderDevice,
-    resources::RenderContext,
+    components::camera::RenderCamera, device::RenderDevice, components::render_entity::RenderEntity, resources::RenderContext
 };
 
 use crate::readback::{TerminalOutput, TerminalRenderState};

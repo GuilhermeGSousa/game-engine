@@ -1,28 +1,14 @@
 use crate::{
-    assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture},
-    components::{
+    assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture}, components::{
         camera::{camera_added, camera_changed},
-        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
-        mesh_component::{mesh_added, mesh_changed},
-        render_entity::RenderEntity,
-        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
+        light::{RenderLights, light_added, light_changed, prepare_lights_buffer},
         world_environment::WorldEnvironment,
-    },
-    device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, SkeletonLayout},
-    material_plugin::clear_cameras,
-    queue::RenderQueue,
-    render_asset::{
-        render_mesh::RenderMesh,
-        render_texture::{DummyRenderTexture, RenderTexture},
-        render_window::RenderWindow,
-        RenderAssetPlugin,
-    },
-    resources::RenderContext,
-    systems::{
+    }, device::RenderDevice, layouts::{CameraLayout, LightLayout, SkeletonLayout}, material_plugin::clear_cameras, queue::RenderQueue, render_asset::{
+        RenderAssetPlugin, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow
+    }, components::{mesh::{mesh_added, mesh_changed}, render_entity::RenderEntity, skeleton::{EmptySkeletonBuffer, skeleton_added, update_skeletons}}, resources::RenderContext, systems::{
         render::{finish_render, present_window},
         update_window,
-    },
+    }
 };
 use app::plugins::Plugin;
 use color::LinearRgba;

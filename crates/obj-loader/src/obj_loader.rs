@@ -13,11 +13,12 @@ use essential::{
     transform::Transform,
 };
 use glam::{Quat, Vec3};
+use mesh::mesh::MeshComponent;
 use tobj::Model;
 
 use render::{
     assets::{mesh::Mesh, vertex::Vertex},
-    components::{material_component::MaterialComponent, mesh_component::MeshComponent},
+    components::{material::MaterialComponent},
 };
 
 use crate::mtl_loader::MTLMaterial;

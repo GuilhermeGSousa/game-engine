@@ -1,4 +1,5 @@
-use essential::assets::Asset;
+use ecs::{Component, Entity};
+use essential::assets::{Asset, handle::AssetHandle};
 use glam::Mat4;
 
 #[derive(Asset)]
@@ -11,5 +12,27 @@ impl From<Vec<Mat4>> for Skeleton {
         Self {
             inverse_bindposes: value.into_boxed_slice(),
         }
+    }
+}
+
+#[derive(Component)]
+pub struct SkeletonComponent {
+    skeleton: AssetHandle<Skeleton>,
+    bones: Vec<Entity>,
+}
+
+impl SkeletonComponent {
+    pub fn new(skeleton: AssetHandle<Skeleton>, bones: Vec<Entity>) -> Self {
+        Self { skeleton, bones }
+    }
+
+    pub fn skeleton(&self) -> &AssetHandle<Skeleton>
+    {
+        &self.skeleton
+    }
+
+    pub fn bones(&self) -> &Vec<Entity>
+    {
+        &self.bones
     }
 }

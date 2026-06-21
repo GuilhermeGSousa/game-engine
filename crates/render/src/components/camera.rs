@@ -16,9 +16,7 @@ use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::texture::Texture, components::render_entity::RenderEntity, device::RenderDevice,
-    layouts::CameraLayout, queue::RenderQueue, render_asset::render_texture::RenderTexture,
-    resources::RenderContext,
+    assets::texture::Texture, device::RenderDevice, layouts::CameraLayout, queue::RenderQueue, render_asset::render_texture::RenderTexture, components::render_entity::RenderEntity, resources::RenderContext
 };
 
 #[rustfmt::skip]

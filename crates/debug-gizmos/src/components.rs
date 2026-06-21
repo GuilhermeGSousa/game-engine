@@ -2,7 +2,8 @@ use color::LinearRgba;
 use ecs::{Added, CommandQueue, Component, Entity, Query, Res};
 use essential::{assets::asset_server::AssetServer, transform::Transform};
 use glam::{Quat, Vec3};
-use render::{MaterialComponent, components::mesh_component::MeshComponent};
+use mesh::MeshComponent;
+use render::{MaterialComponent};
 
 use crate::{material::DebugGizmoMaterial, shapes::GizmoShapes};
 

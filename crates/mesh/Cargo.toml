@@ -10,3 +10,4 @@ crate-type = ["cdylib", "rlib"]
 essential = { path = "../essential" }
 bytemuck = { version = "1.22.0", features = ["derive"] }
 glam = { version = "0.30.1" }
+ecs = { path = "../ecs" }

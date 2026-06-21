@@ -9,6 +9,7 @@ pub use render;
 pub use skybox;
 pub use ui;
 pub use window;
+pub use mesh;
 
 use animation::plugin::AnimationPlugin;
 use app::{
@@ -22,7 +23,6 @@ use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialP
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
-
 /// Registers all standard engine plugins in the conventional order.
 #[derive(Default)]
 pub struct DefaultPlugins {

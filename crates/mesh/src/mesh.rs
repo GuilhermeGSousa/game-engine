@@ -1,4 +1,5 @@
-use essential::assets::Asset;
+use ecs::Component;
+use essential::assets::{Asset, handle::AssetHandle};
 use glam::{Vec2, Vec3};
 
 use crate::vertex::Vertex;
@@ -102,4 +103,9 @@ impl Mesh {
 
         self
     }
+}
+
+#[derive(Component)]
+pub struct MeshComponent {
+    pub handle: AssetHandle<Mesh>,
 }

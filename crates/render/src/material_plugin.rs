@@ -1,3 +1,18 @@
+use std::marker::PhantomData;
+
+use app::plugins::Plugin;
+use ecs::{
+    command::CommandQueue,
+    entity::Entity,
+    query::{query_filter::Added, Query},
+    resource::{Res, ResMut, Resource},
+    system::{schedule::UpdateGroup, system_input::SystemInputData},
+};
+use mesh::mesh::MeshComponent;
+
+use crate::{Material, assets::material::ShaderRef, components::{camera::RenderCamera, light::RenderLights, material::{MaterialComponent, RenderMaterialComponent}, mesh::RenderMeshInstance, render_entity::RenderEntity, skeleton::{EmptySkeletonBuffer, RenderSkeletonComponent}}, device::RenderDevice, layouts::{CameraLayout, LightLayout, SkeletonLayout}, render_asset::{AssetPreparationError, RenderAsset, RenderAssetPlugin, RenderAssets, render_mesh::RenderMesh, render_texture::{DummyRenderTexture, RenderTexture}, render_window::RenderWindow}, resources::RenderContext};
+
+
 /// Generic material plugin.
 ///
 /// Registering `MaterialPlugin::<M>::new()` sets up everything needed to render
@@ -28,38 +43,6 @@
 /// | 3     | Skeleton (bone) uniforms         | `M::needs_skeleton()` → true   |
 ///
 /// Your WGSL only needs to declare the groups that your material actually uses.
-use std::marker::PhantomData;
-
-use app::plugins::Plugin;
-use ecs::{
-    command::CommandQueue,
-    entity::Entity,
-    query::{query_filter::Added, Query},
-    resource::{Res, ResMut, Resource},
-    system::{schedule::UpdateGroup, system_input::SystemInputData},
-};
-
-use crate::{
-    assets::material::{Material, ShaderRef},
-    components::{
-        camera::RenderCamera,
-        light::RenderLights,
-        material_component::MaterialComponent,
-        mesh_component::{MeshComponent, RenderMeshInstance},
-        render_entity::RenderEntity,
-        render_material_component::RenderMaterialComponent,
-        skeleton_component::{EmptySkeletonBuffer, RenderSkeletonComponent},
-    },
-    device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, SkeletonLayout},
-    render_asset::{
-        render_mesh::RenderMesh,
-        render_texture::{DummyRenderTexture, RenderTexture},
-        render_window::RenderWindow,
-        AssetPreparationError, RenderAsset, RenderAssetPlugin, RenderAssets,
-    },
-    resources::RenderContext,
-};
 
 // ─── Default (built-in) shader source ────────────────────────────────────────
 

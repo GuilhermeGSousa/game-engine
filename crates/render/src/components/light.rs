@@ -12,7 +12,7 @@ use essential::transform::GlobalTransform;
 use glam::Vec3;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
-use crate::{components::render_entity::RenderEntity, layouts::LightLayout, queue::RenderQueue};
+use crate::{ layouts::LightLayout, queue::RenderQueue, components::render_entity::RenderEntity};
 
 const MAX_LIGHTS: usize = 128;
 

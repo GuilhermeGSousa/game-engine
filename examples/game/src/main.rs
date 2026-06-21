@@ -2,34 +2,25 @@ use std::f32::consts::PI;
 
 use color::LinearRgba;
 use game_engine::{
-    app::App,
-    ecs::{
+    DefaultPlugins, app::App, ecs::{
         command::CommandQueue,
         component::Component,
         entity::Entity,
         query::Query,
         resource::{Res, ResMut},
         system::schedule::{Schedules, UpdateGroup},
-    },
-    essential::{
+    }, essential::{
         assets::asset_server::AssetServer,
         transform::{GlobalTransform, Transform},
-    },
-    obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent},
-    physics::{physics_state::PhysicsState, rigid_body::RigidBody},
-    render::{
+    }, mesh::MeshComponent, obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent}, physics::{physics_state::PhysicsState, rigid_body::RigidBody}, render::{
         assets::{material::StandardMaterial, texture::TextureUsageSettings},
         components::{
             camera::Camera,
             light::{Light, LightType, SpotLight},
-            material_component::MaterialComponent,
-            mesh_component::MeshComponent,
+            material::MaterialComponent,
         },
         material_plugin::MaterialPlugin,
-    },
-    skybox::{material::SkyboxMaterial, SkyboxCube},
-    window::input::{Input, InputState},
-    DefaultPlugins,
+    }, skybox::{SkyboxCube, material::SkyboxMaterial}, window::input::{Input, InputState}
 };
 use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 use glam::{Quat, Vec3};

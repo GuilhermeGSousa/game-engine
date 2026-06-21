@@ -1,8 +1,5 @@
-use std::f32::consts::PI;
-
 use app::App;
 use color::LinearRgba;
-use debug_gizmos::components::GizmoSphere;
 use ecs::{
     command::CommandQueue, query::Query, resource::Res, system::schedule::UpdateGroup, Component,
     With,
@@ -10,14 +7,7 @@ use ecs::{
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
 use glam::{Quat, Vec3};
-use render::{
-    assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
-    components::{
-        light::{Light, LightType, SpotLight},
-        material_component::MaterialComponent,
-        mesh_component::MeshComponent,
-    },
-};
+use render::components::light::{Light, LightType};
 
 #[cfg(feature = "terminal")]
 use ecs::{resource::ResMut, IntoSystemConfig};
@@ -209,48 +199,4 @@ fn draw_terminal(mut terminal: ResMut<TerminalContext>, terminal_frame: Res<Term
             }
         })
         .unwrap();
-}
-
-fn make_cube() -> Mesh {
-    let positions: [[f32; 3]; 8] = [
-        [-0.5, -0.5, -0.5],
-        [0.5, -0.5, -0.5],
-        [0.5, 0.5, -0.5],
-        [-0.5, 0.5, -0.5],
-        [-0.5, -0.5, 0.5],
-        [0.5, -0.5, 0.5],
-        [0.5, 0.5, 0.5],
-        [-0.5, 0.5, 0.5],
-    ];
-
-    let faces: [([f32; 3], [usize; 4]); 6] = [
-        ([0.0, 0.0, -1.0], [0, 3, 2, 1]),
-        ([0.0, 0.0, 1.0], [4, 5, 6, 7]),
-        ([-1.0, 0.0, 0.0], [0, 4, 7, 3]),
-        ([1.0, 0.0, 0.0], [1, 2, 6, 5]),
-        ([0.0, -1.0, 0.0], [0, 1, 5, 4]),
-        ([0.0, 1.0, 0.0], [3, 7, 6, 2]),
-    ];
-
-    let uvs: [[f32; 2]; 4] = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
-
-    let mut vertices = Vec::with_capacity(24);
-    let mut indices = Vec::with_capacity(36);
-
-    for (normal, corner_indices) in faces {
-        let base = vertices.len() as u32;
-        for (i, &vi) in corner_indices.iter().enumerate() {
-            vertices.push(Vertex {
-                pos_coords: positions[vi],
-                uv_coords: uvs[i],
-                normal,
-                ..Vertex::default()
-            });
-        }
-        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-    }
-
-    let mut mesh = Mesh { vertices, indices };
-    mesh.compute_tangents();
-    mesh
 }

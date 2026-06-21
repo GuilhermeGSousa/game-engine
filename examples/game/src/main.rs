@@ -15,6 +15,7 @@ use game_engine::{
         assets::asset_server::AssetServer,
         transform::{GlobalTransform, Transform},
     },
+    mesh::MeshComponent,
     obj_loader::obj_loader::{OBJAsset, OBJSpawnerComponent},
     physics::{physics_state::PhysicsState, rigid_body::RigidBody},
     render::{
@@ -22,8 +23,7 @@ use game_engine::{
         components::{
             camera::Camera,
             light::{Light, LightType, SpotLight},
-            material_component::MaterialComponent,
-            mesh_component::MeshComponent,
+            material::MaterialComponent,
         },
         material_plugin::MaterialPlugin,
     },

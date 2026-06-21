@@ -3,6 +3,7 @@ pub use app;
 pub use ecs;
 pub use essential;
 pub use gltf_loader;
+pub use mesh;
 pub use obj_loader;
 pub use physics;
 pub use render;
@@ -22,7 +23,6 @@ use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialP
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
-
 /// Registers all standard engine plugins in the conventional order.
 #[derive(Default)]
 pub struct DefaultPlugins {

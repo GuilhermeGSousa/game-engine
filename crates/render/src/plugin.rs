@@ -3,10 +3,12 @@ use crate::{
     components::{
         camera::{camera_added, camera_changed},
         light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
-        mesh_component::{mesh_added, mesh_changed},
-        render_entity::RenderEntity,
-        skeleton_component::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
         world_environment::WorldEnvironment,
+    },
+    components::{
+        mesh::{mesh_added, mesh_changed},
+        render_entity::RenderEntity,
+        skeleton::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, SkeletonLayout},

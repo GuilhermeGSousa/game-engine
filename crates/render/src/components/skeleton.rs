@@ -12,27 +12,14 @@ use ecs::{
     resource::{Res, Resource},
 };
 use encase::UniformBuffer;
-use essential::{
-    assets::{asset_store::AssetStore, handle::AssetHandle},
-    transform::GlobalTransform,
-};
+use essential::{assets::asset_store::AssetStore, transform::GlobalTransform};
 use glam::Mat4;
+use mesh::skeleton::SkeletonComponent;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, BufferDescriptor, Device};
 
 const MAX_SKELETON_BONES: usize = 256;
 const BONE_SIZE: usize = size_of::<Mat4>();
 
-#[derive(Component)]
-pub struct SkeletonComponent {
-    skeleton: AssetHandle<Skeleton>,
-    bones: Vec<Entity>,
-}
-
-impl SkeletonComponent {
-    pub fn new(skeleton: AssetHandle<Skeleton>, bones: Vec<Entity>) -> Self {
-        Self { skeleton, bones }
-    }
-}
 #[derive(Component)]
 pub struct RenderSkeletonComponent {
     pub(crate) bones: wgpu::Buffer,
@@ -122,14 +109,14 @@ pub(crate) fn update_skeletons(
     for (skeleton, render_entity) in skeletons.iter() {
         let render_skeleton = render_skeletons.get_entity(**render_entity);
 
-        match (skeleton_assets.get(&skeleton.skeleton), render_skeleton) {
+        match (skeleton_assets.get(skeleton.skeleton()), render_skeleton) {
             (Some(skeleton_asset), Some(render_skeleton)) => {
                 let mut bone_transforms = [Mat4::IDENTITY; MAX_SKELETON_BONES];
 
                 for (bone_index, (inverse_bindpose, bone_entity)) in skeleton_asset
                     .inverse_bindposes
                     .iter()
-                    .zip(&skeleton.bones)
+                    .zip(skeleton.bones())
                     .enumerate()
                 {
                     let transform = match transforms.get_entity(*bone_entity) {

@@ -89,7 +89,7 @@ pub(crate) fn spawn_editor_ui(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) 
                 },
                 UIMaterial::with_border(COL_TITLEBAR, COL_BORDER, 1.0),
             ),
-            |mut title_bar| {
+            |title_bar| {
                 title_bar.add_child((
                     UINode {
                         flex_grow: 1.0,
@@ -132,7 +132,7 @@ fn build_side_panel(cmd: &mut CommandQueue, width: f32, title: &str) -> Entity {
             },
             UIMaterial::with_border(COL_PANEL_HDR, COL_BORDER, 1.0),
         ),
-        |mut header| {
+        |header| {
             header.add_child((
                 UINode {
                     flex_grow: 1.0,
@@ -207,7 +207,7 @@ fn build_properties_panel(cmd: &mut CommandQueue) -> Entity {
                 },
                 UIMaterial::with_border(COL_PANEL_HDR, COL_BORDER, 1.0),
             ),
-            |mut header| {
+            |header| {
                 header.add_child((
                     UINode {
                         flex_grow: 1.0,

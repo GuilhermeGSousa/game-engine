@@ -47,10 +47,10 @@ pub fn first_person_player_fly(
         player_transform.translation += back * displacement;
     }
 
-    let sensitivity = -0.5;
+    let sensitivity = -0.003;
     let mouse_delta = input.mouse_delta();
-    let yaw_delta = sensitivity * mouse_delta.x * time.delta().as_secs_f32();
-    let pitch_delta = sensitivity * mouse_delta.y * time.delta().as_secs_f32();
+    let yaw_delta = sensitivity * mouse_delta.x;
+    let pitch_delta = sensitivity * mouse_delta.y;
     player_transform.rotation *= Quat::from_axis_angle(Vec3::Y, yaw_delta);
     camera_transform.rotation *= Quat::from_axis_angle(Vec3::X, pitch_delta);
 }

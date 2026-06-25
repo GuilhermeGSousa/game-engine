@@ -8,6 +8,7 @@ use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
+    pose::PosePool,
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
@@ -30,6 +31,7 @@ impl ActiveNodeInstance {
 #[derive(Component, Default)]
 pub struct AnimationPlayer {
     graph_instance: AnimationGraphInstance,
+    pose_pool: PosePool,
 }
 
 impl AnimationPlayer {
@@ -77,6 +79,14 @@ impl AnimationPlayer {
 
     pub(crate) fn graph_instance(&self) -> &AnimationGraphInstance {
         &self.graph_instance
+    }
+
+    pub(crate) fn pose_pool(&self) -> &PosePool {
+        &self.pose_pool
+    }
+
+    pub(crate) fn pose_pool_mut(&self) -> &mut PosePool {
+        &mut self.pose_pool
     }
 }
 

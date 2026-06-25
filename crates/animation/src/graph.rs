@@ -12,7 +12,12 @@ use petgraph::{
 };
 
 use crate::{
-    clip::AnimationClip, evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode}, node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode}, player::ActiveNodeInstance, pose::Pose, target::AnimationTarget
+    clip::AnimationClip,
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
+    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
+    player::ActiveNodeInstance,
+    pose::{EvaluatedPose, PosePool},
+    target::AnimationTarget,
 };
 
 type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
@@ -190,9 +195,8 @@ impl AnimationGraphInstance {
 
     pub(crate) fn evaluate(
         &self,
-        target: &AnimationTarget,
         context: &AnimationGraphContext<'_>,
-        output: &mut Pose,
+        pool: &mut PosePool,
     ) {
         let Some(graph) = self.get_animation_graph(context) else {
             return;
@@ -212,24 +216,33 @@ impl AnimationGraphInstance {
                 continue;
             };
 
-            let evaluated_inputs = graph
-                .get_node_inputs(node_index)
-                .filter_map(|_| graph_evaluator.pop_evaluation())
-                .collect::<Vec<_>>();
+            let input_count = graph
+                .get_node_inputs(node_index).count();
+
+            let stack_start = graph_evaluator.stack_len() - input_count;
 
             let state_context = AnimationGraphContext {
                 animation_clips: context.animation_clips,
                 animation_graphs: context.animation_graphs,
             };
 
-            graph_evaluator.push_evaluation(EvaluatedNode {
-                transform: node_state.node_instance.evaluate(
+            let output = pool.acquire();
+
+            node_state.node_instance.evaluate(
                     node,
-                    target,
-                    &evaluated_inputs,
                     &state_context,
-                    output
-                ),
+                    &graph_evaluator.view(stack_start),
+                    &mut output,
+                );
+
+            // Consume inputs and add them back to the free list   
+            for evaluated_pose in graph_evaluator.evaluation_stack.drain(stack_start..)
+            {
+                pool.release(evaluated_pose.pose);
+            }
+
+            graph_evaluator.push_evaluation(EvaluatedPose {
+                pose: output,
                 weight: node_state.weight,
             });
         }

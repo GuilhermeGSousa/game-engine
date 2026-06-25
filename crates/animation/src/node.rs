@@ -1,9 +1,9 @@
 use std::any::Any;
 
-use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
+use essential::{assets::handle::AssetHandle, utils::AsAny};
 
 use crate::{
-    clip::AnimationClip, evaluation::{AnimationGraphContext, EvaluatedNode}, pose::{EvaluatedPose, Pose}, target::AnimationTarget
+    clip::AnimationClip, evaluation::{AnimationGraphContext, EvaluatedPose}, pose::{EvaluatedPose, Pose}, target::AnimationTarget
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
@@ -13,7 +13,6 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        target: &AnimationTarget,
         evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     );

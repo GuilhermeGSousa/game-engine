@@ -3,7 +3,7 @@ use essential::assets::asset_store::AssetStore;
 use crate::{clip::AnimationClip, graph::AnimationGraph, pose::EvaluatedPose};
 
 pub struct AnimationGraphEvaluator {
-    evaluation_stack: Vec<EvaluatedPose>,
+    pub(crate) evaluation_stack: Vec<EvaluatedPose>,
 }
 
 impl AnimationGraphEvaluator {
@@ -13,13 +13,24 @@ impl AnimationGraphEvaluator {
         }
     }
 
-    pub fn push_evaluation(&mut self, evaluated_node: EvaluatedPose) {
-        self.evaluation_stack.push(evaluated_node);
+    pub fn push_evaluation(&mut self, evaluated_pose: EvaluatedPose) {
+        self.evaluation_stack.push(evaluated_pose);
     }
 
     pub fn pop_evaluation(&mut self) -> Option<EvaluatedPose> {
         self.evaluation_stack.pop()
     }
+
+    pub fn stack_len(&self) -> usize
+    {
+        self.evaluation_stack.len()
+    }
+
+    pub fn view(&self, start: usize) -> &[EvaluatedPose]
+    {
+        &self.evaluation_stack[start..]
+    }
+
 }
 
 impl Default for AnimationGraphEvaluator {

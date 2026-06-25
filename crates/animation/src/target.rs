@@ -42,11 +42,12 @@ pub(crate) fn animate_targets(
             // TODO: Accumulate root motion and store it in animation_root
         } else {
             **target_transform = graph_instance.evaluate(
-                animation_target,
+
                 &AnimationGraphContext {
                     animation_clips: &animation_clips,
                     animation_graphs: &animation_graphs,
                 },
+                animation_player.pose_pool_mut(),
             );
         }
     }

@@ -56,10 +56,15 @@ impl AnimationNodeInstance for NoneInstance {
         _node: &dyn AnimationNode,
         _context: &AnimationGraphContext<'_>,
         _bone_ids: &[Uuid],
-        _evaluated_inputs: &[EvaluatedPose],
+        evaluated_inputs: &[EvaluatedPose],
         _pool: &mut PosePool,
-        _output: &mut Pose,
+        output: &mut Pose,
     ) {
+        // Pass-through: forward the first input pose if there is one, otherwise leave the
+        // output at its acquired (identity) state.
+        if let Some(input) = evaluated_inputs.first() {
+            output.copy_from(&input.pose);
+        }
     }
 }
 

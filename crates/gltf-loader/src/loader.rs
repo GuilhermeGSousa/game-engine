@@ -590,8 +590,8 @@ pub(crate) fn spawn_gltf_components(
                     cmd.insert(AnimationPlayer::new(gltf_skeleton.bones.len()), node_entities[node_index]);
                 }
             }
+            cmd.remove::<GLTFSpawnerComponent>(entity);
         }
-        cmd.remove::<GLTFSpawnerComponent>(entity);
     }
 }
 

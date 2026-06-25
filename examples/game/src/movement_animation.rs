@@ -92,11 +92,16 @@ pub(crate) fn setup_state_machine(
 }
 
 pub(crate) fn setup_animations(
-    animation_stores: Query<(Entity, &AnimationStore), Without<AnimationHandleComponent>>,
+    players: Query<(Entity, &AnimationPlayer), Without<AnimationHandleComponent>>,
+    animation_stores: Query<&AnimationStore>,
     asset_server: Res<AssetServer>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, anim_store) in animation_stores.iter() {
+    let Some(anim_store) = animation_stores.iter().next() else {
+        return;
+    };
+
+    for (player_entity, _player) in players.iter() {
         let mut anim_graph = AnimationGraph::new();
 
         let anim_fsm = AnimationStateMachine::from_initial_state(
@@ -125,9 +130,9 @@ pub(crate) fn setup_animations(
             AnimationHandleComponent {
                 handle: asset_server.add(anim_graph),
             },
-            entity,
+            player_entity,
         );
-        cmd.insert(AnimationFSMData { fsm_node }, entity);
+        cmd.insert(AnimationFSMData { fsm_node }, player_entity);
     }
 }
 

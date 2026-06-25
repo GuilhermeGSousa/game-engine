@@ -41,6 +41,13 @@ impl Pose {
             joint.scale = joint.scale.lerp(other_joint.scale, weight);
         }
     }
+
+    /// Overwrites this pose's joints with those of `other` (same skeleton / length).
+    pub fn copy_from(&mut self, other: &Pose) {
+        for (joint, other_joint) in self.0.iter_mut().zip(other.0.iter()) {
+            *joint = other_joint.clone();
+        }
+    }
 }
 
 impl Blendable for Pose {

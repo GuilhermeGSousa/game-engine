@@ -3,7 +3,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
 use crate::pose::{EvaluatedPose, Pose};
-use crate::target::AnimationTarget;
 use crate::transition::AnimationTransitionBlender;
 use crate::transition::blend_stack::BlendStack;
 use crate::{
@@ -264,7 +263,6 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
        &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        target: &AnimationTarget,
         evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     )  {

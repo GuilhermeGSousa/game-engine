@@ -37,11 +37,11 @@ pub(crate) fn animate_targets(
         };
 
         let graph_instance = animation_player.graph_instance();
-
+        
         if let Some(_animation_root) = animation_root {
             // TODO: Accumulate root motion and store it in animation_root
         } else {
-            **target_transform = graph_instance.evaluate(
+            graph_instance.evaluate(
 
                 &AnimationGraphContext {
                     animation_clips: &animation_clips,

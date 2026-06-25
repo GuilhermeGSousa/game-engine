@@ -85,7 +85,7 @@ impl AnimationPlayer {
         &self.pose_pool
     }
 
-    pub(crate) fn pose_pool_mut(&self) -> &mut PosePool {
+    pub(crate) fn pose_pool_mut(&mut self) -> &mut PosePool {
         &mut self.pose_pool
     }
 }

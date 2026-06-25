@@ -3,7 +3,10 @@ use std::any::Any;
 use essential::{assets::handle::AssetHandle, utils::AsAny};
 
 use crate::{
-    clip::AnimationClip, evaluation::{AnimationGraphContext, EvaluatedPose}, pose::{EvaluatedPose, Pose}, target::AnimationTarget
+    clip::AnimationClip,
+    evaluation::{AnimationGraphContext},
+    pose::{EvaluatedPose, Pose},
+    target::AnimationTarget,
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
@@ -48,17 +51,11 @@ impl AnimationNodeInstance for NoneInstance {
 
     fn evaluate(
         &self,
-        node: &dyn AnimationNode,
-        context: &AnimationGraphContext<'_>,
-        target: &AnimationTarget,
-        evaluated_inputs: &[EvaluatedPose],
-        output: &mut Pose,
+        _node: &dyn AnimationNode,
+        _context: &AnimationGraphContext<'_>,
+        _evaluated_inputs: &[EvaluatedPose],
+        _output: &mut Pose,
     ) {
-        // evaluated_inputs
-        //     .first()
-        //     .map(|evaluated_node| &evaluated_node.transform)
-        //     .unwrap_or(&Transform::IDENTITY)
-        //     .clone()
     }
 }
 
@@ -115,22 +112,21 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        target: &AnimationTarget,
         evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     ) {
-        // let Some(animation_clip) = node
-        //     .as_any()
-        //     .downcast_ref::<AnimationClipNode>()
-        //     .and_then(|animation_clip| context.animation_clips.get(&animation_clip.clip))
-        // else {
-        //     return Transform::IDENTITY;
-        // };
+        let Some(animation_clip) = node
+            .as_any()
+            .downcast_ref::<AnimationClipNode>()
+            .and_then(|animation_clip| context.animation_clips.get(&animation_clip.clip))
+        else {
+            return;
+        };
 
-        // // Find the channel for this animation target
-        // let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
-        //     return Transform::IDENTITY;
-        // };
+        // Find the channel for this animation target
+        let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
+            return;
+        };
 
         // // Based on the current time of the animation player + delta time, interpolate the target's transform
         // let mut target_transform = Transform::IDENTITY;

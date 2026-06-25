@@ -1,9 +1,6 @@
 use std::{collections::HashMap, ops::Deref};
 
-use essential::{
-    assets::{Asset, handle::AssetHandle},
-    transform::Transform,
-};
+use essential::assets::{Asset, handle::AssetHandle};
 use log::warn;
 use petgraph::{
     Direction::Outgoing,
@@ -16,8 +13,7 @@ use crate::{
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
     player::ActiveNodeInstance,
-    pose::{EvaluatedPose, PosePool},
-    target::AnimationTarget,
+    pose::{EvaluatedPose, Pose, PosePool},
 };
 
 type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
@@ -197,6 +193,7 @@ impl AnimationGraphInstance {
         &self,
         context: &AnimationGraphContext<'_>,
         pool: &mut PosePool,
+        output_pose: &mut Pose,
     ) {
         let Some(graph) = self.get_animation_graph(context) else {
             return;
@@ -226,13 +223,13 @@ impl AnimationGraphInstance {
                 animation_graphs: context.animation_graphs,
             };
 
-            let output = pool.acquire();
+            let mut node_output_pose = pool.acquire();
 
             node_state.node_instance.evaluate(
                     node,
                     &state_context,
                     &graph_evaluator.view(stack_start),
-                    &mut output,
+                    &mut node_output_pose,
                 );
 
             // Consume inputs and add them back to the free list   
@@ -242,15 +239,18 @@ impl AnimationGraphInstance {
             }
 
             graph_evaluator.push_evaluation(EvaluatedPose {
-                pose: output,
+                pose: node_output_pose,
                 weight: node_state.weight,
             });
         }
 
-        graph_evaluator
+        let mut result = graph_evaluator
             .pop_evaluation()
-            .map(|evaluated_node| evaluated_node.transform)
-            .unwrap_or(Transform::IDENTITY)
+            .map(|evaluated_pose| evaluated_pose.pose)
+            .unwrap_or(Pose::identity());
+
+        std::mem::swap(output_pose, &mut result);
+        pool.release(result);
     }
 
     pub(crate) fn get_animation_graph<'a>(

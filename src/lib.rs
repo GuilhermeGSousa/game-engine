@@ -5,7 +5,7 @@ pub use essential;
 pub use gltf_loader;
 pub use mesh;
 pub use obj_loader;
-pub use physics;
+pub use jolt_physics;
 pub use render;
 pub use skybox;
 pub use ui;
@@ -18,7 +18,7 @@ use app::{
 };
 use gltf_loader::plugin::GLTFPlugin;
 use obj_loader::plugin::OBJPlugin;
-use physics::plugin::PhysicsPlugin;
+use jolt_physics::plugin::PhysicsPlugin;
 use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;

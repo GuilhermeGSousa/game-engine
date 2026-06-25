@@ -4,9 +4,9 @@ use essential::{assets::handle::AssetHandle, utils::AsAny};
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphContext},
+    evaluation::AnimationGraphContext,
+    player::AnimationBinding,
     pose::{EvaluatedPose, Pose},
-    target::AnimationTarget,
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
@@ -16,6 +16,7 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
+        binding: &AnimationBinding,
         evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     );
@@ -53,6 +54,7 @@ impl AnimationNodeInstance for NoneInstance {
         &self,
         _node: &dyn AnimationNode,
         _context: &AnimationGraphContext<'_>,
+        _binding: &AnimationBinding,
         _evaluated_inputs: &[EvaluatedPose],
         _output: &mut Pose,
     ) {
@@ -112,7 +114,8 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        evaluated_inputs: &[EvaluatedPose],
+        binding: &AnimationBinding,
+        _evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     ) {
         let Some(animation_clip) = node
@@ -123,18 +126,28 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
             return;
         };
 
-        // Find the channel for this animation target
-        let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
-            return;
-        };
+        binding
+            .target_ids()
+            .iter()
+            .map(|val| val.map(|uuid| animation_clip.get_channels(&uuid)))
+            .flatten()
+            .enumerate()
+            .for_each(|(bone_index, animation_channels)|
+        {
+            let Some(animation_channels) = animation_channels else {
+                return;
+            };
 
-        // // Based on the current time of the animation player + delta time, interpolate the target's transform
-        // let mut target_transform = Transform::IDENTITY;
-        // for animation_channel in animation_channels {
-        //     animation_channel.sample_transform(self.current_time(), &mut target_transform);
-        // }
+            let Some(joint_pose) = output.get_joint_pose_mut(bone_index) else
+            {
+                return;
+            };
 
-        // target_transform
+            for animation_channel in animation_channels
+            {
+                animation_channel.sample_transform(self.current_time(), joint_pose);
+            } 
+        });
     }
 
     fn update(

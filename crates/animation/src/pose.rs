@@ -1,10 +1,30 @@
+use glam::{Quat, Vec3};
 
-pub struct Pose {}
+
+pub struct JointPose
+{
+    pub translation: Vec3,
+    pub rotation: Quat,
+    // Uniform scaling?
+    pub scale: Vec3,
+}
+
+pub struct Pose(Box<[JointPose]>);
 
 impl Pose {
     pub fn identity() -> Pose
     {
         todo!()
+    }
+
+    pub fn get_joint_pose(&mut self, bone_index: usize) -> Option<&JointPose>
+    {
+        self.0.get(bone_index)
+    }
+
+    pub fn get_joint_pose_mut(&mut self, bone_index: usize) -> Option<&mut JointPose>
+    {
+        self.0.get_mut(bone_index)
     }
 }
 

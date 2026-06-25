@@ -3,6 +3,7 @@ use std::ops::Deref;
 use ecs::component::Component;
 use essential::assets::handle::AssetHandle;
 use log::info;
+use uuid::Uuid;
 
 use crate::{
     evaluation::AnimationGraphContext,
@@ -100,5 +101,17 @@ impl Deref for AnimationHandleComponent {
 
     fn deref(&self) -> &Self::Target {
         &self.handle
+    }
+}
+
+#[derive(Component, Default)]
+pub struct AnimationBinding {
+    target_ids: Vec<Option<Uuid>>,
+}
+
+impl AnimationBinding {
+    pub fn target_ids(&self) -> &[Option<Uuid>]
+    {
+        &self.target_ids
     }
 }

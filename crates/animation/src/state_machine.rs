@@ -1,8 +1,8 @@
 use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::evaluation::EvaluatedNode;
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
+use crate::pose::{EvaluatedPose, Pose};
 use crate::target::AnimationTarget;
 use crate::transition::AnimationTransitionBlender;
 use crate::transition::blend_stack::BlendStack;
@@ -12,7 +12,7 @@ use crate::{
 };
 
 use derive_more::Deref;
-use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
+use essential::{assets::handle::AssetHandle, utils::AsAny};
 
 pub struct AnimationFSMStateDefinition<'a> {
     pub name: &'a str,
@@ -261,14 +261,15 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
     }
 
     fn evaluate(
-        &self,
-        _node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        _evaluated_inputs: &[EvaluatedNode],
+       &self,
+        node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
-        self.blend_stack
-            .sample(target, &self.state_graph_instances, context)
+        target: &AnimationTarget,
+        evaluated_inputs: &[EvaluatedPose],
+        output: &mut Pose,
+    )  {
+        // self.blend_stack
+        //     .sample(target, &self.state_graph_instances, context)
     }
 }
 

@@ -12,11 +12,7 @@ use petgraph::{
 };
 
 use crate::{
-    clip::AnimationClip,
-    evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode},
-    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
-    player::ActiveNodeInstance,
-    target::AnimationTarget,
+    clip::AnimationClip, evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode}, node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode}, player::ActiveNodeInstance, pose::Pose, target::AnimationTarget
 };
 
 type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
@@ -196,9 +192,10 @@ impl AnimationGraphInstance {
         &self,
         target: &AnimationTarget,
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
+        output: &mut Pose,
+    ) {
         let Some(graph) = self.get_animation_graph(context) else {
-            return Transform::IDENTITY;
+            return;
         };
 
         let mut graph_evaluator = AnimationGraphEvaluator::new();
@@ -231,6 +228,7 @@ impl AnimationGraphInstance {
                     target,
                     &evaluated_inputs,
                     &state_context,
+                    output
                 ),
                 weight: node_state.weight,
             });

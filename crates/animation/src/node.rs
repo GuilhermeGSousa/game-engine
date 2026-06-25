@@ -3,9 +3,7 @@ use std::any::Any;
 use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
 
 use crate::{
-    clip::AnimationClip,
-    evaluation::{AnimationGraphContext, EvaluatedNode},
-    target::AnimationTarget,
+    clip::AnimationClip, evaluation::{AnimationGraphContext, EvaluatedNode}, pose::{EvaluatedPose, Pose}, target::AnimationTarget
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
@@ -14,10 +12,11 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
     fn evaluate(
         &self,
         node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform;
+        target: &AnimationTarget,
+        evaluated_inputs: &[EvaluatedPose],
+        output: &mut Pose,
+    );
 
     fn update(
         &mut self,
@@ -50,16 +49,17 @@ impl AnimationNodeInstance for NoneInstance {
 
     fn evaluate(
         &self,
-        _node: &dyn AnimationNode,
-        _target: &AnimationTarget,
-        evaluated_inputs: &[EvaluatedNode],
-        _context: &AnimationGraphContext<'_>,
-    ) -> Transform {
-        evaluated_inputs
-            .first()
-            .map(|evaluated_node| &evaluated_node.transform)
-            .unwrap_or(&Transform::IDENTITY)
-            .clone()
+        node: &dyn AnimationNode,
+        context: &AnimationGraphContext<'_>,
+        target: &AnimationTarget,
+        evaluated_inputs: &[EvaluatedPose],
+        output: &mut Pose,
+    ) {
+        // evaluated_inputs
+        //     .first()
+        //     .map(|evaluated_node| &evaluated_node.transform)
+        //     .unwrap_or(&Transform::IDENTITY)
+        //     .clone()
     }
 }
 
@@ -115,30 +115,31 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn evaluate(
         &self,
         node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        _evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
-        let Some(animation_clip) = node
-            .as_any()
-            .downcast_ref::<AnimationClipNode>()
-            .and_then(|animation_clip| context.animation_clips.get(&animation_clip.clip))
-        else {
-            return Transform::IDENTITY;
-        };
+        target: &AnimationTarget,
+        evaluated_inputs: &[EvaluatedPose],
+        output: &mut Pose,
+    ) {
+        // let Some(animation_clip) = node
+        //     .as_any()
+        //     .downcast_ref::<AnimationClipNode>()
+        //     .and_then(|animation_clip| context.animation_clips.get(&animation_clip.clip))
+        // else {
+        //     return Transform::IDENTITY;
+        // };
 
-        // Find the channel for this animation target
-        let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
-            return Transform::IDENTITY;
-        };
+        // // Find the channel for this animation target
+        // let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
+        //     return Transform::IDENTITY;
+        // };
 
-        // Based on the current time of the animation player + delta time, interpolate the target's transform
-        let mut target_transform = Transform::IDENTITY;
-        for animation_channel in animation_channels {
-            animation_channel.sample_transform(self.current_time(), &mut target_transform);
-        }
+        // // Based on the current time of the animation player + delta time, interpolate the target's transform
+        // let mut target_transform = Transform::IDENTITY;
+        // for animation_channel in animation_channels {
+        //     animation_channel.sample_transform(self.current_time(), &mut target_transform);
+        // }
 
-        target_transform
+        // target_transform
     }
 
     fn update(

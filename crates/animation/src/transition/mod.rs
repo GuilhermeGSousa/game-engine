@@ -1,6 +1,8 @@
-
 use crate::{
-    evaluation::AnimationGraphContext, graph::{AnimationGraphInstances, GraphId}, player::AnimationSkeletonBinding, pose::Pose
+    evaluation::AnimationGraphContext,
+    graph::{AnimationGraphInstances, GraphId},
+    player::AnimationSkeletonBinding,
+    pose::{Pose, PosePool},
 };
 
 pub(crate) mod blend_stack;
@@ -12,6 +14,7 @@ pub(crate) trait AnimationTransitionBlender {
         binding: &AnimationSkeletonBinding,
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
+        pool: &mut PosePool,
         output: &mut Pose,
     );
 

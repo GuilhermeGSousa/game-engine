@@ -6,7 +6,7 @@ use crate::{
     clip::AnimationClip,
     evaluation::AnimationGraphContext,
     player::AnimationSkeletonBinding,
-    pose::{EvaluatedPose, Pose},
+    pose::{EvaluatedPose, Pose, PosePool},
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
@@ -18,6 +18,7 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         context: &AnimationGraphContext<'_>,
         binding: &AnimationSkeletonBinding,
         evaluated_inputs: &[EvaluatedPose],
+        pool: &mut PosePool,
         output: &mut Pose,
     );
 
@@ -56,6 +57,7 @@ impl AnimationNodeInstance for NoneInstance {
         _context: &AnimationGraphContext<'_>,
         _binding: &AnimationSkeletonBinding,
         _evaluated_inputs: &[EvaluatedPose],
+        _pool: &mut PosePool,
         _output: &mut Pose,
     ) {
     }
@@ -116,6 +118,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         context: &AnimationGraphContext<'_>,
         binding: &AnimationSkeletonBinding,
         _evaluated_inputs: &[EvaluatedPose],
+        _pool: &mut PosePool,
         output: &mut Pose,
     ) {
         let Some(animation_clip) = node
@@ -132,22 +135,19 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
             .map(|val| val.map(|uuid| animation_clip.get_channels(&uuid)))
             .flatten()
             .enumerate()
-            .for_each(|(bone_index, animation_channels)|
-        {
-            let Some(animation_channels) = animation_channels else {
-                return;
-            };
+            .for_each(|(bone_index, animation_channels)| {
+                let Some(animation_channels) = animation_channels else {
+                    return;
+                };
 
-            let Some(joint_pose) = output.get_joint_pose_mut(bone_index) else
-            {
-                return;
-            };
+                let Some(joint_pose) = output.get_joint_pose_mut(bone_index) else {
+                    return;
+                };
 
-            for animation_channel in animation_channels
-            {
-                animation_channel.sample_transform(self.current_time(), joint_pose);
-            } 
-        });
+                for animation_channel in animation_channels {
+                    animation_channel.sample_transform(self.current_time(), joint_pose);
+                }
+            });
     }
 
     fn update(

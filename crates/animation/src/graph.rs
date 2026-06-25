@@ -214,24 +214,23 @@ impl AnimationGraphInstance {
                 continue;
             };
 
-            let input_count = graph
-                .get_node_inputs(node_index).count();
+            let input_count = graph.get_node_inputs(node_index).count();
 
             let stack_start = graph_evaluator.stack_len() - input_count;
 
             let mut node_output_pose = pool.acquire();
 
             node_state.node_instance.evaluate(
-                    node,
-                    context,
-                    binding,
-                    &graph_evaluator.view(stack_start),
-                    &mut node_output_pose,
-                );
+                node,
+                context,
+                binding,
+                &graph_evaluator.view(stack_start),
+                pool,
+                &mut node_output_pose,
+            );
 
-            // Consume inputs and add them back to the free list   
-            for evaluated_pose in graph_evaluator.evaluation_stack.drain(stack_start..)
-            {
+            // Consume inputs and add them back to the free list
+            for evaluated_pose in graph_evaluator.evaluation_stack.drain(stack_start..) {
                 pool.release(evaluated_pose.pose);
             }
 

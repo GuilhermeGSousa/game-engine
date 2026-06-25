@@ -1,7 +1,9 @@
-use essential::{blend::Blendable, transform::Transform};
-
 use crate::{
-    evaluation::AnimationGraphContext, graph::{AnimationGraphInstances, GraphId}, player::AnimationSkeletonBinding, pose::Pose, transition::AnimationTransitionBlender
+    evaluation::AnimationGraphContext,
+    graph::{AnimationGraphInstances, GraphId},
+    player::AnimationSkeletonBinding,
+    pose::{Pose, PosePool},
+    transition::AnimationTransitionBlender,
 };
 
 struct BlendStackEntry {
@@ -30,25 +32,25 @@ impl AnimationTransitionBlender for BlendStack {
         binding: &AnimationSkeletonBinding,
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
+        pool: &mut PosePool,
         output: &mut Pose,
     ) {
-
-        // TODO!
-        let mut result = graph_instances
-            .get(self.current_graph)
-            .map(|graph_instance| graph_instance.evaluate(context, todo!(), output))
-            .unwrap_or(Transform::IDENTITY);
-
-        for layer in &self.layers {
-            let layer_transform = graph_instances
-                .get(layer.graph_id)
-                .map(|graph_instance| graph_instance.evaluate(target, context))
-                .unwrap_or(Transform::IDENTITY);
-
-            result = Transform::interpolate(result, layer_transform, layer.weight);
+        // Evaluate the current graph straight into the output pose.
+        if let Some(graph_instance) = graph_instances.get(self.current_graph) {
+            graph_instance.evaluate(context, binding, pool, output);
         }
 
-        result
+        // Cross-fade each in-progress layer on top, by its current weight.
+        for layer in &self.layers {
+            let mut layer_pose = pool.acquire();
+
+            if let Some(graph_instance) = graph_instances.get(layer.graph_id) {
+                graph_instance.evaluate(context, binding, pool, &mut layer_pose);
+            }
+
+            output.blend(&layer_pose, layer.weight);
+            pool.release(layer_pose);
+        }
     }
 
     fn update(

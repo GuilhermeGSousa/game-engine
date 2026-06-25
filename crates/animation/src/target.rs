@@ -1,55 +1,37 @@
 use ecs::{
-    component::Component,
-    entity::Entity,
     query::{Query, query_filter::Changed},
     resource::Res,
 };
 use essential::{assets::asset_store::AssetStore, time::Time, transform::Transform};
-use uuid::Uuid;
+use mesh::skeleton::SkeletonComponent;
 
 use crate::{
     clip::AnimationClip,
     evaluation::AnimationGraphContext,
     graph::AnimationGraph,
-    player::{AnimationHandleComponent, AnimationPlayer},
-    root::AnimationRootBone,
+    player::{AnimationHandleComponent, AnimationPlayer, AnimationSkeletonBinding},
 };
 
-#[derive(Component)]
-pub struct AnimationTarget {
-    pub id: Uuid,
-    pub animator: Entity,
-}
-
 pub(crate) fn animate_targets(
-    animation_players: Query<&AnimationPlayer>,
-    animation_targets: Query<(
-        &mut Transform,
-        &AnimationTarget,
-        Option<&mut AnimationRootBone>,
+    animation_players: Query<(
+        &mut AnimationPlayer,
+        &AnimationSkeletonBinding,
+        &SkeletonComponent,
     )>,
+    transforms: Query<&mut Transform>,
     animation_graphs: Res<AssetStore<AnimationGraph>>,
     animation_clips: Res<AssetStore<AnimationClip>>,
 ) {
-    for (mut target_transform, animation_target, animation_root) in animation_targets.iter() {
-        let Some(animation_player) = animation_players.get_entity(animation_target.animator) else {
-            continue;
-        };
-
-        let graph_instance = animation_player.graph_instance();
-        
-        if let Some(_animation_root) = animation_root {
-            // TODO: Accumulate root motion and store it in animation_root
-        } else {
-            graph_instance.evaluate(
-
-                &AnimationGraphContext {
-                    animation_clips: &animation_clips,
-                    animation_graphs: &animation_graphs,
-                },
-                animation_player.pose_pool_mut(),
-            );
-        }
+    for (mut animation_player, binding, skeleton) in animation_players.iter() {
+        animation_player.evaluate(
+            &AnimationGraphContext {
+                animation_clips: &animation_clips,
+                animation_graphs: &animation_graphs,
+            },
+            binding,
+            skeleton.bones(),
+            &transforms,
+        );
     }
 }
 

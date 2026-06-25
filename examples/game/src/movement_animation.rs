@@ -95,23 +95,23 @@ pub(crate) fn setup_state_machine(
             continue;
         };
 
-        if let Some(anim_root) = spawned_gltf.animation_roots().first() {
+        if let Some(skeleton_entity) = spawned_gltf.animated_entities().first() {
             let anim_store: AnimationStore = AnimationStore { idle, walk };
-            cmd.insert(anim_store, *anim_root);
+            cmd.insert(anim_store, *skeleton_entity);
             cmd.remove::<LoadingAnimationStore>(entity);
         }
     }
 }
 
 pub(crate) fn setup_animations(
-    animation_roots: Query<(Entity, &AnimationStore), Without<AnimationHandleComponent>>,
+    animation_stores: Query<(Entity, &AnimationStore), Without<AnimationHandleComponent>>,
     gltf_comps: Query<&GLTFSpawnedMarker>,
     asset_server: Res<AssetServer>,
     mut cmd: CommandQueue,
 ) {
     for gltf_marker in gltf_comps.iter() {
-        for anim_root in gltf_marker.animation_roots() {
-            let Some((entity, anim_store)) = animation_roots.get_entity(*anim_root) else {
+        for skeleton_entity in gltf_marker.animated_entities() {
+            let Some((entity, anim_store)) = animation_stores.get_entity(*skeleton_entity) else {
                 continue;
             };
 

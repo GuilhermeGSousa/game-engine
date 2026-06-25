@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
-use ecs::component::Component;
-use essential::assets::handle::AssetHandle;
+use ecs::{component::Component, entity::Entity, query::Query};
+use essential::{assets::handle::AssetHandle, transform::Transform};
 use log::info;
 use uuid::Uuid;
 
@@ -78,16 +78,30 @@ impl AnimationPlayer {
         self.graph_instance.update(delta_time, context);
     }
 
-    pub(crate) fn graph_instance(&self) -> &AnimationGraphInstance {
-        &self.graph_instance
-    }
+    pub(crate) fn evaluate(
+        &mut self,
+        context: &AnimationGraphContext,
+        binding: &AnimationSkeletonBinding,
+        bones: &[Entity],
+        transforms: &Query<&mut Transform>,
+    ) {
+        let mut output_pose = self.pose_pool.acquire();
+        self.graph_instance
+            .evaluate(context, binding, &mut self.pose_pool, &mut output_pose);
 
-    pub(crate) fn pose_pool(&self) -> &PosePool {
-        &self.pose_pool
-    }
+        for (bone_index, bone_entity) in bones.iter().enumerate() {
+            let Some(joint_pose) = output_pose.get_joint_pose(bone_index) else {
+                continue;
+            };
 
-    pub(crate) fn pose_pool_mut(&mut self) -> &mut PosePool {
-        &mut self.pose_pool
+            if let Some(mut transform) = transforms.get_entity(*bone_entity) {
+                transform.translation = joint_pose.translation;
+                transform.rotation = joint_pose.rotation;
+                transform.scale = joint_pose.scale;
+            }
+        }
+
+        self.pose_pool.release(output_pose);
     }
 }
 
@@ -105,9 +119,9 @@ impl Deref for AnimationHandleComponent {
 }
 
 /// A component holding all the (optional) animation channels for a SkeletonComponent's bones
-/// 
+///
 /// # Fields
-/// 
+///
 /// - `target_ids` (`Vec<Option<Uuid>>`) - animation channel ids
 #[derive(Component, Default)]
 pub struct AnimationSkeletonBinding {
@@ -115,8 +129,11 @@ pub struct AnimationSkeletonBinding {
 }
 
 impl AnimationSkeletonBinding {
-    pub fn target_ids(&self) -> &[Option<Uuid>]
-    {
+    pub fn new(target_ids: Vec<Option<Uuid>>) -> Self {
+        Self { target_ids }
+    }
+
+    pub fn target_ids(&self) -> &[Option<Uuid>] {
         &self.target_ids
     }
 }

@@ -8,7 +8,6 @@ use animation::{
     clip::{AnimationChanelOutput, AnimationChannel, AnimationClip},
     player::{AnimationPlayer, AnimationSkeletonBinding},
     root::AnimationRootBone,
-    target::AnimationTarget,
 };
 use anyhow::{Context, bail};
 use async_trait::async_trait;
@@ -52,7 +51,6 @@ pub struct GLTFScene {
     pub(crate) skeletons: Vec<GLTFSkeleton>,
     pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
     pub(crate) target_id_to_node_idx: HashMap<Uuid, GLTFAnimationTargetInfo>,
-    pub(crate) animation_roots: HashSet<usize>,
 }
 
 impl GLTFScene {
@@ -80,13 +78,11 @@ pub struct GLTFSkeleton {
 }
 
 pub(crate) struct GLTFNodePathInfo {
-    pub(crate) root_node: usize,
     pub(crate) node_path: Vec<Cow<'static, str>>,
 }
 
 pub(crate) struct GLTFAnimationTargetInfo {
     pub(crate) node_index: usize,
-    pub(crate) root_index: usize,
 }
 
 #[derive(Default)]
@@ -267,7 +263,6 @@ impl AssetLoader for GLTFLoader {
         }
 
         let mut target_id_to_node_idx = HashMap::new();
-        let mut animation_roots = HashSet::new();
         let mut animation_clips = Vec::new();
         for animation in document.animations() {
             let mut animation_clip = AnimationClip::default();
@@ -324,10 +319,8 @@ impl AssetLoader for GLTFLoader {
                         target_id,
                         GLTFAnimationTargetInfo {
                             node_index: target_node_idx,
-                            root_index: node_path_info.root_node,
                         },
                     );
-                    animation_roots.insert(node_path_info.root_node);
                     animation_clip.add_channel(target_id, animation_channel);
                 } else {
                     warn!("Missing an node name for node {}.", target_node_idx);
@@ -343,7 +336,6 @@ impl AssetLoader for GLTFLoader {
             skeletons,
             animations: animation_clips,
             target_id_to_node_idx,
-            animation_roots,
         })
     }
 }
@@ -497,16 +489,17 @@ pub struct GLTFSpawnerComponent(pub AssetHandle<GLTFScene>);
 
 #[derive(Component)]
 pub struct GLTFSpawnedMarker {
-    animation_roots: Vec<Entity>,
+    animated_entities: Vec<Entity>,
 }
 
 impl GLTFSpawnedMarker {
-    pub fn new(animation_roots: Vec<Entity>) -> Self {
-        Self { animation_roots }
+    pub fn new(animated_entities: Vec<Entity>) -> Self {
+        Self { animated_entities }
     }
 
-    pub fn animation_roots(&self) -> &Vec<Entity> {
-        &self.animation_roots
+    /// Entities that carry an `AnimationPlayer` (and its `SkeletonComponent`).
+    pub fn animated_entities(&self) -> &Vec<Entity> {
+        &self.animated_entities
     }
 }
 
@@ -522,7 +515,6 @@ pub(crate) fn spawn_gltf_components(
     mut cmd: CommandQueue,
     gltf_components: Query<(Entity, &GLTFSpawnerComponent), Without<GLTFSpawnedMarker>>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
-    animation_assets: Res<AssetStore<AnimationClip>>,
 ) {
     for (entity, component) in gltf_components.iter() {
         if let Some(asset) = gltf_assets.get(component) {
@@ -540,6 +532,16 @@ pub(crate) fn spawn_gltf_components(
                     cmd.add_child(node_entities[node_index], node_entities[*child]);
                 }
             }
+
+            // Reverse the target map so a skeleton bone (by node index) can recover its
+            // animation channel id.
+            let mut node_to_target_id: HashMap<usize, Uuid> = HashMap::new();
+            for (target_id, info) in &asset.target_id_to_node_idx {
+                node_to_target_id.insert(info.node_index, *target_id);
+            }
+
+            // Entities that receive an AnimationPlayer (co-located with their SkeletonComponent).
+            let mut animated_entities: Vec<Entity> = Vec::new();
 
             // Insert MeshComponents, AnimationPlayers and AnimationSkeletonBindings
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
@@ -601,43 +603,30 @@ pub(crate) fn spawn_gltf_components(
                         cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
                     }
                     cmd.insert(skeleton_component, node_entities[node_index]);
-                }
 
-                
-                if asset.animation_roots.contains(&node_index) {
-                    cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
-                }
-            }
+                    // Each bone's animation channel id, in skeleton bone order (None for
+                    // un-animated bones).
+                    let target_ids = gltf_skeleton
+                        .bones
+                        .iter()
+                        .map(|bone_index| node_to_target_id.get(bone_index).copied())
+                        .collect::<Vec<_>>();
 
-            // Insert animation target components
-            for animation_clip in asset
-                .animations
-                .iter()
-                .filter_map(|handle| animation_assets.get(handle))
-            {
-                for target_id in animation_clip.target_ids() {
-                    if let Some(node_info) = asset.target_id_to_node_idx.get(target_id) {
-                        let target_component = AnimationTarget {
-                            id: *target_id,
-                            animator: node_entities[node_info.root_index],
-                        };
-
-                        let target_entity = node_entities[node_info.node_index];
-                        cmd.insert(target_component, target_entity);
+                    // Co-locate the player and its binding with the skeleton so the graph can
+                    // be evaluated and written back to the bones together.  Only animated
+                    // skeletons get a player.
+                    if target_ids.iter().any(Option::is_some) {
+                        cmd.insert(
+                            AnimationSkeletonBinding::new(target_ids),
+                            node_entities[node_index],
+                        );
+                        cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
+                        animated_entities.push(node_entities[node_index]);
                     }
                 }
             }
 
-            cmd.insert(
-                GLTFSpawnedMarker::new(
-                    asset
-                        .animation_roots
-                        .iter()
-                        .map(|node_index| node_entities[*node_index])
-                        .collect(),
-                ),
-                entity,
-            );
+            cmd.insert(GLTFSpawnedMarker::new(animated_entities), entity);
             // cmd.remove::<GLTFSpawnerComponent>(entity);
         }
     }
@@ -667,7 +656,6 @@ pub(crate) fn collect_paths(
     paths.insert(
         node.index(),
         GLTFNodePathInfo {
-            root_node: *root_index,
             node_path: path,
         },
     );

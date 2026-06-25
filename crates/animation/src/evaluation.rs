@@ -21,16 +21,13 @@ impl AnimationGraphEvaluator {
         self.evaluation_stack.pop()
     }
 
-    pub fn stack_len(&self) -> usize
-    {
+    pub fn stack_len(&self) -> usize {
         self.evaluation_stack.len()
     }
 
-    pub fn view(&self, start: usize) -> &[EvaluatedPose]
-    {
+    pub fn view(&self, start: usize) -> &[EvaluatedPose] {
         &self.evaluation_stack[start..]
     }
-
 }
 
 impl Default for AnimationGraphEvaluator {

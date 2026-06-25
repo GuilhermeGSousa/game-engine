@@ -1,6 +1,6 @@
 use std::collections::{HashMap, hash_map::Keys};
 
-use essential::{assets::Asset};
+use essential::assets::Asset;
 use glam::{Quat, Vec3};
 use uuid::Uuid;
 

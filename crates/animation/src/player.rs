@@ -29,13 +29,20 @@ impl ActiveNodeInstance {
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Component)]
 pub struct AnimationPlayer {
     graph_instance: AnimationGraphInstance,
     pose_pool: PosePool,
 }
 
 impl AnimationPlayer {
+    pub fn new(bone_count: usize) -> Self {
+        Self {
+            graph_instance: AnimationGraphInstance::default(),
+            pose_pool: PosePool::new(bone_count),
+        }
+    }
+
     pub fn play(&mut self, node_index: &AnimationNodeIndex) {
         if let Some(anim_clip_instance) = self
             .graph_instance

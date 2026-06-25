@@ -4,22 +4,12 @@ use game_engine::{
         graph::{AnimationGraph, AnimationNodeIndex},
         player::{AnimationHandleComponent, AnimationPlayer},
         state_machine::{AnimationFSMTrigger, AnimationFSMVariableType, AnimationStateMachine},
-    },
-    ecs::{
-        command::CommandQueue,
-        component::Component,
-        entity::Entity,
-        query::{query_filter::Without, Query},
-        resource::Res,
-    },
-    essential::{
+    }, ecs::{
+        command::CommandQueue, component::Component, entity::Entity, query::{Query, query_filter::Without}, resource::Res,
+    }, essential::{
         assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
         transform::Transform,
-    },
-    gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
-    mesh::SkeletonComponent,
-    render::components::camera::Camera,
-    window::input::{Input, InputState},
+    }, gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings}, render::components::camera::Camera, window::input::{Input, InputState},
 };
 use winit::keyboard::{KeyCode, PhysicalKey};
 
@@ -78,7 +68,7 @@ pub(crate) fn spawn_on_button_press(
 }
 
 pub(crate) fn setup_state_machine(
-    animated_entities: Query<(Entity, &LoadingAnimationStore, &SkeletonComponent)>,
+    animated_entities: Query<(Entity, &LoadingAnimationStore)>,
     gltf_scenes: Res<AssetStore<GLTFScene>>,
     mut cmd: CommandQueue,
 ) {
@@ -103,7 +93,6 @@ pub(crate) fn setup_state_machine(
 
 pub(crate) fn setup_animations(
     animation_stores: Query<(Entity, &AnimationStore), Without<AnimationHandleComponent>>,
-    gltf_comps: Query<&GLTFSpawnedMarker>,
     asset_server: Res<AssetServer>,
     mut cmd: CommandQueue,
 ) {

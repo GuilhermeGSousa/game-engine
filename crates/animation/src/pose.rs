@@ -1,6 +1,7 @@
 use essential::blend::Blendable;
 use glam::{Quat, Vec3};
 
+#[derive(Clone)]
 pub struct JointPose {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -11,8 +12,18 @@ pub struct JointPose {
 pub struct Pose(Box<[JointPose]>);
 
 impl Pose {
-    pub fn identity() -> Pose {
-        todo!()
+    pub fn identity(bone_count: usize) -> Pose {
+        Pose(
+            vec![
+                JointPose {
+                    translation: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    scale: Vec3::ONE,
+                };
+                bone_count
+            ]
+            .into_boxed_slice(),
+        )
     }
 
     pub fn get_joint_pose(&mut self, bone_index: usize) -> Option<&JointPose> {
@@ -43,14 +54,23 @@ pub struct EvaluatedPose {
     pub weight: f32,
 }
 
-#[derive(Default)]
 pub struct PosePool {
     free_poses: Vec<Pose>,
+    bone_count: usize,
 }
 
 impl PosePool {
+    pub(crate) fn new(bone_count: usize) -> Self {
+        Self {
+            free_poses: Vec::new(),
+            bone_count,
+        }
+    }
+
     pub(crate) fn acquire(&mut self) -> Pose {
-        self.free_poses.pop().unwrap_or(Pose::identity())
+        self.free_poses
+            .pop()
+            .unwrap_or(Pose::identity(self.bone_count))
     }
 
     pub(crate) fn release(&mut self, pose: Pose) {

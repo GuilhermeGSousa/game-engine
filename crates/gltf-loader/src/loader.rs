@@ -587,7 +587,7 @@ pub(crate) fn spawn_gltf_components(
                         cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
                     }
                     cmd.insert(skeleton_component, node_entities[node_index]);
-                    cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
+                    cmd.insert(AnimationPlayer::new(gltf_skeleton.bones.len()), node_entities[node_index]);
                 }
             }
         }

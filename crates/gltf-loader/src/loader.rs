@@ -73,6 +73,7 @@ pub struct GLTFNode {
 
 pub struct GLTFSkeleton {
     pub(crate) bones: Vec<usize>,
+    pub(crate) bone_ids: Vec<Uuid>,
     pub(crate) skeleton: AssetHandle<Skeleton>,
     pub(crate) root_bone: Option<usize>,
 }
@@ -213,6 +214,21 @@ impl AssetLoader for GLTFLoader {
             });
         }
 
+        let mut node_paths = HashMap::new();
+        for scene in document.scenes() {
+            for root_node in scene.nodes() {
+                let root_index = root_node.index();
+
+                collect_paths(
+                    &root_node,
+                    &[],
+                    &root_index,
+                    &mut node_paths,
+                    &mut HashSet::new(),
+                );
+            }
+        }
+
         let mut skeletons = Vec::new();
         for skin in document.skins() {
             if let Some(inverse_bind_matrices) = skin
@@ -226,6 +242,10 @@ impl AssetLoader for GLTFLoader {
             {
                 let skeleton = load_context.asset_server().add(inverse_bind_matrices);
                 let bones: Vec<usize> = skin.joints().map(|j| j.index()).collect();
+                let bone_ids = skin
+                    .joints()
+                    .map(|j| paths_to_uuid(&node_paths[&j.index()].node_path))
+                    .collect();
 
                 let root_bone = usage_setting.root_bone.as_ref().and_then(|root_bone_name| {
                     skin.joints().find_map(|join_node| match join_node.name() {
@@ -241,24 +261,10 @@ impl AssetLoader for GLTFLoader {
                 });
                 skeletons.push(GLTFSkeleton {
                     bones,
+                    bone_ids,
                     skeleton,
                     root_bone,
                 });
-            }
-        }
-
-        let mut node_paths = HashMap::new();
-        for scene in document.scenes() {
-            for root_node in scene.nodes() {
-                let root_index = root_node.index();
-
-                collect_paths(
-                    &root_node,
-                    &[],
-                    &root_index,
-                    &mut node_paths,
-                    &mut HashSet::new(),
-                );
             }
         }
 
@@ -597,6 +603,7 @@ pub(crate) fn spawn_gltf_components(
                             .iter()
                             .map(|bone_index| node_entities[*bone_index])
                             .collect::<Vec<_>>(),
+                        gltf_skeleton.bone_ids.clone(),
                     );
 
                     if let Some(root_bone_index) = gltf_skeleton.root_bone {
@@ -653,12 +660,7 @@ pub(crate) fn collect_paths(
             collect_paths(&child, &path, root_index, paths, visited);
         }
     }
-    paths.insert(
-        node.index(),
-        GLTFNodePathInfo {
-            node_path: path,
-        },
-    );
+    paths.insert(node.index(), GLTFNodePathInfo { node_path: path });
 }
 
 pub(crate) fn paths_to_uuid(paths: &[Cow<'static, str>]) -> Uuid {

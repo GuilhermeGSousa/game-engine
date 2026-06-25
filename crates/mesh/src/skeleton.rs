@@ -1,6 +1,7 @@
 use ecs::{Component, Entity};
 use essential::assets::{handle::AssetHandle, Asset};
 use glam::Mat4;
+use uuid::Uuid;
 
 #[derive(Asset)]
 pub struct Skeleton {
@@ -19,11 +20,12 @@ impl From<Vec<Mat4>> for Skeleton {
 pub struct SkeletonComponent {
     skeleton: AssetHandle<Skeleton>,
     bones: Vec<Entity>,
+    bone_ids: Vec<Uuid>
 }
 
 impl SkeletonComponent {
-    pub fn new(skeleton: AssetHandle<Skeleton>, bones: Vec<Entity>) -> Self {
-        Self { skeleton, bones }
+    pub fn new(skeleton: AssetHandle<Skeleton>, bones: Vec<Entity>, bone_ids: Vec<Uuid>) -> Self {
+        Self { skeleton, bones, bone_ids }
     }
 
     pub fn skeleton(&self) -> &AssetHandle<Skeleton> {

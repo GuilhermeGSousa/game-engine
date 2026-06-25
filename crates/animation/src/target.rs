@@ -10,11 +10,13 @@ use crate::{
     evaluation::AnimationGraphContext,
     graph::AnimationGraph,
     player::{AnimationHandleComponent, AnimationPlayer},
+    root::AnimationRootBone,
 };
 
 pub(crate) fn animate_targets(
     animation_players: Query<(&mut AnimationPlayer, &SkeletonComponent)>,
     transforms: Query<&mut Transform>,
+    root_bones: Query<&mut AnimationRootBone>,
     animation_graphs: Res<AssetStore<AnimationGraph>>,
     animation_clips: Res<AssetStore<AnimationClip>>,
 ) {
@@ -27,6 +29,7 @@ pub(crate) fn animate_targets(
             skeleton.bone_ids(),
             skeleton.bones(),
             &transforms,
+            &root_bones,
         );
     }
 }

@@ -10,6 +10,7 @@ use crate::{
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
     pose::PosePool,
+    root::AnimationRootBone,
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
@@ -73,6 +74,14 @@ impl AnimationPlayer {
         fsm_instance.set_param(param_name.into(), param_value);
     }
 
+    /// Returns the name of the state machine's current state, if `node_index` refers to a
+    /// state machine node that has been initialized.
+    pub fn current_fsm_state(&self, node_index: &AnimationNodeIndex) -> Option<&str> {
+        self.graph_instance
+            .get_instance::<AnimationStateMachineInstance>(node_index)
+            .map(AnimationStateMachineInstance::current_state_name)
+    }
+
     pub(crate) fn initialize_graph(
         &mut self,
         animation_graph: AssetHandle<AnimationGraph>,
@@ -91,6 +100,7 @@ impl AnimationPlayer {
         bone_ids: &[Uuid],
         bones: &[Entity],
         transforms: &Query<&mut Transform>,
+        root_bones: &Query<&mut AnimationRootBone>,
     ) {
         let mut output_pose = self.pose_pool.acquire();
         self.graph_instance
@@ -100,6 +110,13 @@ impl AnimationPlayer {
             let Some(joint_pose) = output_pose.get_joint_pose(bone_index) else {
                 continue;
             };
+
+            // Root bone: record its motion on the component and leave the bone at its bind
+            // pose instead of animating it.
+            if let Some(mut root_bone) = root_bones.get_entity(*bone_entity) {
+                root_bone.displacement = joint_pose.translation;
+                continue;
+            }
 
             if let Some(mut transform) = transforms.get_entity(*bone_entity) {
                 transform.translation = joint_pose.translation;

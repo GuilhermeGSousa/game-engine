@@ -519,6 +519,20 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
 
+            // Parent the scene's root nodes (those without a parent) to the spawner entity, so
+            // the spawned hierarchy inherits the spawner entity's transform.
+            let mut has_parent = vec![false; asset.nodes.len()];
+            for gltf_node in &asset.nodes {
+                for child in &gltf_node.children {
+                    has_parent[*child] = true;
+                }
+            }
+            for (node_index, node_entity) in node_entities.iter().enumerate() {
+                if !has_parent[node_index] {
+                    cmd.add_child(entity, *node_entity);
+                }
+            }
+
             // Reverse the target map so a skeleton bone (by node index) can recover its
             // animation channel id.
             let mut node_to_target_id: HashMap<usize, Uuid> = HashMap::new();
@@ -587,7 +601,10 @@ pub(crate) fn spawn_gltf_components(
                         cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
                     }
                     cmd.insert(skeleton_component, node_entities[node_index]);
-                    cmd.insert(AnimationPlayer::new(gltf_skeleton.bones.len()), node_entities[node_index]);
+                    cmd.insert(
+                        AnimationPlayer::new(gltf_skeleton.bones.len()),
+                        node_entities[node_index],
+                    );
                 }
             }
             cmd.remove::<GLTFSpawnerComponent>(entity);

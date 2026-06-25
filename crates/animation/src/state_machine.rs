@@ -2,7 +2,6 @@ use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
-use crate::player::AnimationSkeletonBinding;
 use crate::pose::{EvaluatedPose, Pose, PosePool};
 use crate::transition::AnimationTransitionBlender;
 use crate::transition::blend_stack::BlendStack;
@@ -13,6 +12,7 @@ use crate::{
 
 use derive_more::Deref;
 use essential::{assets::handle::AssetHandle, utils::AsAny};
+use uuid::Uuid;
 
 pub struct AnimationFSMStateDefinition<'a> {
     pub name: &'a str,
@@ -264,13 +264,13 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         &self,
         _node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        binding: &AnimationSkeletonBinding,
+        bone_ids: &[Uuid],
         _evaluated_inputs: &[EvaluatedPose],
         pool: &mut PosePool,
         output: &mut Pose,
     ) {
         self.blend_stack
-            .sample(binding, &self.state_graph_instances, context, pool, output);
+            .sample(bone_ids, &self.state_graph_instances, context, pool, output);
     }
 }
 

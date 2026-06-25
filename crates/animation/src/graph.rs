@@ -7,12 +7,13 @@ use petgraph::{
     graph::{DiGraph, Neighbors, NodeIndex},
     visit::{Dfs, DfsPostOrder, Walker},
 };
+use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
-    player::{ActiveNodeInstance, AnimationSkeletonBinding},
+    player::ActiveNodeInstance,
     pose::{EvaluatedPose, Pose, PosePool},
 };
 
@@ -192,7 +193,7 @@ impl AnimationGraphInstance {
     pub(crate) fn evaluate(
         &self,
         context: &AnimationGraphContext<'_>,
-        binding: &AnimationSkeletonBinding,
+        bone_ids: &[Uuid],
         pool: &mut PosePool,
         output_pose: &mut Pose,
     ) {
@@ -223,7 +224,7 @@ impl AnimationGraphInstance {
             node_state.node_instance.evaluate(
                 node,
                 context,
-                binding,
+                bone_ids,
                 &graph_evaluator.view(stack_start),
                 pool,
                 &mut node_output_pose,

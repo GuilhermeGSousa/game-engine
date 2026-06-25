@@ -9,26 +9,22 @@ use crate::{
     clip::AnimationClip,
     evaluation::AnimationGraphContext,
     graph::AnimationGraph,
-    player::{AnimationHandleComponent, AnimationPlayer, AnimationSkeletonBinding},
+    player::{AnimationHandleComponent, AnimationPlayer},
 };
 
 pub(crate) fn animate_targets(
-    animation_players: Query<(
-        &mut AnimationPlayer,
-        &AnimationSkeletonBinding,
-        &SkeletonComponent,
-    )>,
+    animation_players: Query<(&mut AnimationPlayer, &SkeletonComponent)>,
     transforms: Query<&mut Transform>,
     animation_graphs: Res<AssetStore<AnimationGraph>>,
     animation_clips: Res<AssetStore<AnimationClip>>,
 ) {
-    for (mut animation_player, binding, skeleton) in animation_players.iter() {
+    for (mut animation_player, skeleton) in animation_players.iter() {
         animation_player.evaluate(
             &AnimationGraphContext {
                 animation_clips: &animation_clips,
                 animation_graphs: &animation_graphs,
             },
-            binding,
+            skeleton.bone_ids(),
             skeleton.bones(),
             &transforms,
         );

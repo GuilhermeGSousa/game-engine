@@ -1,7 +1,8 @@
+use uuid::Uuid;
+
 use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraphInstances, GraphId},
-    player::AnimationSkeletonBinding,
     pose::{Pose, PosePool},
 };
 
@@ -11,7 +12,7 @@ pub(crate) mod inertialization_blender;
 pub(crate) trait AnimationTransitionBlender {
     fn sample(
         &self,
-        binding: &AnimationSkeletonBinding,
+        bone_ids: &[Uuid],
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
         pool: &mut PosePool,

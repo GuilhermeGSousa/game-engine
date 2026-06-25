@@ -20,19 +20,27 @@ impl From<Vec<Mat4>> for Skeleton {
 pub struct SkeletonComponent {
     skeleton: AssetHandle<Skeleton>,
     bones: Vec<Entity>,
-    bone_ids: Vec<Uuid>
+    bone_ids: Vec<Uuid>,
 }
 
 impl SkeletonComponent {
     pub fn new(skeleton: AssetHandle<Skeleton>, bones: Vec<Entity>, bone_ids: Vec<Uuid>) -> Self {
-        Self { skeleton, bones, bone_ids }
+        Self {
+            skeleton,
+            bones,
+            bone_ids,
+        }
     }
 
     pub fn skeleton(&self) -> &AssetHandle<Skeleton> {
         &self.skeleton
     }
 
-    pub fn bones(&self) -> &Vec<Entity> {
+    pub fn bones(&self) -> &[Entity] {
         &self.bones
+    }
+
+    pub fn bone_ids(&self) -> &[Uuid] {
+        &self.bone_ids
     }
 }

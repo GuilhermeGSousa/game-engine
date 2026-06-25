@@ -81,13 +81,13 @@ impl AnimationPlayer {
     pub(crate) fn evaluate(
         &mut self,
         context: &AnimationGraphContext,
-        binding: &AnimationSkeletonBinding,
+        bone_ids: &[Uuid],
         bones: &[Entity],
         transforms: &Query<&mut Transform>,
     ) {
         let mut output_pose = self.pose_pool.acquire();
         self.graph_instance
-            .evaluate(context, binding, &mut self.pose_pool, &mut output_pose);
+            .evaluate(context, bone_ids, &mut self.pose_pool, &mut output_pose);
 
         for (bone_index, bone_entity) in bones.iter().enumerate() {
             let Some(joint_pose) = output_pose.get_joint_pose(bone_index) else {
@@ -115,25 +115,5 @@ impl Deref for AnimationHandleComponent {
 
     fn deref(&self) -> &Self::Target {
         &self.handle
-    }
-}
-
-/// A component holding all the (optional) animation channels for a SkeletonComponent's bones
-///
-/// # Fields
-///
-/// - `target_ids` (`Vec<Option<Uuid>>`) - animation channel ids
-#[derive(Component, Default)]
-pub struct AnimationSkeletonBinding {
-    target_ids: Vec<Option<Uuid>>,
-}
-
-impl AnimationSkeletonBinding {
-    pub fn new(target_ids: Vec<Option<Uuid>>) -> Self {
-        Self { target_ids }
-    }
-
-    pub fn target_ids(&self) -> &[Option<Uuid>] {
-        &self.target_ids
     }
 }

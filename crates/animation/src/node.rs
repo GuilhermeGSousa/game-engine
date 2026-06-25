@@ -1,11 +1,11 @@
 use std::any::Any;
 
 use essential::{assets::handle::AssetHandle, utils::AsAny};
+use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
     evaluation::AnimationGraphContext,
-    player::AnimationSkeletonBinding,
     pose::{EvaluatedPose, Pose, PosePool},
 };
 
@@ -16,7 +16,7 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        binding: &AnimationSkeletonBinding,
+        bone_ids: &[Uuid],
         evaluated_inputs: &[EvaluatedPose],
         pool: &mut PosePool,
         output: &mut Pose,
@@ -55,7 +55,7 @@ impl AnimationNodeInstance for NoneInstance {
         &self,
         _node: &dyn AnimationNode,
         _context: &AnimationGraphContext<'_>,
-        _binding: &AnimationSkeletonBinding,
+        _bone_ids: &[Uuid],
         _evaluated_inputs: &[EvaluatedPose],
         _pool: &mut PosePool,
         _output: &mut Pose,
@@ -116,7 +116,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        binding: &AnimationSkeletonBinding,
+        bone_ids: &[Uuid],
         _evaluated_inputs: &[EvaluatedPose],
         _pool: &mut PosePool,
         output: &mut Pose,
@@ -129,11 +129,9 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
             return;
         };
 
-        binding
-            .target_ids()
+        bone_ids
             .iter()
-            .map(|val| val.map(|uuid| animation_clip.get_channels(&uuid)))
-            .flatten()
+            .map(|uuid| animation_clip.get_channels(uuid))
             .enumerate()
             .for_each(|(bone_index, animation_channels)| {
                 let Some(animation_channels) = animation_channels else {

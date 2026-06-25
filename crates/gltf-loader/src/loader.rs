@@ -6,18 +6,14 @@ use std::{
 
 use animation::{
     clip::{AnimationChanelOutput, AnimationChannel, AnimationClip},
-    player::{AnimationPlayer, AnimationSkeletonBinding},
+    player::AnimationPlayer,
     root::AnimationRootBone,
 };
 use anyhow::{Context, bail};
 use async_trait::async_trait;
 use color::LinearRgba;
 use ecs::{
-    command::CommandQueue,
-    component::Component,
-    entity::Entity,
-    query::{Query, query_filter::Without},
-    resource::Res,
+    command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
 };
 use essential::{
     assets::{
@@ -493,22 +489,6 @@ impl GLTFLoader {
 #[derive(Component)]
 pub struct GLTFSpawnerComponent(pub AssetHandle<GLTFScene>);
 
-#[derive(Component)]
-pub struct GLTFSpawnedMarker {
-    animated_entities: Vec<Entity>,
-}
-
-impl GLTFSpawnedMarker {
-    pub fn new(animated_entities: Vec<Entity>) -> Self {
-        Self { animated_entities }
-    }
-
-    /// Entities that carry an `AnimationPlayer` (and its `SkeletonComponent`).
-    pub fn animated_entities(&self) -> &Vec<Entity> {
-        &self.animated_entities
-    }
-}
-
 impl std::ops::Deref for GLTFSpawnerComponent {
     type Target = AssetHandle<GLTFScene>;
 
@@ -519,7 +499,7 @@ impl std::ops::Deref for GLTFSpawnerComponent {
 
 pub(crate) fn spawn_gltf_components(
     mut cmd: CommandQueue,
-    gltf_components: Query<(Entity, &GLTFSpawnerComponent), Without<GLTFSpawnedMarker>>,
+    gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
 ) {
     for (entity, component) in gltf_components.iter() {
@@ -546,10 +526,7 @@ pub(crate) fn spawn_gltf_components(
                 node_to_target_id.insert(info.node_index, *target_id);
             }
 
-            // Entities that receive an AnimationPlayer (co-located with their SkeletonComponent).
-            let mut animated_entities: Vec<Entity> = Vec::new();
-
-            // Insert MeshComponents, AnimationPlayers and AnimationSkeletonBindings
+            // Insert MeshComponents and AnimationPlayers
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
                 if let Some(gltf_mesh_index) = gltf_node.mesh {
                     let gltf_mesh = &asset.meshes[gltf_mesh_index];
@@ -610,32 +587,11 @@ pub(crate) fn spawn_gltf_components(
                         cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
                     }
                     cmd.insert(skeleton_component, node_entities[node_index]);
-
-                    // Each bone's animation channel id, in skeleton bone order (None for
-                    // un-animated bones).
-                    let target_ids = gltf_skeleton
-                        .bones
-                        .iter()
-                        .map(|bone_index| node_to_target_id.get(bone_index).copied())
-                        .collect::<Vec<_>>();
-
-                    // Co-locate the player and its binding with the skeleton so the graph can
-                    // be evaluated and written back to the bones together.  Only animated
-                    // skeletons get a player.
-                    if target_ids.iter().any(Option::is_some) {
-                        cmd.insert(
-                            AnimationSkeletonBinding::new(target_ids),
-                            node_entities[node_index],
-                        );
-                        cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
-                        animated_entities.push(node_entities[node_index]);
-                    }
+                    cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
                 }
             }
-
-            cmd.insert(GLTFSpawnedMarker::new(animated_entities), entity);
-            // cmd.remove::<GLTFSpawnerComponent>(entity);
         }
+        cmd.remove::<GLTFSpawnerComponent>(entity);
     }
 }
 

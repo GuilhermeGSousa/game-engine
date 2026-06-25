@@ -1,7 +1,8 @@
+use uuid::Uuid;
+
 use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraphInstances, GraphId},
-    player::AnimationSkeletonBinding,
     pose::{Pose, PosePool},
     transition::AnimationTransitionBlender,
 };
@@ -29,7 +30,7 @@ impl BlendStack {
 impl AnimationTransitionBlender for BlendStack {
     fn sample(
         &self,
-        binding: &AnimationSkeletonBinding,
+        bone_ids: &[Uuid],
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
         pool: &mut PosePool,
@@ -37,7 +38,7 @@ impl AnimationTransitionBlender for BlendStack {
     ) {
         // Evaluate the current graph straight into the output pose.
         if let Some(graph_instance) = graph_instances.get(self.current_graph) {
-            graph_instance.evaluate(context, binding, pool, output);
+            graph_instance.evaluate(context, bone_ids, pool, output);
         }
 
         // Cross-fade each in-progress layer on top, by its current weight.
@@ -45,7 +46,7 @@ impl AnimationTransitionBlender for BlendStack {
             let mut layer_pose = pool.acquire();
 
             if let Some(graph_instance) = graph_instances.get(layer.graph_id) {
-                graph_instance.evaluate(context, binding, pool, &mut layer_pose);
+                graph_instance.evaluate(context, bone_ids, pool, &mut layer_pose);
             }
 
             output.blend(&layer_pose, layer.weight);

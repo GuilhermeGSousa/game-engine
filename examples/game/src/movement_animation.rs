@@ -16,7 +16,8 @@ use game_engine::{
         assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
         transform::Transform,
     },
-    gltf_loader::loader::{GLTFScene, GLTFSpawnedMarker, GLTFSpawnerComponent, GLTFUsageSettings},
+    gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
+    mesh::SkeletonComponent,
     render::components::camera::Camera,
     window::input::{Input, InputState},
 };
@@ -77,11 +78,11 @@ pub(crate) fn spawn_on_button_press(
 }
 
 pub(crate) fn setup_state_machine(
-    animated_entities: Query<(Entity, &LoadingAnimationStore, &GLTFSpawnedMarker)>,
+    animated_entities: Query<(Entity, &LoadingAnimationStore, &SkeletonComponent)>,
     gltf_scenes: Res<AssetStore<GLTFScene>>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, loading_anim_store, spawned_gltf) in animated_entities.iter() {
+    for (entity, loading_anim_store) in animated_entities.iter() {
         let (Some(idle), Some(walk)) = (
             gltf_scenes
                 .get(&loading_anim_store.idle)
@@ -95,11 +96,8 @@ pub(crate) fn setup_state_machine(
             continue;
         };
 
-        if let Some(skeleton_entity) = spawned_gltf.animated_entities().first() {
-            let anim_store: AnimationStore = AnimationStore { idle, walk };
-            cmd.insert(anim_store, *skeleton_entity);
-            cmd.remove::<LoadingAnimationStore>(entity);
-        }
+        cmd.insert(AnimationStore { idle, walk }, entity);
+        cmd.remove::<LoadingAnimationStore>(entity);
     }
 }
 
@@ -109,44 +107,38 @@ pub(crate) fn setup_animations(
     asset_server: Res<AssetServer>,
     mut cmd: CommandQueue,
 ) {
-    for gltf_marker in gltf_comps.iter() {
-        for skeleton_entity in gltf_marker.animated_entities() {
-            let Some((entity, anim_store)) = animation_stores.get_entity(*skeleton_entity) else {
-                continue;
-            };
+    for (entity, anim_store) in animation_stores.iter() {
+        let mut anim_graph = AnimationGraph::new();
 
-            let mut anim_graph = AnimationGraph::new();
+        let anim_fsm = AnimationStateMachine::from_initial_state(
+            "idle",
+            asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
+            |transition| {
+                transition.to("walk", AnimationFSMTrigger::on_bool("has_moved", true), 0.5);
+            },
+        )
+        .state(
+            "walk",
+            asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
+            |transition| {
+                transition.to(
+                    "idle",
+                    AnimationFSMTrigger::on_bool("has_moved", false),
+                    0.5,
+                );
+            },
+        )
+        .build();
 
-            let anim_fsm = AnimationStateMachine::from_initial_state(
-                "idle",
-                asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
-                |transition| {
-                    transition.to("walk", AnimationFSMTrigger::on_bool("has_moved", true), 0.5);
-                },
-            )
-            .state(
-                "walk",
-                asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
-                |transition| {
-                    transition.to(
-                        "idle",
-                        AnimationFSMTrigger::on_bool("has_moved", false),
-                        0.5,
-                    );
-                },
-            )
-            .build();
+        let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
 
-            let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root());
-
-            cmd.insert(
-                AnimationHandleComponent {
-                    handle: asset_server.add(anim_graph),
-                },
-                entity,
-            );
-            cmd.insert(AnimationFSMData { fsm_node }, entity);
-        }
+        cmd.insert(
+            AnimationHandleComponent {
+                handle: asset_server.add(anim_graph),
+            },
+            entity,
+        );
+        cmd.insert(AnimationFSMData { fsm_node }, entity);
     }
 }
 

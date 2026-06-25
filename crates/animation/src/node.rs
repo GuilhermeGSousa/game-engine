@@ -5,7 +5,7 @@ use essential::{assets::handle::AssetHandle, utils::AsAny};
 use crate::{
     clip::AnimationClip,
     evaluation::AnimationGraphContext,
-    player::AnimationBinding,
+    player::AnimationSkeletonBinding,
     pose::{EvaluatedPose, Pose},
 };
 
@@ -16,7 +16,7 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        binding: &AnimationBinding,
+        binding: &AnimationSkeletonBinding,
         evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     );
@@ -54,7 +54,7 @@ impl AnimationNodeInstance for NoneInstance {
         &self,
         _node: &dyn AnimationNode,
         _context: &AnimationGraphContext<'_>,
-        _binding: &AnimationBinding,
+        _binding: &AnimationSkeletonBinding,
         _evaluated_inputs: &[EvaluatedPose],
         _output: &mut Pose,
     ) {
@@ -114,7 +114,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         &self,
         node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        binding: &AnimationBinding,
+        binding: &AnimationSkeletonBinding,
         _evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     ) {

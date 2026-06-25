@@ -5,7 +5,7 @@ pub struct JointPose
 {
     pub translation: Vec3,
     pub rotation: Quat,
-    // Uniform scaling?
+    // Uniform scaling? No scaling at all?
     pub scale: Vec3,
 }
 

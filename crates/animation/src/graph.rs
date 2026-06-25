@@ -12,7 +12,7 @@ use crate::{
     clip::AnimationClip,
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
-    player::ActiveNodeInstance,
+    player::{ActiveNodeInstance, AnimationSkeletonBinding},
     pose::{EvaluatedPose, Pose, PosePool},
 };
 
@@ -192,6 +192,7 @@ impl AnimationGraphInstance {
     pub(crate) fn evaluate(
         &self,
         context: &AnimationGraphContext<'_>,
+        binding: &AnimationSkeletonBinding,
         pool: &mut PosePool,
         output_pose: &mut Pose,
     ) {
@@ -218,16 +219,12 @@ impl AnimationGraphInstance {
 
             let stack_start = graph_evaluator.stack_len() - input_count;
 
-            let state_context = AnimationGraphContext {
-                animation_clips: context.animation_clips,
-                animation_graphs: context.animation_graphs,
-            };
-
             let mut node_output_pose = pool.acquire();
 
             node_state.node_instance.evaluate(
                     node,
-                    &state_context,
+                    context,
+                    binding,
                     &graph_evaluator.view(stack_start),
                     &mut node_output_pose,
                 );

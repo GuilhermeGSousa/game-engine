@@ -104,12 +104,17 @@ impl Deref for AnimationHandleComponent {
     }
 }
 
+/// A component holding all the (optional) animation channels for a SkeletonComponent's bones
+/// 
+/// # Fields
+/// 
+/// - `target_ids` (`Vec<Option<Uuid>>`) - animation channel ids
 #[derive(Component, Default)]
-pub struct AnimationBinding {
+pub struct AnimationSkeletonBinding {
     target_ids: Vec<Option<Uuid>>,
 }
 
-impl AnimationBinding {
+impl AnimationSkeletonBinding {
     pub fn target_ids(&self) -> &[Option<Uuid>]
     {
         &self.target_ids

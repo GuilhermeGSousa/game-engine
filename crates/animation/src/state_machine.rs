@@ -2,6 +2,7 @@ use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
+use crate::player::AnimationSkeletonBinding;
 use crate::pose::{EvaluatedPose, Pose};
 use crate::transition::AnimationTransitionBlender;
 use crate::transition::blend_stack::BlendStack;
@@ -261,13 +262,14 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
 
     fn evaluate(
        &self,
-        node: &dyn AnimationNode,
+        _node: &dyn AnimationNode,
         context: &AnimationGraphContext<'_>,
-        evaluated_inputs: &[EvaluatedPose],
+        binding: &AnimationSkeletonBinding,
+        _evaluated_inputs: &[EvaluatedPose],
         output: &mut Pose,
     )  {
-        // self.blend_stack
-        //     .sample(target, &self.state_graph_instances, context)
+        self.blend_stack
+            .sample(binding, &self.state_graph_instances, context, output);
     }
 }
 

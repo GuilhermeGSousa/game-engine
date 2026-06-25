@@ -1,10 +1,7 @@
 use essential::{blend::Blendable, transform::Transform};
 
 use crate::{
-    evaluation::AnimationGraphContext,
-    graph::{AnimationGraphInstances, GraphId},
-    target::AnimationTarget,
-    transition::AnimationTransitionBlender,
+    evaluation::AnimationGraphContext, graph::{AnimationGraphInstances, GraphId}, player::AnimationSkeletonBinding, pose::Pose, transition::AnimationTransitionBlender
 };
 
 struct BlendStackEntry {
@@ -30,13 +27,16 @@ impl BlendStack {
 impl AnimationTransitionBlender for BlendStack {
     fn sample(
         &self,
-        target: &AnimationTarget,
+        binding: &AnimationSkeletonBinding,
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
-    ) -> essential::transform::Transform {
+        output: &mut Pose,
+    ) {
+
+        // TODO!
         let mut result = graph_instances
             .get(self.current_graph)
-            .map(|graph_instance| graph_instance.evaluate(target, context))
+            .map(|graph_instance| graph_instance.evaluate(context, todo!(), output))
             .unwrap_or(Transform::IDENTITY);
 
         for layer in &self.layers {

@@ -6,7 +6,7 @@ use std::{
 
 use animation::{
     clip::{AnimationChanelOutput, AnimationChannel, AnimationClip},
-    player::AnimationPlayer,
+    player::{AnimationPlayer, AnimationSkeletonBinding},
     root::AnimationRootBone,
     target::AnimationTarget,
 };
@@ -541,7 +541,7 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
 
-            // Insert MeshComponents and AnimationPlayers
+            // Insert MeshComponents, AnimationPlayers and AnimationSkeletonBindings
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
                 if let Some(gltf_mesh_index) = gltf_node.mesh {
                     let gltf_mesh = &asset.meshes[gltf_mesh_index];
@@ -603,6 +603,7 @@ pub(crate) fn spawn_gltf_components(
                     cmd.insert(skeleton_component, node_entities[node_index]);
                 }
 
+                
                 if asset.animation_roots.contains(&node_index) {
                     cmd.insert(AnimationPlayer::default(), node_entities[node_index]);
                 }

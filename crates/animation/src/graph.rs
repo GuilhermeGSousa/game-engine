@@ -1,22 +1,20 @@
 use std::{collections::HashMap, ops::Deref};
 
-use essential::{
-    assets::{Asset, handle::AssetHandle},
-    transform::Transform,
-};
+use essential::assets::{Asset, handle::AssetHandle};
 use log::warn;
 use petgraph::{
     Direction::Outgoing,
     graph::{DiGraph, Neighbors, NodeIndex},
     visit::{Dfs, DfsPostOrder, Walker},
 };
+use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphContext, AnimationGraphEvaluator, EvaluatedNode},
+    evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
     player::ActiveNodeInstance,
-    target::AnimationTarget,
+    pose::{EvaluatedPose, Pose, PosePool},
 };
 
 type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
@@ -194,11 +192,13 @@ impl AnimationGraphInstance {
 
     pub(crate) fn evaluate(
         &self,
-        target: &AnimationTarget,
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
+        bone_ids: &[Uuid],
+        pool: &mut PosePool,
+        output_pose: &mut Pose,
+    ) {
         let Some(graph) = self.get_animation_graph(context) else {
-            return Transform::IDENTITY;
+            return;
         };
 
         let mut graph_evaluator = AnimationGraphEvaluator::new();
@@ -215,31 +215,39 @@ impl AnimationGraphInstance {
                 continue;
             };
 
-            let evaluated_inputs = graph
-                .get_node_inputs(node_index)
-                .filter_map(|_| graph_evaluator.pop_evaluation())
-                .collect::<Vec<_>>();
+            let input_count = graph.get_node_inputs(node_index).count();
 
-            let state_context = AnimationGraphContext {
-                animation_clips: context.animation_clips,
-                animation_graphs: context.animation_graphs,
-            };
+            let stack_start = graph_evaluator.stack_len() - input_count;
 
-            graph_evaluator.push_evaluation(EvaluatedNode {
-                transform: node_state.node_instance.evaluate(
-                    node,
-                    target,
-                    &evaluated_inputs,
-                    &state_context,
-                ),
+            let mut node_output_pose = pool.acquire();
+
+            node_state.node_instance.evaluate(
+                node,
+                context,
+                bone_ids,
+                graph_evaluator.view_stack(stack_start),
+                pool,
+                &mut node_output_pose,
+            );
+
+            // Consume inputs and add them back to the free list
+            for evaluated_pose in graph_evaluator.evaluation_stack.drain(stack_start..) {
+                pool.release(evaluated_pose.pose);
+            }
+
+            graph_evaluator.push_evaluation(EvaluatedPose {
+                pose: node_output_pose,
                 weight: node_state.weight,
             });
         }
 
-        graph_evaluator
+        let mut result = graph_evaluator
             .pop_evaluation()
-            .map(|evaluated_node| evaluated_node.transform)
-            .unwrap_or(Transform::IDENTITY)
+            .map(|evaluated_pose| evaluated_pose.pose)
+            .unwrap_or(Pose::identity(bone_ids.len()));
+
+        std::mem::swap(output_pose, &mut result);
+        pool.release(result);
     }
 
     pub(crate) fn get_animation_graph<'a>(

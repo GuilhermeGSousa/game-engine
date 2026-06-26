@@ -1,9 +1,9 @@
-use essential::{blend::Blendable, transform::Transform};
+use uuid::Uuid;
 
 use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraphInstances, GraphId},
-    target::AnimationTarget,
+    pose::{Pose, PosePool},
     transition::AnimationTransitionBlender,
 };
 
@@ -30,25 +30,28 @@ impl BlendStack {
 impl AnimationTransitionBlender for BlendStack {
     fn sample(
         &self,
-        target: &AnimationTarget,
+        bone_ids: &[Uuid],
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
-    ) -> essential::transform::Transform {
-        let mut result = graph_instances
-            .get(self.current_graph)
-            .map(|graph_instance| graph_instance.evaluate(target, context))
-            .unwrap_or(Transform::IDENTITY);
-
-        for layer in &self.layers {
-            let layer_transform = graph_instances
-                .get(layer.graph_id)
-                .map(|graph_instance| graph_instance.evaluate(target, context))
-                .unwrap_or(Transform::IDENTITY);
-
-            result = Transform::interpolate(result, layer_transform, layer.weight);
+        pool: &mut PosePool,
+        output: &mut Pose,
+    ) {
+        // Evaluate the current graph straight into the output pose.
+        if let Some(graph_instance) = graph_instances.get(self.current_graph) {
+            graph_instance.evaluate(context, bone_ids, pool, output);
         }
 
-        result
+        // Cross-fade each in-progress layer on top, by its current weight.
+        for layer in &self.layers {
+            let mut layer_pose = pool.acquire();
+
+            if let Some(graph_instance) = graph_instances.get(layer.graph_id) {
+                graph_instance.evaluate(context, bone_ids, pool, &mut layer_pose);
+            }
+
+            output.blend(&layer_pose, layer.weight);
+            pool.release(layer_pose);
+        }
     }
 
     fn update(

@@ -1,8 +1,10 @@
 use std::collections::{HashMap, hash_map::Keys};
 
-use essential::{assets::Asset, transform::Transform};
+use essential::assets::Asset;
 use glam::{Quat, Vec3};
 use uuid::Uuid;
+
+use crate::pose::JointPose;
 
 pub enum AnimationChanelOutput {
     Translation(Vec<Vec3>),
@@ -37,7 +39,7 @@ impl AnimationChannel {
         }
     }
 
-    pub fn sample_transform(&self, current_time: f32, transform: &mut Transform) {
+    pub fn sample_transform(&self, current_time: f32, transform: &mut JointPose) {
         if self.time_samples.len() < 2 {
             return;
         }
@@ -72,7 +74,7 @@ impl AnimationChannel {
 
     fn interpolate_between(
         &self,
-        transform: &mut Transform,
+        transform: &mut JointPose,
         from_index: usize,
         normalized_time: f32,
     ) {
@@ -98,7 +100,7 @@ impl AnimationChannel {
         }
     }
 
-    fn set_transform_at(&self, transform: &mut Transform, index: usize) {
+    fn set_transform_at(&self, transform: &mut JointPose, index: usize) {
         match &self.outputs {
             AnimationChanelOutput::Translation(pos) => {
                 transform.translation = pos[index];
@@ -107,6 +109,7 @@ impl AnimationChannel {
                 transform.rotation = rots[index];
             }
             AnimationChanelOutput::Scale(scl) => {
+                // TODO: Handle this better
                 transform.scale = scl[index];
             }
         }

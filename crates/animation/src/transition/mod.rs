@@ -1,9 +1,9 @@
-use essential::transform::Transform;
+use uuid::Uuid;
 
 use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraphInstances, GraphId},
-    target::AnimationTarget,
+    pose::{Pose, PosePool},
 };
 
 pub(crate) mod blend_stack;
@@ -12,10 +12,12 @@ pub(crate) mod inertialization_blender;
 pub(crate) trait AnimationTransitionBlender {
     fn sample(
         &self,
-        target: &AnimationTarget,
+        bone_ids: &[Uuid],
         graph_instances: &AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
-    ) -> Transform;
+        pool: &mut PosePool,
+        output: &mut Pose,
+    );
 
     fn update(
         &mut self,

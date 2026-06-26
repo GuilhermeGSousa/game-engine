@@ -1,13 +1,16 @@
 use std::ops::Deref;
 
-use ecs::component::Component;
-use essential::assets::handle::AssetHandle;
+use ecs::{component::Component, entity::Entity, query::Query};
+use essential::{assets::handle::AssetHandle, transform::Transform};
 use log::info;
+use uuid::Uuid;
 
 use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
+    pose::PosePool,
+    root::AnimationRootBone,
     state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
@@ -27,12 +30,20 @@ impl ActiveNodeInstance {
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Component)]
 pub struct AnimationPlayer {
     graph_instance: AnimationGraphInstance,
+    pose_pool: PosePool,
 }
 
 impl AnimationPlayer {
+    pub fn new(bone_count: usize) -> Self {
+        Self {
+            graph_instance: AnimationGraphInstance::default(),
+            pose_pool: PosePool::new(bone_count),
+        }
+    }
+
     pub fn play(&mut self, node_index: &AnimationNodeIndex) {
         if let Some(anim_clip_instance) = self
             .graph_instance
@@ -63,6 +74,14 @@ impl AnimationPlayer {
         fsm_instance.set_param(param_name.into(), param_value);
     }
 
+    /// Returns the name of the state machine's current state, if `node_index` refers to a
+    /// state machine node that has been initialized.
+    pub fn current_fsm_state(&self, node_index: &AnimationNodeIndex) -> Option<&str> {
+        self.graph_instance
+            .get_instance::<AnimationStateMachineInstance>(node_index)
+            .map(AnimationStateMachineInstance::current_state_name)
+    }
+
     pub(crate) fn initialize_graph(
         &mut self,
         animation_graph: AssetHandle<AnimationGraph>,
@@ -75,8 +94,38 @@ impl AnimationPlayer {
         self.graph_instance.update(delta_time, context);
     }
 
-    pub(crate) fn graph_instance(&self) -> &AnimationGraphInstance {
-        &self.graph_instance
+    pub(crate) fn evaluate(
+        &mut self,
+        context: &AnimationGraphContext,
+        bone_ids: &[Uuid],
+        bones: &[Entity],
+        transforms: &Query<&mut Transform>,
+        root_bones: &Query<&mut AnimationRootBone>,
+    ) {
+        let mut output_pose = self.pose_pool.acquire();
+        self.graph_instance
+            .evaluate(context, bone_ids, &mut self.pose_pool, &mut output_pose);
+
+        for (bone_index, bone_entity) in bones.iter().enumerate() {
+            let Some(joint_pose) = output_pose.get_joint_pose(bone_index) else {
+                continue;
+            };
+
+            // Root bone: record its motion on the component and leave the bone at its bind
+            // pose instead of animating it.
+            if let Some(mut root_bone) = root_bones.get_entity(*bone_entity) {
+                root_bone.displacement = joint_pose.translation;
+                continue;
+            }
+
+            if let Some(mut transform) = transforms.get_entity(*bone_entity) {
+                transform.translation = joint_pose.translation;
+                transform.rotation = joint_pose.rotation;
+                transform.scale = joint_pose.scale;
+            }
+        }
+
+        self.pose_pool.release(output_pose);
     }
 }
 

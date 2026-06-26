@@ -1,9 +1,8 @@
 use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::evaluation::EvaluatedNode;
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
-use crate::target::AnimationTarget;
+use crate::pose::{EvaluatedPose, Pose, PosePool};
 use crate::transition::AnimationTransitionBlender;
 use crate::transition::blend_stack::BlendStack;
 use crate::{
@@ -12,7 +11,8 @@ use crate::{
 };
 
 use derive_more::Deref;
-use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
+use essential::{assets::handle::AssetHandle, utils::AsAny};
+use uuid::Uuid;
 
 pub struct AnimationFSMStateDefinition<'a> {
     pub name: &'a str,
@@ -20,6 +20,7 @@ pub struct AnimationFSMStateDefinition<'a> {
 }
 
 pub(crate) struct AnimationFSMState {
+    name: String,
     graph: AssetHandle<AnimationGraph>,
 }
 
@@ -110,6 +111,7 @@ impl AnimationStateMachine {
                 name_to_index.insert(state_def.name, index.into());
                 transitions.push(Vec::new());
                 AnimationFSMState {
+                    name: state_def.name.to_string(),
                     graph: state_def.graph,
                 }
             })
@@ -175,15 +177,18 @@ impl AnimationNode for AnimationStateMachine {
         creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
         let mut instanced_internal_graphs = Vec::new();
+        let mut state_names = Vec::new();
         for fsm_state in &self.states {
             let mut instanced_internal_graph = AnimationGraphInstance::default();
             instanced_internal_graph.initialize(fsm_state.graph.clone(), creation_context);
             instanced_internal_graphs.push(instanced_internal_graph);
+            state_names.push(fsm_state.name.clone());
         }
 
         Box::new(AnimationStateMachineInstance::new(
             self.initial_state,
             instanced_internal_graphs,
+            state_names,
         ))
     }
 }
@@ -192,15 +197,21 @@ impl AnimationNode for AnimationStateMachine {
 pub(crate) struct AnimationStateMachineInstance {
     state_graph_instances: AnimationGraphInstances,
     current_state: StateId,
+    state_names: Vec<String>,
     params: AnimationFSMParameters,
     blend_stack: BlendStack,
 }
 
 impl AnimationStateMachineInstance {
-    pub(crate) fn new(initial_state: StateId, graph_instance: Vec<AnimationGraphInstance>) -> Self {
+    pub(crate) fn new(
+        initial_state: StateId,
+        graph_instance: Vec<AnimationGraphInstance>,
+        state_names: Vec<String>,
+    ) -> Self {
         Self {
             state_graph_instances: AnimationGraphInstances::new(graph_instance),
             current_state: initial_state,
+            state_names,
             params: HashMap::new(),
             blend_stack: BlendStack::new(initial_state.as_graph_id()),
         }
@@ -208,6 +219,13 @@ impl AnimationStateMachineInstance {
 
     pub(crate) fn set_param(&mut self, param_name: String, param_value: AnimationFSMVariableType) {
         self.params.insert(param_name, param_value);
+    }
+
+    pub(crate) fn current_state_name(&self) -> &str {
+        self.state_names
+            .get(*self.current_state)
+            .map(String::as_str)
+            .unwrap_or("")
     }
 }
 
@@ -263,12 +281,14 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
     fn evaluate(
         &self,
         _node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        _evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
+        bone_ids: &[Uuid],
+        _evaluated_inputs: &[EvaluatedPose],
+        pool: &mut PosePool,
+        output: &mut Pose,
+    ) {
         self.blend_stack
-            .sample(target, &self.state_graph_instances, context)
+            .sample(bone_ids, &self.state_graph_instances, context, pool, output);
     }
 }
 
@@ -315,8 +335,11 @@ impl AnimationStateMachineBuilder {
         let mut transitions: Vec<Vec<AnimationStateMachineTransition>> = Vec::new();
 
         for (index, entry) in self.states.into_iter().enumerate() {
+            states.push(AnimationFSMState {
+                name: entry.name.clone(),
+                graph: entry.graph,
+            });
             name_to_index.insert(entry.name, index.into());
-            states.push(AnimationFSMState { graph: entry.graph });
             transitions.push(Vec::new());
         }
 

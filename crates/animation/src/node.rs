@@ -1,11 +1,12 @@
 use std::any::Any;
 
-use essential::{assets::handle::AssetHandle, transform::Transform, utils::AsAny};
+use essential::{assets::handle::AssetHandle, utils::AsAny};
+use uuid::Uuid;
 
 use crate::{
     clip::AnimationClip,
-    evaluation::{AnimationGraphContext, EvaluatedNode},
-    target::AnimationTarget,
+    evaluation::AnimationGraphContext,
+    pose::{EvaluatedPose, Pose, PosePool},
 };
 
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
@@ -14,10 +15,12 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
     fn evaluate(
         &self,
         node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform;
+        bone_ids: &[Uuid],
+        evaluated_inputs: &[EvaluatedPose],
+        pool: &mut PosePool,
+        output: &mut Pose,
+    );
 
     fn update(
         &mut self,
@@ -51,15 +54,17 @@ impl AnimationNodeInstance for NoneInstance {
     fn evaluate(
         &self,
         _node: &dyn AnimationNode,
-        _target: &AnimationTarget,
-        evaluated_inputs: &[EvaluatedNode],
         _context: &AnimationGraphContext<'_>,
-    ) -> Transform {
-        evaluated_inputs
-            .first()
-            .map(|evaluated_node| &evaluated_node.transform)
-            .unwrap_or(&Transform::IDENTITY)
-            .clone()
+        _bone_ids: &[Uuid],
+        evaluated_inputs: &[EvaluatedPose],
+        _pool: &mut PosePool,
+        output: &mut Pose,
+    ) {
+        // Pass-through: forward the first input pose if there is one, otherwise leave the
+        // output at its acquired (identity) state.
+        if let Some(input) = evaluated_inputs.first() {
+            output.copy_from(&input.pose);
+        }
     }
 }
 
@@ -115,30 +120,37 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn evaluate(
         &self,
         node: &dyn AnimationNode,
-        target: &AnimationTarget,
-        _evaluated_inputs: &[EvaluatedNode],
         context: &AnimationGraphContext<'_>,
-    ) -> Transform {
+        bone_ids: &[Uuid],
+        _evaluated_inputs: &[EvaluatedPose],
+        _pool: &mut PosePool,
+        output: &mut Pose,
+    ) {
         let Some(animation_clip) = node
             .as_any()
             .downcast_ref::<AnimationClipNode>()
             .and_then(|animation_clip| context.animation_clips.get(&animation_clip.clip))
         else {
-            return Transform::IDENTITY;
+            return;
         };
 
-        // Find the channel for this animation target
-        let Some(animation_channels) = animation_clip.get_channels(&target.id) else {
-            return Transform::IDENTITY;
-        };
+        bone_ids
+            .iter()
+            .map(|uuid| animation_clip.get_channels(uuid))
+            .enumerate()
+            .for_each(|(bone_index, animation_channels)| {
+                let Some(animation_channels) = animation_channels else {
+                    return;
+                };
 
-        // Based on the current time of the animation player + delta time, interpolate the target's transform
-        let mut target_transform = Transform::IDENTITY;
-        for animation_channel in animation_channels {
-            animation_channel.sample_transform(self.current_time(), &mut target_transform);
-        }
+                let Some(joint_pose) = output.get_joint_pose_mut(bone_index) else {
+                    return;
+                };
 
-        target_transform
+                for animation_channel in animation_channels {
+                    animation_channel.sample_transform(self.current_time(), joint_pose);
+                }
+            });
     }
 
     fn update(

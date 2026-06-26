@@ -1,14 +1,9 @@
-use essential::{assets::asset_store::AssetStore, transform::Transform};
+use essential::assets::asset_store::AssetStore;
 
-use crate::{clip::AnimationClip, graph::AnimationGraph};
-
-pub struct EvaluatedNode {
-    pub transform: Transform,
-    pub weight: f32,
-}
+use crate::{clip::AnimationClip, graph::AnimationGraph, pose::EvaluatedPose};
 
 pub struct AnimationGraphEvaluator {
-    evaluation_stack: Vec<EvaluatedNode>,
+    pub(crate) evaluation_stack: Vec<EvaluatedPose>,
 }
 
 impl AnimationGraphEvaluator {
@@ -18,12 +13,20 @@ impl AnimationGraphEvaluator {
         }
     }
 
-    pub fn push_evaluation(&mut self, evaluated_node: EvaluatedNode) {
-        self.evaluation_stack.push(evaluated_node);
+    pub fn push_evaluation(&mut self, evaluated_pose: EvaluatedPose) {
+        self.evaluation_stack.push(evaluated_pose);
     }
 
-    pub fn pop_evaluation(&mut self) -> Option<EvaluatedNode> {
+    pub fn pop_evaluation(&mut self) -> Option<EvaluatedPose> {
         self.evaluation_stack.pop()
+    }
+
+    pub fn stack_len(&self) -> usize {
+        self.evaluation_stack.len()
+    }
+
+    pub fn view_stack(&self, start: usize) -> &[EvaluatedPose] {
+        &self.evaluation_stack[start..]
     }
 }
 

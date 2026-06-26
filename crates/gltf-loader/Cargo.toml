@@ -11,7 +11,7 @@ essential = { path = "../essential" }
 mesh = { path = "../mesh" }
 ecs = { path = "../ecs" }
 render = { path = "../render" }
-gltf = { version = "1.4.1" }
+gltf = { version = "1.4.1", features = ["KHR_lights_punctual"] }
 anyhow = "1.0.97"
 async-trait = "0.1.50"
 glam = { version = "0.30.1" }

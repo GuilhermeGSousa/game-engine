@@ -29,11 +29,15 @@ use image::ImageBuffer;
 use log::warn;
 use mesh::{mesh::MeshComponent, skeleton::SkeletonComponent};
 use render::{
+    MaterialComponent,
     assets::{
         material::StandardMaterial, mesh::Mesh, skeleton::Skeleton, texture::Texture,
         vertex::Vertex,
     },
-    components::material::MaterialComponent,
+    components::{
+        camera::Camera,
+        light::{Light, LightType, SpotLight},
+    },
 };
 use uuid::Uuid;
 
@@ -47,6 +51,8 @@ pub struct GLTFScene {
     pub(crate) skeletons: Vec<GLTFSkeleton>,
     pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
     pub(crate) target_id_to_node_idx: HashMap<Uuid, GLTFAnimationTargetInfo>,
+    pub(crate) cameras: Vec<GLTFCamera>,
+    pub(crate) lights: Vec<GLTFLight>,
 }
 
 impl GLTFScene {
@@ -65,6 +71,8 @@ pub struct GLTFNode {
     pub(crate) mesh: Option<usize>,
     pub(crate) skeleton: Option<usize>,
     pub(crate) transform: Transform,
+    pub(crate) camera: Option<usize>,
+    pub(crate) light: Option<usize>,
 }
 
 pub struct GLTFSkeleton {
@@ -72,6 +80,34 @@ pub struct GLTFSkeleton {
     pub(crate) bone_ids: Vec<Uuid>,
     pub(crate) skeleton: AssetHandle<Skeleton>,
     pub(crate) root_bone: Option<usize>,
+}
+
+pub(crate) struct GLTFCamera {
+    pub(crate) fovy: f32,
+    pub(crate) znear: f32,
+    pub(crate) zfar: f32,
+}
+
+impl Default for GLTFCamera {
+    fn default() -> Self {
+        Self {
+            fovy: std::f32::consts::FRAC_PI_4,
+            znear: 0.1,
+            zfar: 100.0,
+        }
+    }
+}
+
+pub(crate) enum GLTFLightType {
+    Point,
+    Spot { cone_angle: f32 },
+    Directional,
+}
+
+pub(crate) struct GLTFLight {
+    pub(crate) color: LinearRgba,
+    pub(crate) intensity: f32,
+    pub(crate) light_type: GLTFLightType,
 }
 
 pub(crate) struct GLTFNodePathInfo {
@@ -323,6 +359,48 @@ impl AssetLoader for GLTFLoader {
             animation_clips.push(load_context.asset_server().add(animation_clip));
         }
 
+        let cameras: Vec<GLTFCamera> = document
+            .cameras()
+            .map(|cam| match cam.projection() {
+                gltf::camera::Projection::Perspective(p) => GLTFCamera {
+                    fovy: p.yfov(),
+                    znear: p.znear(),
+                    zfar: p.zfar().unwrap_or(100.0),
+                },
+                gltf::camera::Projection::Orthographic(_) => {
+                    warn!(
+                        "Orthographic camera '{}' is not supported, using default perspective",
+                        cam.name().unwrap_or("<unnamed>")
+                    );
+                    GLTFCamera::default()
+                }
+            })
+            .collect();
+
+        let lights: Vec<GLTFLight> = document
+            .lights()
+            .into_iter()
+            .flatten()
+            .map(|light| {
+                let [r, g, b] = light.color();
+                let color = LinearRgba::new(r, g, b, 1.0);
+                let light_type: GLTFLightType = match light.kind() {
+                    gltf::khr_lights_punctual::Kind::Directional => GLTFLightType::Directional,
+                    gltf::khr_lights_punctual::Kind::Point => GLTFLightType::Point,
+                    gltf::khr_lights_punctual::Kind::Spot {
+                        outer_cone_angle, ..
+                    } => GLTFLightType::Spot {
+                        cone_angle: outer_cone_angle,
+                    },
+                };
+                GLTFLight {
+                    color,
+                    intensity: light.intensity(),
+                    light_type,
+                }
+            })
+            .collect();
+
         Ok(GLTFScene {
             nodes,
             meshes,
@@ -330,6 +408,8 @@ impl AssetLoader for GLTFLoader {
             skeletons,
             animations: animation_clips,
             target_id_to_node_idx,
+            cameras,
+            lights,
         })
     }
 }
@@ -474,6 +554,8 @@ impl GLTFLoader {
             mesh: gltf_node.mesh().map(|mesh| mesh.index()),
             transform: Transform::from_matrix(&gltf_transform.matrix()),
             skeleton: gltf_node.skin().map(|skin| skin.index()),
+            camera: gltf_node.camera().map(|c| c.index()),
+            light: gltf_node.light().map(|l| l.index()),
         }
     }
 }
@@ -595,6 +677,40 @@ pub(crate) fn spawn_gltf_components(
                     cmd.insert(skeleton_component, node_entities[node_index]);
                     cmd.insert(
                         AnimationPlayer::new(gltf_skeleton.bones.len()),
+                        node_entities[node_index],
+                    );
+                }
+
+                if let Some(camera_index) = gltf_node.camera
+                    && let Some(gltf_camera) = asset.cameras.get(camera_index)
+                {
+                    cmd.insert(
+                        Camera {
+                            fovy: gltf_camera.fovy,
+                            znear: gltf_camera.znear,
+                            zfar: gltf_camera.zfar,
+                            ..Camera::default()
+                        },
+                        node_entities[node_index],
+                    );
+                }
+
+                if let Some(light_index) = gltf_node.light
+                    && let Some(gltf_light) = asset.lights.get(light_index)
+                {
+                    let light_type = match &gltf_light.light_type {
+                        GLTFLightType::Point => LightType::Point,
+                        GLTFLightType::Spot { cone_angle } => LightType::Spot(SpotLight {
+                            cone_angle: *cone_angle,
+                        }),
+                        GLTFLightType::Directional => LightType::Directional,
+                    };
+                    cmd.insert(
+                        Light {
+                            color: gltf_light.color,
+                            intensity: gltf_light.intensity,
+                            light_type,
+                        },
                         node_entities[node_index],
                     );
                 }

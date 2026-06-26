@@ -213,12 +213,7 @@ impl AssetLoader for GLTFLoader {
         let mut node_paths = HashMap::new();
         for scene in document.scenes() {
             for root_node in scene.nodes() {
-                collect_paths(
-                    &root_node,
-                    &[],
-                    &mut node_paths,
-                    &mut HashSet::new(),
-                );
+                collect_paths(&root_node, &[], &mut node_paths, &mut HashSet::new());
             }
         }
 

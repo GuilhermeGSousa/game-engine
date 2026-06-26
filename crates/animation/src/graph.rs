@@ -225,7 +225,7 @@ impl AnimationGraphInstance {
                 node,
                 context,
                 bone_ids,
-                &graph_evaluator.view(stack_start),
+                graph_evaluator.view_stack(stack_start),
                 pool,
                 &mut node_output_pose,
             );

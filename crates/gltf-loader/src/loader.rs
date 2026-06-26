@@ -213,12 +213,9 @@ impl AssetLoader for GLTFLoader {
         let mut node_paths = HashMap::new();
         for scene in document.scenes() {
             for root_node in scene.nodes() {
-                let root_index = root_node.index();
-
                 collect_paths(
                     &root_node,
                     &[],
-                    &root_index,
                     &mut node_paths,
                     &mut HashSet::new(),
                 );
@@ -615,7 +612,6 @@ pub(crate) fn spawn_gltf_components(
 pub(crate) fn collect_paths(
     node: &Node,
     current_path: &[Cow<'static, str>],
-    root_index: &usize,
     paths: &mut HashMap<usize, GLTFNodePathInfo>,
     visited: &mut HashSet<usize>,
 ) {
@@ -630,7 +626,7 @@ pub(crate) fn collect_paths(
     visited.insert(node.index());
     for child in node.children() {
         if !visited.contains(&child.index()) {
-            collect_paths(&child, &path, root_index, paths, visited);
+            collect_paths(&child, &path, paths, visited);
         }
     }
     paths.insert(node.index(), GLTFNodePathInfo { node_path: path });

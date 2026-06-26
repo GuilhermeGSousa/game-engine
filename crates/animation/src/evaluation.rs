@@ -25,7 +25,7 @@ impl AnimationGraphEvaluator {
         self.evaluation_stack.len()
     }
 
-    pub fn view(&self, start: usize) -> &[EvaluatedPose] {
+    pub fn view_stack(&self, start: usize) -> &[EvaluatedPose] {
         &self.evaluation_stack[start..]
     }
 }

@@ -51,7 +51,7 @@ impl Pose {
 }
 
 impl Blendable for Pose {
-    fn interpolate(from: Self, to: Self, t: f32) -> Self {
+    fn interpolate(_from: Self, _to: Self, _t: f32) -> Self {
         todo!()
     }
 }

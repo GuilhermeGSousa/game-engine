@@ -25,3 +25,7 @@ Cargo.lock
 .vscode/
 
 .claude
+
+# Obsidian
+.obsidian
+.trash

@@ -8,10 +8,12 @@ use uuid::Uuid;
 use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
-    node::{AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance},
+    node::{
+        AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance,
+        state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
+    },
     pose::PosePool,
     root::AnimationRootBone,
-    state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
 };
 
 pub struct ActiveNodeInstance {

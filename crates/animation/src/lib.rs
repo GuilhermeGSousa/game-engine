@@ -6,7 +6,6 @@ pub mod player;
 pub mod plugin;
 pub mod pose;
 pub mod root;
-pub mod state_machine;
 pub mod target;
 pub mod transition;
 

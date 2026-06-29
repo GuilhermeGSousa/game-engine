@@ -63,10 +63,14 @@ impl AnimationGraph {
         &mut self,
         node: T,
         parent_node: AnimationNodeIndex,
-    ) -> AnimationNodeIndex {
+    ) -> AnimationNodeContext<'_> {
         let added_node = self.graph.add_node(Box::new(node));
         self.graph.add_edge(*parent_node, added_node, ());
-        added_node.into()
+
+        AnimationNodeContext {
+            graph: self,
+            node_index: added_node.into(),
+        }
     }
 
     pub fn root(&self) -> &AnimationNodeIndex {
@@ -97,6 +101,26 @@ impl AnimationGraph {
 impl Default for AnimationGraph {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub struct AnimationNodeContext<'a> {
+    graph: &'a mut AnimationGraph,
+    node_index: AnimationNodeIndex,
+}
+
+impl<'a> AnimationNodeContext<'a> {
+    pub fn index(&self) -> AnimationNodeIndex {
+        self.node_index
+    }
+
+    pub fn input<T: AnimationNode + 'static>(
+        &mut self,
+        node: T,
+        f: impl FnOnce(AnimationNodeContext<'_>),
+    ) -> &mut Self {
+        f(self.graph.add_node(node, self.node_index));
+        self
     }
 }
 

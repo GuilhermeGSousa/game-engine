@@ -2,9 +2,8 @@ use game_engine::{
     animation::{
         clip::AnimationClip,
         graph::{AnimationGraph, AnimationNodeIndex},
-        node::{
-            state_machine::{AnimationFSMTrigger, AnimationFSMVariableType, AnimationStateMachine},
-            AnimationBlendNode, AnimationClipNode,
+        node::state_machine::{
+            AnimationFSMTrigger, AnimationFSMVariableType, AnimationStateMachine,
         },
         player::{AnimationHandleComponent, AnimationPlayer},
     },
@@ -22,7 +21,7 @@ use game_engine::{
     gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
     window::input::{Input, InputState},
 };
-use glam::{Quat, Vec3};
+use glam::{Quat, Vec2, Vec3};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 const GLB_ASSET: &str = "res/ninja/ninja.glb";
@@ -139,15 +138,14 @@ pub(crate) fn setup_animations(
         let mut movement_graph = AnimationGraph::new();
 
         movement_graph
-            .add_node(AnimationBlendNode, *movement_graph.root())
-            .input(
-                AnimationClipNode::new(anim_store.strafe_left.clone()),
-                |_| {},
-            )
-            .input(
-                AnimationClipNode::new(anim_store.strafe_left.clone()),
-                |_| {},
-            );
+            .result_node()
+            .with_blendspace_2d_input(|context| {
+                context
+                    .animation_clip_input(&anim_store.idle, Vec2::ZERO)
+                    .animation_clip_input(&anim_store.strafe_left, Vec2::new(-1.0, 0.0))
+                    .animation_clip_input(&anim_store.strafe_right, Vec2::new(1.0, 0.0))
+                    .animation_clip_input(&anim_store.walk, Vec2::new(0.0, 1.0));
+            });
 
         let anim_fsm = AnimationStateMachine::from_initial_state(
             "idle",
@@ -169,7 +167,9 @@ pub(crate) fn setup_animations(
         )
         .build();
 
-        let fsm_node = anim_graph.add_node(anim_fsm, *anim_graph.root()).index();
+        let fsm_node = anim_graph
+            .add_node(anim_fsm, anim_graph.result_node().index())
+            .index();
 
         cmd.insert(
             AnimationHandleComponent {

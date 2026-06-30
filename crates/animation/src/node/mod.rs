@@ -72,9 +72,9 @@ impl AnimationNodeInstance for NoneInstance {
 }
 
 #[derive(AsAny)]
-pub struct AnimationRootNode;
+pub struct AnimationResultNode;
 
-impl AnimationNode for AnimationRootNode {
+impl AnimationNode for AnimationResultNode {
     fn create_instance(
         &self,
         _creation_context: &AnimationGraphContext,

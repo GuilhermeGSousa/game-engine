@@ -1,13 +1,18 @@
 use std::any::Any;
 
 use essential::{
+    assets::handle::AssetHandle,
     geometry::delauney::{Triangle, TriangulatedPoint2D, Triangulation2D},
     utils::AsAny,
 };
 use glam::Vec2;
 use log::warn;
 
-use crate::node::{AnimationNode, AnimationNodeInstance};
+use crate::{
+    clip::AnimationClip,
+    graph::{AnimationGraph, AnimationNodeContext, AnimationNodeIndex},
+    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance},
+};
 
 #[derive(AsAny)]
 pub struct BlendSpace2DNode {
@@ -15,7 +20,7 @@ pub struct BlendSpace2DNode {
 }
 
 impl BlendSpace2DNode {
-    pub fn new(points: Vec<Vec2>) -> Self {
+    pub(crate) fn new(points: Vec<Vec2>) -> Self {
         Self {
             triangulation: Triangulation2D::build(points),
         }
@@ -103,5 +108,50 @@ impl AnimationNodeInstance for BlendSpace2DInstanceNode {
         _delta_time: f32,
         _context: &crate::evaluation::AnimationGraphContext<'_>,
     ) {
+    }
+}
+
+pub struct BlendSpace2DBuilderContext<'a> {
+    pub(crate) graph: &'a mut AnimationGraph,
+    pub(crate) output_node_index: AnimationNodeIndex,
+    pub(crate) points: Vec<Vec2>,
+    pub(crate) nodes: Vec<Box<dyn AnimationNode>>,
+}
+
+impl<'a> BlendSpace2DBuilderContext<'a> {
+    pub(crate) fn build(self) -> AnimationNodeContext<'a> {
+        let blend_space = BlendSpace2DNode::new(self.points);
+
+        let blend_space_node = self
+            .graph
+            .add_node(blend_space, self.output_node_index)
+            .index();
+
+        // Add blend space inputs
+        for node in self.nodes.into_iter() {
+            self.graph.add_boxed_node(node, blend_space_node);
+        }
+
+        AnimationNodeContext {
+            graph: self.graph,
+            node_index: self.output_node_index,
+        }
+    }
+
+    pub fn input(&mut self, node: impl AnimationNode, point: Vec2) -> &mut Self {
+        self.points.push(point);
+        self.nodes.push(Box::new(node));
+        self
+    }
+
+    pub fn animation_clip_input(
+        &mut self,
+        node: &AssetHandle<AnimationClip>,
+        point: Vec2,
+    ) -> &mut Self {
+        self.points.push(point);
+        self.nodes
+            .push(Box::new(AnimationClipNode::new(node.clone())));
+        self
     }
 }

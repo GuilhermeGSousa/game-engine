@@ -92,6 +92,7 @@ impl Default for Camera {
 pub struct CameraUniform {
     view_pos: Vec3,
     view_proj: Mat4,
+    inv_view_proj: Mat4,
 }
 
 impl CameraUniform {
@@ -99,13 +100,15 @@ impl CameraUniform {
         Self {
             view_pos: Vec3::ZERO,
             view_proj: Mat4::IDENTITY,
+            inv_view_proj: Mat4::IDENTITY,
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTransform) {
         self.view_pos = transform.translation();
-        self.view_proj =
-            OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
+        let proj_view = camera.build_projection_matrix() * transform.matrix().inverse();
+        self.view_proj = OPENGL_TO_WGPU_MATRIX * proj_view;
+        self.inv_view_proj = proj_view.inverse();
     }
 }
 

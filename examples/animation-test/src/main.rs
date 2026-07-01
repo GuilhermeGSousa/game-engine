@@ -12,7 +12,7 @@ use debug_gizmos::plugin::DebugGizmosPlugin;
 
 use crate::demo_overlay::{spawn_entity_gizmos, spawn_overlay, update_overlay};
 use crate::movement_animation::{
-    setup_animations, setup_state_machine, spawn_character, update_movement_fsm,
+    setup_animations, setup_state_machine, spawn_character, update_movement,
 };
 
 mod demo_overlay;
@@ -46,7 +46,7 @@ fn main() {
     app.add_system(UpdateGroup::Update, first_person_player_fly)
         .add_system(UpdateGroup::Update, setup_state_machine)
         .add_system(UpdateGroup::Update, setup_animations)
-        .add_system(UpdateGroup::Update, update_movement_fsm)
+        .add_system(UpdateGroup::Update, update_movement)
         .add_system(UpdateGroup::Update, update_overlay)
         .add_system(UpdateGroup::Update, spawn_entity_gizmos);
 

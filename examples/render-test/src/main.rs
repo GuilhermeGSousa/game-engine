@@ -34,6 +34,8 @@ use terminal_renderer::{
 use debug_gizmos::plugin::DebugGizmosPlugin;
 #[cfg(not(feature = "terminal"))]
 use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
+#[cfg(not(feature = "terminal"))]
+use world_grid::plugin::WorldGridPlugin;
 
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
 
@@ -75,6 +77,7 @@ fn main() {
             .add_system(UpdateGroup::Update, rotate_cube)
             .add_system(UpdateGroup::Update, first_person_player_fly);
         app.register_plugin(DebugGizmosPlugin);
+        app.register_plugin(WorldGridPlugin::default());
     }
 
     app.run();

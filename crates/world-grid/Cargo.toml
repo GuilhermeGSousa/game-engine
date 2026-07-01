@@ -1,0 +1,22 @@
+[package]
+name = "world-grid"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+app      = { path = "../app" }
+ecs      = { path = "../ecs" }
+essential = { path = "../essential" }
+render   = { path = "../render" }
+mesh     = { path = "../mesh" }
+color    = { path = "../color" }
+bytemuck = { version = "1.22.0", features = ["derive"] }
+wgpu     = { version = "24.0.1", default-features = false, features = [
+    "wgsl",
+    "metal",
+    "naga-ir",
+    "fragile-send-sync-non-atomic-wasm",
+] }

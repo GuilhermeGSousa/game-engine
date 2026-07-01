@@ -1,10 +1,10 @@
 use std::any::Any;
 use std::{collections::HashMap, sync::Arc};
 
+use crate::blackboard::AnimationBlackboard;
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
 use crate::pose::{EvaluatedPose, Pose, PosePool};
-use crate::transition::AnimationTransitionBlender;
-use crate::transition::blend_stack::BlendStack;
+use crate::transition::{AnimationTransitionBlender, blend_stack::BlendStack};
 use crate::{
     evaluation::AnimationGraphContext,
     node::{AnimationNode, AnimationNodeInstance},
@@ -24,39 +24,25 @@ pub(crate) struct AnimationFSMState {
     graph: AssetHandle<AnimationGraph>,
 }
 
-pub enum AnimationFSMVariableType {
-    Bool(bool),
-    Int(u32),
-    Float(f32),
-}
-
-pub type AnimationFSMParameters = HashMap<String, AnimationFSMVariableType>;
-
 pub enum AnimationFSMTrigger {
     Instant,
-    Condition(Arc<dyn Fn(&AnimationFSMParameters) -> bool + Send + Sync>),
+    Condition(Arc<dyn Fn(&AnimationBlackboard) -> bool + Send + Sync>),
 }
 
 impl AnimationFSMTrigger {
     pub fn from_condition<F>(condition: F) -> Self
     where
-        F: Fn(&AnimationFSMParameters) -> bool + Send + Sync + 'static,
+        F: Fn(&AnimationBlackboard) -> bool + Send + Sync + 'static,
     {
         Self::Condition(Arc::new(condition))
     }
 
-    pub fn on_bool<P>(param_name: P, cond: bool) -> Self
-    where
-        P: Into<String> + Eq + std::hash::Hash + Send + Sync + 'static,
-    {
+    pub fn on_bool(param_name: impl Into<String>, cond: bool) -> Self {
         let param_name = param_name.into();
-        AnimationFSMTrigger::from_condition(move |params| {
-            params
-                .get(&param_name)
-                .map(|param| match param {
-                    AnimationFSMVariableType::Bool(val) => *val == cond,
-                    _ => false,
-                })
+        AnimationFSMTrigger::from_condition(move |blackboard| {
+            blackboard
+                .get_bool(&param_name)
+                .map(|v| v == cond)
                 .unwrap_or(false)
         })
     }
@@ -198,7 +184,6 @@ pub(crate) struct AnimationStateMachineInstance {
     state_graph_instances: AnimationGraphInstances,
     current_state: StateId,
     state_names: Vec<String>,
-    params: AnimationFSMParameters,
     blend_stack: BlendStack,
 }
 
@@ -212,13 +197,8 @@ impl AnimationStateMachineInstance {
             state_graph_instances: AnimationGraphInstances::new(graph_instance),
             current_state: initial_state,
             state_names,
-            params: HashMap::new(),
             blend_stack: BlendStack::new(initial_state.as_graph_id()),
         }
-    }
-
-    pub(crate) fn set_param(&mut self, param_name: String, param_value: AnimationFSMVariableType) {
-        self.params.insert(param_name, param_value);
     }
 
     pub(crate) fn current_state_name(&self) -> &str {
@@ -246,7 +226,6 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
             return;
         };
 
-        // Right now, we do not support transitioning states if a transition is ongoing
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
@@ -260,7 +239,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
                     return;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
-                    if cond_fn(&self.params) {
+                    if cond_fn(context.blackboard()) {
                         self.current_state = transition.next_state;
                         self.blend_stack.transition(
                             transition.next_state.as_graph_id(),

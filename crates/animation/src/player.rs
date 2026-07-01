@@ -1,16 +1,21 @@
 use std::ops::Deref;
 
 use ecs::{component::Component, entity::Entity, query::Query};
-use essential::{assets::handle::AssetHandle, transform::Transform};
-use log::info;
+use essential::{
+    assets::{asset_store::AssetStore, handle::AssetHandle},
+    transform::Transform,
+};
+use glam::Vec2;
 use uuid::Uuid;
 
 use crate::{
+    blackboard::{AnimationBlackboard, AnimationBlackboardValue},
+    clip::AnimationClip,
     evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{
         AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance,
-        state_machine::{AnimationFSMVariableType, AnimationStateMachineInstance},
+        state_machine::AnimationStateMachineInstance,
     },
     pose::PosePool,
     root::AnimationRootBone,
@@ -35,6 +40,7 @@ impl ActiveNodeInstance {
 #[derive(Component)]
 pub struct AnimationPlayer {
     graph_instance: AnimationGraphInstance,
+    blackboard: AnimationBlackboard,
     pose_pool: PosePool,
 }
 
@@ -42,6 +48,7 @@ impl AnimationPlayer {
     pub fn new(bone_count: usize) -> Self {
         Self {
             graph_instance: AnimationGraphInstance::default(),
+            blackboard: AnimationBlackboard::default(),
             pose_pool: PosePool::new(bone_count),
         }
     }
@@ -59,25 +66,26 @@ impl AnimationPlayer {
         self.graph_instance.set_node_weight(node_index, weight);
     }
 
-    pub fn set_fsm_param<T: Into<String>>(
-        &mut self,
-        node_index: &AnimationNodeIndex,
-        param_name: T,
-        param_value: AnimationFSMVariableType,
-    ) {
-        let Some(fsm_instance) = self
-            .graph_instance
-            .get_instance_mut::<AnimationStateMachineInstance>(node_index)
-        else {
-            info!("No animation node found when setting FSM parameters");
-            return;
-        };
-
-        fsm_instance.set_param(param_name.into(), param_value);
+    pub fn set_param(&mut self, key: impl Into<String>, value: AnimationBlackboardValue) {
+        self.blackboard.set(key, value);
     }
 
-    /// Returns the name of the state machine's current state, if `node_index` refers to a
-    /// state machine node that has been initialized.
+    pub fn set_bool_param(&mut self, key: impl Into<String>, value: bool) {
+        self.set_param(key, AnimationBlackboardValue::Bool(value));
+    }
+
+    pub fn set_int_param(&mut self, key: impl Into<String>, value: u32) {
+        self.set_param(key, AnimationBlackboardValue::Int(value));
+    }
+
+    pub fn set_float_param(&mut self, key: impl Into<String>, value: f32) {
+        self.set_param(key, AnimationBlackboardValue::Float(value));
+    }
+
+    pub fn set_vec2_param(&mut self, key: impl Into<String>, value: Vec2) {
+        self.set_param(key, AnimationBlackboardValue::Vec2(value));
+    }
+
     pub fn current_fsm_state(&self, node_index: &AnimationNodeIndex) -> Option<&str> {
         self.graph_instance
             .get_instance::<AnimationStateMachineInstance>(node_index)
@@ -87,34 +95,55 @@ impl AnimationPlayer {
     pub(crate) fn initialize_graph(
         &mut self,
         animation_graph: AssetHandle<AnimationGraph>,
-        context: &AnimationGraphContext,
+        clips: &AssetStore<AnimationClip>,
+        graphs: &AssetStore<AnimationGraph>,
     ) {
-        self.graph_instance.initialize(animation_graph, context);
+        let context = AnimationGraphContext {
+            animation_clips: clips,
+            animation_graphs: graphs,
+            blackboard: &self.blackboard,
+        };
+        self.graph_instance.initialize(animation_graph, &context);
     }
 
-    pub(crate) fn update(&mut self, delta_time: f32, context: &AnimationGraphContext) {
-        self.graph_instance.update(delta_time, context);
+    pub(crate) fn update(
+        &mut self,
+        delta_time: f32,
+        clips: &AssetStore<AnimationClip>,
+        graphs: &AssetStore<AnimationGraph>,
+    ) {
+        let context = AnimationGraphContext {
+            animation_clips: clips,
+            animation_graphs: graphs,
+            blackboard: &self.blackboard,
+        };
+        self.graph_instance.update(delta_time, &context);
     }
 
     pub(crate) fn evaluate(
         &mut self,
-        context: &AnimationGraphContext,
+        clips: &AssetStore<AnimationClip>,
+        graphs: &AssetStore<AnimationGraph>,
         bone_ids: &[Uuid],
         bones: &[Entity],
         transforms: &Query<&mut Transform>,
         root_bones: &Query<&mut AnimationRootBone>,
     ) {
+        let context = AnimationGraphContext {
+            animation_clips: clips,
+            animation_graphs: graphs,
+            blackboard: &self.blackboard,
+        };
+
         let mut output_pose = self.pose_pool.acquire();
         self.graph_instance
-            .evaluate(context, bone_ids, &mut self.pose_pool, &mut output_pose);
+            .evaluate(&context, bone_ids, &mut self.pose_pool, &mut output_pose);
 
         for (bone_index, bone_entity) in bones.iter().enumerate() {
             let Some(joint_pose) = output_pose.get_joint_pose(bone_index) else {
                 continue;
             };
 
-            // Root bone: record its motion on the component and leave the bone at its bind
-            // pose instead of animating it.
             if let Some(mut root_bone) = root_bones.get_entity(*bone_entity) {
                 root_bone.displacement = joint_pose.translation;
                 continue;

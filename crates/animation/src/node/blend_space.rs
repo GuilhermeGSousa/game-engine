@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, sync::Arc};
 
 use essential::{
     assets::handle::AssetHandle,
@@ -9,6 +9,7 @@ use glam::Vec2;
 use log::warn;
 
 use crate::{
+    blackboard::AnimationBlackboard,
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeContext, AnimationNodeIndex},
     node::{AnimationClipNode, AnimationNode, AnimationNodeInstance},
@@ -17,12 +18,17 @@ use crate::{
 #[derive(AsAny)]
 pub struct BlendSpace2DNode {
     triangulation: Triangulation2D,
+    sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
 }
 
 impl BlendSpace2DNode {
-    pub(crate) fn new(points: Vec<Vec2>) -> Self {
+    pub(crate) fn new(
+        points: Vec<Vec2>,
+        sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
+    ) -> Self {
         Self {
             triangulation: Triangulation2D::build(points),
+            sampler,
         }
     }
 
@@ -49,11 +55,22 @@ pub struct BlendSpace2DInstanceNode {
     current_triangulated_point: Option<TriangulatedPoint2D>,
 }
 
-impl BlendSpace2DInstanceNode {}
-
 impl AnimationNodeInstance for BlendSpace2DInstanceNode {
     fn reset(&mut self) {
         self.current_triangulated_point = None;
+    }
+
+    fn update(
+        &mut self,
+        node: &dyn AnimationNode,
+        _delta_time: f32,
+        context: &crate::evaluation::AnimationGraphContext<'_>,
+    ) {
+        let Some(blend_space) = node.as_any().downcast_ref::<BlendSpace2DNode>() else {
+            return;
+        };
+        let sample = (blend_space.sampler)(context.blackboard());
+        self.current_triangulated_point = Some(blend_space.triangulation.locate_or_nearest(sample));
     }
 
     fn evaluate(
@@ -89,9 +106,6 @@ impl AnimationNodeInstance for BlendSpace2DInstanceNode {
         let lambda_b = triangulated_point.lambda_b;
         let lambda_c = triangulated_point.lambda_c;
 
-        // Start from pose A, then bring in B and C via sequential lerp.
-        // lerp(lerp(A, B, λb/(λa+λb)), C, λc) expands to λa*A + λb*B + λc*C
-        // because (λa+λb) + λc = 1.
         output.copy_from(&evaluated_inputs[triangle.a].pose);
 
         let ab_sum = lambda_a + lambda_b;
@@ -101,14 +115,6 @@ impl AnimationNodeInstance for BlendSpace2DInstanceNode {
 
         output.blend(&evaluated_inputs[triangle.c].pose, lambda_c);
     }
-
-    fn update(
-        &mut self,
-        _node: &dyn AnimationNode,
-        _delta_time: f32,
-        _context: &crate::evaluation::AnimationGraphContext<'_>,
-    ) {
-    }
 }
 
 pub struct BlendSpace2DBuilderContext<'a> {
@@ -116,18 +122,18 @@ pub struct BlendSpace2DBuilderContext<'a> {
     pub(crate) output_node_index: AnimationNodeIndex,
     pub(crate) points: Vec<Vec2>,
     pub(crate) nodes: Vec<Box<dyn AnimationNode>>,
+    pub(crate) sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
 }
 
 impl<'a> BlendSpace2DBuilderContext<'a> {
     pub(crate) fn build(self) -> AnimationNodeContext<'a> {
-        let blend_space = BlendSpace2DNode::new(self.points);
+        let blend_space = BlendSpace2DNode::new(self.points, self.sampler);
 
         let blend_space_node = self
             .graph
             .add_node(blend_space, self.output_node_index)
             .index();
 
-        // Add blend space inputs
         for node in self.nodes.into_iter() {
             self.graph.add_boxed_node(node, blend_space_node);
         }

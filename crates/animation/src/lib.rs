@@ -1,3 +1,4 @@
+pub mod blackboard;
 pub mod clip;
 pub mod evaluation;
 pub mod graph;

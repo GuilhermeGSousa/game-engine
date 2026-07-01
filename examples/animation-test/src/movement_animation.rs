@@ -1,10 +1,9 @@
 use game_engine::{
     animation::{
+        blackboard::{AnimationBlackboard, AnimationBlackboardValue},
         clip::AnimationClip,
-        graph::{AnimationGraph, AnimationNodeIndex},
-        node::state_machine::{
-            AnimationFSMTrigger, AnimationFSMVariableType, AnimationStateMachine,
-        },
+        graph::AnimationGraph,
+        node::state_machine::{AnimationFSMTrigger, AnimationStateMachine},
         player::{AnimationHandleComponent, AnimationPlayer},
     },
     ecs::{
@@ -36,6 +35,7 @@ const STRAFE_RIGHT_ANIM: &str = "res/ninja/strafe_right.glb";
 pub(crate) struct AnimatedCharacter;
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub(crate) struct LoadingAnimationStore {
     pub(crate) idle: AssetHandle<GLTFScene>,
     pub(crate) walk: AssetHandle<GLTFScene>,
@@ -51,12 +51,6 @@ pub(crate) struct AnimationStore {
     pub(crate) strafe_right: AssetHandle<AnimationClip>,
 }
 
-#[derive(Component)]
-pub(crate) struct AnimationFSMData {
-    pub(crate) fsm_node: AnimationNodeIndex,
-}
-
-/// Startup system: immediately load the animated character and queue its animation clips.
 pub(crate) fn spawn_character(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     let idle = asset_server.load::<GLTFScene>(IDLE_ANIM);
     let walk = asset_server.load::<GLTFScene>(WALK_ANIM);
@@ -137,15 +131,18 @@ pub(crate) fn setup_animations(
 
         let mut movement_graph = AnimationGraph::new();
 
-        movement_graph
-            .result_node()
-            .with_blendspace_2d_input(|context| {
+        movement_graph.result_node().with_blend_space_2d_input(
+            |blackboard: &AnimationBlackboard| {
+                blackboard.get_vec2("movement").unwrap_or(Vec2::ZERO)
+            },
+            |context| {
                 context
                     .animation_clip_input(&anim_store.idle, Vec2::ZERO)
                     .animation_clip_input(&anim_store.strafe_left, Vec2::new(-1.0, 0.0))
                     .animation_clip_input(&anim_store.strafe_right, Vec2::new(1.0, 0.0))
                     .animation_clip_input(&anim_store.walk, Vec2::new(0.0, 1.0));
-            });
+            },
+        );
 
         let anim_fsm = AnimationStateMachine::from_initial_state(
             "idle",
@@ -167,9 +164,8 @@ pub(crate) fn setup_animations(
         )
         .build();
 
-        let fsm_node = anim_graph
-            .add_node(anim_fsm, anim_graph.result_node().index())
-            .index();
+        let result_node = anim_graph.result_node().index();
+        anim_graph.add_node(anim_fsm, result_node);
 
         cmd.insert(
             AnimationHandleComponent {
@@ -177,29 +173,17 @@ pub(crate) fn setup_animations(
             },
             player_entity,
         );
-        cmd.insert(AnimationFSMData { fsm_node }, player_entity);
     }
 }
 
-pub(crate) fn update_movement_fsm(
-    anim_players: Query<(&mut AnimationPlayer, &AnimationFSMData)>,
-    input: Res<Input>,
-) {
-    for (mut anim_player, data) in anim_players.iter() {
+pub(crate) fn update_movement(anim_players: Query<&mut AnimationPlayer>, input: Res<Input>) {
+    for mut anim_player in anim_players.iter() {
         let key_state = input.get_key_state(PhysicalKey::Code(KeyCode::KeyO));
 
         if matches!(key_state, InputState::Pressed) {
-            anim_player.set_fsm_param(
-                &data.fsm_node,
-                "has_moved",
-                AnimationFSMVariableType::Bool(true),
-            );
+            anim_player.set_param("has_moved", AnimationBlackboardValue::Bool(true));
         } else if matches!(key_state, InputState::Released) {
-            anim_player.set_fsm_param(
-                &data.fsm_node,
-                "has_moved",
-                AnimationFSMVariableType::Bool(false),
-            );
+            anim_player.set_param("has_moved", AnimationBlackboardValue::Bool(false));
         }
     }
 }

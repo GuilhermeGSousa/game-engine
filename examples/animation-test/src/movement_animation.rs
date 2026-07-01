@@ -1,9 +1,9 @@
+use color::LinearRgba;
 use game_engine::{
     animation::{
-        blackboard::{AnimationBlackboard, AnimationBlackboardValue},
+        blackboard::AnimationBlackboard,
         clip::AnimationClip,
         graph::AnimationGraph,
-        node::state_machine::{AnimationFSMTrigger, AnimationStateMachine},
         player::{AnimationHandleComponent, AnimationPlayer},
     },
     ecs::{
@@ -18,7 +18,8 @@ use game_engine::{
         transform::Transform,
     },
     gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
-    window::input::{Input, InputState},
+    render::components::{light::LightType, Light},
+    window::input::Input,
 };
 use glam::{Quat, Vec2, Vec3};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -73,6 +74,14 @@ pub(crate) fn spawn_character(mut cmd: CommandQueue, asset_server: Res<AssetServ
             strafe_right,
         },
         Transform::from_translation_rotation(Vec3::new(0.0, 0.0, -4.0), Quat::IDENTITY),
+    ))
+    .add_child((
+        Light {
+            color: LinearRgba::WHITE,
+            intensity: 100.0,
+            light_type: LightType::Point,
+        },
+        Transform::from_translation(Vec3::Y * 10.0),
     ));
 }
 
@@ -92,11 +101,11 @@ pub(crate) fn setup_state_machine(
                 .and_then(|walk_scene| walk_scene.animations().first())
                 .cloned(),
             gltf_scenes
-                .get(&loading_anim_store.walk)
+                .get(&loading_anim_store.strafe_left)
                 .and_then(|strafe_left_scene| strafe_left_scene.animations().first())
                 .cloned(),
             gltf_scenes
-                .get(&loading_anim_store.walk)
+                .get(&loading_anim_store.strafe_right)
                 .and_then(|strafe_right_scene| strafe_right_scene.animations().first())
                 .cloned(),
         ) else {
@@ -127,8 +136,6 @@ pub(crate) fn setup_animations(
     };
 
     for (player_entity, _player) in players.iter() {
-        let mut anim_graph = AnimationGraph::new();
-
         let mut movement_graph = AnimationGraph::new();
 
         movement_graph.result_node().with_blend_space_2d_input(
@@ -144,32 +151,9 @@ pub(crate) fn setup_animations(
             },
         );
 
-        let anim_fsm = AnimationStateMachine::from_initial_state(
-            "idle",
-            asset_server.add(AnimationGraph::from_clip(anim_store.idle.clone())),
-            |transition| {
-                transition.to("walk", AnimationFSMTrigger::on_bool("has_moved", true), 0.5);
-            },
-        )
-        .state(
-            "walk",
-            asset_server.add(AnimationGraph::from_clip(anim_store.walk.clone())),
-            |transition| {
-                transition.to(
-                    "idle",
-                    AnimationFSMTrigger::on_bool("has_moved", false),
-                    0.5,
-                );
-            },
-        )
-        .build();
-
-        let result_node = anim_graph.result_node().index();
-        anim_graph.add_node(anim_fsm, result_node);
-
         cmd.insert(
             AnimationHandleComponent {
-                handle: asset_server.add(anim_graph),
+                handle: asset_server.add(movement_graph),
             },
             player_entity,
         );
@@ -178,12 +162,24 @@ pub(crate) fn setup_animations(
 
 pub(crate) fn update_movement(anim_players: Query<&mut AnimationPlayer>, input: Res<Input>) {
     for mut anim_player in anim_players.iter() {
-        let key_state = input.get_key_state(PhysicalKey::Code(KeyCode::KeyO));
+        let mut input_vec = Vec2::ZERO;
 
-        if matches!(key_state, InputState::Pressed) {
-            anim_player.set_param("has_moved", AnimationBlackboardValue::Bool(true));
-        } else if matches!(key_state, InputState::Released) {
-            anim_player.set_param("has_moved", AnimationBlackboardValue::Bool(false));
+        if input.is_held(PhysicalKey::Code(KeyCode::ArrowUp)) {
+            input_vec += Vec2::Y;
         }
+
+        if input.is_held(PhysicalKey::Code(KeyCode::ArrowDown)) {
+            input_vec -= Vec2::Y;
+        }
+
+        if input.is_held(PhysicalKey::Code(KeyCode::ArrowRight)) {
+            input_vec += Vec2::X;
+        }
+
+        if input.is_held(PhysicalKey::Code(KeyCode::ArrowLeft)) {
+            input_vec -= Vec2::X;
+        }
+
+        anim_player.set_vec2_param("movement", input_vec);
     }
 }

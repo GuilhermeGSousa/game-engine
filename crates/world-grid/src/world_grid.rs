@@ -27,8 +27,8 @@ impl Default for WorldGrid {
             cell_size: 1.0,
             coarse_cells: 10.0,
             line_color: LinearRgba::new(0.28, 0.28, 0.28, 0.85),
-            fade_start: 80.0,
-            fade_end: 200.0,
+            fade_start: 20.0,
+            fade_end: 80.0,
             surface_color: LinearRgba::WHITE,
         }
     }

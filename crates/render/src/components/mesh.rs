@@ -6,7 +6,7 @@ use ecs::{
 };
 use essential::{
     assets::AssetId,
-    transform::{GlobalTransform, Transform},
+    transform::{GlobalTransform, GlobalTransformRaw, Transform},
 };
 use mesh::mesh::MeshComponent;
 use wgpu::util::DeviceExt;
@@ -17,6 +17,10 @@ use crate::{components::render_entity::RenderEntity, device::RenderDevice, queue
 pub(crate) struct RenderMeshInstance {
     pub(crate) mesh_asset_id: AssetId,
     pub(crate) transform: wgpu::Buffer,
+    // CPU-side cache of `transform`'s contents, kept in sync alongside it so that
+    // `sync_instance_membership` (instance_batch.rs) can read a live entity's current
+    // matrix without a GPU buffer readback.
+    pub(crate) transform_raw: GlobalTransformRaw,
 }
 
 pub(crate) fn mesh_added(
@@ -33,15 +37,17 @@ pub(crate) fn mesh_added(
     device: Res<RenderDevice>,
 ) {
     for (entity, mesh, transform, render_entity) in meshes.iter() {
+        let transform_raw = transform.to_raw();
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&[transform.to_raw()]),
+            contents: bytemuck::cast_slice(&[transform_raw]),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let instance = RenderMeshInstance {
             mesh_asset_id: mesh.handle.id(),
             transform: instance_buffer,
+            transform_raw,
         };
 
         match render_entity {
@@ -62,12 +68,14 @@ pub(crate) fn mesh_changed(
     queue: Res<RenderQueue>,
 ) {
     for (_, transform, render_entity) in meshes.iter() {
-        if let Some((render_mesh,)) = render_meshes.get_entity(**render_entity) {
+        if let Some((mut render_mesh,)) = render_meshes.get_entity(**render_entity) {
+            let transform_raw = transform.to_raw();
             queue.write_buffer(
                 &render_mesh.transform,
                 0,
-                bytemuck::cast_slice(&[transform.to_raw()]),
+                bytemuck::cast_slice(&[transform_raw]),
             );
+            render_mesh.transform_raw = transform_raw;
         }
     }
 }

@@ -36,6 +36,7 @@ use debug_gizmos::plugin::DebugGizmosPlugin;
 use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 #[cfg(not(feature = "terminal"))]
 use world_grid::plugin::WorldGridPlugin;
+use world_grid::WorldGrid;
 
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
 
@@ -77,7 +78,7 @@ fn main() {
             .add_system(UpdateGroup::Update, rotate_cube)
             .add_system(UpdateGroup::Update, first_person_player_fly);
         app.register_plugin(DebugGizmosPlugin);
-        app.register_plugin(WorldGridPlugin::default());
+        app.register_plugin(WorldGridPlugin);
     }
 
     app.run();
@@ -130,6 +131,7 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     cmd.spawn(GLTFSpawnerComponent(asset_server.load(SPONZA_PATH)));
+    cmd.spawn(WorldGrid::default());
 }
 
 fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {

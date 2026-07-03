@@ -19,6 +19,10 @@ impl AnimationBlackboard {
         self.values.insert(key.into(), value);
     }
 
+    pub fn get(&self, key: &str) -> Option<&AnimationBlackboardValue> {
+        self.values.get(key)
+    }
+
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         match self.values.get(key)? {
             AnimationBlackboardValue::Bool(v) => Some(*v),

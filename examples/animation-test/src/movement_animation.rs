@@ -15,6 +15,7 @@ use game_engine::{
     },
     essential::{
         assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
+        time::Time,
         transform::Transform,
     },
     gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
@@ -160,26 +161,42 @@ pub(crate) fn setup_animations(
     }
 }
 
-pub(crate) fn update_movement(anim_players: Query<&mut AnimationPlayer>, input: Res<Input>) {
+pub(crate) fn update_movement(
+    anim_players: Query<&mut AnimationPlayer>,
+    input: Res<Input>,
+    time: Res<Time>,
+) {
     for mut anim_player in anim_players.iter() {
-        let mut input_vec = Vec2::ZERO;
+        let mut input_vec = anim_player.get_vec2_param("movement").unwrap_or(Vec2::ZERO);
 
+        let mut added_input = Vec2::ZERO;
         if input.is_held(PhysicalKey::Code(KeyCode::ArrowUp)) {
-            input_vec += Vec2::Y;
+            added_input += Vec2::Y;
         }
 
         if input.is_held(PhysicalKey::Code(KeyCode::ArrowDown)) {
-            input_vec -= Vec2::Y;
+            added_input -= Vec2::Y;
         }
 
         if input.is_held(PhysicalKey::Code(KeyCode::ArrowRight)) {
-            input_vec += Vec2::X;
+            added_input += Vec2::X;
         }
 
         if input.is_held(PhysicalKey::Code(KeyCode::ArrowLeft)) {
-            input_vec -= Vec2::X;
+            added_input -= Vec2::X;
         }
 
+        let dt = time.delta().as_secs_f32();
+        input_vec += added_input * 5.0 * dt;
+
+        if added_input.x == 0.0 {
+            input_vec.x *= (1.0 - 5.0 * dt).max(0.0);
+        }
+        if added_input.y == 0.0 {
+            input_vec.y *= (1.0 - 5.0 * dt).max(0.0);
+        }
+
+        input_vec = input_vec.clamp(Vec2::NEG_ONE, Vec2::ONE);
         anim_player.set_vec2_param("movement", input_vec);
     }
 }

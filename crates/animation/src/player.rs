@@ -86,6 +86,26 @@ impl AnimationPlayer {
         self.set_param(key, AnimationBlackboardValue::Vec2(value));
     }
 
+    pub fn get_param(&self, key: &str) -> Option<&AnimationBlackboardValue> {
+        self.blackboard.get(key)
+    }
+
+    pub fn get_bool_param(&self, key: &str) -> Option<bool> {
+        self.blackboard.get_bool(key)
+    }
+
+    pub fn get_int_param(&self, key: &str) -> Option<u32> {
+        self.blackboard.get_int(key)
+    }
+
+    pub fn get_float_param(&self, key: &str) -> Option<f32> {
+        self.blackboard.get_float(key)
+    }
+
+    pub fn get_vec2_param(&self, key: &str) -> Option<Vec2> {
+        self.blackboard.get_vec2(key)
+    }
+
     pub fn current_fsm_state(&self, node_index: &AnimationNodeIndex) -> Option<&str> {
         self.graph_instance
             .get_instance::<AnimationStateMachineInstance>(node_index)

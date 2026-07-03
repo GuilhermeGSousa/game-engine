@@ -59,7 +59,7 @@ fn world_grid_on_add(
     let uniform = WorldGridUniform {
         line_color: grid.line_color,
         cell_size: grid.cell_size,
-        coarse_cells: grid.coarse_cells as f32,
+        coarse_cells: grid.coarse_cells,
         fade_start: grid.fade_start,
         fade_end: grid.fade_end,
         surface_color: grid.surface_color,

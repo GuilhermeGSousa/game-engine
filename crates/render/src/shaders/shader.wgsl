@@ -1,5 +1,5 @@
-const MAX_LIGHT_COUNT : i32 = 128;
-const MAX_BONE_COUNT : i32 = 128;
+const MAX_LIGHT_COUNT: i32 = 128;
+const MAX_BONE_COUNT: i32 = 128;
 
 const HAS_BASE_COLOR_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
@@ -55,8 +55,7 @@ struct Lights {
 };
 
 struct Skeleton {
-    bones: array<mat4x4<f32>, MAX_BONE_COUNT>
-};
+    bones: array<mat4x4<f32>, MAX_BONE_COUNT>};
 
 struct CameraUniform {
     view_pos: vec3<f32>,
@@ -113,6 +112,7 @@ fn vs_main(
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 
     var out: VertexOutput;
+    out.tex_coords = model.tex_coords;
 
     let total_weight = model.bone_weights.x + model.bone_weights.y + model.bone_weights.z + model.bone_weights.w;
     if total_weight > 0 {
@@ -120,16 +120,33 @@ fn vs_main(
         for (var i: i32 = 0; i < 4; i = i + 1) {
             pose_transform += bones.bones[model.bone_indices[i]] * model.bone_weights[i];
         }
-        out.clip_position = camera.view_proj * pose_transform * world_position;
+        let skinned_pos = pose_transform * world_position;
+        out.clip_position = camera.view_proj * skinned_pos;
+        out.world_position = skinned_pos.xyz;
     } else {
         out.clip_position = camera.view_proj * world_position;
+        out.world_position = world_position.xyz;
     }
 
-    out.tex_coords = model.tex_coords;
-    out.world_position = world_position.xyz;
-    out.world_normal = normalize(normal_matrix * model.normal);
-    out.world_tangent = normalize(normal_matrix * model.tangent);
-    out.world_bitangent = normalize(normal_matrix * model.bitangent);
+    let world_normal = normalize(normal_matrix * model.normal);
+    out.world_normal = world_normal;
+
+    // Meshes without tangent data leave model.tangent as the zero vector.
+    // normalize(zero) is undefined in WGSL and produces NaN on many GPUs, which
+    // then propagates through the TBN into mapped_normal → NdotL = 0 → no lighting.
+    // When the tangent is degenerate, derive an orthonormal basis from the normal.
+    if dot(model.tangent, model.tangent) > 1e-6 {
+        out.world_tangent = normalize(normal_matrix * model.tangent);
+        out.world_bitangent = normalize(normal_matrix * model.bitangent);
+    } else {
+        let up = vec3<f32>(0.0, 1.0, 0.0);
+        let right = vec3<f32>(1.0, 0.0, 0.0);
+        let n = model.normal;
+        let t = select(normalize(cross(up, n)), normalize(cross(right, n)), abs(dot(n, up)) < 0.999);
+        out.world_tangent = normalize(normal_matrix * t);
+        // normal_matrix is a pure rotation; M*(a×b) = (M*a)×(M*b) for orthogonal M.
+        out.world_bitangent = normalize(cross(world_normal, out.world_tangent));
+    }
     return out;
 }
 
@@ -242,6 +259,7 @@ fn pbr_fs(in: VertexOutput) -> vec4<f32> {
         let kd = (vec3<f32>(1.0) - F) * (1.0 - metallic);
 
         total_light += (kd * diffuse_color / PI + specular) * radiance * NdotL;
+        // total_light += diffuse_color * attenuation;
     }
 
     let ambient = AMBIENT_INTENSITY * base_color.rgb * occlusion;

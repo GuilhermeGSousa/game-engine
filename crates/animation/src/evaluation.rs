@@ -1,6 +1,9 @@
 use essential::assets::asset_store::AssetStore;
 
-use crate::{clip::AnimationClip, graph::AnimationGraph, pose::EvaluatedPose};
+use crate::{
+    blackboard::AnimationBlackboard, clip::AnimationClip, graph::AnimationGraph,
+    pose::EvaluatedPose,
+};
 
 pub struct AnimationGraphEvaluator {
     pub(crate) evaluation_stack: Vec<EvaluatedPose>,
@@ -39,6 +42,7 @@ impl Default for AnimationGraphEvaluator {
 pub struct AnimationGraphContext<'a> {
     pub(crate) animation_clips: &'a AssetStore<AnimationClip>,
     pub(crate) animation_graphs: &'a AssetStore<AnimationGraph>,
+    pub(crate) blackboard: &'a AnimationBlackboard,
 }
 
 impl<'a> AnimationGraphContext<'a> {
@@ -48,5 +52,9 @@ impl<'a> AnimationGraphContext<'a> {
 
     pub fn animation_graphs(&self) -> &AssetStore<AnimationGraph> {
         self.animation_graphs
+    }
+
+    pub fn blackboard(&self) -> &AnimationBlackboard {
+        self.blackboard
     }
 }

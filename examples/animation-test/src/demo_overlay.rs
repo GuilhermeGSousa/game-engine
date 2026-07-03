@@ -16,7 +16,7 @@ use game_engine::{
     },
 };
 
-use crate::movement_animation::{AnimatedCharacter, AnimationFSMData};
+use crate::movement_animation::AnimatedCharacter;
 
 /// Marks the overlay text node so `update_overlay` can find and rewrite it.
 #[derive(Component)]
@@ -48,30 +48,22 @@ pub(crate) fn spawn_overlay(mut cmd: CommandQueue) {
     ));
 }
 
-/// Update: reflect the character's load progress and the live FSM state in the overlay.
+/// Update: reflect the character's load progress in the overlay.
 pub(crate) fn update_overlay(
     texts: Query<&mut TextComponent, With<OverlayText>>,
     spawners: Query<&GLTFSpawnerComponent, With<AnimatedCharacter>>,
-    players: Query<(&AnimationPlayer, &AnimationFSMData)>,
+    players: Query<&AnimationPlayer>,
 ) {
-    let (load, state) = if let Some((player, data)) = players.iter().next() {
-        // The FSM graph exists -> the character is fully set up.
-        let state = match player.current_fsm_state(&data.fsm_node) {
-            Some(name) if !name.is_empty() => name.to_string(),
-            _ => "—".to_string(),
-        };
-        ("Ready", state)
+    let load = if players.iter().next().is_some() {
+        "Ready"
     } else if spawners.iter().next().is_some() {
-        // Still holding the GLTF spawner -> the model is loading.
-        ("Loading model…", "—".to_string())
+        "Loading model…"
     } else {
-        // Spawned, but the animation graph hasn't been built yet.
-        ("Setting up animations…", "—".to_string())
+        "Setting up animations…"
     };
 
-    let new_text = format!("Load: {load}\nState: {state}");
+    let new_text = format!("Load: {load}");
     for mut text in texts.iter() {
-        // Only assign on change: writing rebuilds the glyphon buffer next frame.
         if text.text != new_text {
             text.text = new_text.clone();
         }

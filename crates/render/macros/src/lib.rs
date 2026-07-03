@@ -60,6 +60,8 @@ struct MaterialAttr {
     depth_stencil: Option<String>,
     /// `vertex_layouts()` override: an arbitrary Rust expression.
     vertex_layouts: Option<Expr>,
+    /// `blend_state()` override: `"replace"`, `"alpha"`, or `"none"`.
+    blend: Option<String>,
 }
 
 /// Parse the integer literal inside an attribute like `#[texture(0)]`.
@@ -185,6 +187,7 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
         clear_depth: None,
         depth_stencil: None,
         vertex_layouts: None,
+        blend: None,
     };
     for attr in attrs {
         if !attr.path().is_ident("material") {
@@ -214,6 +217,8 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
             } else if meta.path.is_ident("vertex_layouts") {
                 let value = meta.value()?;
                 result.vertex_layouts = Some(value.parse()?);
+            } else if meta.path.is_ident("blend") {
+                result.blend = Some(parse_str_value(&meta)?);
             }
             Ok(())
         });
@@ -520,6 +525,19 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
         })
         .unwrap_or_default();
 
+    let blend_state_fn = m
+        .blend
+        .as_deref()
+        .map(|b| {
+            let expr = match b {
+                "alpha" => quote! { Some(wgpu::BlendState::ALPHA_BLENDING) },
+                "none" => quote! { None },
+                _ => quote! { Some(wgpu::BlendState::REPLACE) },
+            };
+            quote! { fn blend_state() -> Option<wgpu::BlendState> { #expr } }
+        })
+        .unwrap_or_default();
+
     quote! {
         impl render::assets::material::Material for #name {
             #camera_fn
@@ -530,6 +548,7 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
             #clear_depth_fn
             #depth_stencil_fn
             #vertex_layouts_fn
+            #blend_state_fn
         }
     }
 }

@@ -515,4 +515,11 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
     {
         true
     }
+
+    fn blend_state() -> Option<wgpu::BlendState>
+    where
+        Self: Sized,
+    {
+        Some(wgpu::BlendState::REPLACE)
+    }
 }

@@ -23,6 +23,7 @@ use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialP
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
+use world_grid::plugin::WorldGridPlugin;
 /// Registers all standard engine plugins in the conventional order.
 #[derive(Default)]
 pub struct DefaultPlugins {
@@ -50,7 +51,8 @@ impl Plugin for DefaultPlugins {
             .register_plugin(PhysicsPlugin)
             .register_plugin(AnimationPlugin)
             .register_plugin(GLTFPlugin)
-            .register_plugin(OBJPlugin);
+            .register_plugin(OBJPlugin)
+            .register_plugin(WorldGridPlugin);
 
         if !self.headless {
             app.register_plugin(UIPlugin);

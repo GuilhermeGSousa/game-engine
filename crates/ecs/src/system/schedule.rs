@@ -345,8 +345,9 @@ pub(crate) fn is_sync_point(system: &dyn System) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::system::{
-        config::IntoSystemConfig, executor::single_thread::SingleThreadedExecutor,
+    use crate::{
+        system::{config::IntoSystemConfig, executor::single_thread::SingleThreadedExecutor},
+        Component, IntoSystem, Query,
     };
     use petgraph::graph::NodeIndex;
 

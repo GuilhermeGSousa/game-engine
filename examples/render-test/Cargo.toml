@@ -18,6 +18,7 @@ essential = { path = "../../crates/essential" }
 color = { path = "../../crates/color" }
 render = { path = "../../crates/render" }
 debug-gizmos = { path = "../../crates/debug-gizmos" }
+world-grid = { path = "../../crates/world-grid" }
 terminal-renderer = { path = "../../crates/terminal-renderer", optional = true }
 gameplay = { path = "../../crates/gameplay" }
 glam = "0.30.1"

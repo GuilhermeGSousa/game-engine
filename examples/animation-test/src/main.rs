@@ -9,10 +9,11 @@ use gameplay::{movement::first_person_player_fly, player::spawn_first_person_pla
 use glam::Vec3;
 
 use debug_gizmos::plugin::DebugGizmosPlugin;
+use world_grid::WorldGrid;
 
 use crate::demo_overlay::{spawn_entity_gizmos, spawn_overlay, update_overlay};
 use crate::movement_animation::{
-    setup_animations, setup_state_machine, spawn_character, update_movement_fsm,
+    setup_animations, setup_state_machine, spawn_character, update_movement,
 };
 
 mod demo_overlay;
@@ -46,7 +47,7 @@ fn main() {
     app.add_system(UpdateGroup::Update, first_person_player_fly)
         .add_system(UpdateGroup::Update, setup_state_machine)
         .add_system(UpdateGroup::Update, setup_animations)
-        .add_system(UpdateGroup::Update, update_movement_fsm)
+        .add_system(UpdateGroup::Update, update_movement)
         .add_system(UpdateGroup::Update, update_overlay)
         .add_system(UpdateGroup::Update, spawn_entity_gizmos);
 
@@ -54,6 +55,7 @@ fn main() {
 }
 
 fn spawn_camera(mut cmd: CommandQueue) {
+    cmd.spawn(WorldGrid::default());
     // First-person fly camera with a headlight so the character is lit wherever you look.
     spawn_first_person_player(
         &mut cmd,

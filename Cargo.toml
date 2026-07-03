@@ -32,6 +32,7 @@ obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
 physics = { path = "crates/physics" }
 skybox = { path = "crates/skybox" }
+world-grid = { path = "crates/world-grid" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wgpu = { version = "24.0.1", features = ["webgl"] }

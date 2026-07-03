@@ -1,3 +1,4 @@
+pub mod blackboard;
 pub mod clip;
 pub mod evaluation;
 pub mod graph;
@@ -6,7 +7,6 @@ pub mod player;
 pub mod plugin;
 pub mod pose;
 pub mod root;
-pub mod state_machine;
 pub mod target;
 pub mod transition;
 

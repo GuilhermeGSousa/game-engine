@@ -104,8 +104,7 @@ impl CameraUniform {
 
     pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTransform) {
         self.view_pos = transform.translation();
-        self.view_proj =
-            OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
+        self.view_proj = camera.build_projection_matrix() * transform.matrix().inverse();
     }
 }
 

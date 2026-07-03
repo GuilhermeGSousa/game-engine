@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 
 use essential::assets::{Asset, handle::AssetHandle};
 use log::warn;
@@ -10,9 +10,13 @@ use petgraph::{
 use uuid::Uuid;
 
 use crate::{
+    blackboard::AnimationBlackboard,
     clip::AnimationClip,
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
-    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationRootNode},
+    node::{
+        AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationResultNode,
+        blend_space::BlendSpace2DBuilderContext,
+    },
     player::ActiveNodeInstance,
     pose::{EvaluatedPose, Pose, PosePool},
 };
@@ -39,48 +43,65 @@ impl From<NodeIndex> for AnimationNodeIndex {
 #[derive(Asset)]
 pub struct AnimationGraph {
     graph: AnimationDirectedGraph,
-    root: AnimationNodeIndex,
+    result_node: AnimationNodeIndex,
 }
 
 impl AnimationGraph {
     pub fn new() -> Self {
         let mut graph = AnimationDirectedGraph::new();
-        let root = graph.add_node(Box::new(AnimationRootNode));
+        let result_node = graph.add_node(Box::new(AnimationResultNode));
 
         Self {
             graph,
-            root: root.into(),
+            result_node: result_node.into(),
         }
     }
 
     pub fn from_clip(clip: AssetHandle<AnimationClip>) -> Self {
         let mut graph = Self::new();
-        graph.add_node(AnimationClipNode::new(clip), *graph.root());
+        let result_node_index = graph.result_node().index();
+        graph.add_node(AnimationClipNode::new(clip), result_node_index);
         graph
     }
 
     pub fn add_node<T: AnimationNode + 'static>(
         &mut self,
         node: T,
-        parent_node: AnimationNodeIndex,
-    ) -> AnimationNodeIndex {
-        let added_node = self.graph.add_node(Box::new(node));
-        self.graph.add_edge(*parent_node, added_node, ());
-        added_node.into()
+        output_node: AnimationNodeIndex,
+    ) -> AnimationNodeContext<'_> {
+        self.add_boxed_node(Box::new(node), output_node)
     }
 
-    pub fn root(&self) -> &AnimationNodeIndex {
-        &self.root
+    pub fn add_boxed_node(
+        &mut self,
+        node: Box<dyn AnimationNode>,
+        output_node: AnimationNodeIndex,
+    ) -> AnimationNodeContext<'_> {
+        let added_node = self.graph.add_node(node);
+        self.graph.add_edge(*output_node, added_node, ());
+
+        AnimationNodeContext {
+            graph: self,
+            node_index: added_node.into(),
+        }
+    }
+
+    pub fn result_node(&mut self) -> AnimationNodeContext<'_> {
+        let result_node = self.result_node;
+        AnimationNodeContext {
+            graph: self,
+            node_index: result_node,
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = AnimationNodeIndex> + '_ {
-        Dfs::new(&self.graph, *self.root)
+        Dfs::new(&self.graph, *self.result_node)
             .iter(&self.graph)
             .map(|node_index| node_index.into())
     }
 
     pub fn iter_post_order(&self) -> impl Iterator<Item = AnimationNodeIndex> + '_ {
-        DfsPostOrder::new(&self.graph, *self.root)
+        DfsPostOrder::new(&self.graph, *self.result_node)
             .iter(&self.graph)
             .map(|node_index| node_index.into())
     }
@@ -97,6 +118,46 @@ impl AnimationGraph {
 impl Default for AnimationGraph {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub struct AnimationNodeContext<'a> {
+    pub(crate) graph: &'a mut AnimationGraph,
+    pub(crate) node_index: AnimationNodeIndex,
+}
+
+impl<'a> AnimationNodeContext<'a> {
+    pub fn index(&self) -> AnimationNodeIndex {
+        self.node_index
+    }
+
+    pub fn with_input<T: AnimationNode + 'static>(
+        &mut self,
+        node: T,
+        f: impl FnOnce(AnimationNodeContext<'_>),
+    ) -> &mut Self {
+        f(self.graph.add_node(node, self.node_index));
+        self
+    }
+
+    pub fn with_blend_space_2d_input(
+        &mut self,
+        sampler: impl Fn(&AnimationBlackboard) -> glam::Vec2 + Send + Sync + 'static,
+        f: impl FnOnce(&mut BlendSpace2DBuilderContext<'_>),
+    ) -> &mut Self {
+        let mut builder_context = BlendSpace2DBuilderContext {
+            graph: self.graph,
+            output_node_index: self.node_index,
+            points: Vec::new(),
+            nodes: Vec::new(),
+            sampler: Arc::new(sampler),
+        };
+
+        f(&mut builder_context);
+
+        builder_context.build();
+
+        self
     }
 }
 

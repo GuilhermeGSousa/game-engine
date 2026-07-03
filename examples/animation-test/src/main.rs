@@ -9,6 +9,7 @@ use gameplay::{movement::first_person_player_fly, player::spawn_first_person_pla
 use glam::Vec3;
 
 use debug_gizmos::plugin::DebugGizmosPlugin;
+use world_grid::WorldGrid;
 
 use crate::demo_overlay::{spawn_entity_gizmos, spawn_overlay, update_overlay};
 use crate::movement_animation::{
@@ -54,6 +55,7 @@ fn main() {
 }
 
 fn spawn_camera(mut cmd: CommandQueue) {
+    cmd.spawn(WorldGrid::default());
     // First-person fly camera with a headlight so the character is lit wherever you look.
     spawn_first_person_player(
         &mut cmd,

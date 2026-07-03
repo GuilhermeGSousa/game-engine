@@ -1,5 +1,5 @@
-const MAX_LIGHT_COUNT : i32 = 128;
-const MAX_BONE_COUNT : i32 = 128;
+const MAX_LIGHT_COUNT: i32 = 128;
+const MAX_BONE_COUNT: i32 = 128;
 
 const HAS_BASE_COLOR_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
@@ -55,8 +55,7 @@ struct Lights {
 };
 
 struct Skeleton {
-    bones: array<mat4x4<f32>, MAX_BONE_COUNT>
-};
+    bones: array<mat4x4<f32>, MAX_BONE_COUNT>};
 
 struct CameraUniform {
     view_pos: vec3<f32>,

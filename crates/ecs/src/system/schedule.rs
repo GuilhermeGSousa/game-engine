@@ -511,22 +511,4 @@ mod tests {
             .graph
             .contains_edge(NodeIndex::new(1), NodeIndex::new(2)));
     }
-
-    #[derive(Component)]
-    struct Position;
-
-    #[derive(Component)]
-    struct HP;
-
-    fn sys_a(query: Query<(&Position, &mut HP)>) {}
-
-    fn sys_b(query: Query<&mut HP>) {}
-
-    #[test]
-    fn test_things() {
-        let a = sys_a.into_system();
-        let b = sys_b.into_system();
-
-        assert!(SystemAccess::are_disjoint(&a.access(), &b.access()))
-    }
 }

@@ -1,7 +1,9 @@
+pub mod character_controller;
 pub mod collider;
 pub mod physics_pipeline;
 pub mod physics_state;
 pub mod plugin;
+pub mod query;
 pub mod rigid_body;
 mod simulation;
 

@@ -1,4 +1,4 @@
-use jolt_sys::JoltBodyId;
+use jolt_ffi::JoltBodyId;
 
 /// A handle to a body living inside the Jolt physics system.
 ///

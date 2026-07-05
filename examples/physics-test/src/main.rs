@@ -214,7 +214,10 @@ fn click_ball(
         return;
     };
 
-    let ball_color = balls.get_entity(hit.entity).map(|(color,)| color.0);
+    let ball_color = hit
+        .entity
+        .and_then(|entity| balls.get_entity(entity))
+        .map(|(color,)| color.0);
     match ball_color {
         Some(color) => println!("click: hit ball with color {color:?}"),
         None => println!("click: hit static geometry at {}", hit.point),

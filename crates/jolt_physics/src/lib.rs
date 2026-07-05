@@ -1,5 +1,5 @@
 //! A physics backend for the engine built on Jolt Physics via our own
-//! in-repo `jolt-sys` FFI bindings, with a thin hand-written safe wrapper.
+//! in-repo `jolt-ffi` FFI bindings, with a thin hand-written safe wrapper.
 
 pub mod body;
 pub mod collider;

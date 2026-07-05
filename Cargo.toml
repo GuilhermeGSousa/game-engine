@@ -37,5 +37,5 @@ world-grid = { path = "crates/world-grid" }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wgpu = { version = "24.0.1", features = ["webgl"] }
 
-[profile.dev.package.jolt-sys]
+[profile.dev.package.jolt-ffi]
 opt-level = 3

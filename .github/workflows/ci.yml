@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # jolt-sys builds the Jolt Physics C++ sources from a submodule.
+          # jolt-ffi builds the Jolt Physics C++ sources from a submodule.
           submodules: true
 
       - name: Install stable Rust toolchain
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # jolt-sys builds the Jolt Physics C++ sources from a submodule.
+          # jolt-ffi builds the Jolt Physics C++ sources from a submodule.
           submodules: true
 
       - name: Install stable Rust toolchain
@@ -75,7 +75,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
         with:
-          # jolt-sys builds the Jolt Physics C++ sources from a submodule.
+          # jolt-ffi builds the Jolt Physics C++ sources from a submodule.
           submodules: true
       - name: Cache
         uses: actions/cache@v4

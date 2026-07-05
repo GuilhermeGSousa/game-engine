@@ -5,10 +5,10 @@ use crate::physics_state::PhysicsState;
 
 /// Per-step scratch resources for advancing the simulation: a temporary
 /// allocator and a job system thread pool (owned together on the C++ side of
-/// the `jolt-sys` shim). Owns them for the lifetime of the app.
+/// the `jolt-ffi` shim). Owns them for the lifetime of the app.
 #[derive(Resource)]
 pub struct PhysicsPipeline {
-    stepper: *mut jolt_sys::JoltStepper,
+    stepper: *mut jolt_ffi::JoltStepper,
 }
 
 // SAFETY: like `PhysicsState`, this holds a raw Jolt pointer. The ECS requires
@@ -25,7 +25,7 @@ impl PhysicsPipeline {
         // 32 MiB of scratch, sized to comfortably hold the body-pair and
         // contact-constraint buffers Jolt allocates each step for
         // `PhysicsState`'s configured maxima.
-        let stepper = unsafe { jolt_sys::jolt_stepper_create(32 * 1024 * 1024) };
+        let stepper = unsafe { jolt_ffi::jolt_stepper_create(32 * 1024 * 1024) };
 
         PhysicsPipeline { stepper }
     }
@@ -36,7 +36,7 @@ impl PhysicsPipeline {
         // `self`. We hold `&mut self` and `&mut state`, so this is the
         // exclusive accessor.
         unsafe {
-            jolt_sys::jolt_world_step(state.world(), self.stepper, Time::fixed_delta_time(), 1);
+            jolt_ffi::jolt_world_step(state.world(), self.stepper, Time::fixed_delta_time(), 1);
         }
     }
 }
@@ -51,7 +51,7 @@ impl Drop for PhysicsPipeline {
     fn drop(&mut self) {
         // SAFETY: the stepper was created in `new` and is freed once here.
         unsafe {
-            jolt_sys::jolt_stepper_destroy(self.stepper);
+            jolt_ffi::jolt_stepper_destroy(self.stepper);
         }
     }
 }

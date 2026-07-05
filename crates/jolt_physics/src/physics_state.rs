@@ -19,14 +19,14 @@ const MAX_CONTACT_CONSTRAINTS: u32 = 10_240;
 
 /// Owns the Jolt physics world: the body store, broad/narrow phases, and the
 /// collision-layer interfaces it was initialised with (all held together on
-/// the C++ side of the `jolt-sys` shim).
+/// the C++ side of the `jolt-ffi` shim).
 #[derive(Resource)]
 pub struct PhysicsState {
-    world: *mut jolt_sys::JoltWorld,
+    world: *mut jolt_ffi::JoltWorld,
     /// Maps Jolt body ids to the entity holding the matching [`RigidBody`]
     /// component. Kept in sync by `RigidBody`'s lifecycle callbacks so
     /// body-to-entity lookups (e.g. after a raycast) are O(1).
-    body_to_entity: HashMap<jolt_sys::JoltBodyId, Entity>,
+    body_to_entity: HashMap<jolt_ffi::JoltBodyId, Entity>,
 }
 
 // SAFETY: `PhysicsState` holds a raw pointer into Jolt, which is not inherently
@@ -41,7 +41,7 @@ impl PhysicsState {
         // SAFETY: `jolt_world_create` performs Jolt's process-global init
         // (idempotent) and returns an owned world, freed in `Drop`.
         let world = unsafe {
-            jolt_sys::jolt_world_create(
+            jolt_ffi::jolt_world_create(
                 MAX_BODIES,
                 NUM_BODY_MUTEXES,
                 MAX_BODY_PAIRS,
@@ -78,7 +78,7 @@ impl PhysicsState {
     /// stepping. The pointer borrows from `self` and must not outlive it.
     ///
     /// [`PhysicsPipeline`]: crate::physics_pipeline::PhysicsPipeline
-    pub(crate) fn world(&self) -> *mut jolt_sys::JoltWorld {
+    pub(crate) fn world(&self) -> *mut jolt_ffi::JoltWorld {
         self.world
     }
 
@@ -88,7 +88,7 @@ impl PhysicsState {
 
         // SAFETY: `body` refers to a body that was added to this world.
         unsafe {
-            jolt_sys::jolt_body_set_sphere_shape(self.world, body.0, radius);
+            jolt_ffi::jolt_body_set_sphere_shape(self.world, body.0, radius);
         }
 
         Collider(body)
@@ -116,7 +116,7 @@ impl PhysicsState {
                 // SAFETY: `body` is a body in this world; the half-extents
                 // array is a valid xyz triple.
                 unsafe {
-                    jolt_sys::jolt_body_set_box_shape(self.world, body.0, half_extents.as_ptr());
+                    jolt_ffi::jolt_body_set_box_shape(self.world, body.0, half_extents.as_ptr());
                 }
                 Collider(body)
             }
@@ -125,7 +125,7 @@ impl PhysicsState {
 
                 // SAFETY: both arrays are valid xyz triples.
                 let id = unsafe {
-                    jolt_sys::jolt_body_create_static_box(
+                    jolt_ffi::jolt_body_create_static_box(
                         self.world,
                         position.as_ptr(),
                         half_extents.as_ptr(),
@@ -146,7 +146,7 @@ impl PhysicsState {
         // SAFETY: `body` is a valid body id within this world, and the output
         // buffers have the sizes the shim writes (xyz and xyzw).
         unsafe {
-            jolt_sys::jolt_body_get_transform(
+            jolt_ffi::jolt_body_get_transform(
                 self.world,
                 body.0,
                 position.as_mut_ptr(),
@@ -162,7 +162,7 @@ impl PhysicsState {
     pub fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<RayHit> {
         let origin_array = origin.to_array();
         let direction_array = direction.to_array();
-        let mut hit = jolt_sys::JoltRayHit {
+        let mut hit = jolt_ffi::JoltRayHit {
             body: 0,
             fraction: 0.0,
             normal: [0.0; 3],
@@ -171,7 +171,7 @@ impl PhysicsState {
         // SAFETY: the input arrays are valid xyz triples and `hit` is a valid
         // out-buffer; the shim only writes it when returning true.
         let did_hit = unsafe {
-            jolt_sys::jolt_world_cast_ray(
+            jolt_ffi::jolt_world_cast_ray(
                 self.world,
                 origin_array.as_ptr(),
                 direction_array.as_ptr(),
@@ -179,23 +179,17 @@ impl PhysicsState {
             )
         };
 
-        did_hit
-            .then(|| {
-                let body = BodyId(hit.body);
+        did_hit.then(|| {
+            let body = BodyId(hit.body);
 
-                if let Some(hit_entity) = self.get_entity(body) {
-                    Some(RayHit {
-                        body,
-                        entity: hit_entity,
-                        fraction: hit.fraction,
-                        point: origin + direction * hit.fraction,
-                        normal: Vec3::from(hit.normal),
-                    })
-                } else {
-                    None
-                }
-            })
-            .flatten()
+            RayHit {
+                body,
+                entity: self.get_entity(body),
+                fraction: hit.fraction,
+                point: origin + direction * hit.fraction,
+                normal: Vec3::from(hit.normal),
+            }
+        })
     }
 }
 
@@ -210,7 +204,7 @@ impl Drop for PhysicsState {
         // SAFETY: `self.world` was created in `new` and is destroyed exactly
         // once here.
         unsafe {
-            jolt_sys::jolt_world_destroy(self.world);
+            jolt_ffi::jolt_world_destroy(self.world);
         }
     }
 }

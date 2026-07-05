@@ -11,7 +11,7 @@ pub struct RayHit {
     /// The body that was hit.
     pub body: BodyId,
     /// The entity that corresponds to this body
-    pub entity: Entity,
+    pub entity: Option<Entity>,
     /// Hit distance as a fraction `[0, 1]` of the ray's direction vector.
     pub fraction: f32,
     /// World-space position of the hit.

@@ -61,7 +61,7 @@ impl RigidBody {
         // SAFETY: `state.world()` is a valid world, and `position` is a valid
         // xyz triple.
         let id =
-            unsafe { jolt_sys::jolt_body_create_dynamic(state.world(), position.as_ptr(), 0.5) };
+            unsafe { jolt_ffi::jolt_body_create_dynamic(state.world(), position.as_ptr(), 0.5) };
 
         Self(BodyId(id))
     }

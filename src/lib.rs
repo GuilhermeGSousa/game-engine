@@ -3,9 +3,9 @@ pub use app;
 pub use ecs;
 pub use essential;
 pub use gltf_loader;
+pub use jolt_physics;
 pub use mesh;
 pub use obj_loader;
-pub use physics;
 pub use render;
 pub use skybox;
 pub use ui;
@@ -17,13 +17,16 @@ use app::{
     App, Plugin,
 };
 use gltf_loader::plugin::GLTFPlugin;
+use jolt_physics::plugin::PhysicsPlugin;
 use obj_loader::plugin::OBJPlugin;
-use physics::plugin::PhysicsPlugin;
 use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
 use world_grid::plugin::WorldGridPlugin;
+
+pub use world_grid::WorldGrid;
+
 /// Registers all standard engine plugins in the conventional order.
 #[derive(Default)]
 pub struct DefaultPlugins {

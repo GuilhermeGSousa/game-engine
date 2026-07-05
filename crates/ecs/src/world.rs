@@ -248,25 +248,26 @@ impl World {
                 // Remove component from the removed row
                 removed_row.remove::<T>();
 
-                let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
+                let location = match self.archetype_index.entry(entity_type.clone()) {
                     Occupied(occupied_entry) => {
                         let new_archetype_index = *occupied_entry.get();
                         let new_archetype = &mut self.archetypes[*occupied_entry.get()];
                         new_archetype.add_row(removed_row);
-                        new_archetype_index
+                        EntityLocation {
+                            archetype_index: new_archetype_index as u32,
+                            row: TableRowIndex::new(self.archetypes[new_archetype_index].len() - 1),
+                        }
                     }
                     Vacant(vacant_entry) => {
                         let new_archetype_index = self.archetypes.len();
                         let archetype = Archetype::new(Table::from_row(removed_row), component_ids);
                         self.archetypes.push(archetype);
                         vacant_entry.insert(new_archetype_index);
-                        new_archetype_index
+                        EntityLocation {
+                            archetype_index: new_archetype_index as u32,
+                            row: TableRowIndex::new(0),
+                        }
                     }
-                };
-
-                let location = EntityLocation {
-                    archetype_index: archetype_index as u32,
-                    row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
                 };
 
                 // Store in entity store
@@ -627,6 +628,13 @@ impl<'w> RestrictedWorld<'w> {
         self.world_cell
             .world_mut()
             .remove_component_internal::<T>(entity, trigger_events);
+    }
+
+    /// Mutable access to a resource, so lifecycle callbacks can keep
+    /// resource-held state (e.g. lookup caches) in sync with component
+    /// additions and removals.
+    pub fn get_resource_mut<T: Resource>(&mut self) -> Option<&mut T> {
+        self.world_cell.world_mut().get_resource_mut::<T>()
     }
 }
 

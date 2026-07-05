@@ -1,0 +1,8 @@
+[package]
+name = "jolt-ffi"
+version = "0.1.0"
+edition = "2021"
+links = "jolt"
+
+[build-dependencies]
+cc = { version = "1", features = ["parallel"] }

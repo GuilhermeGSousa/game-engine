@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use rand::RngExt;
 
 use crate::{Hsl, Srgba};
 
@@ -43,6 +44,16 @@ impl LinearRgba {
     pub fn from_rgba_u32(packed: u32) -> Self {
         let [r, g, b, a] = packed.to_be_bytes();
         Self::from_bytes(r, g, b, a)
+    }
+
+    pub fn random_color() -> Self {
+        let mut rng = rand::rng();
+        Self {
+            r: rng.random(),
+            g: rng.random(),
+            b: rng.random(),
+            a: 1.0,
+        }
     }
 
     /// Relative luminance (ITU-R BT.709), valid for linear light.

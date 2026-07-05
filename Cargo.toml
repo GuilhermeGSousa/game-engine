@@ -30,12 +30,16 @@ ecs = { path = "crates/ecs" }
 gltf-loader = { path = "crates/gltf-loader" }
 obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
-physics = { path = "crates/physics" }
 skybox = { path = "crates/skybox" }
 world-grid = { path = "crates/world-grid" }
+
+# Physics is not supported on the web: Jolt's C++ requires thread primitives
+# that wasm32 toolchains do not provide.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+jolt_physics = { path = "crates/jolt_physics" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wgpu = { version = "24.0.1", features = ["webgl"] }
 
-[profile.dev.package.rapier3d]
+[profile.dev.package.jolt-ffi]
 opt-level = 3

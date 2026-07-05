@@ -3,9 +3,10 @@ pub use app;
 pub use ecs;
 pub use essential;
 pub use gltf_loader;
+#[cfg(not(target_arch = "wasm32"))]
+pub use jolt_physics;
 pub use mesh;
 pub use obj_loader;
-pub use physics;
 pub use render;
 pub use skybox;
 pub use ui;
@@ -17,13 +18,17 @@ use app::{
     App, Plugin,
 };
 use gltf_loader::plugin::GLTFPlugin;
+#[cfg(not(target_arch = "wasm32"))]
+use jolt_physics::plugin::PhysicsPlugin;
 use obj_loader::plugin::OBJPlugin;
-use physics::plugin::PhysicsPlugin;
 use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
 use world_grid::plugin::WorldGridPlugin;
+
+pub use world_grid::WorldGrid;
+
 /// Registers all standard engine plugins in the conventional order.
 #[derive(Default)]
 pub struct DefaultPlugins {
@@ -47,9 +52,14 @@ impl Plugin for DefaultPlugins {
         app.register_plugin(RenderPlugin)
             .register_plugin(SkyboxPlugin)
             .register_plugin(MaterialPlugin::<StandardMaterial>::new())
-            .register_plugin(TransformPlugin)
-            .register_plugin(PhysicsPlugin)
-            .register_plugin(AnimationPlugin)
+            .register_plugin(TransformPlugin);
+
+        // Physics is not supported on the web (Jolt's C++ requires thread
+        // primitives that wasm32 toolchains do not provide).
+        #[cfg(not(target_arch = "wasm32"))]
+        app.register_plugin(PhysicsPlugin);
+
+        app.register_plugin(AnimationPlugin)
             .register_plugin(GLTFPlugin)
             .register_plugin(OBJPlugin)
             .register_plugin(WorldGridPlugin);

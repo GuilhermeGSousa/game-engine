@@ -8,7 +8,14 @@
 //! `build.rs` in a single `cc` invocation, so there is no external binding
 //! crate, no bindgen, and no CMake involved.
 //!
-//! The declarations below must mirror `csrc/shim.h` exactly.
+//! # WebAssembly
+//!
+//! On `wasm32` targets the C++ is not compiled at all and the functions below
+//! are inert Rust stubs (see [`wasm_stub`] for the exact behavior): bodies
+//! keep their spawn pose, stepping does nothing, and raycasts never hit.
+//! Jolt's core requires thread primitives that plain `wasm32-unknown-unknown`
+//! toolchains do not provide; a real web build of Jolt needs emscripten and a
+//! matching web runtime, which is a separate project.
 
 use std::marker::{PhantomData, PhantomPinned};
 
@@ -42,6 +49,7 @@ pub struct JoltRayHit {
     pub normal: [f32; 3],
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 extern "C" {
     /// Process-global one-time Jolt setup. Thread-safe and idempotent;
     /// `jolt_world_create` calls it implicitly.
@@ -118,3 +126,9 @@ extern "C" {
         out_hit: *mut JoltRayHit,
     ) -> bool;
 }
+
+#[cfg(target_arch = "wasm32")]
+mod wasm_stub;
+
+#[cfg(target_arch = "wasm32")]
+pub use wasm_stub::*;

@@ -1,6 +1,14 @@
 use std::path::{Path, PathBuf};
 
 fn main() {
+    // No C++ on wasm: Jolt's core needs thread primitives that plain wasm32
+    // toolchains don't provide, so wasm builds use the inert Rust stubs in
+    // src/wasm_stub.rs instead (see the crate docs).
+    if std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
+        println!("cargo:rerun-if-changed=build.rs");
+        return;
+    }
+
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     // Include root for the canonical `#include <Jolt/...>` form.
     let jolt_root = manifest.join("vendor/JoltPhysics");

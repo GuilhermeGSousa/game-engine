@@ -13,10 +13,9 @@ jobs:
     name: Build WASM
     runs-on: ubuntu-latest
     steps:
+      # No submodules needed: physics (and with it the JoltPhysics submodule)
+      # is excluded from wasm builds.
       - uses: actions/checkout@v4
-        with:
-          # jolt-ffi builds the Jolt Physics C++ sources from a submodule.
-          submodules: true
 
       - name: Install stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -65,7 +64,9 @@ jobs:
             ${{ matrix.os }}-cargo-test-
 
       - name: Run tests
-        run: cargo test --workspace
+        # Jolt's own tests are not run on CI (the physics crates and their
+        # example are excluded; the engine still links Jolt natively).
+        run: cargo test --workspace --exclude jolt-ffi --exclude jolt_physics --exclude physics-test
 
   clippy_check:
     name: Clippy

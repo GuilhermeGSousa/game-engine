@@ -4,7 +4,9 @@ Status: **proposal / not implemented**
 
 This document analyses bringing Rapier back as the physics backend for web
 (wasm) builds while keeping Jolt as the native default, and folding both behind
-a single backend-agnostic `physics` crate (replacing today's `jolt_physics`).
+a single backend-agnostic `physics` crate (replacing today's `jolt_physics`):
+one `PhysicsState` and one `PhysicsPipeline` resource, with a `PhysicsBackend`
+trait that each backend implements.
 
 ## Where we are today
 
@@ -63,41 +65,115 @@ is underneath. Note the crate is currently named `jolt_physics` (not
 
 ## Design
 
-One crate, two backends, selected at compile time — no traits, no dynamic
-dispatch. Since exactly one backend exists per target, the backend is a
-`cfg`-selected module that must expose an identical surface.
+One crate, one set of resources, two backends behind a trait. `PhysicsState`
+and `PhysicsPipeline` are **single concrete resource types** defined once in
+the facade; all backend-specific work goes through a `PhysicsBackend` trait
+that each backend implements. The active backend is still chosen at compile
+time (a `cfg`-selected type alias), so there is no dynamic dispatch and no
+`dyn` — the trait is the interface, the alias picks the implementation.
 
 ```
 crates/physics/
 ├── Cargo.toml
 └── src/
-    ├── lib.rs             # cfg-selects the backend, re-exports the API
+    ├── lib.rs             # cfg-selects the active backend type alias
+    ├── backend.rs         # the PhysicsBackend trait (the interface)
     ├── plugin.rs          # PhysicsPlugin (shared)
     ├── simulation.rs      # step_simulation system (shared)
+    ├── physics_state.rs   # PhysicsState resource (shared, wraps the backend)
+    ├── physics_pipeline.rs# PhysicsPipeline resource (shared, wraps the stepper)
     ├── rigid_body.rs      # RigidBody component + lifecycle callbacks (shared)
     ├── collider.rs        # Collider component (shared)
     ├── ray.rs             # RayHit (shared)
     └── backend/
-        ├── jolt/          # BodyId, PhysicsState, PhysicsPipeline (today's code)
-        └── rapier/        # BodyId, PhysicsState, PhysicsPipeline (resurrected + extended)
+        ├── jolt.rs        # JoltBackend: impl PhysicsBackend over jolt-ffi
+        └── rapier.rs      # RapierBackend: impl PhysicsBackend over rapier3d
 ```
 
-- **Shared front-end** (`rigid_body.rs`, `collider.rs`, `ray.rs`, `plugin.rs`,
-  `simulation.rs`): already backend-agnostic in shape. `RigidBody` wraps a
-  `BodyId` and its lifecycle callbacks only call
-  `register_body_entity`/`unregister_*`; `step_simulation` only calls
-  `pipeline.step(&mut state)` and `state.get_rigid_body(..)`.
-- **Backend contract** (each backend module defines, with identical
-  signatures):
-  - `BodyId` — opaque, `Copy + Eq + Debug`. Jolt: `u32`. Rapier:
-    `RigidBodyHandle` (a generational index — this is why `BodyId` must stay
-    opaque rather than exposing the inner id).
-  - `PhysicsState` — `new`, `get_entity`, `register_body_entity`,
-    `unregister_body_entity`, `unregister_entity`, `make_sphere`,
-    `make_cuboid`, `get_rigid_body`, `cast_ray`, plus whatever
-    `RigidBody::new` needs to create a dynamic body.
-  - `PhysicsPipeline` — `new`, `step(&mut PhysicsState)` using
-    `Time::fixed_delta_time()`.
+### The interface
+
+```rust
+/// Raw simulation operations a physics backend must provide. Everything
+/// engine-facing (ECS components, the body→entity cache, RayHit assembly)
+/// lives above this trait and is written once.
+pub trait PhysicsBackend: Send + Sync + Sized {
+    /// Backend-native body handle. Jolt: a `u32` body id. Rapier: a
+    /// generational `RigidBodyHandle`. Opaque to everything above the trait.
+    type BodyId: Copy + Eq + Hash + Debug + Send + Sync;
+    /// Per-step scratch (Jolt: temp allocator + job system; Rapier: the
+    /// `rapier3d::PhysicsPipeline` and its counterparts).
+    type Stepper: Send + Sync;
+
+    fn new() -> Self;
+    fn new_stepper() -> Self::Stepper;
+    /// Advances the world by `dt` seconds (one fixed timestep).
+    fn step(&mut self, stepper: &mut Self::Stepper, dt: f32);
+
+    fn create_dynamic_body(&mut self, transform: &Transform) -> Self::BodyId;
+    fn set_sphere_shape(&mut self, body: Self::BodyId, radius: f32);
+    fn set_box_shape(&mut self, body: Self::BodyId, half_extents: Vec3);
+    fn create_static_box(&mut self, transform: &Transform, half_extents: Vec3) -> Self::BodyId;
+    fn body_transform(&self, body: Self::BodyId) -> Transform;
+    /// Closest hit along `direction` (whose length bounds the cast), as
+    /// (body, fraction, normal). Entity resolution and hit-point computation
+    /// happen in the facade.
+    fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<(Self::BodyId, f32, Vec3)>;
+}
+```
+
+### The single resources
+
+```rust
+// lib.rs — the only cfg in the crate:
+#[cfg(any(target_arch = "wasm32", feature = "force-rapier"))]
+pub type ActiveBackend = backend::rapier::RapierBackend;
+#[cfg(not(any(target_arch = "wasm32", feature = "force-rapier")))]
+pub type ActiveBackend = backend::jolt::JoltBackend;
+
+pub type BodyId = <ActiveBackend as PhysicsBackend>::BodyId;
+
+// physics_state.rs
+#[derive(Resource)]
+pub struct PhysicsState {
+    backend: ActiveBackend,
+    /// Body→entity cache, formerly duplicated per backend — now shared.
+    body_to_entity: HashMap<BodyId, Entity>,
+}
+
+// physics_pipeline.rs
+#[derive(Resource)]
+pub struct PhysicsPipeline {
+    stepper: <ActiveBackend as PhysicsBackend>::Stepper,
+}
+```
+
+`PhysicsState` keeps its current public methods (`make_sphere`, `make_cuboid`,
+`get_rigid_body`, `cast_ray`, `get_entity`, …) implemented **once** over the
+trait — e.g. `cast_ray` calls the backend, then resolves the entity through
+the shared cache and computes the hit point, so `RayHit` assembly is no longer
+per-backend code. `PhysicsPipeline::step` passes `Time::fixed_delta_time()`
+into `PhysicsBackend::step`. The components (`RigidBody`, `Collider`), the
+lifecycle callbacks, `RayHit`, the plugin, and `step_simulation` are untouched
+consumers of these two resources.
+
+Notes on the trait design:
+
+- **`BodyId` is an associated type**, so its concrete type still varies by
+  backend, but the public API surface (`physics::BodyId`) is a single alias
+  and stays opaque. Each backend supplies a newtype (as today's
+  `BodyId(JoltBodyId)` already does; Rapier wraps `RigidBodyHandle`) so no
+  `jolt_ffi::`/`rapier3d::` type leaks through the alias. If a build-independent id ever matters (savegames, network
+  replication), a follow-up can switch to a universal `BodyId(u64)` newtype —
+  Rapier's `RigidBodyHandle` packs into `(u32, u32)` and Jolt's id is a `u32`
+  — but that is not needed now.
+- **`Send + Sync` bounds live on the trait.** The Jolt backend holds raw
+  pointers into C++, so its `unsafe impl Send/Sync` (with the existing
+  scheduler-exclusivity justification) moves onto `JoltBackend`/its stepper;
+  the Rapier backend is safe Rust and gets them for free. The facade resources
+  then derive nothing unsafe.
+- **The stepper is an associated type** rather than folded into the backend
+  state so the two-resource split (`PhysicsState` / `PhysicsPipeline`) — and
+  the ECS access pattern `step_simulation` relies on — is preserved as-is.
 - **Backend selection** in `Cargo.toml` via target-specific dependencies, plus
   an escape hatch feature so the Rapier backend is testable natively (CI
   cannot run wasm tests):
@@ -117,36 +193,30 @@ crates/physics/
   nalgebra = { version = "0.34", features = ["convert-glam030"] }
   ```
 
-  ```rust
-  // lib.rs
-  #[cfg(any(target_arch = "wasm32", feature = "force-rapier"))]
-  use backend::rapier as active;
-  #[cfg(not(any(target_arch = "wasm32", feature = "force-rapier")))]
-  use backend::jolt as active;
-  pub use active::{BodyId, PhysicsState, PhysicsPipeline};
-  ```
-
-  On wasm, `jolt-ffi` is not a dependency at all, so wasm builds still need no
+  The same `cfg(any(target_arch = "wasm32", feature = "force-rapier"))`
+  condition gates the `backend::rapier` module and the `ActiveBackend` alias
+  shown above. On wasm, `jolt-ffi` is not a dependency at all, so wasm builds still need no
   submodule checkout and no C++ toolchain.
 
 ### Rapier backend: gaps vs the recovered code
 
-The `f442e77~1` code covers most of the contract, but the API grew during the
+The `f442e77~1` code covers most of the trait, but the API grew during the
 Jolt rewrite. The resurrected backend must add:
 
-1. **`cast_ray` → `RayHit`.** Use `QueryPipeline::cast_ray_and_get_normal`
-   (the old state already carried a `query_pipeline`; it must be `update()`d
-   after each step). Rapier raycasts return a `ColliderHandle`; resolve it to
-   the parent `RigidBodyHandle` for `RayHit::body`.
+1. **`cast_ray`.** Use `QueryPipeline::cast_ray_and_get_normal` (the old
+   state already carried a `query_pipeline`; it must be `update()`d after
+   each step). Rapier raycasts return a `ColliderHandle`; resolve it to the
+   parent `RigidBodyHandle` before returning, since the trait reports hits by
+   `Self::BodyId`. Entity lookup and hit-point math happen in the facade.
 2. **Static geometry as bodies.** Old `make_cuboid(None)` inserted a bare
    collider with no body. To keep `RayHit::body: BodyId` total (matching
-   Jolt, where everything is a body), attach parentless cuboids to a
-   `RigidBodyBuilder::fixed()` body instead.
-3. **Body→entity cache.** Same `HashMap<BodyId, Entity>` +
-   `register/unregister` methods as the Jolt backend (the shared lifecycle
-   callbacks depend on them).
-4. **Fixed timestep.** Set `IntegrationParameters::dt =
-   Time::fixed_delta_time()` in `step` (the Jolt backend passes it per step).
+   Jolt, where everything is a body), `create_static_box` attaches the
+   collider to a `RigidBodyBuilder::fixed()` body instead.
+3. **Fixed timestep.** Set `IntegrationParameters::dt` to the `dt` passed
+   into `PhysicsBackend::step`.
+
+(The body→entity cache, which the Jolt crate grew in #39, does **not** need
+porting — it moves up into the shared `PhysicsState`.)
 
 ### Non-goals
 
@@ -158,17 +228,21 @@ Jolt rewrite. The resurrected backend must add:
 ## Implementation steps
 
 1. **Rename the crate.** `git mv crates/jolt_physics crates/physics`; package
-   name `physics`. Move today's `body.rs`, `physics_state.rs`,
-   `physics_pipeline.rs` into `src/backend/jolt/`. Keep `jolt-ffi` untouched.
-2. **Carve the seam.** Make `rigid_body.rs` backend-agnostic: move the
-   `jolt_ffi::jolt_body_create_dynamic` call behind
-   `PhysicsState::create_dynamic_body(&Transform) -> BodyId` on the backend,
-   so `RigidBody::new` is shared code. `collider.rs`, `ray.rs`, `plugin.rs`,
-   `simulation.rs` stay as shared modules referencing the `cfg`-selected
-   backend types.
+   name `physics`. Keep `jolt-ffi` untouched.
+2. **Define the interface and refit Jolt to it.** Add `backend.rs` with the
+   `PhysicsBackend` trait. Turn today's `physics_state.rs`/
+   `physics_pipeline.rs` internals into `backend/jolt.rs` (`JoltBackend` +
+   its stepper implementing the trait; the `unsafe impl Send/Sync` move
+   here). Rebuild `PhysicsState`/`PhysicsPipeline` as the single shared
+   resources wrapping `ActiveBackend`, hoisting the body→entity cache and
+   `RayHit` assembly out of the backend. `RigidBody::new` calls
+   `PhysicsState::create_dynamic_body` (which delegates to the trait), so
+   `rigid_body.rs`, `collider.rs`, `ray.rs`, `plugin.rs`, `simulation.rs`
+   are shared code with no backend imports. At this point the crate builds
+   and behaves exactly as before on native — a good intermediate commit.
 3. **Resurrect the Rapier backend.** Start from
-   `git show f442e77~1:crates/physics/src/...` into `src/backend/rapier/`,
-   then close the four gaps above.
+   `git show f442e77~1:crates/physics/src/...` into `backend/rapier.rs` as a
+   second `PhysicsBackend` impl, closing the three gaps above.
 4. **Rewire consumers.**
    - Root `Cargo.toml`: replace the target-gated `jolt_physics` dependency
      with an unconditional `physics = { path = "crates/physics" }`; delete the
@@ -210,5 +284,5 @@ Jolt rewrite. The resurrected backend must add:
   updated after stepping return stale results — easy to miss; covered by the
   raycast test under `force-rapier`.
 - **rapier3d 0.26.1 → 0.34 bump** is deferred; when taken, it is contained
-  entirely inside `src/backend/rapier/`, which is exactly the point of the
-  facade.
+  entirely inside `backend/rapier.rs`, which is exactly the point of the
+  interface.

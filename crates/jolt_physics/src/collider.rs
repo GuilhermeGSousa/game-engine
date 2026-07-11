@@ -5,31 +5,41 @@ use glam::Vec3;
 use crate::physics_state::PhysicsState;
 use crate::rigid_body::RigidBody;
 
-/// The shape of a [`Collider`], in the body's local space.
 #[derive(Clone, Copy, Debug)]
-pub enum ColliderShape {
-    Sphere { radius: f32 },
-    Cuboid { half_extents: Vec3 },
-}
-
-pub struct Collider {
-    shape: ColliderShape,
+pub enum Collider {
+    Sphere {
+        radius: f32,
+    },
+    Cuboid {
+        half_extents: Vec3,
+    },
+    /// A capsule along the local Y axis with total height
+    /// `2 * (half_height + radius)`: a cylinder of `2 * half_height` capped
+    /// by hemispheres of `radius`.
+    Capsule {
+        half_height: f32,
+        radius: f32,
+    },
 }
 
 impl Collider {
     /// A sphere collider of the given radius.
     pub fn sphere(radius: f32) -> Self {
-        Self {
-            shape: ColliderShape::Sphere { radius },
-        }
+        Self::Sphere { radius }
     }
 
     /// A box collider (`width`/`height`/`length` are half-extents).
     pub fn cuboid(width: f32, height: f32, length: f32) -> Self {
-        Self {
-            shape: ColliderShape::Cuboid {
-                half_extents: Vec3::new(width, height, length),
-            },
+        Self::Cuboid {
+            half_extents: Vec3::new(width, height, length),
+        }
+    }
+
+    /// A capsule collider (see [`Collider::Capsule`]).
+    pub fn capsule(half_height: f32, radius: f32) -> Self {
+        Self::Capsule {
+            half_height,
+            radius,
         }
     }
 }
@@ -41,20 +51,19 @@ impl Component for Collider {
 
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
-            let shape = world
+            let collider = *world
                 .get_component_for_entity::<Collider>(context.entity)
-                .expect("on_add ran for an entity without a Collider")
-                .shape;
+                .expect("on_add ran for an entity without a Collider");
             let transform = world
                 .get_component_for_entity::<Transform>(context.entity)
                 .cloned()
                 .unwrap_or_default();
-            let density = world
+            let rigid_body = world
                 .get_component_for_entity::<RigidBody>(context.entity)
-                .map(|rigid_body| rigid_body.density);
+                .copied();
 
             if let Some(state) = world.get_resource_mut::<PhysicsState>() {
-                let body = state.create_body(shape, &transform, density);
+                let body = state.create_body(collider, &transform, rigid_body);
                 state.register_body_entity(body, context.entity);
             }
         })

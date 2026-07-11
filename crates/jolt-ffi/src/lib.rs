@@ -27,6 +27,8 @@ pub struct JoltStepper {
     _marker: PhantomData<(*mut u8, PhantomPinned)>,
 }
 
+/// Opaque body recipe for [`jolt_body_create`] (wraps
+/// `JPH::BodyCreationSettings`).
 #[repr(C)]
 pub struct JoltBodyCreationSettings {
     _data: [u8; 0],
@@ -35,6 +37,24 @@ pub struct JoltBodyCreationSettings {
 
 /// A Jolt body id (`JPH::BodyID::GetIndexAndSequenceNumber()`).
 pub type JoltBodyId = u32;
+
+/// Mirrors `JPH::EMotionType`. Static bodies live on the NON_MOVING collision
+/// layer, kinematic and dynamic bodies on MOVING.
+pub type JoltMotionType = u32;
+pub const JOLT_MOTION_TYPE_STATIC: JoltMotionType = 0;
+pub const JOLT_MOTION_TYPE_KINEMATIC: JoltMotionType = 1;
+pub const JOLT_MOTION_TYPE_DYNAMIC: JoltMotionType = 2;
+
+/// Bitmask of the degrees of freedom a dynamic body may use (mirrors
+/// `JPH::EAllowedDOFs`). A value of 0 is invalid: use a static body instead.
+pub type JoltAllowedDofs = u32;
+pub const JOLT_ALLOWED_DOFS_TRANSLATION_X: JoltAllowedDofs = 1 << 0;
+pub const JOLT_ALLOWED_DOFS_TRANSLATION_Y: JoltAllowedDofs = 1 << 1;
+pub const JOLT_ALLOWED_DOFS_TRANSLATION_Z: JoltAllowedDofs = 1 << 2;
+pub const JOLT_ALLOWED_DOFS_ROTATION_X: JoltAllowedDofs = 1 << 3;
+pub const JOLT_ALLOWED_DOFS_ROTATION_Y: JoltAllowedDofs = 1 << 4;
+pub const JOLT_ALLOWED_DOFS_ROTATION_Z: JoltAllowedDofs = 1 << 5;
+pub const JOLT_ALLOWED_DOFS_ALL: JoltAllowedDofs = 0x3f;
 
 /// The closest hit of a raycast (mirrors `JoltRayHit` in `ray.h`).
 #[repr(C)]
@@ -77,38 +97,64 @@ extern "C" {
         collision_steps: i32,
     ) -> u32;
 
-    /// Creates an active dynamic body on the MOVING layer at `position`
-    /// (xyz) with a sphere shape of `radius`. `density` (kg/m³) sets the
-    /// shape's density, from which Jolt derives the body's mass.
-    pub fn jolt_body_create_dynamic_sphere(
-        world: *mut JoltWorld,
+    /// Creates settings at the origin with an identity rotation and static
+    /// motion; a shape must be set before the settings are used.
+    pub fn jolt_body_creation_settings_create() -> *mut JoltBodyCreationSettings;
+
+    pub fn jolt_body_creation_settings_destroy(settings: *mut JoltBodyCreationSettings);
+
+    pub fn jolt_body_creation_settings_set_position(
+        settings: *mut JoltBodyCreationSettings,
         position: *const f32,
+    );
+
+    pub fn jolt_body_creation_settings_set_rotation(
+        settings: *mut JoltBodyCreationSettings,
+        rotation: *const f32,
+    );
+
+    pub fn jolt_body_creation_settings_set_motion_type(
+        settings: *mut JoltBodyCreationSettings,
+        motion_type: JoltMotionType,
+    );
+
+    /// Only meaningful for dynamic bodies (e.g. lock the rotation DOFs to
+    /// keep a player capsule upright). Defaults to all.
+    pub fn jolt_body_creation_settings_set_allowed_dofs(
+        settings: *mut JoltBodyCreationSettings,
+        allowed_dofs: JoltAllowedDofs,
+    );
+
+    /// `density` (kg/m³) sets the shape's density, from which Jolt derives a
+    /// dynamic body's mass; it has no effect on static bodies.
+    pub fn jolt_body_creation_settings_set_sphere_shape(
+        settings: *mut JoltBodyCreationSettings,
         radius: f32,
         density: f32,
-    ) -> JoltBodyId;
+    );
 
-    /// Like `jolt_body_create_dynamic_sphere`, with a box shape of the given
-    /// half-extents (xyz).
-    pub fn jolt_body_create_dynamic_box(
-        world: *mut JoltWorld,
-        position: *const f32,
+    pub fn jolt_body_creation_settings_set_box_shape(
+        settings: *mut JoltBodyCreationSettings,
         half_extents: *const f32,
         density: f32,
-    ) -> JoltBodyId;
+    );
 
-    /// Creates an inactive static body on the NON_MOVING layer at `position`
-    /// (xyz) with a box shape of the given half-extents (xyz).
-    pub fn jolt_body_create_static_box(
-        world: *mut JoltWorld,
-        position: *const f32,
-        half_extents: *const f32,
-    ) -> JoltBodyId;
-
-    /// Like `jolt_body_create_static_box`, with a sphere shape of `radius`.
-    pub fn jolt_body_create_static_sphere(
-        world: *mut JoltWorld,
-        position: *const f32,
+    /// A capsule with total height `2 * (half_height + radius)`: a cylinder
+    /// of `2 * half_height` capped by hemispheres of `radius`, along the
+    /// local Y axis.
+    pub fn jolt_body_creation_settings_set_capsule_shape(
+        settings: *mut JoltBodyCreationSettings,
+        half_height: f32,
         radius: f32,
+        density: f32,
+    );
+
+    /// Creates a body from `settings` and adds it to the simulation, active
+    /// unless static. The settings remain owned by the caller and can be
+    /// reused.
+    pub fn jolt_body_create(
+        world: *mut JoltWorld,
+        settings: *const JoltBodyCreationSettings,
     ) -> JoltBodyId;
 
     /// Removes a body from the simulation and destroys it, waking any bodies

@@ -3,6 +3,7 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include "body.h"
@@ -10,67 +11,82 @@
 extern "C"
 {
 
-	JoltBodyId jolt_body_create_dynamic_sphere(JoltWorld *world,
-											   const float position[3],
-											   float radius,
-											   float density)
+	JoltBodyCreationSettings *jolt_body_creation_settings_create(void)
+	{
+		JoltBodyCreationSettings *settings = new JoltBodyCreationSettings();
+		settings->settings.mMotionType = JPH::EMotionType::Static;
+		settings->settings.mObjectLayer = Layers::NON_MOVING;
+		return settings;
+	}
+
+	void jolt_body_creation_settings_destroy(JoltBodyCreationSettings *settings)
+	{
+		delete settings;
+	}
+
+	void jolt_body_creation_settings_set_position(JoltBodyCreationSettings *settings,
+												  const float position[3])
+	{
+		settings->settings.mPosition = JPH::RVec3(position[0], position[1], position[2]);
+	}
+
+	void jolt_body_creation_settings_set_rotation(JoltBodyCreationSettings *settings,
+												  const float rotation[4])
+	{
+		settings->settings.mRotation =
+			JPH::Quat(rotation[0], rotation[1], rotation[2], rotation[3]);
+	}
+
+	void jolt_body_creation_settings_set_motion_type(JoltBodyCreationSettings *settings,
+													 JoltMotionType motion_type)
+	{
+		settings->settings.mMotionType = static_cast<JPH::EMotionType>(motion_type);
+		settings->settings.mObjectLayer =
+			motion_type == JOLT_MOTION_TYPE_STATIC ? Layers::NON_MOVING : Layers::MOVING;
+	}
+
+	void jolt_body_creation_settings_set_allowed_dofs(JoltBodyCreationSettings *settings,
+													  JoltAllowedDofs allowed_dofs)
+	{
+		settings->settings.mAllowedDOFs = static_cast<JPH::EAllowedDOFs>(allowed_dofs);
+	}
+
+	void jolt_body_creation_settings_set_sphere_shape(JoltBodyCreationSettings *settings,
+													  float radius,
+													  float density)
 	{
 		JPH::SphereShape *shape = new JPH::SphereShape(radius);
 		shape->SetDensity(density);
-		JPH::BodyCreationSettings settings(shape,
-										   JPH::RVec3(position[0], position[1], position[2]),
-										   JPH::Quat::sIdentity(),
-										   JPH::EMotionType::Dynamic,
-										   Layers::MOVING);
-		JPH::BodyID id = world->system.GetBodyInterface().CreateAndAddBody(
-			settings, JPH::EActivation::Activate);
-		return id.GetIndexAndSequenceNumber();
+		settings->settings.SetShape(shape);
 	}
 
-	JoltBodyId jolt_body_create_dynamic_box(JoltWorld *world,
-											const float position[3],
-											const float half_extents[3],
-											float density)
+	void jolt_body_creation_settings_set_box_shape(JoltBodyCreationSettings *settings,
+												   const float half_extents[3],
+												   float density)
 	{
 		JPH::BoxShape *shape =
 			new JPH::BoxShape(JPH::Vec3(half_extents[0], half_extents[1], half_extents[2]));
 		shape->SetDensity(density);
-		JPH::BodyCreationSettings settings(shape,
-										   JPH::RVec3(position[0], position[1], position[2]),
-										   JPH::Quat::sIdentity(),
-										   JPH::EMotionType::Dynamic,
-										   Layers::MOVING);
-		JPH::BodyID id = world->system.GetBodyInterface().CreateAndAddBody(
-			settings, JPH::EActivation::Activate);
-		return id.GetIndexAndSequenceNumber();
+		settings->settings.SetShape(shape);
 	}
 
-	JoltBodyId jolt_body_create_static_box(JoltWorld *world,
-										   const float position[3],
-										   const float half_extents[3])
+	void jolt_body_creation_settings_set_capsule_shape(JoltBodyCreationSettings *settings,
+													   float half_height,
+													   float radius,
+													   float density)
 	{
-		JPH::BodyCreationSettings settings(
-			new JPH::BoxShape(JPH::Vec3(half_extents[0], half_extents[1], half_extents[2])),
-			JPH::RVec3(position[0], position[1], position[2]),
-			JPH::Quat::sIdentity(),
-			JPH::EMotionType::Static,
-			Layers::NON_MOVING);
-		JPH::BodyID id = world->system.GetBodyInterface().CreateAndAddBody(
-			settings, JPH::EActivation::DontActivate);
-		return id.GetIndexAndSequenceNumber();
+		JPH::CapsuleShape *shape = new JPH::CapsuleShape(half_height, radius);
+		shape->SetDensity(density);
+		settings->settings.SetShape(shape);
 	}
 
-	JoltBodyId jolt_body_create_static_sphere(JoltWorld *world,
-											  const float position[3],
-											  float radius)
+	JoltBodyId jolt_body_create(JoltWorld *world, const JoltBodyCreationSettings *settings)
 	{
-		JPH::BodyCreationSettings settings(new JPH::SphereShape(radius),
-										   JPH::RVec3(position[0], position[1], position[2]),
-										   JPH::Quat::sIdentity(),
-										   JPH::EMotionType::Static,
-										   Layers::NON_MOVING);
-		JPH::BodyID id = world->system.GetBodyInterface().CreateAndAddBody(
-			settings, JPH::EActivation::DontActivate);
+		JPH::EActivation activation = settings->settings.mMotionType == JPH::EMotionType::Static
+										  ? JPH::EActivation::DontActivate
+										  : JPH::EActivation::Activate;
+		JPH::BodyID id =
+			world->system.GetBodyInterface().CreateAndAddBody(settings->settings, activation);
 		return id.GetIndexAndSequenceNumber();
 	}
 

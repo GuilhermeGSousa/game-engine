@@ -9,6 +9,7 @@
 
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
+#include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
 JPH_SUPPRESS_WARNINGS
@@ -114,6 +115,11 @@ struct JoltWorld
 	ObjectVsBroadPhaseLayerFilterImpl object_vs_broad_phase_layer_filter;
 	ObjectLayerPairFilterImpl object_layer_pair_filter;
 	JPH::PhysicsSystem system;
+};
+
+struct JoltBodyCreationSettings
+{
+	JPH::BodyCreationSettings settings;
 };
 
 struct JoltStepper

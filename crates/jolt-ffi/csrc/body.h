@@ -16,31 +16,71 @@ extern "C"
     /* A Jolt body id (JPH::BodyID::GetIndexAndSequenceNumber()). */
     typedef uint32_t JoltBodyId;
 
-    /* Creates an active dynamic body on the MOVING layer at `position` with an
-     * identity rotation and a sphere shape of `radius`. `density` (kg/m^3) sets
-     * the shape's density, from which Jolt derives the body's mass. */
-    JoltBodyId jolt_body_create_dynamic_sphere(JoltWorld *world,
-                                               const float position[3],
-                                               float radius,
-                                               float density);
+    /* Mirrors JPH::EMotionType. Static bodies live on the NON_MOVING collision
+     * layer, kinematic and dynamic bodies on MOVING. */
+    typedef uint32_t JoltMotionType;
+    enum
+    {
+        JOLT_MOTION_TYPE_STATIC = 0,
+        JOLT_MOTION_TYPE_KINEMATIC = 1,
+        JOLT_MOTION_TYPE_DYNAMIC = 2,
+    };
 
-    /* Like jolt_body_create_dynamic_sphere, with a box shape of the given
-     * half-extents. */
-    JoltBodyId jolt_body_create_dynamic_box(JoltWorld *world,
-                                            const float position[3],
-                                            const float half_extents[3],
-                                            float density);
+    /* Bitmask of the degrees of freedom a dynamic body may use (mirrors
+     * JPH::EAllowedDOFs). A value of 0 is invalid: use a static body instead. */
+    typedef uint32_t JoltAllowedDofs;
+    enum
+    {
+        JOLT_ALLOWED_DOFS_TRANSLATION_X = 1 << 0,
+        JOLT_ALLOWED_DOFS_TRANSLATION_Y = 1 << 1,
+        JOLT_ALLOWED_DOFS_TRANSLATION_Z = 1 << 2,
+        JOLT_ALLOWED_DOFS_ROTATION_X = 1 << 3,
+        JOLT_ALLOWED_DOFS_ROTATION_Y = 1 << 4,
+        JOLT_ALLOWED_DOFS_ROTATION_Z = 1 << 5,
+        JOLT_ALLOWED_DOFS_ALL = 0x3f,
+    };
 
-    /* Creates an inactive static body on the NON_MOVING layer at `position` with
-     * a box shape of the given half-extents. */
-    JoltBodyId jolt_body_create_static_box(JoltWorld *world,
-                                           const float position[3],
-                                           const float half_extents[3]);
+    /* The recipe jolt_body_create builds a body from (wraps
+     * JPH::BodyCreationSettings). Freshly created settings sit at the origin
+     * with an identity rotation and static motion; a shape must be set before
+     * the settings are used. */
+    typedef struct JoltBodyCreationSettings JoltBodyCreationSettings;
 
-    /* Like jolt_body_create_static_box, with a sphere shape of `radius`. */
-    JoltBodyId jolt_body_create_static_sphere(JoltWorld *world,
-                                              const float position[3],
-                                              float radius);
+    JoltBodyCreationSettings *jolt_body_creation_settings_create(void);
+    void jolt_body_creation_settings_destroy(JoltBodyCreationSettings *settings);
+
+    void jolt_body_creation_settings_set_position(JoltBodyCreationSettings *settings,
+                                                  const float position[3]);
+    void jolt_body_creation_settings_set_rotation(JoltBodyCreationSettings *settings,
+                                                  const float rotation[4]);
+    void jolt_body_creation_settings_set_motion_type(JoltBodyCreationSettings *settings,
+                                                     JoltMotionType motion_type);
+
+    /* Only meaningful for dynamic bodies (e.g. lock the rotation DOFs to keep
+     * a player capsule upright). Defaults to all. */
+    void jolt_body_creation_settings_set_allowed_dofs(JoltBodyCreationSettings *settings,
+                                                      JoltAllowedDofs allowed_dofs);
+
+    /* `density` (kg/m^3) sets the shape's density, from which Jolt derives a
+     * dynamic body's mass; it has no effect on static bodies. */
+    void jolt_body_creation_settings_set_sphere_shape(JoltBodyCreationSettings *settings,
+                                                      float radius,
+                                                      float density);
+    void jolt_body_creation_settings_set_box_shape(JoltBodyCreationSettings *settings,
+                                                   const float half_extents[3],
+                                                   float density);
+    /* A capsule with total height 2 * (half_height + radius): a cylinder of
+     * 2 * half_height capped by hemispheres of `radius`, along the local Y
+     * axis. */
+    void jolt_body_creation_settings_set_capsule_shape(JoltBodyCreationSettings *settings,
+                                                       float half_height,
+                                                       float radius,
+                                                       float density);
+
+    /* Creates a body from `settings` and adds it to the simulation, active
+     * unless static. The settings remain owned by the caller and can be
+     * reused. */
+    JoltBodyId jolt_body_create(JoltWorld *world, const JoltBodyCreationSettings *settings);
 
     /* Removes a body from the simulation and destroys it, waking any bodies that
      * were touching it (they would otherwise sleep in mid-air). The id is invalid

@@ -6,8 +6,9 @@ use essential::transform::Transform;
 use glam::{Quat, Vec3};
 
 use crate::body::BodyId;
-use crate::collider::ColliderShape;
+use crate::collider::Collider;
 use crate::ray::RayHit;
+use crate::rigid_body::RigidBody;
 
 const MAX_BODIES: u32 = 10_240;
 const NUM_BODY_MUTEXES: u32 = 0; // 0 = let Jolt pick a default
@@ -89,48 +90,68 @@ impl PhysicsState {
         self.world
     }
 
-    /// Creates a body with the given shape at `transform`'s position and adds
-    /// it to the simulation: dynamic with the given density when `density` is
-    /// `Some`, static otherwise. Called by `Collider::on_add`.
+    /// Creates a body with the given shape at `transform`'s position and
+    /// rotation and adds it to the simulation: dynamic with `rigid_body`'s
+    /// parameters when it is `Some`, static otherwise. Called by
+    /// `Collider::on_add`.
     pub(crate) fn create_body(
         &mut self,
-        shape: ColliderShape,
+        collider: Collider,
         transform: &Transform,
-        density: Option<f32>,
+        rigid_body: Option<RigidBody>,
     ) -> BodyId {
         let position = transform.translation.to_array();
+        let rotation = transform.rotation.to_array();
+        let motion_type = match rigid_body {
+            Some(_) => jolt_ffi::JOLT_MOTION_TYPE_DYNAMIC,
+            None => jolt_ffi::JOLT_MOTION_TYPE_STATIC,
+        };
+        // Density is unused for static bodies; any sane value works here.
+        let density = rigid_body.map_or(1000.0, |rigid_body| rigid_body.density);
 
-        // SAFETY: `self.world` is a valid world, and the position/half-extent
-        // arrays are valid xyz triples.
+        // SAFETY: `self.world` is a valid world; the position/half-extent
+        // arrays are valid xyz triples and the rotation a valid xyzw
+        // quaternion. The settings are created, used, and destroyed within
+        // this call.
         let id = unsafe {
-            match (shape, density) {
-                (ColliderShape::Sphere { radius }, Some(density)) => {
-                    jolt_ffi::jolt_body_create_dynamic_sphere(
-                        self.world,
-                        position.as_ptr(),
+            let settings = jolt_ffi::jolt_body_creation_settings_create();
+            jolt_ffi::jolt_body_creation_settings_set_position(settings, position.as_ptr());
+            jolt_ffi::jolt_body_creation_settings_set_rotation(settings, rotation.as_ptr());
+            jolt_ffi::jolt_body_creation_settings_set_motion_type(settings, motion_type);
+            if let Some(rigid_body) = rigid_body {
+                jolt_ffi::jolt_body_creation_settings_set_allowed_dofs(
+                    settings,
+                    rigid_body.allowed_dofs.0,
+                );
+            }
+            match collider {
+                Collider::Sphere { radius } => {
+                    jolt_ffi::jolt_body_creation_settings_set_sphere_shape(
+                        settings, radius, density,
+                    );
+                }
+                Collider::Cuboid { half_extents } => {
+                    jolt_ffi::jolt_body_creation_settings_set_box_shape(
+                        settings,
+                        half_extents.to_array().as_ptr(),
+                        density,
+                    );
+                }
+                Collider::Capsule {
+                    half_height,
+                    radius,
+                } => {
+                    jolt_ffi::jolt_body_creation_settings_set_capsule_shape(
+                        settings,
+                        half_height,
                         radius,
                         density,
-                    )
-                }
-                (ColliderShape::Sphere { radius }, None) => {
-                    jolt_ffi::jolt_body_create_static_sphere(self.world, position.as_ptr(), radius)
-                }
-                (ColliderShape::Cuboid { half_extents }, Some(density)) => {
-                    jolt_ffi::jolt_body_create_dynamic_box(
-                        self.world,
-                        position.as_ptr(),
-                        half_extents.to_array().as_ptr(),
-                        density,
-                    )
-                }
-                (ColliderShape::Cuboid { half_extents }, None) => {
-                    jolt_ffi::jolt_body_create_static_box(
-                        self.world,
-                        position.as_ptr(),
-                        half_extents.to_array().as_ptr(),
-                    )
+                    );
                 }
             }
+            let id = jolt_ffi::jolt_body_create(self.world, settings);
+            jolt_ffi::jolt_body_creation_settings_destroy(settings);
+            id
         };
 
         BodyId(id)

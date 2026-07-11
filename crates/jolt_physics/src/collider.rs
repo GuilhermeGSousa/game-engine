@@ -1,9 +1,76 @@
-use ecs::component::Component;
+use ecs::component::{Component, ComponentLifecycleCallback};
+use essential::transform::Transform;
+use glam::Vec3;
 
-use crate::body::BodyId;
+use crate::physics_state::PhysicsState;
+use crate::rigid_body::RigidBody;
 
-#[allow(dead_code)]
-#[derive(Component)]
-pub struct Collider(pub(crate) BodyId);
+/// The shape of a [`Collider`], in the body's local space.
+#[derive(Clone, Copy, Debug)]
+pub enum ColliderShape {
+    Sphere { radius: f32 },
+    Cuboid { half_extents: Vec3 },
+}
 
-impl Collider {}
+pub struct Collider {
+    shape: ColliderShape,
+}
+
+impl Collider {
+    /// A sphere collider of the given radius.
+    pub fn sphere(radius: f32) -> Self {
+        Self {
+            shape: ColliderShape::Sphere { radius },
+        }
+    }
+
+    /// A box collider (`width`/`height`/`length` are half-extents).
+    pub fn cuboid(width: f32, height: f32, length: f32) -> Self {
+        Self {
+            shape: ColliderShape::Cuboid {
+                half_extents: Vec3::new(width, height, length),
+            },
+        }
+    }
+}
+
+impl Component for Collider {
+    fn name() -> &'static str {
+        "Collider"
+    }
+
+    fn on_add() -> Option<ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            let shape = world
+                .get_component_for_entity::<Collider>(context.entity)
+                .expect("on_add ran for an entity without a Collider")
+                .shape;
+            let transform = world
+                .get_component_for_entity::<Transform>(context.entity)
+                .cloned()
+                .unwrap_or_default();
+            let density = world
+                .get_component_for_entity::<RigidBody>(context.entity)
+                .map(|rigid_body| rigid_body.density);
+
+            if let Some(state) = world.get_resource_mut::<PhysicsState>() {
+                let body = state.create_body(shape, &transform, density);
+                state.register_body_entity(body, context.entity);
+            }
+        })
+    }
+
+    fn on_remove() -> Option<ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            // The body id comes from the entity-to-body map, not the
+            // component: `remove_component` fires this after the component is
+            // already gone.
+            if let Some(state) = world.get_resource_mut::<PhysicsState>() {
+                if let Some(body) = state.get_body(context.entity) {
+                    state.destroy_body(body);
+                    state.unregister_body_entity(body, context.entity);
+                }
+            }
+        })
+    }
+}

@@ -1,23 +1,16 @@
 use game_engine::{
-    ecs::{CommandQueue, Res, ResMut},
-    essential::{assets::asset_server::AssetServer, transform::Transform},
-    jolt_physics::{physics_state::PhysicsState, rigid_body::RigidBody},
+    ecs::CommandQueue, essential::transform::Transform, jolt_physics::collider::Collider,
     world_grid::WorldGrid,
 };
 use glam::Vec3;
 
-pub(crate) fn spawn_scene(
-    mut cmd: CommandQueue,
-    asset_server: Res<AssetServer>,
-    mut physics: ResMut<PhysicsState>,
-) {
+pub(crate) fn spawn_scene(mut cmd: CommandQueue) {
     cmd.spawn(WorldGrid::default());
 
-    let _ = physics.make_cuboid(
-        200.0,
-        1.0,
-        200.0,
-        &Transform::from_translation(Vec3::ZERO),
-        None,
-    );
+    // Static ground collider: 200 x 1 x 200 half-extents centred at the
+    // origin, so its top surface is at y = 1.
+    cmd.spawn((
+        Collider::cuboid(200.0, 1.0, 200.0),
+        Transform::from_translation(Vec3::ZERO),
+    ));
 }

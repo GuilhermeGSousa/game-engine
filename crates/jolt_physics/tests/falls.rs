@@ -1,28 +1,41 @@
 //! End-to-end smoke test: a dynamic sphere dropped above a static floor should
-//! fall under gravity and come to rest on top of the floor.
+//! fall under gravity and come to rest on top of the floor. Bodies are created
+//! by spawning `Collider` components — never directly.
 
+use ecs::world::World;
 use essential::transform::Transform;
 use glam::Vec3;
+use jolt_physics::collider::Collider;
 use jolt_physics::physics_pipeline::PhysicsPipeline;
 use jolt_physics::physics_state::PhysicsState;
 use jolt_physics::rigid_body::RigidBody;
 
 #[test]
 fn sphere_falls_and_rests_on_floor() {
-    let mut state = PhysicsState::new();
+    let mut world = World::new();
+    world.register_component_lifetimes::<Collider>();
+    world.insert_resource(PhysicsState::new());
     let mut pipeline = PhysicsPipeline::new();
 
     // Static floor: a 100 x 1 x 100 (half-extent) box centred at the origin, so
     // its top surface is at y = 1.
-    let floor_transform = Transform::from_translation_rotation(Vec3::ZERO, Default::default());
-    state.make_cuboid(100.0, 1.0, 100.0, &floor_transform, None);
+    world.spawn((
+        Collider::cuboid(100.0, 1.0, 100.0),
+        Transform::from_translation_rotation(Vec3::ZERO, Default::default()),
+    ));
 
     // Dynamic sphere of radius 1, dropped from y = 10.
-    let start = Transform::from_translation_rotation(Vec3::new(0.0, 10.0, 0.0), Default::default());
-    let body = RigidBody::new(&start, &mut state);
-    state.make_sphere(&body, 1.0);
+    let sphere = world.spawn((
+        RigidBody::default(),
+        Collider::sphere(1.0),
+        Transform::from_translation_rotation(Vec3::new(0.0, 10.0, 0.0), Default::default()),
+    ));
 
-    let start_y = state.get_rigid_body(&body).translation.y;
+    let state = world.get_resource::<PhysicsState>().unwrap();
+    let body = state
+        .get_body(sphere)
+        .expect("spawning a Collider should create a body");
+    let start_y = state.body_transform(body).translation.y;
     assert!(
         (start_y - 10.0).abs() < 0.5,
         "sphere should start near y = 10, was {start_y}"
@@ -30,10 +43,15 @@ fn sphere_falls_and_rests_on_floor() {
 
     // Step ~3 seconds at 60 Hz.
     for _ in 0..180 {
-        pipeline.step(&mut state);
+        pipeline.step(world.get_resource_mut::<PhysicsState>().unwrap());
     }
 
-    let end_y = state.get_rigid_body(&body).translation.y;
+    let end_y = world
+        .get_resource::<PhysicsState>()
+        .unwrap()
+        .body_transform(body)
+        .translation
+        .y;
 
     // It must have fallen substantially...
     assert!(

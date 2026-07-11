@@ -1,4 +1,4 @@
-use ecs::{query::Query, resource::ResMut};
+use ecs::{entity::Entity, query::Query, resource::ResMut};
 use essential::transform::Transform;
 
 use crate::{
@@ -6,13 +6,17 @@ use crate::{
 };
 
 pub fn step_simulation(
-    query: Query<(&RigidBody, &mut Transform)>,
+    query: Query<(Entity, &RigidBody, &mut Transform)>,
     mut pipeline: ResMut<PhysicsPipeline>,
     mut state: ResMut<PhysicsState>,
 ) {
     pipeline.step(&mut state);
 
-    for (rigid_body, mut transform) in query.iter() {
-        **transform = state.get_rigid_body(rigid_body);
+    for (entity, _rigid_body, mut transform) in query.iter() {
+        // No body means the entity has no Collider (yet); nothing to sync.
+        let Some(body) = state.get_body(entity) else {
+            continue;
+        };
+        **transform = state.body_transform(body);
     }
 }

@@ -6,9 +6,8 @@ use essential::transform::Transform;
 use glam::{Quat, Vec3};
 
 use crate::body::BodyId;
-use crate::collider::Collider;
+use crate::collider::ColliderShape;
 use crate::ray::RayHit;
-use crate::rigid_body::RigidBody;
 
 const MAX_BODIES: u32 = 10_240;
 const NUM_BODY_MUTEXES: u32 = 0; // 0 = let Jolt pick a default
@@ -23,10 +22,14 @@ const MAX_CONTACT_CONSTRAINTS: u32 = 10_240;
 #[derive(Resource)]
 pub struct PhysicsState {
     world: *mut jolt_ffi::JoltWorld,
-    /// Maps Jolt body ids to the entity holding the matching [`RigidBody`]
-    /// component. Kept in sync by `RigidBody`'s lifecycle callbacks so
-    /// body-to-entity lookups (e.g. after a raycast) are O(1).
+    /// Maps Jolt body ids to the entity holding the matching [`Collider`]
+    /// component, and back. Kept in sync by `Collider`'s lifecycle callbacks
+    /// so body-to-entity lookups (e.g. after a raycast) and entity-to-body
+    /// lookups (e.g. in the simulation write-back) are O(1).
+    ///
+    /// [`Collider`]: crate::collider::Collider
     body_to_entity: HashMap<jolt_ffi::JoltBodyId, Entity>,
+    entity_to_body: HashMap<Entity, BodyId>,
 }
 
 // SAFETY: `PhysicsState` holds a raw pointer into Jolt, which is not inherently
@@ -52,26 +55,30 @@ impl PhysicsState {
         Self {
             world,
             body_to_entity: HashMap::new(),
+            entity_to_body: HashMap::new(),
         }
     }
 
-    /// The entity whose [`RigidBody`] owns `body`, if any.
+    /// The entity whose [`Collider`](crate::collider::Collider) owns `body`,
+    /// if any.
     pub fn get_entity(&self, body: BodyId) -> Option<Entity> {
         self.body_to_entity.get(&body.0).copied()
     }
 
+    /// The Jolt body backing `entity`'s
+    /// [`Collider`](crate::collider::Collider), if any.
+    pub fn get_body(&self, entity: Entity) -> Option<BodyId> {
+        self.entity_to_body.get(&entity).copied()
+    }
+
     pub(crate) fn register_body_entity(&mut self, body: BodyId, entity: Entity) {
         self.body_to_entity.insert(body.0, entity);
+        self.entity_to_body.insert(entity, body);
     }
 
-    pub(crate) fn unregister_body_entity(&mut self, body: BodyId) {
+    pub(crate) fn unregister_body_entity(&mut self, body: BodyId, entity: Entity) {
         self.body_to_entity.remove(&body.0);
-    }
-
-    /// Evicts a cache entry by entity, for removal paths where the
-    /// `RigidBody` component (and thus its body id) is no longer readable.
-    pub(crate) fn unregister_entity(&mut self, entity: Entity) {
-        self.body_to_entity.retain(|_, e| *e != entity);
+        self.entity_to_body.remove(&entity);
     }
 
     /// The raw Jolt world pointer, used by [`PhysicsPipeline`] to drive
@@ -82,65 +89,65 @@ impl PhysicsState {
         self.world
     }
 
-    /// Replaces a body's shape with a sphere of the given radius.
-    pub fn make_sphere(&mut self, parent: &RigidBody, radius: f32) -> Collider {
-        let body = **parent; // BodyId (Copy) via Deref
-
-        // SAFETY: `body` refers to a body that was added to this world.
-        unsafe {
-            jolt_ffi::jolt_body_set_sphere_shape(self.world, body.0, radius);
-        }
-
-        Collider(body)
-    }
-
-    /// Builds a box collider (`width`/`height`/`length` are half-extents).
-    ///
-    /// With a `parent`, the box replaces that dynamic body's shape. Without one,
-    /// a new *static* body is created at `transform`'s position to hold the box
-    /// (used for level geometry such as floors).
-    pub fn make_cuboid(
+    /// Creates a body with the given shape at `transform`'s position and adds
+    /// it to the simulation: dynamic with the given density when `density` is
+    /// `Some`, static otherwise. Called by `Collider::on_add`.
+    pub(crate) fn create_body(
         &mut self,
-        width: f32,
-        height: f32,
-        length: f32,
+        shape: ColliderShape,
         transform: &Transform,
-        parent: Option<&RigidBody>,
-    ) -> Collider {
-        let half_extents = [width, height, length];
+        density: Option<f32>,
+    ) -> BodyId {
+        let position = transform.translation.to_array();
 
-        match parent {
-            Some(rb) => {
-                let body = **rb; // BodyId (Copy) via Deref
-
-                // SAFETY: `body` is a body in this world; the half-extents
-                // array is a valid xyz triple.
-                unsafe {
-                    jolt_ffi::jolt_body_set_box_shape(self.world, body.0, half_extents.as_ptr());
+        // SAFETY: `self.world` is a valid world, and the position/half-extent
+        // arrays are valid xyz triples.
+        let id = unsafe {
+            match (shape, density) {
+                (ColliderShape::Sphere { radius }, Some(density)) => {
+                    jolt_ffi::jolt_body_create_dynamic_sphere(
+                        self.world,
+                        position.as_ptr(),
+                        radius,
+                        density,
+                    )
                 }
-                Collider(body)
-            }
-            None => {
-                let position = transform.translation.to_array();
-
-                // SAFETY: both arrays are valid xyz triples.
-                let id = unsafe {
+                (ColliderShape::Sphere { radius }, None) => {
+                    jolt_ffi::jolt_body_create_static_sphere(self.world, position.as_ptr(), radius)
+                }
+                (ColliderShape::Cuboid { half_extents }, Some(density)) => {
+                    jolt_ffi::jolt_body_create_dynamic_box(
+                        self.world,
+                        position.as_ptr(),
+                        half_extents.to_array().as_ptr(),
+                        density,
+                    )
+                }
+                (ColliderShape::Cuboid { half_extents }, None) => {
                     jolt_ffi::jolt_body_create_static_box(
                         self.world,
                         position.as_ptr(),
-                        half_extents.as_ptr(),
+                        half_extents.to_array().as_ptr(),
                     )
-                };
-
-                Collider(BodyId(id))
+                }
             }
+        };
+
+        BodyId(id)
+    }
+
+    /// Removes `body` from the simulation and destroys it. Called by
+    /// `Collider::on_remove`.
+    pub(crate) fn destroy_body(&mut self, body: BodyId) {
+        // SAFETY: `body` refers to a body created in this world and not yet
+        // destroyed (`Collider`'s lifecycle guarantees one destroy per create).
+        unsafe {
+            jolt_ffi::jolt_body_destroy(self.world, body.0);
         }
     }
 
     /// Reads a body's current world transform out of the simulation.
-    pub fn get_rigid_body(&self, rigid_body: &RigidBody) -> Transform {
-        let body = **rigid_body; // BodyId (Copy) via Deref
-
+    pub fn body_transform(&self, body: BodyId) -> Transform {
         let mut position = [0.0f32; 3];
         let mut rotation = [0.0f32; 4];
         // SAFETY: `body` is a valid body id within this world, and the output

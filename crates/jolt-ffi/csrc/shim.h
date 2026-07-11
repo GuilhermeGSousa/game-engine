@@ -5,8 +5,8 @@
 
 /* Minimal C API over the vendored Jolt Physics library, covering exactly the
  * feature set the engine uses: a physics world with two collision layers
- * (NON_MOVING statics, MOVING dynamics), dynamic bodies with sphere shapes,
- * static boxes, stepping, and pose read-back.
+ * (NON_MOVING statics, MOVING dynamics), dynamic and static bodies with
+ * sphere/box shapes, body destruction, stepping, and pose read-back.
  *
  * Positions and half-extents are xyz float triples; rotations are xyzw
  * quaternions. Plain float arrays are used instead of structs so the ABI is
@@ -52,11 +52,19 @@ uint32_t jolt_world_step(JoltWorld *world,
                          int collision_steps);
 
 /* Creates an active dynamic body on the MOVING layer at `position` with an
- * identity rotation and a placeholder sphere shape of `placeholder_radius`
- * (Jolt requires a shape at creation; replace it with a set-shape call). */
-JoltBodyId jolt_body_create_dynamic(JoltWorld *world,
-                                    const float position[3],
-                                    float placeholder_radius);
+ * identity rotation and a sphere shape of `radius`. `density` (kg/m^3) sets
+ * the shape's density, from which Jolt derives the body's mass. */
+JoltBodyId jolt_body_create_dynamic_sphere(JoltWorld *world,
+                                           const float position[3],
+                                           float radius,
+                                           float density);
+
+/* Like jolt_body_create_dynamic_sphere, with a box shape of the given
+ * half-extents. */
+JoltBodyId jolt_body_create_dynamic_box(JoltWorld *world,
+                                        const float position[3],
+                                        const float half_extents[3],
+                                        float density);
 
 /* Creates an inactive static body on the NON_MOVING layer at `position` with
  * a box shape of the given half-extents. */
@@ -64,12 +72,15 @@ JoltBodyId jolt_body_create_static_box(JoltWorld *world,
                                        const float position[3],
                                        const float half_extents[3]);
 
-/* Replace a body's shape (mass properties are recomputed and the body is
- * activated). */
-void jolt_body_set_sphere_shape(JoltWorld *world, JoltBodyId body, float radius);
-void jolt_body_set_box_shape(JoltWorld *world,
-                             JoltBodyId body,
-                             const float half_extents[3]);
+/* Like jolt_body_create_static_box, with a sphere shape of `radius`. */
+JoltBodyId jolt_body_create_static_sphere(JoltWorld *world,
+                                          const float position[3],
+                                          float radius);
+
+/* Removes a body from the simulation and destroys it, waking any bodies that
+ * were touching it (they would otherwise sleep in mid-air). The id is invalid
+ * afterwards. */
+void jolt_body_destroy(JoltWorld *world, JoltBodyId body);
 
 /* Reads a body's world-space position (xyz) and rotation (xyzw). */
 void jolt_body_get_transform(const JoltWorld *world,

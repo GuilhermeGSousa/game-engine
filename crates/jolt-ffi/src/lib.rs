@@ -72,11 +72,22 @@ extern "C" {
     ) -> u32;
 
     /// Creates an active dynamic body on the MOVING layer at `position`
-    /// (xyz) with a placeholder sphere shape of `placeholder_radius`.
-    pub fn jolt_body_create_dynamic(
+    /// (xyz) with a sphere shape of `radius`. `density` (kg/m³) sets the
+    /// shape's density, from which Jolt derives the body's mass.
+    pub fn jolt_body_create_dynamic_sphere(
         world: *mut JoltWorld,
         position: *const f32,
-        placeholder_radius: f32,
+        radius: f32,
+        density: f32,
+    ) -> JoltBodyId;
+
+    /// Like `jolt_body_create_dynamic_sphere`, with a box shape of the given
+    /// half-extents (xyz).
+    pub fn jolt_body_create_dynamic_box(
+        world: *mut JoltWorld,
+        position: *const f32,
+        half_extents: *const f32,
+        density: f32,
     ) -> JoltBodyId;
 
     /// Creates an inactive static body on the NON_MOVING layer at `position`
@@ -87,17 +98,17 @@ extern "C" {
         half_extents: *const f32,
     ) -> JoltBodyId;
 
-    /// Replaces a body's shape with a sphere; mass is recomputed and the body
-    /// activated.
-    pub fn jolt_body_set_sphere_shape(world: *mut JoltWorld, body: JoltBodyId, radius: f32);
-
-    /// Replaces a body's shape with a box of the given half-extents (xyz);
-    /// mass is recomputed and the body activated.
-    pub fn jolt_body_set_box_shape(
+    /// Like `jolt_body_create_static_box`, with a sphere shape of `radius`.
+    pub fn jolt_body_create_static_sphere(
         world: *mut JoltWorld,
-        body: JoltBodyId,
-        half_extents: *const f32,
-    );
+        position: *const f32,
+        radius: f32,
+    ) -> JoltBodyId;
+
+    /// Removes a body from the simulation and destroys it, waking any bodies
+    /// that were touching it (they would otherwise sleep in mid-air). The id
+    /// is invalid afterwards.
+    pub fn jolt_body_destroy(world: *mut JoltWorld, body: JoltBodyId);
 
     /// Reads a body's world-space position (xyz) and rotation (xyzw).
     pub fn jolt_body_get_transform(

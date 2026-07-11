@@ -164,7 +164,10 @@ impl AssetServer {
         let sender = self.data.asset_load_event_sender.clone();
 
         let server = self.clone();
-        let task = LoadTaskPool::get_or_init(TaskPool::new).spawn(async move {
+        // No profiling scope around the async body: a scope guard must not be
+        // held across .await (tasks can migrate between worker threads).
+        // Load costs show up on the named "asset-load-N" threads instead.
+        let task = LoadTaskPool::get_or_init(|| TaskPool::with_name("asset-load")).spawn(async move {
             let log_path = path.clone();
             let asset = asset_loader
                 .load(path, &mut AssetLoadContext::new(server), usage_settings)

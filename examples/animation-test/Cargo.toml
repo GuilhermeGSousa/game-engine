@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = ["multithreaded"]
 multithreaded = ["game-engine/multithreaded"]
+tracy = ["game-engine/tracy"]
 
 [lints.rust]
 warnings = "deny"

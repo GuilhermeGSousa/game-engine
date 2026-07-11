@@ -81,7 +81,9 @@ cargo run --profile profiling -p tech-demo --features tracy
 Then connect the Tracy server (GUI) to the running process. Install a Tracy
 release that matches the `tracy-client-sys` protocol version in use — check
 `cargo tree -p tracy-client-sys` and the compatibility table in the
-[tracy-client README](https://github.com/nagisa/rust_tracy_client).
+[tracy-client README](https://github.com/nagisa/rust_tracy_client). At the
+time of writing the workspace resolves `tracy-client-sys` 0.28, which speaks
+the Tracy **0.12.x** protocol.
 
 What you should see:
 
@@ -94,8 +96,10 @@ What you should see:
 - wgpu-core's own zones (device/queue internals) appear automatically: wgpu
   is instrumented with the same `profiling` crate, and enabling our backend
   feature lights it up via feature unification.
-- `jolt::step` / `jolt::write_back_transforms` (physics), `asset_load` zones
-  on the `asset-load-N` threads.
+- `jolt::step` / `jolt::write_back_transforms` (physics). Asset loading is
+  async (scopes can't be held across `.await`), so loads show up as activity
+  on the `asset-load-N` threads rather than as named zones — use Tracy's
+  sampling or samply for detail there.
 
 Known limitation: `profiling::scope!` requires a compile-time literal for the
 zone *name*, so per-system zones are all named `system` with the actual system

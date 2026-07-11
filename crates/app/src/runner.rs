@@ -18,16 +18,19 @@ pub struct ScheduleRunnerPlugin();
 
 impl Plugin for ScheduleRunnerPlugin {
     fn build(&self, app: &mut App) {
-        app.set_runner(move |mut app: App| loop {
-            if app.plugin_state() != PluginsState::Finished {
-                while app.plugin_state() != PluginsState::Ready {}
-            }
+        app.set_runner(move |mut app: App| {
+            profiling::register_thread!("main");
+            loop {
+                if app.plugin_state() != PluginsState::Finished {
+                    while app.plugin_state() != PluginsState::Ready {}
+                }
 
-            if app.plugin_state() == PluginsState::Ready {
-                app.finish_plugin_build();
-            }
+                if app.plugin_state() == PluginsState::Ready {
+                    app.finish_plugin_build();
+                }
 
-            app.update();
+                app.update();
+            }
         });
     }
 }

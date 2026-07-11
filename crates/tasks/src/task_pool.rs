@@ -35,6 +35,12 @@ impl TaskPool {
     }
 
     pub fn new() -> Self {
+        Self::with_name("task-pool")
+    }
+
+    /// Like [`new`](TaskPool::new), but worker threads are named `{name}-{i}`
+    /// so they are identifiable in profilers and debuggers.
+    pub fn with_name(name: &str) -> Self {
         let executor = Arc::new(Executor::new());
 
         let (shutdown_send, shutdown_rcv) = async_channel::unbounded::<()>();
@@ -42,11 +48,14 @@ impl TaskPool {
         let num_threads = available_parallelism();
 
         let threads = (0..num_threads)
-            .map(|_| {
+            .map(|i| {
                 let executor = Arc::clone(&executor);
                 let shutdown_rcv = shutdown_rcv.clone();
+                let thread_name = format!("{name}-{i}");
                 std::thread::Builder::new()
+                    .name(thread_name.clone())
                     .spawn(move || {
+                        profiling::register_thread!(&thread_name);
                         Self::LOCAL_EXECUTOR.with(|local_executor| loop {
                             let res = std::panic::catch_unwind(|| {
                                 let tick_forever = async move {

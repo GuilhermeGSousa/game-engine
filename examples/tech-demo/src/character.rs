@@ -5,7 +5,7 @@ use game_engine::ecs::{Entity, Query, With, Without};
 use game_engine::essential::time::Time;
 use game_engine::essential::transform::Transform;
 use game_engine::gltf_loader::loader::GLTFInstance;
-use game_engine::jolt_physics::collider::Collider;
+use game_engine::jolt_physics::collider::{Collider, ColliderOffset};
 use game_engine::jolt_physics::rigid_body::{AllowedDofs, RigidBody};
 use game_engine::window::input::{Input, KeyCode, PhysicalKey};
 use game_engine::{
@@ -49,6 +49,10 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
 
     cmd.insert_resource(GLTFCharacterAsset(char_handle.clone()));
 
+    let collider = Collider::Capsule {
+        half_height: 1.0,
+        radius: 1.0,
+    };
     cmd.spawn((
         Player,
         GLTFSpawnerComponent(char_handle),
@@ -57,10 +61,10 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
             allowed_dofs: AllowedDofs::TRANSLATION | AllowedDofs::ROTATION_Y,
             ..Default::default()
         },
-        Collider::Capsule {
-            half_height: 1.0,
-            radius: 1.0,
-        },
+        collider,
+        // Origin at the capsule's bottom so the GLTF skeleton root sits on
+        // the ground instead of floating at the capsule center.
+        ColliderOffset::bottom_origin(&collider),
         Transform::from_translation_rotation(Vec3::new(0.0, 10.0, -5.0), Quat::IDENTITY),
     ));
 }

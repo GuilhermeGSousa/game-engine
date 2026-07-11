@@ -6,7 +6,7 @@ use essential::transform::Transform;
 use glam::{Quat, Vec3};
 
 use crate::body::BodyId;
-use crate::collider::Collider;
+use crate::collider::{Collider, ColliderOffset};
 use crate::ground::{GroundContact, GroundState};
 use crate::ray::RayHit;
 use crate::rigid_body::RigidBody;
@@ -90,6 +90,7 @@ impl PhysicsState {
         collider: Collider,
         transform: &Transform,
         rigid_body: Option<RigidBody>,
+        offset: Option<ColliderOffset>,
     ) -> BodyId {
         let position = transform.translation.to_array();
         let rotation = transform.rotation.to_array();
@@ -117,6 +118,10 @@ impl PhysicsState {
                     settings,
                     rigid_body.allowed_dofs.0,
                 );
+            }
+            if let Some(offset) = offset {
+                let offset = offset.0.to_array();
+                jolt_ffi::jolt_body_creation_settings_set_shape_offset(settings, offset.as_ptr());
             }
             match collider {
                 Collider::Sphere { radius } => {

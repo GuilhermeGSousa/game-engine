@@ -168,6 +168,14 @@ extern "C" {
         density: f32,
     );
 
+    /// Offsets the shape's geometry relative to the body origin (e.g. lift a
+    /// capsule so the origin sits at its bottom). Composes with the shape
+    /// setters in any call order.
+    pub fn jolt_body_creation_settings_set_shape_offset(
+        settings: *mut JoltBodyCreationSettings,
+        offset: *const f32,
+    );
+
     /// Creates a body from `settings` and adds it to the simulation, active
     /// unless static. The settings remain owned by the caller and can be
     /// reused.

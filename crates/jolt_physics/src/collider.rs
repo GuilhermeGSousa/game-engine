@@ -45,6 +45,28 @@ impl Collider {
     }
 }
 
+/// Local offset of the collider's geometry relative to the entity origin.
+/// Optional sibling of [`Collider`], read when the body is created.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ColliderOffset(pub Vec3);
+
+impl ColliderOffset {
+    /// Lifts the shape so its bottom touches the entity origin — e.g. a
+    /// standing character whose transform (and skeleton root) sits at the
+    /// feet.
+    pub fn bottom_origin(collider: &Collider) -> Self {
+        let lift = match collider {
+            Collider::Sphere { radius } => *radius,
+            Collider::Cuboid { half_extents } => half_extents.y,
+            Collider::Capsule {
+                half_height,
+                radius,
+            } => half_height + radius,
+        };
+        Self(Vec3::Y * lift)
+    }
+}
+
 impl Component for Collider {
     fn name() -> &'static str {
         "Collider"
@@ -62,11 +84,14 @@ impl Component for Collider {
             let rigid_body = world
                 .get_component_for_entity::<RigidBody>(context.entity)
                 .copied();
+            let offset = world
+                .get_component_for_entity::<ColliderOffset>(context.entity)
+                .copied();
 
             let Some(state) = world.get_resource_mut::<PhysicsState>() else {
                 return;
             };
-            let body = state.create_body(collider, &transform, rigid_body);
+            let body = state.create_body(collider, &transform, rigid_body, offset);
             state.register_body_entity(body, context.entity);
             world.insert_component(body, context.entity, false);
         })

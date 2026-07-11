@@ -6,7 +6,8 @@ use ecs::world::World;
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
 use jolt_physics::body::BodyId;
-use jolt_physics::collider::Collider;
+use jolt_physics::collider::{Collider, ColliderOffset};
+use jolt_physics::ground::GroundState;
 use jolt_physics::physics_pipeline::PhysicsPipeline;
 use jolt_physics::physics_state::PhysicsState;
 use jolt_physics::rigid_body::{AllowedDofs, RigidBody};
@@ -112,5 +113,55 @@ fn capsule_with_locked_rotation_rests_upright() {
         transform.rotation.dot(Quat::IDENTITY).abs() > 0.999,
         "rotation-locked capsule should stay upright, was {:?}",
         transform.rotation
+    );
+}
+
+/// With `ColliderOffset::bottom_origin`, the body origin is the shape's
+/// bottom, so a settled character's transform sits at floor height — where a
+/// GLTF skeleton root expects to be.
+#[test]
+fn bottom_origin_capsule_rests_with_origin_at_floor_height() {
+    let mut world = World::new();
+    world.register_component_lifetimes::<Collider>();
+    world.insert_resource(PhysicsState::new());
+    let mut pipeline = PhysicsPipeline::new();
+
+    // Floor top at y = 1.
+    world.spawn((
+        Collider::cuboid(100.0, 1.0, 100.0),
+        Transform::from_translation_rotation(Vec3::ZERO, Default::default()),
+    ));
+
+    let collider = Collider::capsule(0.5, 0.5);
+    let capsule = world.spawn((
+        RigidBody {
+            allowed_dofs: AllowedDofs::TRANSLATION,
+            ..Default::default()
+        },
+        collider,
+        ColliderOffset::bottom_origin(&collider),
+        Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Default::default()),
+    ));
+
+    for _ in 0..180 {
+        pipeline.step(world.get_resource_mut::<PhysicsState>().unwrap());
+    }
+
+    let body = *world
+        .get_component_for_entity::<BodyId>(capsule)
+        .expect("capsule should have a BodyId");
+    let state = world.get_resource::<PhysicsState>().unwrap();
+
+    let origin_y = state.body_transform(body).translation.y;
+    assert!(
+        (origin_y - 1.0).abs() < 0.1,
+        "bottom-origin capsule should rest with its origin on the floor top (y = 1), was {origin_y}"
+    );
+
+    // The ground probe must see through the offset wrapper.
+    let ground = state.probe_ground(body, 0.05, 50.0_f32.to_radians());
+    assert!(
+        matches!(ground, GroundState::OnGround(_)),
+        "offset capsule should probe OnGround, was {ground:?}"
     );
 }

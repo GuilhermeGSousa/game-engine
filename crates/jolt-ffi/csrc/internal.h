@@ -120,6 +120,10 @@ struct JoltWorld
 struct JoltBodyCreationSettings
 {
 	JPH::BodyCreationSettings settings;
+	// Applied by jolt_body_create by wrapping the final shape in a
+	// RotatedTranslatedShape, so it composes with the shape setters in any
+	// call order.
+	JPH::Vec3 shape_offset = JPH::Vec3::sZero();
 };
 
 struct JoltStepper

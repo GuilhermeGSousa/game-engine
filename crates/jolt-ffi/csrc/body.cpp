@@ -6,6 +6,7 @@
 #include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include <cfloat>
@@ -85,13 +86,25 @@ extern "C"
 		settings->settings.SetShape(shape);
 	}
 
+	void jolt_body_creation_settings_set_shape_offset(JoltBodyCreationSettings *settings,
+													  const float offset[3])
+	{
+		settings->shape_offset = JPH::Vec3(offset[0], offset[1], offset[2]);
+	}
+
 	JoltBodyId jolt_body_create(JoltWorld *world, const JoltBodyCreationSettings *settings)
 	{
-		JPH::EActivation activation = settings->settings.mMotionType == JPH::EMotionType::Static
+		// Copy so the offset wrap never mutates the caller's reusable settings.
+		JPH::BodyCreationSettings creation = settings->settings;
+		if (!settings->shape_offset.IsNearZero())
+			creation.SetShape(new JPH::RotatedTranslatedShape(settings->shape_offset,
+															  JPH::Quat::sIdentity(),
+															  creation.GetShape()));
+
+		JPH::EActivation activation = creation.mMotionType == JPH::EMotionType::Static
 										  ? JPH::EActivation::DontActivate
 										  : JPH::EActivation::Activate;
-		JPH::BodyID id =
-			world->system.GetBodyInterface().CreateAndAddBody(settings->settings, activation);
+		JPH::BodyID id = world->system.GetBodyInterface().CreateAndAddBody(creation, activation);
 		return id.GetIndexAndSequenceNumber();
 	}
 

@@ -95,20 +95,26 @@ pub(crate) fn setup_state_machine(
         let (Some(idle), Some(walk), Some(strafe_left), Some(strafe_right)) = (
             gltf_scenes
                 .get(&loading_anim_store.idle)
-                .and_then(|idle_scene| idle_scene.animations().first())
-                .cloned(),
+                .and_then(|idle_scene| idle_scene.animations().first().map(|anim| anim.handle())),
             gltf_scenes
                 .get(&loading_anim_store.walk)
-                .and_then(|walk_scene| walk_scene.animations().first())
-                .cloned(),
+                .and_then(|walk_scene| walk_scene.animations().first().map(|anim| anim.handle())),
             gltf_scenes
                 .get(&loading_anim_store.strafe_left)
-                .and_then(|strafe_left_scene| strafe_left_scene.animations().first())
-                .cloned(),
+                .and_then(|strafe_left_scene| {
+                    strafe_left_scene
+                        .animations()
+                        .first()
+                        .map(|anim| anim.handle())
+                }),
             gltf_scenes
                 .get(&loading_anim_store.strafe_right)
-                .and_then(|strafe_right_scene| strafe_right_scene.animations().first())
-                .cloned(),
+                .and_then(|strafe_right_scene| {
+                    strafe_right_scene
+                        .animations()
+                        .first()
+                        .map(|anim| anim.handle())
+                }),
         ) else {
             continue;
         };

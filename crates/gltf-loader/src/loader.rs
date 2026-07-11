@@ -49,15 +49,21 @@ pub struct GLTFScene {
     pub(crate) materials: Vec<AssetHandle<StandardMaterial>>,
     pub(crate) nodes: Vec<GLTFNode>,
     pub(crate) skeletons: Vec<GLTFSkeleton>,
-    pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
+    pub(crate) animations: Vec<GLTFAnimation>,
     pub(crate) target_id_to_node_idx: HashMap<Uuid, GLTFAnimationTargetInfo>,
     pub(crate) cameras: Vec<GLTFCamera>,
     pub(crate) lights: Vec<GLTFLight>,
 }
 
 impl GLTFScene {
-    pub fn animations(&self) -> &Vec<AssetHandle<AnimationClip>> {
+    pub fn animations(&self) -> &Vec<GLTFAnimation> {
         &self.animations
+    }
+
+    pub fn get_animation(&self, animation_name: &str) -> Option<&GLTFAnimation> {
+        self.animations
+            .iter()
+            .find(|&anim| anim.name == animation_name)
     }
 }
 
@@ -80,6 +86,21 @@ pub struct GLTFSkeleton {
     pub(crate) bone_ids: Vec<Uuid>,
     pub(crate) skeleton: AssetHandle<Skeleton>,
     pub(crate) root_bone: Option<usize>,
+}
+
+pub struct GLTFAnimation {
+    name: String,
+    handle: AssetHandle<AnimationClip>,
+}
+
+impl GLTFAnimation {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn handle(&self) -> AssetHandle<AnimationClip> {
+        self.handle.clone()
+    }
 }
 
 pub(crate) struct GLTFCamera {
@@ -293,8 +314,8 @@ impl AssetLoader for GLTFLoader {
         }
 
         let mut target_id_to_node_idx = HashMap::new();
-        let mut animation_clips = Vec::new();
-        for animation in document.animations() {
+        let mut animations = Vec::new();
+        for (index, animation) in document.animations().enumerate() {
             let mut animation_clip = AnimationClip::default();
 
             for channel in animation.channels() {
@@ -356,7 +377,13 @@ impl AssetLoader for GLTFLoader {
                     warn!("Missing an node name for node {}.", target_node_idx);
                 }
             }
-            animation_clips.push(load_context.asset_server().add(animation_clip));
+            animations.push(GLTFAnimation {
+                name: animation
+                    .name()
+                    .map(|str| str.into())
+                    .unwrap_or(format!("Animation{}", index)),
+                handle: load_context.asset_server().add(animation_clip),
+            });
         }
 
         let cameras: Vec<GLTFCamera> = document
@@ -406,7 +433,7 @@ impl AssetLoader for GLTFLoader {
             meshes,
             materials,
             skeletons,
-            animations: animation_clips,
+            animations,
             target_id_to_node_idx,
             cameras,
             lights,

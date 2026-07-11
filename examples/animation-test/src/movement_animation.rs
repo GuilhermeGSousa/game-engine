@@ -151,10 +151,10 @@ pub(crate) fn setup_animations(
             },
             |context| {
                 context
-                    .animation_clip_input(&anim_store.idle, Vec2::ZERO)
-                    .animation_clip_input(&anim_store.strafe_left, Vec2::new(-1.0, 0.0))
-                    .animation_clip_input(&anim_store.strafe_right, Vec2::new(1.0, 0.0))
-                    .animation_clip_input(&anim_store.walk, Vec2::new(0.0, 1.0));
+                    .animation_clip_input(anim_store.idle.clone(), Vec2::ZERO)
+                    .animation_clip_input(anim_store.strafe_left.clone(), Vec2::new(-1.0, 0.0))
+                    .animation_clip_input(anim_store.strafe_right.clone(), Vec2::new(1.0, 0.0))
+                    .animation_clip_input(anim_store.walk.clone(), Vec2::new(0.0, 1.0));
             },
         );
 

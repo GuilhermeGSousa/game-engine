@@ -35,7 +35,8 @@ use game_engine::{
         MaterialComponent,
     },
     window::input::{Input, MouseButton},
-    DefaultPlugins, WorldGrid,
+    world_grid::WorldGrid,
+    DefaultPlugins,
 };
 use glam::{Quat, Vec3};
 

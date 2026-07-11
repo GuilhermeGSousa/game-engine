@@ -1,7 +1,9 @@
 pub use animation;
 pub use app;
+pub use color;
 pub use ecs;
 pub use essential;
+pub use gameplay;
 pub use gltf_loader;
 #[cfg(not(target_arch = "wasm32"))]
 pub use jolt_physics;
@@ -11,6 +13,7 @@ pub use render;
 pub use skybox;
 pub use ui;
 pub use window;
+pub use world_grid;
 
 use animation::plugin::AnimationPlugin;
 use app::{
@@ -26,8 +29,6 @@ use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
 use world_grid::plugin::WorldGridPlugin;
-
-pub use world_grid::WorldGrid;
 
 /// Registers all standard engine plugins in the conventional order.
 #[derive(Default)]

@@ -1,0 +1,8 @@
+[package]
+name = "tech-demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+game-engine = { path = "../.." }
+glam = { version = "0.30.1" }

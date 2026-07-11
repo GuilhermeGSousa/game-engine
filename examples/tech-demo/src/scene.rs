@@ -7,10 +7,10 @@ use glam::Vec3;
 pub(crate) fn spawn_scene(mut cmd: CommandQueue) {
     cmd.spawn(WorldGrid::default());
 
-    // Static ground collider: 200 x 1 x 200 half-extents centred at the
-    // origin, so its top surface is at y = 1.
+    // Static ground collider, sunk by its half-height so the top surface is
+    // flush with the world grid's y = 0 plane.
     cmd.spawn((
         Collider::cuboid(200.0, 1.0, 200.0),
-        Transform::from_translation(Vec3::ZERO),
+        Transform::from_translation(Vec3::Y * -1.0),
     ));
 }

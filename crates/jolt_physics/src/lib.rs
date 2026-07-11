@@ -4,6 +4,7 @@
 pub mod body;
 pub mod collider;
 pub mod ground;
+pub mod movement;
 pub mod physics_pipeline;
 pub mod physics_state;
 pub mod plugin;

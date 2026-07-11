@@ -2,10 +2,10 @@ use game_engine::animation::graph::AnimationGraph;
 use game_engine::animation::node::state_machine::AnimationStateMachine;
 use game_engine::animation::player::{AnimationHandleComponent, AnimationPlayer};
 use game_engine::ecs::{Entity, Query, With, Without};
-use game_engine::essential::time::Time;
 use game_engine::essential::transform::Transform;
 use game_engine::gltf_loader::loader::GLTFInstance;
 use game_engine::jolt_physics::collider::{Collider, ColliderOffset};
+use game_engine::jolt_physics::movement::CharacterMovement;
 use game_engine::jolt_physics::rigid_body::{AllowedDofs, RigidBody};
 use game_engine::window::input::{Input, KeyCode, PhysicalKey};
 use game_engine::{
@@ -50,7 +50,7 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
     cmd.insert_resource(GLTFCharacterAsset(char_handle.clone()));
 
     let collider = Collider::Capsule {
-        half_height: 1.0,
+        half_height: 2.0,
         radius: 1.0,
     };
     cmd.spawn((
@@ -61,6 +61,7 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
             allowed_dofs: AllowedDofs::TRANSLATION | AllowedDofs::ROTATION_Y,
             ..Default::default()
         },
+        CharacterMovement::new(0.01),
         collider,
         // Origin at the capsule's bottom so the GLTF skeleton root sits on
         // the ground instead of floating at the capsule center.
@@ -166,41 +167,44 @@ pub(crate) fn setup_character_animations(
 }
 
 pub(crate) fn update_movement(
+    movement: Query<(&mut CharacterMovement, &GLTFInstance)>,
     anim_players: Query<&mut AnimationPlayer>,
     input: Res<Input>,
-    time: Res<Time>,
 ) {
-    for mut anim_player in anim_players.iter() {
-        let mut input_vec = anim_player.get_vec2_param("movement").unwrap_or(Vec2::ZERO);
+    const PLAYER_SPEED: f32 = 5.0;
+    let mut player_input = Vec2::ZERO;
+    if input.is_held(PhysicalKey::Code(KeyCode::ArrowUp)) {
+        player_input += Vec2::Y;
+    }
 
-        let mut added_input = Vec2::ZERO;
-        if input.is_held(PhysicalKey::Code(KeyCode::ArrowUp)) {
-            added_input += Vec2::Y;
-        }
+    if input.is_held(PhysicalKey::Code(KeyCode::ArrowDown)) {
+        player_input -= Vec2::Y;
+    }
 
-        if input.is_held(PhysicalKey::Code(KeyCode::ArrowDown)) {
-            added_input -= Vec2::Y;
-        }
+    if input.is_held(PhysicalKey::Code(KeyCode::ArrowRight)) {
+        player_input -= Vec2::X;
+    }
 
-        if input.is_held(PhysicalKey::Code(KeyCode::ArrowRight)) {
-            added_input += Vec2::X;
-        }
+    if input.is_held(PhysicalKey::Code(KeyCode::ArrowLeft)) {
+        player_input += Vec2::X;
+    }
 
-        if input.is_held(PhysicalKey::Code(KeyCode::ArrowLeft)) {
-            added_input -= Vec2::X;
-        }
+    for (mut movement, instance) in movement.iter() {
+        let Some(animation_player) = instance.animation_player() else {
+            continue;
+        };
 
-        let dt = time.delta().as_secs_f32();
-        input_vec += added_input * 5.0 * dt;
+        let Some(mut animation_player) = anim_players.get_entity(animation_player) else {
+            continue;
+        };
 
-        if added_input.x == 0.0 {
-            input_vec.x *= (1.0 - 5.0 * dt).max(0.0);
-        }
-        if added_input.y == 0.0 {
-            input_vec.y *= (1.0 - 5.0 * dt).max(0.0);
-        }
+        let current_vel = movement.current_velocity();
 
-        input_vec = input_vec.clamp(Vec2::NEG_ONE, Vec2::ONE);
-        anim_player.set_vec2_param("movement", input_vec);
+        animation_player.set_vec2_param(
+            "movement",
+            Vec2::new(-current_vel.x, current_vel.z) / PLAYER_SPEED,
+        );
+
+        movement.set_target_velocity(Vec3::new(player_input.x, 0.0, player_input.y) * PLAYER_SPEED);
     }
 }

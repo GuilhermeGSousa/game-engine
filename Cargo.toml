@@ -1,6 +1,17 @@
 [profile.release]
 strip = true
 
+# Release-speed build that keeps debug symbols, for profilers (samply, perf,
+# flamegraph, Tracy). Usage: cargo run --profile profiling -p render-test
+# See docs/profiling.md.
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false
+
+[profile.profiling.package.jolt-ffi]
+debug = true
+
 [package]
 name = "game-engine"
 version = "0.1.0"

@@ -119,14 +119,16 @@ without the feature and compare average frame time from the frame-stats log.
 
 ## Frame stats without any profiler
 
-A `FrameStats` resource keeps a rolling window of CPU frame times and logs a
-summary once per second (avg / p99 / worst, FPS):
+A `FrameStats` resource (inserted by `TimePlugin`) keeps a rolling window of
+CPU frame times and logs a summary once per second (avg / p99 / worst, FPS):
 
 ```sh
 RUST_LOG=info cargo run --profile profiling -p render-test
 ```
 
-The editor additionally shows a live frame-time overlay (egui window).
+Apps using `DefaultPlugins` (non-headless) also get a small on-screen
+frame-time overlay in the top-left corner (`FrameStatsOverlayPlugin` in the
+`ui` crate).
 
 ## How to actually find "the code that needs improvement most"
 

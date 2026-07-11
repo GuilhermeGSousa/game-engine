@@ -26,7 +26,7 @@ use jolt_physics::plugin::PhysicsPlugin;
 use obj_loader::plugin::OBJPlugin;
 use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
 use skybox::plugin::SkyboxPlugin;
-use ui::plugin::UIPlugin;
+use ui::{frame_stats_overlay::FrameStatsOverlayPlugin, plugin::UIPlugin};
 use window::plugin::WindowPlugin;
 use world_grid::plugin::WorldGridPlugin;
 
@@ -66,7 +66,8 @@ impl Plugin for DefaultPlugins {
             .register_plugin(WorldGridPlugin);
 
         if !self.headless {
-            app.register_plugin(UIPlugin);
+            app.register_plugin(UIPlugin)
+                .register_plugin(FrameStatsOverlayPlugin);
         }
     }
 }

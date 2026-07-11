@@ -13,7 +13,6 @@ pub fn step_simulation(
     pipeline.step(&mut state);
 
     for (entity, _rigid_body, mut transform) in query.iter() {
-        // No body means the entity has no Collider (yet); nothing to sync.
         let Some(body) = state.get_body(entity) else {
             continue;
         };

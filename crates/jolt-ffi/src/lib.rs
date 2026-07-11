@@ -1,6 +1,6 @@
 //! Hand-written FFI bindings to the Jolt Physics library.
 //!
-//! The C API is our own thin shim (`csrc/shim.h` / `csrc/shim.cpp`) over the
+//! The C API is our own thin shim (headers and sources in `csrc/`) over the
 //! unmodified Jolt sources at `vendor/JoltPhysics` — a git submodule pinned
 //! to the upstream v5.0.0 release (MIT licensed, see
 //! `vendor/JoltPhysics/LICENSE`). Run `git submodule update --init` after
@@ -8,7 +8,7 @@
 //! `build.rs` in a single `cc` invocation, so there is no external binding
 //! crate, no bindgen, and no CMake involved.
 //!
-//! The declarations below must mirror `csrc/shim.h` exactly.
+//! The declarations below must mirror the `csrc` headers exactly.
 
 use std::marker::{PhantomData, PhantomPinned};
 
@@ -27,10 +27,16 @@ pub struct JoltStepper {
     _marker: PhantomData<(*mut u8, PhantomPinned)>,
 }
 
+#[repr(C)]
+pub struct JoltBodyCreationSettings {
+    _data: [u8; 0],
+    _marker: PhantomData<(*mut u8, PhantomPinned)>,
+}
+
 /// A Jolt body id (`JPH::BodyID::GetIndexAndSequenceNumber()`).
 pub type JoltBodyId = u32;
 
-/// The closest hit of a raycast (mirrors `JoltRayHit` in `shim.h`).
+/// The closest hit of a raycast (mirrors `JoltRayHit` in `ray.h`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct JoltRayHit {

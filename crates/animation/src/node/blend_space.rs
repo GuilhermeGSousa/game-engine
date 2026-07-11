@@ -152,12 +152,11 @@ impl<'a> BlendSpace2DBuilderContext<'a> {
 
     pub fn animation_clip_input(
         &mut self,
-        node: &AssetHandle<AnimationClip>,
+        clip: AssetHandle<AnimationClip>,
         point: Vec2,
     ) -> &mut Self {
         self.points.push(point);
-        self.nodes
-            .push(Box::new(AnimationClipNode::new(node.clone())));
+        self.nodes.push(Box::new(AnimationClipNode::new(clip)));
         self
     }
 }

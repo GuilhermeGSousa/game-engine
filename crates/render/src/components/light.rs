@@ -23,6 +23,8 @@ pub struct Light {
     pub light_type: LightType,
 }
 
+impl Light {}
+
 pub struct SpotLight {
     pub cone_angle: f32,
 }

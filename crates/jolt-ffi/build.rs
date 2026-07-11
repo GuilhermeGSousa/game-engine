@@ -15,9 +15,9 @@ fn main() {
 
     let mut sources = Vec::new();
     collect_cpp(&jolt_sources, &mut sources);
+    collect_cpp(&manifest.join("csrc"), &mut sources);
     // Deterministic archive contents regardless of directory-walk order.
     sources.sort();
-    sources.push(manifest.join("csrc/shim.cpp"));
 
     let mut build = cc::Build::new();
     build

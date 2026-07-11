@@ -1,26 +1,24 @@
 //! Raycast smoke tests. `cast_ray` reports the closest hit with its fraction,
-//! hit point, surface normal, and — when the body belongs to a spawned
-//! `RigidBody` — the owning entity; rays that miss report nothing.
+//! hit point, surface normal, and the entity owning the hit `Collider`; rays
+//! that miss report nothing.
 
 use ecs::entity::Entity;
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::Vec3;
+use jolt_physics::collider::Collider;
 use jolt_physics::physics_state::PhysicsState;
 use jolt_physics::rigid_body::RigidBody;
 
 /// A world with one dynamic unit sphere centred at (0, 5, 0).
 fn world_with_sphere() -> (World, Entity) {
     let mut world = World::new();
-    world.register_component_lifetimes::<RigidBody>();
+    world.register_component_lifetimes::<Collider>();
     world.insert_resource(PhysicsState::new());
 
     let transform =
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Default::default());
-    let state = world.get_resource_mut::<PhysicsState>().unwrap();
-    let body = RigidBody::new(&transform, state);
-    state.make_sphere(&body, 1.0);
-    let entity = world.spawn((body, transform));
+    let entity = world.spawn((RigidBody::default(), Collider::sphere(1.0), transform));
 
     (world, entity)
 }
@@ -73,18 +71,28 @@ fn ray_misses_when_pointing_away() {
 }
 
 #[test]
-fn ray_hits_static_geometry_without_entity() {
-    // Static geometry created directly on the physics state has no entity
-    // behind it: the hit is still reported, with `entity` set to `None`.
-    let mut state = PhysicsState::new();
-    let floor_transform = Transform::from_translation_rotation(Vec3::ZERO, Default::default());
-    state.make_cuboid(100.0, 1.0, 100.0, &floor_transform, None);
+fn ray_hits_static_geometry_entity() {
+    // Static geometry is spawned as an entity like everything else, so hits
+    // against it resolve to that entity too.
+    let mut world = World::new();
+    world.register_component_lifetimes::<Collider>();
+    world.insert_resource(PhysicsState::new());
+
+    let floor = world.spawn((
+        Collider::cuboid(100.0, 1.0, 100.0),
+        Transform::from_translation_rotation(Vec3::ZERO, Default::default()),
+    ));
 
     // Floor top is at y = 1, i.e. 4 of the ray's 10 units away.
+    let state = world.get_resource::<PhysicsState>().unwrap();
     let hit = state
         .cast_ray(Vec3::new(0.0, 5.0, 0.0), Vec3::new(0.0, -10.0, 0.0))
         .expect("ray pointing at the floor should hit it");
-    assert_eq!(hit.entity, None, "static geometry has no entity");
+    assert_eq!(
+        hit.entity,
+        Some(floor),
+        "static colliders resolve to their entity"
+    );
     assert!(
         (hit.fraction - 0.4).abs() < 0.01,
         "expected hit fraction ~0.4, got {}",

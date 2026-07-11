@@ -25,8 +25,10 @@ animation = { path = "crates/animation" }
 essential = { path = "crates/essential" }
 render = { path = "crates/render" }
 mesh = { path = "crates/mesh" }
+gameplay = { path = "crates/gameplay" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
+color = { path = "crates/color" }
 gltf-loader = { path = "crates/gltf-loader" }
 obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }

@@ -113,6 +113,13 @@ impl World {
                     cell.trigger_on_remove(entity, &component_ids);
                 }
 
+                // The callbacks may have inserted or removed components,
+                // migrating the entity to another archetype (or despawned it
+                // outright), so the location must be re-resolved.
+                let Some(location) = self.entity_store.find_location(entity) else {
+                    return;
+                };
+
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
 
                 if let Some(swapped_entity) = archetype.entities().last() {
@@ -226,18 +233,20 @@ impl World {
 
                 let removed_id = TypeId::of::<T>();
 
-                // Update the location of the entity being swapped
-                // It will take the location of the entity being removed
-                if let Some(swapped_entity) = previous_archetype.entities().last() {
-                    self.entity_store.set_location(*swapped_entity, location);
-                }
-
                 let mut component_ids = previous_archetype.component_ids().to_vec();
                 if let Some(removed_index) = component_ids.iter().position(|id| *id == removed_id) {
                     component_ids.swap_remove(removed_index);
                 } else {
                     warn!("Entity does not have the component being removed.");
                     return;
+                }
+
+                // Update the location of the entity being swapped: it will
+                // take the location of the entity being removed. This must
+                // stay below the missing-component early return — a no-op
+                // removal must not touch other entities' locations.
+                if let Some(swapped_entity) = previous_archetype.entities().last() {
+                    self.entity_store.set_location(*swapped_entity, location);
                 }
 
                 let entity_type = generate_type_id(&component_ids);

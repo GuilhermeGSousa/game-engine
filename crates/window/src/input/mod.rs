@@ -102,14 +102,14 @@ impl Input {
     }
 
     pub fn update(&mut self) {
-        for (_, state) in self.input_map.iter_mut() {
+        for state in self.input_map.values_mut() {
             match state {
                 InputState::Pressed => *state = InputState::Down,
                 InputState::Released => *state = InputState::Up,
                 _ => {}
             }
         }
-        for (_, state) in self.mouse_button_map.iter_mut() {
+        for state in self.mouse_button_map.values_mut() {
             match state {
                 InputState::Pressed => *state = InputState::Down,
                 InputState::Released => *state = InputState::Up,

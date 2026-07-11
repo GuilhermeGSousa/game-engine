@@ -1,82 +1,87 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::BitOr;
 
-use ecs::component::{Component, ComponentLifecycleCallback};
-use essential::transform::Transform;
+use ecs::component::Component;
 
-use crate::body::BodyId;
-use crate::physics_state::PhysicsState;
+/// Bitmask of the degrees of freedom a dynamic body may use (combine with
+/// `|`). Restricting a body to [`AllowedDofs::TRANSLATION`] keeps it from
+/// ever rotating — e.g. a player capsule that must stay upright.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AllowedDofs(pub(crate) jolt_ffi::JoltAllowedDofs);
 
-/// A dynamic rigid body. Wraps the Jolt [`BodyId`]; attach a shape to it with
-/// [`PhysicsState::make_sphere`](crate::physics_state::PhysicsState::make_sphere)
-/// or [`make_cuboid`](crate::physics_state::PhysicsState::make_cuboid).
-pub struct RigidBody(BodyId);
+impl AllowedDofs {
+    pub const TRANSLATION_X: Self = Self(jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_X);
+    pub const TRANSLATION_Y: Self = Self(jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Y);
+    pub const TRANSLATION_Z: Self = Self(jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Z);
+    pub const ROTATION_X: Self = Self(jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_X);
+    pub const ROTATION_Y: Self = Self(jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Y);
+    pub const ROTATION_Z: Self = Self(jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Z);
+    /// All translation axes, no rotation.
+    pub const TRANSLATION: Self = Self(
+        jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_X
+            | jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Y
+            | jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Z,
+    );
+    /// All rotation axes, no translation.
+    pub const ROTATION: Self = Self(
+        jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_X
+            | jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Y
+            | jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Z,
+    );
+    pub const ALL: Self = Self(jolt_ffi::JOLT_ALLOWED_DOFS_ALL);
+}
 
-// Implemented manually (instead of derived) for the lifecycle callbacks: they
-// keep `PhysicsState`'s body-to-entity cache in sync so
-// [`PhysicsState::get_entity`] is an O(1) lookup.
-impl Component for RigidBody {
-    fn name() -> &'static str {
-        "RigidBody"
+impl BitOr for AllowedDofs {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
     }
+}
 
-    fn on_add() -> Option<ComponentLifecycleCallback> {
-        Some(|mut world, context| {
-            let body = **world
-                .get_component_for_entity::<RigidBody>(context.entity)
-                .expect("on_add ran for an entity without a RigidBody");
-            if let Some(state) = world.get_resource_mut::<PhysicsState>() {
-                state.register_body_entity(body, context.entity);
-            }
-        })
+impl Default for AllowedDofs {
+    fn default() -> Self {
+        Self::ALL
     }
+}
 
-    fn on_remove() -> Option<ComponentLifecycleCallback> {
-        Some(|mut world, context| {
-            // `despawn` fires this while the component is still readable
-            // (fast path); `remove_component` fires it after the component is
-            // gone, so fall back to evicting the cache entry by entity.
-            let body = world
-                .get_component_for_entity::<RigidBody>(context.entity)
-                .map(|rigid_body| **rigid_body);
-            if let Some(state) = world.get_resource_mut::<PhysicsState>() {
-                match body {
-                    Some(body) => state.unregister_body_entity(body),
-                    None => state.unregister_entity(context.entity),
-                }
-            }
-        })
-    }
+#[derive(Default, Clone, Copy, Debug)]
+pub enum MotionType {
+    #[default]
+    Dynamic,
+    Kinematic,
+}
+
+/// Marks an entity's [`Collider`](crate::collider::Collider) as a dynamic
+/// body and describes its dynamics.
+///
+/// The Jolt body itself is created by `Collider`'s lifecycle: spawn
+/// `RigidBody` in the same bundle as (or before) the `Collider` so it is
+/// visible when the body is created. Fields are read at that moment only —
+/// changing them afterwards does not affect the live body.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct RigidBody {
+    /// Density in kg/m³; the body's mass is the collider shape's volume times
+    /// this. Defaults to 1000 (water).
+    pub density: f32,
+    pub allowed_dofs: AllowedDofs,
+    pub motion_type: MotionType,
 }
 
 impl RigidBody {
-    /// Creates a dynamic body at `transform`'s position and adds it to the
-    /// simulation.
-    ///
-    /// Jolt requires a shape at body-creation time, so the body starts with a
-    /// small placeholder sphere. A subsequent `make_sphere`/`make_cuboid` call
-    /// replaces it with the real collider.
-    pub fn new(transform: &Transform, state: &mut PhysicsState) -> Self {
-        let position = transform.translation.to_array();
-
-        // SAFETY: `state.world()` is a valid world, and `position` is a valid
-        // xyz triple.
-        let id =
-            unsafe { jolt_ffi::jolt_body_create_dynamic(state.world(), position.as_ptr(), 0.5) };
-
-        Self(BodyId(id))
+    pub fn with_density(density: f32) -> Self {
+        Self {
+            density,
+            ..Self::default()
+        }
     }
 }
 
-impl Deref for RigidBody {
-    type Target = BodyId;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for RigidBody {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+impl Default for RigidBody {
+    fn default() -> Self {
+        Self {
+            density: 1000.0,
+            allowed_dofs: AllowedDofs::ALL,
+            motion_type: MotionType::Dynamic,
+        }
     }
 }

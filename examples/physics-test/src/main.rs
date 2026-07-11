@@ -13,17 +13,14 @@ use color::LinearRgba;
 use game_engine::{
     app::App,
     ecs::{
-        command::CommandQueue,
-        component::Component,
-        query::Query,
-        resource::{Res, ResMut},
+        command::CommandQueue, component::Component, query::Query, resource::Res,
         system::schedule::UpdateGroup,
     },
     essential::{
         assets::asset_server::AssetServer,
         transform::{GlobalTransform, Transform},
     },
-    jolt_physics::{physics_state::PhysicsState, rigid_body::RigidBody},
+    jolt_physics::{collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody},
     mesh::MeshComponent,
     render::{
         assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
@@ -35,7 +32,8 @@ use game_engine::{
         MaterialComponent,
     },
     window::input::{Input, MouseButton},
-    DefaultPlugins, WorldGrid,
+    world_grid::WorldGrid,
+    DefaultPlugins,
 };
 use glam::{Quat, Vec3};
 
@@ -55,11 +53,7 @@ fn main() {
     app.run();
 }
 
-fn spawn_scene(
-    mut cmd: CommandQueue,
-    asset_server: Res<AssetServer>,
-    mut physics: ResMut<PhysicsState>,
-) {
+fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // Camera: pulled back and up, pitched slightly down to frame the floor.
     cmd.spawn((
         Camera::perspective(FRAC_PI_4, 16.0 / 9.0),
@@ -82,7 +76,6 @@ fn spawn_scene(
     // Static floor: collider top surface sits at y = 0, with a matching plane mesh.
     let floor_transform =
         Transform::from_translation_rotation(Vec3::new(0.0, -0.5, 0.0), Quat::IDENTITY);
-    physics.make_cuboid(20.0, 0.5, 20.0, &floor_transform, None);
 
     let floor_mesh = asset_server.add(make_plane(40.0, 40.0));
     let floor_material = asset_server.add(
@@ -90,6 +83,7 @@ fn spawn_scene(
             .with_base_color_factor(LinearRgba::new(0.4, 0.4, 0.45, 1.0)),
     );
     cmd.spawn((
+        Collider::cuboid(20.0, 0.5, 20.0),
         MeshComponent { handle: floor_mesh },
         MaterialComponent {
             handle: floor_material,
@@ -111,8 +105,8 @@ fn spawn_scene(
         (Vec3::new(8.5, 0.75, 0.0), Vec3::new(0.5, 1.25, 9.0)),
     ] {
         let wall_transform = Transform::from_translation_rotation(pos, Quat::IDENTITY);
-        physics.make_cuboid(half.x, half.y, half.z, &wall_transform, None);
         cmd.spawn((
+            Collider::cuboid(half.x, half.y, half.z),
             MeshComponent {
                 handle: asset_server.add(make_box(half)),
             },
@@ -158,13 +152,11 @@ fn spawn_scene(
             Quat::IDENTITY,
         );
 
-        let body = RigidBody::new(&transform, &mut physics);
-        physics.make_sphere(&body, SPHERE_RADIUS);
-
         let material =
             asset_server.add(StandardMaterial::new(None, None).with_base_color_factor(color));
         cmd.spawn((
-            body,
+            RigidBody::default(),
+            Collider::sphere(SPHERE_RADIUS),
             BallColor(color),
             MeshComponent {
                 handle: sphere_mesh.clone(),

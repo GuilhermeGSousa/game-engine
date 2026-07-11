@@ -2,6 +2,7 @@ pub mod assets;
 pub mod blend;
 pub use tasks;
 pub mod geometry;
+pub mod math;
 pub mod time;
 pub mod transform;
 pub mod utils;

@@ -95,20 +95,26 @@ pub(crate) fn setup_state_machine(
         let (Some(idle), Some(walk), Some(strafe_left), Some(strafe_right)) = (
             gltf_scenes
                 .get(&loading_anim_store.idle)
-                .and_then(|idle_scene| idle_scene.animations().first())
-                .cloned(),
+                .and_then(|idle_scene| idle_scene.animations().first().map(|anim| anim.handle())),
             gltf_scenes
                 .get(&loading_anim_store.walk)
-                .and_then(|walk_scene| walk_scene.animations().first())
-                .cloned(),
+                .and_then(|walk_scene| walk_scene.animations().first().map(|anim| anim.handle())),
             gltf_scenes
                 .get(&loading_anim_store.strafe_left)
-                .and_then(|strafe_left_scene| strafe_left_scene.animations().first())
-                .cloned(),
+                .and_then(|strafe_left_scene| {
+                    strafe_left_scene
+                        .animations()
+                        .first()
+                        .map(|anim| anim.handle())
+                }),
             gltf_scenes
                 .get(&loading_anim_store.strafe_right)
-                .and_then(|strafe_right_scene| strafe_right_scene.animations().first())
-                .cloned(),
+                .and_then(|strafe_right_scene| {
+                    strafe_right_scene
+                        .animations()
+                        .first()
+                        .map(|anim| anim.handle())
+                }),
         ) else {
             continue;
         };
@@ -145,10 +151,10 @@ pub(crate) fn setup_animations(
             },
             |context| {
                 context
-                    .animation_clip_input(&anim_store.idle, Vec2::ZERO)
-                    .animation_clip_input(&anim_store.strafe_left, Vec2::new(-1.0, 0.0))
-                    .animation_clip_input(&anim_store.strafe_right, Vec2::new(1.0, 0.0))
-                    .animation_clip_input(&anim_store.walk, Vec2::new(0.0, 1.0));
+                    .animation_clip_input(anim_store.idle.clone(), Vec2::ZERO)
+                    .animation_clip_input(anim_store.strafe_left.clone(), Vec2::new(-1.0, 0.0))
+                    .animation_clip_input(anim_store.strafe_right.clone(), Vec2::new(1.0, 0.0))
+                    .animation_clip_input(anim_store.walk.clone(), Vec2::new(0.0, 1.0));
             },
         );
 

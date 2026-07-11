@@ -87,6 +87,45 @@ extern "C"
      * afterwards. */
     void jolt_body_destroy(JoltWorld *world, JoltBodyId body);
 
+    typedef uint32_t JoltGroundState;
+    enum
+    {
+        JOLT_GROUND_STATE_ON_GROUND = 0,
+        JOLT_GROUND_STATE_ON_STEEP_GROUND = 1,
+        JOLT_GROUND_STATE_IN_AIR = 2,
+    };
+
+    /* The closest ground found by jolt_body_probe_ground. All fields besides
+     * `state` are only valid when state != IN_AIR; `velocity` is the ground
+     * body's velocity at the contact point. */
+    typedef struct JoltGroundProbeResult
+    {
+        JoltGroundState state;
+        JoltBodyId body;
+        float position[3];
+        float normal[3];
+        float velocity[3];
+    } JoltGroundProbeResult;
+
+    /* Collides `body`'s shape against the world (ignoring `body` itself) and
+     * reports the most upward-facing contact within `max_separation` below the
+     * shape. Contacts steeper than `max_slope_angle` (radians from horizontal)
+     * report ON_STEEP_GROUND. */
+    void jolt_body_probe_ground(const JoltWorld *world,
+                                JoltBodyId body,
+                                float max_separation,
+                                float max_slope_angle,
+                                JoltGroundProbeResult *out_result);
+
+    /* Setting a non-zero velocity also wakes the body: SetLinearVelocity alone
+     * leaves a sleeping body asleep. */
+    void jolt_body_set_linear_velocity(JoltWorld *world,
+                                       JoltBodyId body,
+                                       const float velocity[3]);
+    void jolt_body_get_linear_velocity(const JoltWorld *world,
+                                       JoltBodyId body,
+                                       float out_velocity[3]);
+
     /* Reads a body's world-space position (xyz) and rotation (xyzw). */
     void jolt_body_get_transform(const JoltWorld *world,
                                  JoltBodyId body,

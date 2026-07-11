@@ -44,6 +44,13 @@ impl Default for AllowedDofs {
     }
 }
 
+#[derive(Default, Clone, Copy, Debug)]
+pub enum MotionType {
+    #[default]
+    Dynamic,
+    Kinematic,
+}
+
 /// Marks an entity's [`Collider`](crate::collider::Collider) as a dynamic
 /// body and describes its dynamics.
 ///
@@ -57,6 +64,7 @@ pub struct RigidBody {
     /// this. Defaults to 1000 (water).
     pub density: f32,
     pub allowed_dofs: AllowedDofs,
+    pub motion_type: MotionType,
 }
 
 impl RigidBody {
@@ -73,6 +81,7 @@ impl Default for RigidBody {
         Self {
             density: 1000.0,
             allowed_dofs: AllowedDofs::ALL,
+            motion_type: MotionType::Dynamic,
         }
     }
 }

@@ -5,6 +5,7 @@
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
+use jolt_physics::body::BodyId;
 use jolt_physics::collider::Collider;
 use jolt_physics::physics_pipeline::PhysicsPipeline;
 use jolt_physics::physics_state::PhysicsState;
@@ -31,10 +32,10 @@ fn sphere_falls_and_rests_on_floor() {
         Transform::from_translation_rotation(Vec3::new(0.0, 10.0, 0.0), Default::default()),
     ));
 
+    let body = *world
+        .get_component_for_entity::<BodyId>(sphere)
+        .expect("spawning a Collider should insert a BodyId");
     let state = world.get_resource::<PhysicsState>().unwrap();
-    let body = state
-        .get_body(sphere)
-        .expect("spawning a Collider should create a body");
     let start_y = state.body_transform(body).translation.y;
     assert!(
         (start_y - 10.0).abs() < 0.5,
@@ -95,8 +96,10 @@ fn capsule_with_locked_rotation_rests_upright() {
         pipeline.step(world.get_resource_mut::<PhysicsState>().unwrap());
     }
 
+    let body = *world
+        .get_component_for_entity::<BodyId>(capsule)
+        .expect("capsule should have a BodyId");
     let state = world.get_resource::<PhysicsState>().unwrap();
-    let body = state.get_body(capsule).expect("capsule should have a body");
     let transform = state.body_transform(body);
 
     // Rest height: floor top (1) + capsule half-height (1) = 2.

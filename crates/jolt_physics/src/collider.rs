@@ -2,6 +2,7 @@ use ecs::component::{Component, ComponentLifecycleCallback};
 use essential::transform::Transform;
 use glam::Vec3;
 
+use crate::body::BodyId;
 use crate::physics_state::PhysicsState;
 use crate::rigid_body::RigidBody;
 
@@ -62,23 +63,25 @@ impl Component for Collider {
                 .get_component_for_entity::<RigidBody>(context.entity)
                 .copied();
 
-            if let Some(state) = world.get_resource_mut::<PhysicsState>() {
-                let body = state.create_body(collider, &transform, rigid_body);
-                state.register_body_entity(body, context.entity);
-            }
+            let Some(state) = world.get_resource_mut::<PhysicsState>() else {
+                return;
+            };
+            let body = state.create_body(collider, &transform, rigid_body);
+            state.register_body_entity(body, context.entity);
+            world.insert_component(body, context.entity, false);
         })
     }
 
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
-            // The body id comes from the entity-to-body map, not the
-            // component: `remove_component` fires this after the component is
-            // already gone.
-            if let Some(state) = world.get_resource_mut::<PhysicsState>() {
-                if let Some(body) = state.get_body(context.entity) {
+            // `remove_component::<Collider>` fires this after the Collider is
+            // gone; the body id survives on its own `BodyId` component.
+            if let Some(&body) = world.get_component_for_entity::<BodyId>(context.entity) {
+                if let Some(state) = world.get_resource_mut::<PhysicsState>() {
                     state.destroy_body(body);
-                    state.unregister_body_entity(body, context.entity);
+                    state.unregister_body_entity(body);
                 }
+                world.remove_component::<BodyId>(context.entity, true);
             }
         })
     }

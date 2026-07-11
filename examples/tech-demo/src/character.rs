@@ -5,6 +5,8 @@ use game_engine::ecs::{Entity, Query, With, Without};
 use game_engine::essential::time::Time;
 use game_engine::essential::transform::Transform;
 use game_engine::gltf_loader::loader::GLTFInstance;
+use game_engine::jolt_physics::collider::Collider;
+use game_engine::jolt_physics::rigid_body::{AllowedDofs, RigidBody};
 use game_engine::window::input::{Input, KeyCode, PhysicalKey};
 use game_engine::{
     color::LinearRgba,
@@ -13,7 +15,6 @@ use game_engine::{
     gameplay::player::spawn_first_person_player,
     gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
     render::components::{Light, light::LightType::Point},
-    world_grid::WorldGrid,
 };
 use glam::{Quat, Vec2, Vec3};
 
@@ -38,7 +39,7 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
 
     spawn_first_person_player(
         &mut cmd,
-        Vec3::ZERO,
+        Vec3::Y * 2.0,
         Light {
             color: LinearRgba::WHITE,
             intensity: 10.0,
@@ -51,7 +52,16 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
     cmd.spawn((
         Player,
         GLTFSpawnerComponent(char_handle),
-        Transform::from_translation_rotation(Vec3::new(0.0, -1.0, -5.0), Quat::IDENTITY),
+        RigidBody {
+            density: 1000.0,
+            allowed_dofs: AllowedDofs::TRANSLATION | AllowedDofs::ROTATION_Y,
+            ..Default::default()
+        },
+        Collider::Capsule {
+            half_height: 1.0,
+            radius: 1.0,
+        },
+        Transform::from_translation_rotation(Vec3::new(0.0, 10.0, -5.0), Quat::IDENTITY),
     ));
 }
 

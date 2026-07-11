@@ -7,6 +7,7 @@ use glam::{Quat, Vec3};
 
 use crate::body::BodyId;
 use crate::collider::Collider;
+use crate::ground::{GroundContact, GroundState};
 use crate::ray::RayHit;
 use crate::rigid_body::RigidBody;
 
@@ -30,7 +31,6 @@ pub struct PhysicsState {
     ///
     /// [`Collider`]: crate::collider::Collider
     body_to_entity: HashMap<jolt_ffi::JoltBodyId, Entity>,
-    entity_to_body: HashMap<Entity, BodyId>,
 }
 
 // SAFETY: `PhysicsState` holds a raw pointer into Jolt, which is not inherently
@@ -56,7 +56,6 @@ impl PhysicsState {
         Self {
             world,
             body_to_entity: HashMap::new(),
-            entity_to_body: HashMap::new(),
         }
     }
 
@@ -66,20 +65,12 @@ impl PhysicsState {
         self.body_to_entity.get(&body.0).copied()
     }
 
-    /// The Jolt body backing `entity`'s
-    /// [`Collider`](crate::collider::Collider), if any.
-    pub fn get_body(&self, entity: Entity) -> Option<BodyId> {
-        self.entity_to_body.get(&entity).copied()
-    }
-
     pub(crate) fn register_body_entity(&mut self, body: BodyId, entity: Entity) {
         self.body_to_entity.insert(body.0, entity);
-        self.entity_to_body.insert(entity, body);
     }
 
-    pub(crate) fn unregister_body_entity(&mut self, body: BodyId, entity: Entity) {
+    pub(crate) fn unregister_body_entity(&mut self, body: BodyId) {
         self.body_to_entity.remove(&body.0);
-        self.entity_to_body.remove(&entity);
     }
 
     /// The raw Jolt world pointer, used by [`PhysicsPipeline`] to drive
@@ -103,7 +94,10 @@ impl PhysicsState {
         let position = transform.translation.to_array();
         let rotation = transform.rotation.to_array();
         let motion_type = match rigid_body {
-            Some(_) => jolt_ffi::JOLT_MOTION_TYPE_DYNAMIC,
+            Some(rb) => match rb.motion_type {
+                crate::rigid_body::MotionType::Dynamic => jolt_ffi::JOLT_MOTION_TYPE_DYNAMIC,
+                crate::rigid_body::MotionType::Kinematic => jolt_ffi::JOLT_MOTION_TYPE_KINEMATIC,
+            },
             None => jolt_ffi::JOLT_MOTION_TYPE_STATIC,
         };
         // Density is unused for static bodies; any sane value works here.
@@ -165,6 +159,66 @@ impl PhysicsState {
         unsafe {
             jolt_ffi::jolt_body_destroy(self.world, body.0);
         }
+    }
+
+    /// Reports what `body` is standing on: the most upward-facing contact
+    /// within `max_separation` below its shape, classified against
+    /// `max_slope_angle` (radians from horizontal).
+    pub fn probe_ground(
+        &self,
+        body: BodyId,
+        max_separation: f32,
+        max_slope_angle: f32,
+    ) -> GroundState {
+        let mut result = jolt_ffi::JoltGroundProbeResult {
+            state: jolt_ffi::JOLT_GROUND_STATE_IN_AIR,
+            body: 0,
+            position: [0.0; 3],
+            normal: [0.0; 3],
+            velocity: [0.0; 3],
+        };
+        // SAFETY: `body` is a body in this world and `result` is a valid
+        // out-buffer.
+        unsafe {
+            jolt_ffi::jolt_body_probe_ground(
+                self.world,
+                body.0,
+                max_separation,
+                max_slope_angle,
+                &mut result,
+            );
+        }
+
+        let contact = || GroundContact {
+            entity: self.get_entity(BodyId(result.body)),
+            point: Vec3::from(result.position),
+            normal: Vec3::from(result.normal),
+            velocity: Vec3::from(result.velocity),
+        };
+        match result.state {
+            jolt_ffi::JOLT_GROUND_STATE_ON_GROUND => GroundState::OnGround(contact()),
+            jolt_ffi::JOLT_GROUND_STATE_ON_STEEP_GROUND => GroundState::OnSteepGround(contact()),
+            _ => GroundState::InAir,
+        }
+    }
+
+    pub fn set_linear_velocity(&mut self, body: BodyId, velocity: Vec3) {
+        let velocity = velocity.to_array();
+        // SAFETY: `body` is a body in this world; `velocity` is a valid xyz
+        // triple.
+        unsafe {
+            jolt_ffi::jolt_body_set_linear_velocity(self.world, body.0, velocity.as_ptr());
+        }
+    }
+
+    pub fn linear_velocity(&self, body: BodyId) -> Vec3 {
+        let mut velocity = [0.0f32; 3];
+        // SAFETY: `body` is a body in this world and the out-buffer is a
+        // valid xyz triple.
+        unsafe {
+            jolt_ffi::jolt_body_get_linear_velocity(self.world, body.0, velocity.as_mut_ptr());
+        }
+        Vec3::from(velocity)
     }
 
     /// Reads a body's current world transform out of the simulation.

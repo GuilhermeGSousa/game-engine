@@ -1,21 +1,16 @@
-use ecs::{entity::Entity, query::Query, resource::ResMut};
+use ecs::{query::Query, resource::ResMut};
 use essential::transform::Transform;
 
-use crate::{
-    physics_pipeline::PhysicsPipeline, physics_state::PhysicsState, rigid_body::RigidBody,
-};
+use crate::{body::BodyId, physics_pipeline::PhysicsPipeline, physics_state::PhysicsState};
 
 pub fn step_simulation(
-    query: Query<(Entity, &RigidBody, &mut Transform)>,
+    query: Query<(&BodyId, &mut Transform)>,
     mut pipeline: ResMut<PhysicsPipeline>,
     mut state: ResMut<PhysicsState>,
 ) {
     pipeline.step(&mut state);
 
-    for (entity, _rigid_body, mut transform) in query.iter() {
-        let Some(body) = state.get_body(entity) else {
-            continue;
-        };
-        **transform = state.body_transform(body);
+    for (body_id, mut transform) in query.iter() {
+        **transform = state.body_transform(*body_id);
     }
 }

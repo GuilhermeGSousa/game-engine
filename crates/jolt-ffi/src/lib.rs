@@ -56,6 +56,25 @@ pub const JOLT_ALLOWED_DOFS_ROTATION_Y: JoltAllowedDofs = 1 << 4;
 pub const JOLT_ALLOWED_DOFS_ROTATION_Z: JoltAllowedDofs = 1 << 5;
 pub const JOLT_ALLOWED_DOFS_ALL: JoltAllowedDofs = 0x3f;
 
+/// Mirrors the `JoltGroundState` constants in `body.h`.
+pub type JoltGroundState = u32;
+pub const JOLT_GROUND_STATE_ON_GROUND: JoltGroundState = 0;
+pub const JOLT_GROUND_STATE_ON_STEEP_GROUND: JoltGroundState = 1;
+pub const JOLT_GROUND_STATE_IN_AIR: JoltGroundState = 2;
+
+/// The closest ground found by [`jolt_body_probe_ground`]. All fields besides
+/// `state` are only valid when `state != IN_AIR`; `velocity` is the ground
+/// body's velocity at the contact point.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct JoltGroundProbeResult {
+    pub state: JoltGroundState,
+    pub body: JoltBodyId,
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub velocity: [f32; 3],
+}
+
 /// The closest hit of a raycast (mirrors `JoltRayHit` in `ray.h`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -161,6 +180,32 @@ extern "C" {
     /// that were touching it (they would otherwise sleep in mid-air). The id
     /// is invalid afterwards.
     pub fn jolt_body_destroy(world: *mut JoltWorld, body: JoltBodyId);
+
+    /// Collides `body`'s shape against the world (ignoring `body` itself) and
+    /// reports the most upward-facing contact within `max_separation` below
+    /// the shape. Contacts steeper than `max_slope_angle` (radians from
+    /// horizontal) report `ON_STEEP_GROUND`.
+    pub fn jolt_body_probe_ground(
+        world: *const JoltWorld,
+        body: JoltBodyId,
+        max_separation: f32,
+        max_slope_angle: f32,
+        out_result: *mut JoltGroundProbeResult,
+    );
+
+    /// Setting a non-zero velocity also wakes the body: `SetLinearVelocity`
+    /// alone leaves a sleeping body asleep.
+    pub fn jolt_body_set_linear_velocity(
+        world: *mut JoltWorld,
+        body: JoltBodyId,
+        velocity: *const f32,
+    );
+
+    pub fn jolt_body_get_linear_velocity(
+        world: *const JoltWorld,
+        body: JoltBodyId,
+        out_velocity: *mut f32,
+    );
 
     /// Reads a body's world-space position (xyz) and rotation (xyzw).
     pub fn jolt_body_get_transform(

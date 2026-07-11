@@ -5,6 +5,7 @@
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::Vec3;
+use jolt_physics::body::BodyId;
 use jolt_physics::collider::Collider;
 use jolt_physics::physics_pipeline::PhysicsPipeline;
 use jolt_physics::physics_state::PhysicsState;
@@ -35,8 +36,10 @@ fn despawned_collider_stops_colliding() {
         pipeline.step(world.get_resource_mut::<PhysicsState>().unwrap());
     }
 
+    let body = *world
+        .get_component_for_entity::<BodyId>(sphere)
+        .expect("sphere should have a BodyId");
     let state = world.get_resource::<PhysicsState>().unwrap();
-    let body = state.get_body(sphere).expect("sphere should have a body");
     let landed_y = state.body_transform(body).translation.y;
     assert!(
         (landed_y - 2.0).abs() < 0.5,

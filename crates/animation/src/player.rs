@@ -191,6 +191,12 @@ pub struct AnimationHandleComponent {
     pub handle: AssetHandle<AnimationGraph>,
 }
 
+impl AnimationHandleComponent {
+    pub fn new(handle: AssetHandle<AnimationGraph>) -> Self {
+        Self { handle }
+    }
+}
+
 impl Deref for AnimationHandleComponent {
     type Target = AssetHandle<AnimationGraph>;
 

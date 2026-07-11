@@ -73,6 +73,7 @@ pub struct GLTFMesh {
 }
 
 pub struct GLTFNode {
+    pub(crate) name: Option<String>,
     pub(crate) children: Vec<usize>,
     pub(crate) mesh: Option<usize>,
     pub(crate) skeleton: Option<usize>,
@@ -577,6 +578,7 @@ impl GLTFLoader {
         let gltf_transform = gltf_node.transform();
 
         GLTFNode {
+            name: gltf_node.name().map(ToString::to_string),
             children: gltf_node.children().map(|node| node.index()).collect(),
             mesh: gltf_node.mesh().map(|mesh| mesh.index()),
             transform: Transform::from_matrix(&gltf_transform.matrix()),
@@ -595,6 +597,31 @@ impl std::ops::Deref for GLTFSpawnerComponent {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[derive(Component)]
+pub struct GLTFInstance {
+    roots: Vec<Entity>,
+    nodes_by_name: HashMap<String, Entity>,
+    animation_players: Vec<Entity>,
+}
+
+impl GLTFInstance {
+    pub fn roots(&self) -> &[Entity] {
+        &self.roots
+    }
+
+    pub fn get_node(&self, name: &str) -> Option<Entity> {
+        self.nodes_by_name.get(name).copied()
+    }
+
+    pub fn animation_players(&self) -> &[Entity] {
+        &self.animation_players
+    }
+
+    pub fn animation_player(&self) -> Option<Entity> {
+        self.animation_players.first().copied()
     }
 }
 
@@ -628,9 +655,20 @@ pub(crate) fn spawn_gltf_components(
                     has_parent[*child] = true;
                 }
             }
+            let mut roots = Vec::new();
             for (node_index, node_entity) in node_entities.iter().enumerate() {
                 if !has_parent[node_index] {
                     cmd.add_child(entity, *node_entity);
+                    roots.push(*node_entity);
+                }
+            }
+
+            // Back-reference data recorded onto the spawner entity once spawning finishes.
+            let mut nodes_by_name = HashMap::new();
+            let mut animation_players = Vec::new();
+            for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
+                if let Some(name) = &gltf_node.name {
+                    nodes_by_name.insert(name.clone(), node_entities[node_index]);
                 }
             }
 
@@ -712,6 +750,7 @@ pub(crate) fn spawn_gltf_components(
                         AnimationPlayer::new(gltf_skeleton.bones.len()),
                         node_entities[node_index],
                     );
+                    animation_players.push(node_entities[node_index]);
                 }
 
                 if let Some(camera_index) = gltf_node.camera
@@ -749,6 +788,14 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
             cmd.remove::<GLTFSpawnerComponent>(entity);
+            cmd.insert(
+                GLTFInstance {
+                    roots,
+                    nodes_by_name,
+                    animation_players,
+                },
+                entity,
+            );
         }
     }
 }

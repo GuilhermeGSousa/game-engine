@@ -7,7 +7,8 @@ use game_engine::{
     render::components::{Light, light::LightType::Point},
     world_grid::WorldGrid,
 };
-use glam::Vec3;
+use game_engine::essential::transform::Transform;
+use glam::{Quat, Vec3};
 
 const CHAR_ASSET: &str = "res/UAL1.glb";
 
@@ -36,7 +37,12 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
     );
 
     cmd.insert_resource(GLTFCharacterAsset(char_handle.clone()));
-    cmd.spawn((Player, GLTFSpawnerComponent(char_handle)));
+    // Place the character in front of the first-person camera.
+    cmd.spawn((
+        Player,
+        GLTFSpawnerComponent(char_handle),
+        Transform::from_translation_rotation(Vec3::new(0.0, -1.0, -5.0), Quat::IDENTITY),
+    ));
     cmd.spawn(WorldGrid::default());
 }
 

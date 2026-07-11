@@ -16,7 +16,7 @@ impl From<Vec<Mat4>> for Skeleton {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct SkeletonComponent {
     skeleton: AssetHandle<Skeleton>,
     bones: Vec<Entity>,

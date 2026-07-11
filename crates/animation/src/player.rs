@@ -156,8 +156,14 @@ impl AnimationPlayer {
         };
 
         let mut output_pose = self.pose_pool.acquire();
-        self.graph_instance
-            .evaluate(&context, bone_ids, &mut self.pose_pool, &mut output_pose);
+        if !self
+            .graph_instance
+            .evaluate(&context, bone_ids, &mut self.pose_pool, &mut output_pose)
+        {
+            // No graph evaluated — keep the bones' current (default) pose.
+            self.pose_pool.release(output_pose);
+            return;
+        }
 
         for (bone_index, bone_entity) in bones.iter().enumerate() {
             let Some(joint_pose) = output_pose.get_joint_pose(bone_index) else {

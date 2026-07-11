@@ -33,6 +33,7 @@ send_wrapper = { version = "0.6.0" }
 async-trait = "0.1.50"
 anyhow = "1.0.97"
 winit = { version = "0.30" }
+offset-allocator = { version = "0.2.0" }
 
 [dependencies.image]
 version = "0.25.5"

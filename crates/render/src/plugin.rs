@@ -8,7 +8,7 @@ use crate::{
     components::{
         mesh::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
-        skeleton::{skeleton_added, update_skeletons, EmptySkeletonBuffer},
+        skeleton::{skeleton_added, update_skeletons, RenderSkeletonComponent, SkinUniforms},
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, SkeletonLayout},
@@ -224,9 +224,10 @@ impl Plugin for RenderPlugin {
         let skeleton_layout = SkeletonLayout::new(&device);
 
         app.register_component_lifecycle::<RenderEntity>();
+        app.register_component_lifecycle::<RenderSkeletonComponent>();
 
         let render_lights = RenderLights::new(&device, &light_layout);
-        let empty_skeleton_buffer = EmptySkeletonBuffer::new(&device, &skeleton_layout);
+        let skin_uniforms = SkinUniforms::new(&device, &skeleton_layout, &queue);
 
         app.insert_resource(DummyRenderTexture::new(&device))
             .insert_resource(RenderContext {
@@ -243,7 +244,7 @@ impl Plugin for RenderPlugin {
             .insert_resource(light_layout)
             .insert_resource(skeleton_layout)
             .insert_resource(render_lights)
-            .insert_resource(empty_skeleton_buffer)
+            .insert_resource(skin_uniforms)
             .insert_resource(WorldEnvironment::new(LinearRgba::new(0.1, 0.1, 0.1, 0.1)));
     }
 }

@@ -257,9 +257,9 @@ impl AnimationGraphInstance {
         bone_ids: &[Uuid],
         pool: &mut PosePool,
         output_pose: &mut Pose,
-    ) {
+    ) -> bool {
         let Some(graph) = self.get_animation_graph(context) else {
-            return;
+            return false;
         };
 
         let mut graph_evaluator = AnimationGraphEvaluator::new();
@@ -309,6 +309,7 @@ impl AnimationGraphInstance {
 
         std::mem::swap(output_pose, &mut result);
         pool.release(result);
+        true
     }
 
     pub(crate) fn get_animation_graph<'a>(

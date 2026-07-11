@@ -616,6 +616,8 @@ pub(crate) fn spawn_gltf_components(
 
             // Insert MeshComponents and AnimationPlayers
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
+                let mut extra_primitive_entities = Vec::new();
+
                 if let Some(gltf_mesh_index) = gltf_node.mesh {
                     let gltf_mesh = &asset.meshes[gltf_mesh_index];
 
@@ -641,7 +643,7 @@ pub(crate) fn spawn_gltf_components(
 
                     for (mesh, material_index) in primitives {
                         if let Some(material_index) = material_index {
-                            let child = *cmd.spawn(gltf_node.transform.clone()).entity();
+                            let child = *cmd.spawn(Transform::default()).entity();
                             cmd.insert(
                                 MeshComponent {
                                     handle: mesh.clone(),
@@ -655,6 +657,7 @@ pub(crate) fn spawn_gltf_components(
                                 child,
                             );
                             cmd.add_child(node_entities[node_index], child);
+                            extra_primitive_entities.push(child);
                         }
                     }
                 }
@@ -673,6 +676,9 @@ pub(crate) fn spawn_gltf_components(
 
                     if let Some(root_bone_index) = gltf_skeleton.root_bone {
                         cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
+                    }
+                    for child in &extra_primitive_entities {
+                        cmd.insert(skeleton_component.clone(), *child);
                     }
                     cmd.insert(skeleton_component, node_entities[node_index]);
                     cmd.insert(

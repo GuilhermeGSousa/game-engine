@@ -18,7 +18,7 @@ use crate::{
         material::{MaterialComponent, RenderMaterialComponent},
         mesh::RenderMeshInstance,
         render_entity::RenderEntity,
-        skeleton::{EmptySkeletonBuffer, RenderSkeletonComponent},
+        skeleton::{RenderSkeletonComponent, SkinUniforms},
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, SkeletonLayout},
@@ -221,7 +221,7 @@ pub(crate) fn material_renderpass<M: Material>(
     render_materials: Res<RenderAssets<RenderMaterial<M>>>,
     render_window: Res<RenderWindow>,
     render_lights: Res<RenderLights>,
-    empty_skeleton: Res<EmptySkeletonBuffer>,
+    skins: Res<SkinUniforms>,
 ) {
     let encoder = device.command_encoder();
 
@@ -287,11 +287,8 @@ pub(crate) fn material_renderpass<M: Material>(
                 }
 
                 if M::needs_skeleton() {
-                    if let Some(sk) = skeleton {
-                        render_pass.set_bind_group(3, &sk.skeleton_bind_group, &[]);
-                    } else {
-                        render_pass.set_bind_group(3, &**empty_skeleton, &[]);
-                    }
+                    let offset = skeleton.map_or(0, |sk| sk.offset);
+                    render_pass.set_bind_group(3, skins.bind_group(), &[offset]);
                 }
 
                 render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));

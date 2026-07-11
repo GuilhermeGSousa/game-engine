@@ -282,11 +282,9 @@ fn suppressed_insert_does_not_fire_callbacks() {
 
     let entity = world.spawn((Quiet, Value(1)));
 
-    assert!(
-        world
-            .get_component_for_entity::<Companion>(entity)
-            .is_some()
-    );
+    assert!(world
+        .get_component_for_entity::<Companion>(entity)
+        .is_some());
     let log = world.get_resource::<CompanionLog>().unwrap();
     assert_eq!(
         log.adds, 0,
@@ -309,7 +307,11 @@ fn on_remove_removing_a_sibling_component_during_despawn() {
     // another archetype while despawn is in flight.
     world.despawn(doomed);
 
-    assert_eq!(value_of(&world, doomed), None, "doomed entity should be gone");
+    assert_eq!(
+        value_of(&world, doomed),
+        None,
+        "doomed entity should be gone"
+    );
     assert_eq!(
         value_of(&world, survivor),
         Some(2),

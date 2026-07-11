@@ -13,10 +13,7 @@ use color::LinearRgba;
 use game_engine::{
     app::App,
     ecs::{
-        command::CommandQueue,
-        component::Component,
-        query::Query,
-        resource::Res,
+        command::CommandQueue, component::Component, query::Query, resource::Res,
         system::schedule::UpdateGroup,
     },
     essential::{

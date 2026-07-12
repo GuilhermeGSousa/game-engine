@@ -82,8 +82,8 @@ Then connect the Tracy server (GUI) to the running process. Install a Tracy
 release that matches the `tracy-client-sys` protocol version in use — check
 `cargo tree -p tracy-client-sys` and the compatibility table in the
 [tracy-client README](https://github.com/nagisa/rust_tracy_client). At the
-time of writing the workspace resolves `tracy-client-sys` 0.28, which speaks
-the Tracy **0.12.x** protocol.
+time of writing the workspace resolves `tracy-client-sys` 0.28.0, which
+matches Tracy **v0.13.1**.
 
 What you should see:
 

@@ -167,28 +167,29 @@ impl AssetServer {
         // No profiling scope around the async body: a scope guard must not be
         // held across .await (tasks can migrate between worker threads).
         // Load costs show up on the named "asset-load-N" threads instead.
-        let task = LoadTaskPool::get_or_init(|| TaskPool::with_name("asset-load")).spawn(async move {
-            let log_path = path.clone();
-            let asset = asset_loader
-                .load(path, &mut AssetLoadContext::new(server), usage_settings)
-                .await;
-            match asset {
-                Ok(asset) => {
-                    sender
-                        .send(AssetLoadEvent::Loaded(LoadedAsset::new(id, asset)))
-                        .unwrap();
+        let task =
+            LoadTaskPool::get_or_init(|| TaskPool::with_name("asset-load")).spawn(async move {
+                let log_path = path.clone();
+                let asset = asset_loader
+                    .load(path, &mut AssetLoadContext::new(server), usage_settings)
+                    .await;
+                match asset {
+                    Ok(asset) => {
+                        sender
+                            .send(AssetLoadEvent::Loaded(LoadedAsset::new(id, asset)))
+                            .unwrap();
+                    }
+                    Err(error) => {
+                        log::error!(
+                            "Failed to load asset '{}' (type {}): {:#}",
+                            log_path.to_path().display(),
+                            std::any::type_name::<A>(),
+                            error
+                        );
+                        sender.send(AssetLoadEvent::LoadFailed(id)).unwrap();
+                    }
                 }
-                Err(error) => {
-                    log::error!(
-                        "Failed to load asset '{}' (type {}): {:#}",
-                        log_path.to_path().display(),
-                        std::any::type_name::<A>(),
-                        error
-                    );
-                    sender.send(AssetLoadEvent::LoadFailed(id)).unwrap();
-                }
-            }
-        });
+            });
 
         self.data.pending_tasks.write().unwrap().insert(id, task);
     }

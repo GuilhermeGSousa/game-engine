@@ -85,7 +85,11 @@ impl FrameStats {
     /// Average frames per second over the window.
     pub fn fps(&self) -> f32 {
         let avg = self.average_ms();
-        if avg <= 0.0 { 0.0 } else { 1000.0 / avg }
+        if avg <= 0.0 {
+            0.0
+        } else {
+            1000.0 / avg
+        }
     }
 }
 

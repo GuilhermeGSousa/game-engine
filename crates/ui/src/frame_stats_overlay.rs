@@ -1,12 +1,12 @@
 use app::plugins::Plugin;
+use color::LinearRgba;
 use ecs::{
     command::CommandQueue,
     component::Component,
-    query::{query_filter::With, Query},
+    query::{Query, query_filter::With},
     resource::{Res, ResMut, Resource},
     system::schedule::UpdateGroup,
 };
-use color::LinearRgba;
 use essential::time::{FrameStats, Time};
 
 use crate::{

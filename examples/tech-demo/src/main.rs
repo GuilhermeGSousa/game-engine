@@ -3,6 +3,7 @@ use game_engine::{
     app::App,
     ecs::system::schedule::UpdateGroup::{self, Startup},
     gameplay::movement::first_person_player_fly,
+    ui::frame_stats_overlay::FrameStatsOverlayPlugin,
 };
 
 use crate::{
@@ -19,7 +20,8 @@ fn main() {
         .expect("Failed to set working directory");
 
     let mut app = App::new();
-    app.register_plugin(DefaultPlugins::default());
+    app.register_plugin(DefaultPlugins::default())
+        .register_plugin(FrameStatsOverlayPlugin);
 
     app.add_system(Startup, spawn_character)
         .add_system(Startup, spawn_scene)

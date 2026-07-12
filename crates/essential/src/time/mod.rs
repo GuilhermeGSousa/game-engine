@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use ecs::resource::Resource;
 
+mod frame_stats;
 mod instant;
+
+pub use frame_stats::FrameStats;
 
 use crate::time::instant::Instant;
 

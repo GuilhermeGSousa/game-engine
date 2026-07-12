@@ -1,5 +1,6 @@
 pub mod checkbox;
 pub mod focus;
+pub mod frame_stats_overlay;
 pub mod interaction;
 pub mod material;
 pub mod node;

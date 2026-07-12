@@ -75,6 +75,8 @@ impl HasWindowHandle for Window {
 pub struct WindowPlugin;
 
 fn winit_runner(mut app: App, event_loop: EventLoop<()>) -> AppExit {
+    profiling::register_thread!("main");
+
     if app.plugin_state() == PluginsState::Ready {
         app.finish_plugin_build();
     }

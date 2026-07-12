@@ -11,6 +11,7 @@ multithreaded = ["ecs/multithreaded"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+profiling = "1"
 ecs = { path = "../ecs" }
 essential = { path = "../essential" }
 getrandom = { version = "0.2", features = ["js"] }

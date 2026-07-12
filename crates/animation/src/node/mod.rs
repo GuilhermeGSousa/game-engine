@@ -12,6 +12,14 @@ use crate::{
 pub mod blend_space;
 pub mod state_machine;
 
+#[derive(Default)]
+
+pub enum AnimationPlayMode {
+    #[default]
+    Loop,
+    PlayOnce,
+}
+
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
     fn reset(&mut self);
 
@@ -170,6 +178,10 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
+        if self.is_finished {
+            self.is_finished = false;
+        }
+
         if self.is_paused {
             return;
         }
@@ -182,15 +194,21 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
             return;
         };
 
-        if self.is_finished && self.time == 0.0 {
-            self.is_finished = false;
-        }
-
         self.time += delta_time * self.play_rate;
 
-        if self.time > clip.duration() {
-            self.time = 0.0;
-            self.is_finished = true;
+        match clip_node.play_mode {
+            AnimationPlayMode::Loop => {
+                if self.time > clip.duration() {
+                    self.time = 0.0;
+                    self.is_finished = true;
+                }
+            }
+            AnimationPlayMode::PlayOnce => {
+                if self.time > clip.duration() {
+                    self.is_paused = true;
+                    self.is_finished = true;
+                }
+            }
         }
     }
 
@@ -202,11 +220,12 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 #[derive(AsAny)]
 pub struct AnimationClipNode {
     clip: AssetHandle<AnimationClip>,
+    play_mode: AnimationPlayMode,
 }
 
 impl AnimationClipNode {
-    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
-        Self { clip }
+    pub fn new(clip: AssetHandle<AnimationClip>, play_mode: AnimationPlayMode) -> Self {
+        Self { clip, play_mode }
     }
 }
 

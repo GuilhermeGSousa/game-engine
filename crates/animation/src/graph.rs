@@ -14,7 +14,9 @@ use crate::{
     clip::AnimationClip,
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     node::{
-        AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationResultNode,
+        AnimationClipNode, AnimationNode, AnimationNodeInstance,
+        AnimationPlayMode::{self, Loop},
+        AnimationResultNode,
         blend_space::BlendSpace2DBuilderContext,
     },
     player::ActiveNodeInstance,
@@ -57,11 +59,15 @@ impl AnimationGraph {
         }
     }
 
-    pub fn from_clip(clip: AssetHandle<AnimationClip>) -> Self {
+    pub fn from_clip(clip: AssetHandle<AnimationClip>, play_mode: AnimationPlayMode) -> Self {
         let mut graph = Self::new();
         let result_node_index = graph.result_node().index();
-        graph.add_node(AnimationClipNode::new(clip), result_node_index);
+        graph.add_node(AnimationClipNode::new(clip, play_mode), result_node_index);
         graph
+    }
+
+    pub fn from_looping_clip(clip: AssetHandle<AnimationClip>) -> Self {
+        Self::from_clip(clip, Loop)
     }
 
     pub fn add_node<T: AnimationNode + 'static>(

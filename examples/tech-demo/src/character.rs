@@ -1,4 +1,5 @@
 use game_engine::animation::graph::AnimationGraph;
+use game_engine::animation::node::AnimationPlayMode::PlayOnce;
 use game_engine::animation::node::state_machine::{AnimationFSMTrigger, AnimationStateMachine};
 use game_engine::animation::player::{AnimationHandleComponent, AnimationPlayer};
 use game_engine::ecs::{Entity, Query, With, Without};
@@ -178,14 +179,21 @@ pub(crate) fn setup_character_animations(
         )
         .state(
             "jump_start",
-            server.add(AnimationGraph::from_clip(jump_start)),
+            server.add(AnimationGraph::from_clip(jump_start, PlayOnce)),
             |transition| {
                 transition.to("air", AnimationFSMTrigger::OnAnimationEnd, 0.1);
             },
         )
         .state(
             "air",
-            server.add(AnimationGraph::from_clip(jump_loop)),
+            server.add(AnimationGraph::from_looping_clip(jump_loop)),
+            |transition| {
+                transition.to("land", AnimationFSMTrigger::on_bool("on_ground", true), 0.1);
+            },
+        )
+        .state(
+            "land",
+            server.add(AnimationGraph::from_clip(jump_land, PlayOnce)),
             |_transition| {},
         )
         .build(),

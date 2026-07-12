@@ -1,6 +1,17 @@
 [profile.release]
 strip = true
 
+# Release-speed build that keeps debug symbols, for profilers (samply, perf,
+# flamegraph, Tracy). Usage: cargo run --profile profiling -p render-test
+# See docs/profiling.md.
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false
+
+[profile.profiling.package.jolt-ffi]
+debug = true
+
 [package]
 name = "game-engine"
 version = "0.1.0"
@@ -9,6 +20,9 @@ edition = "2021"
 [features]
 default = ["multithreaded"]
 multithreaded = ["app/multithreaded"]
+# Enables the Tracy backend for all `profiling` spans (engine + wgpu
+# internals). Native only — never enable for wasm builds.
+tracy = ["profiling/profile-with-tracy"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -20,6 +34,7 @@ members = ["crates/*", "examples/*"]
 warnings = "deny"
 
 [dependencies]
+profiling = "1"
 app = { path = "crates/app" }
 animation = { path = "crates/animation" }
 essential = { path = "crates/essential" }

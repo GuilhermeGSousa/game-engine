@@ -10,12 +10,12 @@ fn manifest_dir() -> PathBuf {
 }
 
 fn get_output_path() -> PathBuf {
-    let build_type = env::var("PROFILE").unwrap();
-    manifest_dir()
-        .join("..")
-        .join("..")
-        .join("target")
-        .join(build_type)
+    // The PROFILE env var only ever reports "debug" or "release", which is
+    // wrong for custom profiles (e.g. --profile profiling). OUT_DIR is
+    // target/<profile>/build/<pkg>-<hash>/out, so the profile directory is
+    // three levels up.
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    out_dir.ancestors().nth(3).unwrap().to_path_buf()
 }
 
 fn main() -> anyhow::Result<()> {

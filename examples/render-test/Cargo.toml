@@ -8,6 +8,7 @@ name = "render-test"
 path = "src/main.rs"
 
 [features]
+tracy = ["game-engine/tracy"]
 terminal = ["dep:terminal-renderer", "dep:ratatui"]
 
 [dependencies]

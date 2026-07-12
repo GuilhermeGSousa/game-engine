@@ -8,9 +8,15 @@ pub fn step_simulation(
     mut pipeline: ResMut<PhysicsPipeline>,
     mut state: ResMut<PhysicsState>,
 ) {
-    pipeline.step(&mut state);
+    {
+        profiling::scope!("jolt::step");
+        pipeline.step(&mut state);
+    }
 
-    for (body_id, mut transform) in query.iter() {
-        **transform = state.body_transform(*body_id);
+    {
+        profiling::scope!("jolt::write_back_transforms");
+        for (body_id, mut transform) in query.iter() {
+            **transform = state.body_transform(*body_id);
+        }
     }
 }

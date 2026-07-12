@@ -61,7 +61,7 @@ impl SystemExecutor for MultiThreadedExecutor {
         self.dependency_count
             .clone_from(&compiled_data.dependency_count);
 
-        ComputeTaskPool::get_or_init(TaskPool::new).scope(|scope| {
+        ComputeTaskPool::get_or_init(|| TaskPool::with_name("compute")).scope(|scope| {
             while !self.pending_systems.is_clear() || !self.running_systems.is_clear() {
                 self.update_ready_systems();
 
@@ -70,8 +70,11 @@ impl SystemExecutor for MultiThreadedExecutor {
                     let sys = unsafe { &mut *systems[ready_system_idx].get() };
                     let queue = &queue;
                     scope.spawn(async move {
-                        unsafe {
-                            sys.run_unsafe(world_cell);
+                        {
+                            profiling::scope!("system", sys.name());
+                            unsafe {
+                                sys.run_unsafe(world_cell);
+                            }
                         }
                         queue
                             .push(ready_system_idx)
@@ -95,6 +98,7 @@ impl SystemExecutor for MultiThreadedExecutor {
                     }
                 }
                 if apply_deferred {
+                    profiling::scope!("apply_deferred");
                     for unapplied_system in self.unapplied_systems.ones() {
                         let sys = unsafe { &mut *systems[unapplied_system].get() };
                         sys.apply(world_cell.world_mut());

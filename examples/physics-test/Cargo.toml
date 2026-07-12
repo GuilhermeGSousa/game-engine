@@ -3,6 +3,9 @@ name = "physics-test"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+tracy = ["game-engine/tracy"]
+
 [[bin]]
 name = "physics-test"
 path = "src/main.rs"

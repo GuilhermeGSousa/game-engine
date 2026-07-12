@@ -168,6 +168,12 @@ pub(crate) struct AnimationGraphInstance {
 }
 
 impl AnimationGraphInstance {
+    pub(crate) fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32) {
+        if let Some(active_anim) = self.graph_state.get_mut(node_index) {
+            active_anim.weight = weight;
+        }
+    }
+
     pub(crate) fn get_active_node_instance(
         &self,
         node_index: &AnimationNodeIndex,
@@ -192,12 +198,6 @@ impl AnimationGraphInstance {
         self.graph_state
             .get_mut(node_index)
             .and_then(|node_state| node_state.node_instance.as_any_mut().downcast_mut::<T>())
-    }
-
-    pub fn set_node_weight(&mut self, node_index: &AnimationNodeIndex, weight: f32) {
-        if let Some(active_anim) = self.graph_state.get_mut(node_index) {
-            active_anim.weight = weight;
-        }
     }
 
     pub(crate) fn initialize(
@@ -319,6 +319,12 @@ impl AnimationGraphInstance {
         self.graph_handle
             .as_ref()
             .and_then(move |handle| context.animation_graphs().get(handle))
+    }
+
+    pub(crate) fn is_finished(&self) -> bool {
+        self.graph_state
+            .values()
+            .all(|val| val.node_instance.is_finished())
     }
 }
 

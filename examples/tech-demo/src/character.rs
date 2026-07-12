@@ -1,5 +1,5 @@
 use game_engine::animation::graph::AnimationGraph;
-use game_engine::animation::node::state_machine::AnimationStateMachine;
+use game_engine::animation::node::state_machine::{AnimationFSMTrigger, AnimationStateMachine};
 use game_engine::animation::player::{AnimationHandleComponent, AnimationPlayer};
 use game_engine::ecs::{Entity, Query, With, Without};
 use game_engine::essential::transform::Transform;
@@ -101,6 +101,9 @@ pub(crate) fn setup_character_animations(
         Some(jog_bw),
         Some(job_bw_l),
         Some(job_bw_r),
+        Some(jump_start),
+        Some(jump_loop),
+        Some(jump_land),
     ) = (
         gltf_char
             .get_animation("Idle_Loop")
@@ -129,6 +132,15 @@ pub(crate) fn setup_character_animations(
         gltf_char
             .get_animation("Jog_Bwd_R_Loop")
             .map(|anim| anim.handle()),
+        gltf_char
+            .get_animation("Jump_Start")
+            .map(|anim| anim.handle()),
+        gltf_char
+            .get_animation("Jump_Loop")
+            .map(|anim| anim.handle()),
+        gltf_char
+            .get_animation("Jump_Land")
+            .map(|anim| anim.handle()),
     )
     else {
         return;
@@ -156,6 +168,24 @@ pub(crate) fn setup_character_animations(
         AnimationStateMachine::from_initial_state(
             "movement",
             server.add(movement_graph),
+            |transition| {
+                transition.to(
+                    "jump_start",
+                    AnimationFSMTrigger::on_bool("jumped", true),
+                    0.1,
+                );
+            },
+        )
+        .state(
+            "jump_start",
+            server.add(AnimationGraph::from_clip(jump_start)),
+            |transition| {
+                transition.to("air", AnimationFSMTrigger::OnAnimationEnd, 0.1);
+            },
+        )
+        .state(
+            "air",
+            server.add(AnimationGraph::from_clip(jump_loop)),
             |_transition| {},
         )
         .build(),
@@ -199,6 +229,11 @@ pub(crate) fn update_movement(
         };
 
         let current_vel = movement.current_velocity();
+
+        animation_player.set_bool_param(
+            "jumped",
+            input.is_just_pressed(PhysicalKey::Code(KeyCode::Space)),
+        );
 
         animation_player.set_vec2_param(
             "movement",

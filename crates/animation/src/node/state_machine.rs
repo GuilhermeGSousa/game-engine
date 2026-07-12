@@ -26,6 +26,7 @@ pub(crate) struct AnimationFSMState {
 
 pub enum AnimationFSMTrigger {
     Instant,
+    OnAnimationEnd,
     Condition(Arc<dyn Fn(&AnimationBlackboard) -> bool + Send + Sync>),
 }
 
@@ -207,6 +208,20 @@ impl AnimationStateMachineInstance {
             .map(String::as_str)
             .unwrap_or("")
     }
+
+    fn transition(
+        &mut self,
+        context: &AnimationGraphContext<'_>,
+        transition: &AnimationStateMachineTransition,
+    ) {
+        self.current_state = transition.next_state;
+        self.blend_stack.transition(
+            transition.next_state.as_graph_id(),
+            &self.state_graph_instances,
+            transition.transition_time,
+            context,
+        );
+    }
 }
 
 impl AnimationNodeInstance for AnimationStateMachineInstance {
@@ -229,24 +244,22 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
-                    self.current_state = transition.next_state;
-                    self.blend_stack.transition(
-                        transition.next_state.as_graph_id(),
-                        &self.state_graph_instances,
-                        transition.transition_time,
-                        context,
-                    );
+                    self.transition(context, transition);
                     return;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(context.blackboard()) {
-                        self.current_state = transition.next_state;
-                        self.blend_stack.transition(
-                            transition.next_state.as_graph_id(),
-                            &self.state_graph_instances,
-                            transition.transition_time,
-                            context,
-                        );
+                        self.transition(context, transition);
+                        return;
+                    }
+                }
+                AnimationFSMTrigger::OnAnimationEnd => {
+                    if self
+                        .state_graph_instances
+                        .get(self.current_state.as_graph_id())
+                        .is_some_and(|current_graph| current_graph.is_finished())
+                    {
+                        self.transition(context, transition);
                         return;
                     }
                 }

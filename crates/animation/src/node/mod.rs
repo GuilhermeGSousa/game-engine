@@ -31,6 +31,10 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     );
+
+    fn is_finished(&self) -> bool {
+        true
+    }
 }
 
 pub trait AnimationNode: AsAny + Sync + Send {
@@ -88,6 +92,7 @@ pub struct AnimationClipNodeInstance {
     time: f32,
     is_paused: bool,
     play_rate: f32,
+    is_finished: bool,
 }
 
 impl AnimationClipNodeInstance {
@@ -96,12 +101,14 @@ impl AnimationClipNodeInstance {
             time: 0.0,
             is_paused: false,
             play_rate: 1.0,
+            is_finished: false,
         }
     }
 
     pub fn play(&mut self) {
         self.time = 0.0;
         self.is_paused = false;
+        self.is_finished = false;
     }
 
     pub fn current_time(&self) -> f32 {
@@ -118,6 +125,7 @@ impl Default for AnimationClipNodeInstance {
 impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn reset(&mut self) {
         self.time = 0.0;
+        self.is_finished = false;
     }
 
     fn evaluate(
@@ -174,11 +182,20 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
             return;
         };
 
+        if self.is_finished && self.time == 0.0 {
+            self.is_finished = false;
+        }
+
         self.time += delta_time * self.play_rate;
 
         if self.time > clip.duration() {
             self.time = 0.0;
+            self.is_finished = true;
         }
+    }
+
+    fn is_finished(&self) -> bool {
+        self.is_finished
     }
 }
 

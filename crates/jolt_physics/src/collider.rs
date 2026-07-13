@@ -43,6 +43,18 @@ impl Collider {
             radius,
         }
     }
+
+    /// Distance from the shape's center to its lowest point.
+    pub fn bottom_offset(&self) -> f32 {
+        match self {
+            Collider::Sphere { radius } => *radius,
+            Collider::Cuboid { half_extents } => half_extents.y,
+            Collider::Capsule {
+                half_height,
+                radius,
+            } => half_height + radius,
+        }
+    }
 }
 
 /// Local offset of the collider's geometry relative to the entity origin.
@@ -55,15 +67,7 @@ impl ColliderOffset {
     /// standing character whose transform (and skeleton root) sits at the
     /// feet.
     pub fn bottom_origin(collider: &Collider) -> Self {
-        let lift = match collider {
-            Collider::Sphere { radius } => *radius,
-            Collider::Cuboid { half_extents } => half_extents.y,
-            Collider::Capsule {
-                half_height,
-                radius,
-            } => half_height + radius,
-        };
-        Self(Vec3::Y * lift)
+        Self(Vec3::Y * collider.bottom_offset())
     }
 }
 

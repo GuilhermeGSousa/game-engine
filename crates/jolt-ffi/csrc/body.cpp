@@ -286,4 +286,38 @@ extern "C"
 		out_rotation[3] = rotation.GetW();
 	}
 
+	void jolt_body_add_impulse(JoltWorld *world, JoltBodyId body, float impulse[3])
+	{
+		JPH::BodyInterface &bi = world->system.GetBodyInterface();
+
+		bi.AddImpulse(JPH::BodyID(body), JPH::Vec3Arg(impulse[0], impulse[1], impulse[2]));
+	}
+
+	void jolt_body_add_impulse_at(JoltWorld *world, JoltBodyId body, float impulse[3], float position[3])
+	{
+		JPH::BodyInterface &bi = world->system.GetBodyInterface();
+
+		bi.AddImpulse(
+			JPH::BodyID(body),
+			JPH::Vec3Arg(impulse[0], impulse[1], impulse[2]),
+			JPH::RVec3Arg(position[0], position[1], position[2]));
+	}
+
+	void jolt_body_add_force(JoltWorld *world, JoltBodyId body, float force[3])
+	{
+		JPH::BodyInterface &bi = world->system.GetBodyInterface();
+
+		bi.AddForce(JPH::BodyID(body), JPH::Vec3Arg(force[0], force[1], force[2]));
+	}
+
+	void jolt_body_add_force_at(JoltWorld *world, JoltBodyId body, float force[3], float position[3])
+	{
+		JPH::BodyInterface &bi = world->system.GetBodyInterface();
+
+		bi.AddForce(
+			JPH::BodyID(body),
+			JPH::Vec3Arg(force[0], force[1], force[2]),
+			JPH::RVec3Arg(position[0], position[1], position[2]));
+	}
+
 } // extern "C"

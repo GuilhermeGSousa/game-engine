@@ -134,6 +134,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn reset(&mut self) {
         self.time = 0.0;
         self.is_finished = false;
+        self.is_paused = false;
     }
 
     fn evaluate(
@@ -178,6 +179,10 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
+        let Some(clip_node) = node.as_any().downcast_ref::<AnimationClipNode>() else {
+            return;
+        };
+
         if self.is_finished {
             self.is_finished = false;
         }
@@ -185,10 +190,6 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         if self.is_paused {
             return;
         }
-
-        let Some(clip_node) = node.as_any().downcast_ref::<AnimationClipNode>() else {
-            return;
-        };
 
         let Some(clip) = context.animation_clips.get(&clip_node.clip) else {
             return;

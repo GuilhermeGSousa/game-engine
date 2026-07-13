@@ -72,16 +72,31 @@ impl AnimationTransitionBlender for BlendStack {
             graph_instance.update(delta_time, context);
             entry.weight = (entry.weight + entry.fade_speed * delta_time).min(1.0);
 
-            if entry.weight >= 1.0 {
-                if let Some(graph_instance) = graph_instances.get_mut(self.current_graph) {
-                    graph_instance.reset();
-                }
-                self.current_graph = entry.graph_id;
-                false
-            } else {
-                true
-            }
+            true
         });
+
+        let Some(completed) = self.layers.iter().rposition(|entry| entry.weight >= 1.0) else {
+            return;
+        };
+
+        let next_graph = self.layers[completed].graph_id;
+        let superseded = self
+            .layers
+            .drain(..=completed)
+            .map(|entry| entry.graph_id)
+            .chain(std::iter::once(self.current_graph));
+
+        for graph_id in superseded {
+            if *graph_id == *next_graph {
+                continue;
+            }
+
+            if let Some(graph_instance) = graph_instances.get_mut(graph_id) {
+                graph_instance.reset();
+            }
+        }
+
+        self.current_graph = next_graph;
     }
 
     fn transition(

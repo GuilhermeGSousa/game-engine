@@ -245,12 +245,12 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
                     self.transition(context, transition);
-                    return;
+                    break;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(context.blackboard()) {
                         self.transition(context, transition);
-                        return;
+                        break;
                     }
                 }
                 AnimationFSMTrigger::OnAnimationEnd => {
@@ -260,7 +260,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
                         .is_some_and(|current_graph| current_graph.is_finished())
                     {
                         self.transition(context, transition);
-                        return;
+                        break;
                     }
                 }
             }

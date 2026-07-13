@@ -199,7 +199,7 @@ pub(crate) fn setup_character_animations(
                 transition.to(
                     "land",
                     AnimationFSMTrigger::on_bool("is_grounded", true),
-                    0.01,
+                    0.1,
                 );
             },
         )

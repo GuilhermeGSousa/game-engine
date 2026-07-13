@@ -98,6 +98,7 @@ impl AnimationNode for AnimationResultNode {
 #[derive(AsAny)]
 pub struct AnimationClipNodeInstance {
     time: f32,
+    start_time: f32,
     is_paused: bool,
     play_rate: f32,
     is_finished: bool,
@@ -107,14 +108,21 @@ impl AnimationClipNodeInstance {
     pub fn new() -> Self {
         Self {
             time: 0.0,
+            start_time: 0.0,
             is_paused: false,
             play_rate: 1.0,
             is_finished: false,
         }
     }
 
+    pub fn with_start_time(mut self, start_time: f32) -> Self {
+        self.start_time = start_time;
+        self.time = start_time;
+        self
+    }
+
     pub fn play(&mut self) {
-        self.time = 0.0;
+        self.time = self.start_time;
         self.is_paused = false;
         self.is_finished = false;
     }
@@ -132,7 +140,7 @@ impl Default for AnimationClipNodeInstance {
 
 impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn reset(&mut self) {
-        self.time = 0.0;
+        self.time = self.start_time;
         self.is_finished = false;
         self.is_paused = false;
     }
@@ -200,7 +208,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         match clip_node.play_mode {
             AnimationPlayMode::Loop => {
                 if self.time > clip.duration() {
-                    self.time = 0.0;
+                    self.time = self.start_time;
                     self.is_finished = true;
                 }
             }
@@ -222,11 +230,26 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 pub struct AnimationClipNode {
     clip: AssetHandle<AnimationClip>,
     play_mode: AnimationPlayMode,
+    start_time: f32,
 }
 
 impl AnimationClipNode {
-    pub fn new(clip: AssetHandle<AnimationClip>, play_mode: AnimationPlayMode) -> Self {
-        Self { clip, play_mode }
+    pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
+        Self {
+            clip,
+            play_mode: AnimationPlayMode::Loop,
+            start_time: 0.0,
+        }
+    }
+
+    pub fn with_start_time(mut self, start_time: f32) -> Self {
+        self.start_time = start_time;
+        self
+    }
+
+    pub fn with_play_mode(mut self, play_mode: AnimationPlayMode) -> Self {
+        self.play_mode = play_mode;
+        self
     }
 }
 
@@ -235,7 +258,7 @@ impl AnimationNode for AnimationClipNode {
         &self,
         _creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
-        Box::new(AnimationClipNodeInstance::new())
+        Box::new(AnimationClipNodeInstance::new().with_start_time(self.start_time))
     }
 }
 

@@ -12,7 +12,7 @@ use crate::{
     blackboard::AnimationBlackboard,
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeContext, AnimationNodeIndex},
-    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance, AnimationPlayMode::Loop},
+    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance},
 };
 
 #[derive(AsAny)]
@@ -156,8 +156,7 @@ impl<'a> BlendSpace2DBuilderContext<'a> {
         point: Vec2,
     ) -> &mut Self {
         self.points.push(point);
-        self.nodes
-            .push(Box::new(AnimationClipNode::new(clip, Loop)));
+        self.nodes.push(Box::new(AnimationClipNode::new(clip)));
         self
     }
 }

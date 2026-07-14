@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::f32::EPSILON;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::blackboard::AnimationBlackboard;
@@ -43,8 +44,16 @@ impl AnimationFSMTrigger {
         AnimationFSMTrigger::from_condition(move |blackboard| {
             blackboard
                 .get_bool(&param_name)
-                .map(|v| v == cond)
-                .unwrap_or(false)
+                .map_or(false, |v| v == cond)
+        })
+    }
+
+    pub fn on_non_zero_vec(param_name: impl Into<String>) -> Self {
+        let param_name = param_name.into();
+        AnimationFSMTrigger::from_condition(move |blackboard| {
+            blackboard
+                .get_vec2(&param_name)
+                .map_or(false, |val| val.length_squared() > EPSILON)
         })
     }
 }

@@ -9,10 +9,12 @@ use game_engine::{
 use crate::{
     character::{setup_character_animations, spawn_character, update_movement},
     scene::spawn_scene,
+    ui::{spawn_grounded_overlay, update_grounded_overlay},
 };
 
 mod character;
 mod scene;
+mod ui;
 
 fn main() {
     cfg_if::cfg_if! {
@@ -34,9 +36,11 @@ fn main() {
 
     app.add_system(Startup, spawn_character)
         .add_system(Startup, spawn_scene)
+        .add_system(Startup, spawn_grounded_overlay)
         .add_system(UpdateGroup::Update, setup_character_animations)
         .add_system(UpdateGroup::Update, first_person_player_fly)
-        .add_system(UpdateGroup::Update, update_movement);
+        .add_system(UpdateGroup::Update, update_movement)
+        .add_system(UpdateGroup::Update, update_grounded_overlay);
 
     app.run();
 }

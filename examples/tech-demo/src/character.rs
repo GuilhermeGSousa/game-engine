@@ -176,11 +176,17 @@ pub(crate) fn setup_character_animations(
             "movement",
             server.add(movement_graph),
             |transition| {
-                transition.to(
-                    "jump_start",
-                    AnimationFSMTrigger::on_bool("jumped", true),
-                    0.01,
-                );
+                transition
+                    .to(
+                        "jump_start",
+                        AnimationFSMTrigger::on_bool("jumped", true),
+                        0.01,
+                    )
+                    .to(
+                        "air",
+                        AnimationFSMTrigger::on_bool("is_grounded", false),
+                        0.1,
+                    );
             },
         )
         .state(
@@ -208,7 +214,7 @@ pub(crate) fn setup_character_animations(
             server.add(AnimationGraph::from_node(
                 AnimationClipNode::new(jump_land)
                     .with_play_mode(PlayOnce)
-                    .with_start_time(0.5),
+                    .with_start_time(0.1),
             )),
             |transition| {
                 transition
@@ -216,6 +222,11 @@ pub(crate) fn setup_character_animations(
                     .to(
                         "jump_start",
                         AnimationFSMTrigger::on_bool("jumped", true),
+                        0.1,
+                    )
+                    .to(
+                        "movement",
+                        AnimationFSMTrigger::on_non_zero_vec("movement"),
                         0.1,
                     );
             },
@@ -263,7 +274,16 @@ pub(crate) fn update_movement(
 
         let current_vel = movement.current_velocity();
 
-        let just_pressed_jump = input.is_just_pressed(PhysicalKey::Code(KeyCode::Space));
+        let just_pressed_jump = input.is_just_pressed(PhysicalKey::Code(KeyCode::Space)) || {
+            use std::sync::OnceLock;
+            use std::time::Instant;
+            static START: OnceLock<Instant> = OnceLock::new();
+            static FIRED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            let elapsed = START.get_or_init(Instant::now).elapsed().as_secs_f32();
+            elapsed > 3.0
+                && ground.is_grounded()
+                && !FIRED.swap(true, std::sync::atomic::Ordering::Relaxed)
+        };
         animation_player.set_bool_param("jumped", just_pressed_jump);
 
         animation_player.set_vec2_param(

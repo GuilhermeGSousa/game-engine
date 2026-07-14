@@ -274,16 +274,8 @@ pub(crate) fn update_movement(
 
         let current_vel = movement.current_velocity();
 
-        let just_pressed_jump = input.is_just_pressed(PhysicalKey::Code(KeyCode::Space)) || {
-            use std::sync::OnceLock;
-            use std::time::Instant;
-            static START: OnceLock<Instant> = OnceLock::new();
-            static FIRED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-            let elapsed = START.get_or_init(Instant::now).elapsed().as_secs_f32();
-            elapsed > 3.0
-                && ground.is_grounded()
-                && !FIRED.swap(true, std::sync::atomic::Ordering::Relaxed)
-        };
+        let just_pressed_jump = input.is_just_pressed(PhysicalKey::Code(KeyCode::Space));
+
         animation_player.set_bool_param("jumped", just_pressed_jump);
 
         animation_player.set_vec2_param(

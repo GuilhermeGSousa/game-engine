@@ -1,0 +1,147 @@
+use ecs::{query::Query, resource::Res, Component};
+use essential::{time::Time, transform::Transform};
+use glam::{Quat, Vec3};
+
+/// The last two fixed-step poses of a physics body.
+///
+/// Physics advances in [`Time::fixed_delta_time`] increments, so a body's raw
+/// pose only changes on frames where a fixed step ran — rendered directly it
+/// lurches forward once per step. `step_simulation` records the pose history
+/// here and [`interpolate_body_transforms`] blends between the two poses every
+/// frame, trading one fixed step of latency for smooth motion.
+///
+/// Inserted automatically alongside [`BodyId`](crate::body::BodyId) for
+/// non-static bodies.
+#[derive(Component, Clone, Copy)]
+pub struct TransformInterpolation {
+    prev_translation: Vec3,
+    prev_rotation: Quat,
+    curr_translation: Vec3,
+    curr_rotation: Quat,
+}
+
+impl TransformInterpolation {
+    pub(crate) fn from_transform(transform: &Transform) -> Self {
+        Self {
+            prev_translation: transform.translation,
+            prev_rotation: transform.rotation,
+            curr_translation: transform.translation,
+            curr_rotation: transform.rotation,
+        }
+    }
+
+    pub(crate) fn push(&mut self, transform: &Transform) {
+        self.prev_translation = self.curr_translation;
+        self.prev_rotation = self.curr_rotation;
+        self.curr_translation = transform.translation;
+        self.curr_rotation = transform.rotation;
+    }
+
+    pub(crate) fn sample(&self, alpha: f32) -> (Vec3, Quat) {
+        (
+            self.prev_translation.lerp(self.curr_translation, alpha),
+            self.prev_rotation.slerp(self.curr_rotation, alpha),
+        )
+    }
+}
+
+/// Writes the interpolated fixed-step pose into each body's [`Transform`] so
+/// frame-rate systems (transform propagation, rendering) see smooth motion
+/// instead of the raw once-per-step jumps.
+pub(crate) fn interpolate_body_transforms(
+    bodies: Query<(&TransformInterpolation, &mut Transform)>,
+    time: Res<Time>,
+) {
+    let alpha = time.fixed_alpha();
+    for (interpolation, mut transform) in bodies.iter() {
+        let (translation, rotation) = interpolation.sample(alpha);
+        transform.translation = translation;
+        transform.rotation = rotation;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ecs::system::executor::single_thread::SingleThreadedExecutor;
+    use ecs::system::schedule::Schedule;
+    use ecs::world::World;
+    use essential::{time::Time, transform::Transform};
+    use glam::Vec3;
+
+    use crate::collider::Collider;
+    use crate::physics_pipeline::PhysicsPipeline;
+    use crate::physics_state::PhysicsState;
+    use crate::rigid_body::RigidBody;
+    use crate::simulation::step_simulation;
+
+    use super::interpolate_body_transforms;
+
+    /// After a fixed step, the rendered Transform must sweep from the pre-step
+    /// pose to the post-step pose as the fixed-step overstep advances, instead
+    /// of jumping straight to the post-step pose.
+    #[test]
+    fn transform_blends_between_fixed_steps() {
+        let mut world = World::new();
+        world.register_component_lifetimes::<Collider>();
+        world.insert_resource(PhysicsState::new());
+        world.insert_resource(PhysicsPipeline::new());
+        world.insert_resource(Time::new());
+
+        let start = Vec3::new(0.0, 10.0, 0.0);
+        let sphere = world.spawn((
+            RigidBody::default(),
+            Collider::sphere(1.0),
+            Transform::from_translation_rotation(start, Default::default()),
+        ));
+
+        let mut step = Schedule::new();
+        step.add_system(step_simulation);
+        let mut step = step.compile::<SingleThreadedExecutor>();
+
+        let mut interpolate = Schedule::new();
+        interpolate.add_system(interpolate_body_transforms);
+        let mut interpolate = interpolate.compile::<SingleThreadedExecutor>();
+
+        step.run(&mut world);
+        let stepped_y = world
+            .get_component_for_entity::<Transform>(sphere)
+            .unwrap()
+            .translation
+            .y;
+        assert!(
+            stepped_y < start.y,
+            "sphere should have fallen during the fixed step"
+        );
+
+        let mut y_at = |overstep: f32| {
+            world
+                .get_resource_mut::<Time>()
+                .unwrap()
+                .set_fixed_overstep(overstep);
+            interpolate.run(&mut world);
+            world
+                .get_component_for_entity::<Transform>(sphere)
+                .unwrap()
+                .translation
+                .y
+        };
+
+        let y_start = y_at(0.0);
+        let y_mid = y_at(Time::fixed_delta_time() / 2.0);
+        let y_end = y_at(Time::fixed_delta_time());
+
+        assert!(
+            (y_start - start.y).abs() < 1e-6,
+            "at alpha 0 the transform should sit at the pre-step pose, was {y_start}"
+        );
+        assert!(
+            (y_end - stepped_y).abs() < 1e-6,
+            "at alpha 1 the transform should reach the post-step pose, was {y_end}"
+        );
+        let expected_mid = (start.y + stepped_y) / 2.0;
+        assert!(
+            (y_mid - expected_mid).abs() < 1e-6,
+            "at alpha 0.5 the transform should be halfway ({expected_mid}), was {y_mid}"
+        );
+    }
+}

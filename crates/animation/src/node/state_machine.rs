@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::f32::EPSILON;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::blackboard::AnimationBlackboard;
@@ -42,9 +41,7 @@ impl AnimationFSMTrigger {
     pub fn on_bool(param_name: impl Into<String>, cond: bool) -> Self {
         let param_name = param_name.into();
         AnimationFSMTrigger::from_condition(move |blackboard| {
-            blackboard
-                .get_bool(&param_name)
-                .map_or(false, |v| v == cond)
+            blackboard.get_bool(&param_name).is_some_and(|v| v == cond)
         })
     }
 
@@ -53,7 +50,7 @@ impl AnimationFSMTrigger {
         AnimationFSMTrigger::from_condition(move |blackboard| {
             blackboard
                 .get_vec2(&param_name)
-                .map_or(false, |val| val.length_squared() > EPSILON)
+                .is_some_and(|val| val.length_squared() > f32::EPSILON)
         })
     }
 }

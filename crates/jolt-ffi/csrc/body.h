@@ -138,6 +138,24 @@ extern "C"
                                  float out_position[3],
                                  float out_rotation[4]);
 
+    void jolt_body_add_impulse(JoltWorld *world,
+                               JoltBodyId body,
+                               float impulse[3]);
+
+    void jolt_body_add_impulse_at(JoltWorld *world,
+                                  JoltBodyId body,
+                                  float impulse[3],
+                                  float position[3]);
+
+    void jolt_body_add_force(JoltWorld *world,
+                             JoltBodyId body,
+                             float force[3]);
+
+    void jolt_body_add_force_at(JoltWorld *world,
+                                JoltBodyId body,
+                                float force[3],
+                                float position[3]);
+
 #ifdef __cplusplus
 }
 #endif

@@ -3,6 +3,7 @@ use essential::transform::Transform;
 use glam::Vec3;
 
 use crate::body::BodyId;
+use crate::interpolation::TransformInterpolation;
 use crate::physics_state::PhysicsState;
 use crate::rigid_body::RigidBody;
 
@@ -43,6 +44,18 @@ impl Collider {
             radius,
         }
     }
+
+    /// Distance from the shape's center to its lowest point.
+    pub fn bottom_offset(&self) -> f32 {
+        match self {
+            Collider::Sphere { radius } => *radius,
+            Collider::Cuboid { half_extents } => half_extents.y,
+            Collider::Capsule {
+                half_height,
+                radius,
+            } => half_height + radius,
+        }
+    }
 }
 
 /// Local offset of the collider's geometry relative to the entity origin.
@@ -55,15 +68,7 @@ impl ColliderOffset {
     /// standing character whose transform (and skeleton root) sits at the
     /// feet.
     pub fn bottom_origin(collider: &Collider) -> Self {
-        let lift = match collider {
-            Collider::Sphere { radius } => *radius,
-            Collider::Cuboid { half_extents } => half_extents.y,
-            Collider::Capsule {
-                half_height,
-                radius,
-            } => half_height + radius,
-        };
-        Self(Vec3::Y * lift)
+        Self(Vec3::Y * collider.bottom_offset())
     }
 }
 
@@ -94,6 +99,16 @@ impl Component for Collider {
             let body = state.create_body(collider, &transform, rigid_body, offset);
             state.register_body_entity(body, context.entity);
             world.insert_component(body, context.entity, false);
+
+            // Non-static bodies move in fixed-step increments; the pose
+            // history lets frame-rate rendering interpolate between steps.
+            if rigid_body.is_some() {
+                world.insert_component(
+                    TransformInterpolation::from_transform(&transform),
+                    context.entity,
+                    false,
+                );
+            }
         })
     }
 
@@ -107,6 +122,15 @@ impl Component for Collider {
                     state.unregister_body_entity(body);
                 }
                 world.remove_component::<BodyId>(context.entity, true);
+                // Without a body there are no more fixed-step poses; left in
+                // place the interpolator would keep rewriting the Transform
+                // from stale history.
+                if world
+                    .get_component_for_entity::<TransformInterpolation>(context.entity)
+                    .is_some()
+                {
+                    world.remove_component::<TransformInterpolation>(context.entity, true);
+                }
             }
         })
     }

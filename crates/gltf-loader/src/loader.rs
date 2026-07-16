@@ -636,7 +636,7 @@ pub(crate) fn spawn_gltf_components(
 
             // Spawn all nodes
             for gltf_node in &asset.nodes {
-                let current_entity = *cmd.spawn(gltf_node.transform.clone()).entity();
+                let current_entity = cmd.spawn(gltf_node.transform.clone()).entity();
                 node_entities.push(current_entity);
             }
 
@@ -708,7 +708,7 @@ pub(crate) fn spawn_gltf_components(
 
                     for (mesh, material_index) in primitives {
                         if let Some(material_index) = material_index {
-                            let child = *cmd.spawn(Transform::default()).entity();
+                            let child = cmd.spawn(Transform::default()).entity();
                             cmd.insert(
                                 MeshComponent {
                                     handle: mesh.clone(),

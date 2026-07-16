@@ -52,6 +52,10 @@ impl GroundProbe {
     pub fn ground(&self) -> &GroundState {
         &self.state
     }
+
+    pub fn is_grounded(&self) -> bool {
+        self.state.is_grounded()
+    }
 }
 
 impl Default for GroundProbe {

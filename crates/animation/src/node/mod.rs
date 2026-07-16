@@ -12,6 +12,14 @@ use crate::{
 pub mod blend_space;
 pub mod state_machine;
 
+#[derive(Default)]
+
+pub enum AnimationPlayMode {
+    #[default]
+    Loop,
+    PlayOnce,
+}
+
 pub trait AnimationNodeInstance: AsAny + Sync + Send {
     fn reset(&mut self);
 
@@ -31,6 +39,10 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     );
+
+    fn is_finished(&self) -> bool {
+        true
+    }
 }
 
 pub trait AnimationNode: AsAny + Sync + Send {
@@ -86,22 +98,33 @@ impl AnimationNode for AnimationResultNode {
 #[derive(AsAny)]
 pub struct AnimationClipNodeInstance {
     time: f32,
+    start_time: f32,
     is_paused: bool,
     play_rate: f32,
+    is_finished: bool,
 }
 
 impl AnimationClipNodeInstance {
     pub fn new() -> Self {
         Self {
             time: 0.0,
+            start_time: 0.0,
             is_paused: false,
             play_rate: 1.0,
+            is_finished: false,
         }
     }
 
+    pub fn with_start_time(mut self, start_time: f32) -> Self {
+        self.start_time = start_time;
+        self.time = start_time;
+        self
+    }
+
     pub fn play(&mut self) {
-        self.time = 0.0;
+        self.time = self.start_time;
         self.is_paused = false;
+        self.is_finished = false;
     }
 
     pub fn current_time(&self) -> f32 {
@@ -117,7 +140,9 @@ impl Default for AnimationClipNodeInstance {
 
 impl AnimationNodeInstance for AnimationClipNodeInstance {
     fn reset(&mut self) {
-        self.time = 0.0;
+        self.time = self.start_time;
+        self.is_finished = false;
+        self.is_paused = false;
     }
 
     fn evaluate(
@@ -162,13 +187,17 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
-        if self.is_paused {
-            return;
-        }
-
         let Some(clip_node) = node.as_any().downcast_ref::<AnimationClipNode>() else {
             return;
         };
+
+        if self.is_finished {
+            self.is_finished = false;
+        }
+
+        if self.is_paused {
+            return;
+        }
 
         let Some(clip) = context.animation_clips.get(&clip_node.clip) else {
             return;
@@ -176,20 +205,51 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 
         self.time += delta_time * self.play_rate;
 
-        if self.time > clip.duration() {
-            self.time = 0.0;
+        match clip_node.play_mode {
+            AnimationPlayMode::Loop => {
+                if self.time > clip.duration() {
+                    self.time = self.start_time;
+                    self.is_finished = true;
+                }
+            }
+            AnimationPlayMode::PlayOnce => {
+                if self.time > clip.duration() {
+                    self.is_paused = true;
+                    self.is_finished = true;
+                }
+            }
         }
+    }
+
+    fn is_finished(&self) -> bool {
+        self.is_finished
     }
 }
 
 #[derive(AsAny)]
 pub struct AnimationClipNode {
     clip: AssetHandle<AnimationClip>,
+    play_mode: AnimationPlayMode,
+    start_time: f32,
 }
 
 impl AnimationClipNode {
     pub fn new(clip: AssetHandle<AnimationClip>) -> Self {
-        Self { clip }
+        Self {
+            clip,
+            play_mode: AnimationPlayMode::Loop,
+            start_time: 0.0,
+        }
+    }
+
+    pub fn with_start_time(mut self, start_time: f32) -> Self {
+        self.start_time = start_time;
+        self
+    }
+
+    pub fn with_play_mode(mut self, play_mode: AnimationPlayMode) -> Self {
+        self.play_mode = play_mode;
+        self
     }
 }
 
@@ -198,7 +258,7 @@ impl AnimationNode for AnimationClipNode {
         &self,
         _creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
-        Box::new(AnimationClipNodeInstance::new())
+        Box::new(AnimationClipNodeInstance::new().with_start_time(self.start_time))
     }
 }
 

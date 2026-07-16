@@ -278,6 +278,40 @@ impl PhysicsState {
             }
         })
     }
+
+    pub fn add_impulse(&mut self, body: BodyId, impulse: Vec3) {
+        unsafe {
+            jolt_ffi::jolt_body_add_impulse(self.world, body.0, impulse.to_array().as_ptr());
+        }
+    }
+
+    pub fn add_impulse_at(&mut self, body: BodyId, impulse: Vec3, position: Vec3) {
+        unsafe {
+            jolt_ffi::jolt_body_add_impulse_at(
+                self.world,
+                body.0,
+                impulse.to_array().as_ptr(),
+                position.to_array().as_ptr(),
+            );
+        }
+    }
+
+    pub fn add_force(&mut self, body: BodyId, force: Vec3) {
+        unsafe {
+            jolt_ffi::jolt_body_add_force(self.world, body.0, force.to_array().as_ptr());
+        }
+    }
+
+    pub fn add_force_at(&mut self, body: BodyId, force: Vec3, position: Vec3) {
+        unsafe {
+            jolt_ffi::jolt_body_add_force_at(
+                self.world,
+                body.0,
+                force.to_array().as_ptr(),
+                position.to_array().as_ptr(),
+            );
+        }
+    }
 }
 
 impl Default for PhysicsState {

@@ -1,4 +1,4 @@
-use ecs::{Component, Query, Res, ResMut};
+use ecs::{Component, Query, ResMut};
 use essential::{math::Spring, time::Time};
 use glam::Vec3;
 
@@ -34,12 +34,11 @@ impl CharacterMovement {
 pub(crate) fn apply_character_movement(
     bodies: Query<(&mut CharacterMovement, &BodyId)>,
     mut physics: ResMut<PhysicsState>,
-    time: Res<Time>,
 ) {
     for (mut character_movement, body_id) in bodies.iter() {
         let current_velocity = physics.linear_velocity(*body_id);
 
-        let mut updated_velocity = character_movement.update_velocity(time.delta().as_secs_f32());
+        let mut updated_velocity = character_movement.update_velocity(Time::fixed_delta_time());
 
         updated_velocity.y = current_velocity.y;
         physics.set_linear_velocity(*body_id, updated_velocity);

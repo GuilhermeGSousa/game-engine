@@ -189,6 +189,11 @@ impl App {
             self.accumulated_fixed_time -= Time::fixed_delta_time();
         }
 
+        let fixed_overstep = self.accumulated_fixed_time;
+        if let Some(time) = self.get_resource_mut::<Time>() {
+            time.set_fixed_overstep(fixed_overstep);
+        }
+
         schedules.update(&mut self.world);
         schedules.render(&mut self.world);
 

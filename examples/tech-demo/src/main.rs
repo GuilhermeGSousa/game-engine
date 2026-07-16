@@ -2,19 +2,29 @@ use game_engine::{
     DefaultPlugins,
     app::App,
     ecs::system::schedule::UpdateGroup::{self, Startup},
-    gameplay::movement::first_person_player_fly,
     ui::frame_stats_overlay::FrameStatsOverlayPlugin,
 };
 
 use crate::{
     character::{setup_character_animations, spawn_character, update_movement},
     scene::spawn_scene,
+    ui::{spawn_grounded_overlay, update_grounded_overlay},
 };
 
 mod character;
 mod scene;
+mod ui;
 
 fn main() {
+    cfg_if::cfg_if! {
+        if #[cfg(target_arch = "wasm32")] {
+            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+            console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
+        } else {
+            env_logger::init();
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
         .expect("Failed to set working directory");
@@ -25,9 +35,10 @@ fn main() {
 
     app.add_system(Startup, spawn_character)
         .add_system(Startup, spawn_scene)
+        .add_system(Startup, spawn_grounded_overlay)
         .add_system(UpdateGroup::Update, setup_character_animations)
-        .add_system(UpdateGroup::Update, first_person_player_fly)
-        .add_system(UpdateGroup::Update, update_movement);
+        .add_system(UpdateGroup::Update, update_movement)
+        .add_system(UpdateGroup::Update, update_grounded_overlay);
 
     app.run();
 }

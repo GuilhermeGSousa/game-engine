@@ -4,6 +4,7 @@ pub use color;
 pub use ecs;
 pub use essential;
 pub use gameplay;
+use gameplay::GameplayPlugin;
 pub use gltf_loader;
 #[cfg(not(target_arch = "wasm32"))]
 pub use jolt_physics;
@@ -63,7 +64,8 @@ impl Plugin for DefaultPlugins {
         app.register_plugin(AnimationPlugin)
             .register_plugin(GLTFPlugin)
             .register_plugin(OBJPlugin)
-            .register_plugin(WorldGridPlugin);
+            .register_plugin(WorldGridPlugin)
+            .register_plugin(GameplayPlugin);
 
         if !self.headless {
             app.register_plugin(UIPlugin);

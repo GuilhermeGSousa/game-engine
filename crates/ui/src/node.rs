@@ -393,7 +393,7 @@ pub(crate) fn extract_added_ui_nodes(
                 cmd.insert(render_ui_node, **render_entity);
             }
             None => {
-                let render_entity = *cmd.spawn(render_ui_node).entity();
+                let render_entity = cmd.spawn(render_ui_node).entity();
                 cmd.insert(RenderEntity::new(render_entity), computed_node_entity);
             }
         }
@@ -488,7 +488,7 @@ pub(crate) fn extract_viewport_nodes(
         match render_entity {
             Some(re) => cmd.insert(rv, **re),
             None => {
-                let new_re = *cmd.spawn(rv).entity();
+                let new_re = cmd.spawn(rv).entity();
                 cmd.insert(RenderEntity::new(new_re), entity);
             }
         }
@@ -528,7 +528,7 @@ pub(crate) fn extract_added_ui_materials(
                 cmd.insert(render_ui_material, **render_entity);
             }
             None => {
-                let render_entity = *cmd.spawn(render_ui_material).entity();
+                let render_entity = cmd.spawn(render_ui_material).entity();
                 cmd.insert(RenderEntity::new(render_entity), computed_node_entity);
             }
         }

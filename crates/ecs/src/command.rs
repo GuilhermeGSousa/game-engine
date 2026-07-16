@@ -14,8 +14,8 @@ pub struct EntityCommandQueue<'a> {
 }
 
 impl<'a> EntityCommandQueue<'a> {
-    pub fn entity(&self) -> &Entity {
-        &self.entity
+    pub fn entity(&self) -> Entity {
+        self.entity
     }
 
     pub fn add_child<T: ComponentBundle + 'static>(self, components: T) -> Self {
@@ -28,7 +28,7 @@ impl<'a> EntityCommandQueue<'a> {
         f: impl Fn(EntityCommandQueue),
     ) -> Self {
         let child_ctx = self.command_queue.spawn(components);
-        let child_entity = *child_ctx.entity();
+        let child_entity = child_ctx.entity();
         f(child_ctx);
         self.command_queue.add_child(self.entity, child_entity);
         self
@@ -39,7 +39,7 @@ impl<'a> EntityCommandQueue<'a> {
     }
 
     pub fn despawn(mut self) {
-        self.command_queue.despawn(*self.entity());
+        self.command_queue.despawn(self.entity());
     }
 }
 

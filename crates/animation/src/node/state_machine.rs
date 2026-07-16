@@ -26,6 +26,7 @@ pub(crate) struct AnimationFSMState {
 
 pub enum AnimationFSMTrigger {
     Instant,
+    OnAnimationEnd,
     Condition(Arc<dyn Fn(&AnimationBlackboard) -> bool + Send + Sync>),
 }
 
@@ -40,10 +41,16 @@ impl AnimationFSMTrigger {
     pub fn on_bool(param_name: impl Into<String>, cond: bool) -> Self {
         let param_name = param_name.into();
         AnimationFSMTrigger::from_condition(move |blackboard| {
+            blackboard.get_bool(&param_name).is_some_and(|v| v == cond)
+        })
+    }
+
+    pub fn on_non_zero_vec(param_name: impl Into<String>) -> Self {
+        let param_name = param_name.into();
+        AnimationFSMTrigger::from_condition(move |blackboard| {
             blackboard
-                .get_bool(&param_name)
-                .map(|v| v == cond)
-                .unwrap_or(false)
+                .get_vec2(&param_name)
+                .is_some_and(|val| val.length_squared() > f32::EPSILON)
         })
     }
 }
@@ -207,6 +214,28 @@ impl AnimationStateMachineInstance {
             .map(String::as_str)
             .unwrap_or("")
     }
+
+    fn transition(
+        &mut self,
+        context: &AnimationGraphContext<'_>,
+        transition: &AnimationStateMachineTransition,
+    ) {
+        self.current_state = transition.next_state;
+        self.blend_stack.transition(
+            transition.next_state.as_graph_id(),
+            &mut self.state_graph_instances,
+            transition.transition_time,
+            context,
+        );
+
+        // The blend stack's newest entry and the FSM's current state are the same fact; they
+        // must never diverge, or transition logic would run against a state that isn't playing.
+        debug_assert_eq!(
+            *self.blend_stack.current(),
+            *self.current_state.as_graph_id(),
+            "blend stack current graph drifted from the FSM current state",
+        );
+    }
 }
 
 impl AnimationNodeInstance for AnimationStateMachineInstance {
@@ -229,25 +258,23 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
         for transition in transitions {
             match &transition.trigger {
                 AnimationFSMTrigger::Instant => {
-                    self.current_state = transition.next_state;
-                    self.blend_stack.transition(
-                        transition.next_state.as_graph_id(),
-                        &self.state_graph_instances,
-                        transition.transition_time,
-                        context,
-                    );
-                    return;
+                    self.transition(context, transition);
+                    break;
                 }
                 AnimationFSMTrigger::Condition(cond_fn) => {
                     if cond_fn(context.blackboard()) {
-                        self.current_state = transition.next_state;
-                        self.blend_stack.transition(
-                            transition.next_state.as_graph_id(),
-                            &self.state_graph_instances,
-                            transition.transition_time,
-                            context,
-                        );
-                        return;
+                        self.transition(context, transition);
+                        break;
+                    }
+                }
+                AnimationFSMTrigger::OnAnimationEnd => {
+                    if self
+                        .state_graph_instances
+                        .get(self.current_state.as_graph_id())
+                        .is_some_and(|current_graph| current_graph.is_finished())
+                    {
+                        self.transition(context, transition);
+                        break;
                     }
                 }
             }

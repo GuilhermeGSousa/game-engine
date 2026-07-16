@@ -233,4 +233,23 @@ extern "C" {
         direction: *const f32,
         out_hit: *mut JoltRayHit,
     ) -> bool;
+
+    pub fn jolt_body_add_impulse(world: *const JoltWorld, body: JoltBodyId, impulse: *const f32);
+
+    pub fn jolt_body_add_impulse_at(
+        world: *const JoltWorld,
+        body: JoltBodyId,
+        impulse: *const f32,
+        position: *const f32,
+    );
+
+    pub fn jolt_body_add_force(world: *const JoltWorld, body: JoltBodyId, force: *const f32);
+
+    pub fn jolt_body_add_force_at(
+        world: *const JoltWorld,
+        body: JoltBodyId,
+        force: *const f32,
+        position: *const f32,
+    );
+
 }

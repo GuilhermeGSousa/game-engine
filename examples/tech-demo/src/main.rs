@@ -30,7 +30,6 @@ fn main() {
         .expect("Failed to set working directory");
 
     let mut app = App::new();
-
     app.register_plugin(DefaultPlugins::default())
         .register_plugin(FrameStatsOverlayPlugin);
 

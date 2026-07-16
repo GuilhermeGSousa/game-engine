@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+app = { path = "../app" }
 essential = { path = "../essential" }
 render = { path = "../render" }
 window = { path = "../window" }

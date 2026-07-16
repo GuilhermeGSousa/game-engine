@@ -226,9 +226,17 @@ impl AnimationStateMachineInstance {
         self.current_state = transition.next_state;
         self.blend_stack.transition(
             transition.next_state.as_graph_id(),
-            &self.state_graph_instances,
+            &mut self.state_graph_instances,
             transition.transition_time,
             context,
+        );
+
+        // The blend stack's newest entry and the FSM's current state are the same fact; they
+        // must never diverge, or transition logic would run against a state that isn't playing.
+        debug_assert_eq!(
+            *self.blend_stack.current(),
+            *self.current_state.as_graph_id(),
+            "blend stack current graph drifted from the FSM current state",
         );
     }
 }

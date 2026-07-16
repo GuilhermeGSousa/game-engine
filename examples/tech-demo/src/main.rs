@@ -2,7 +2,6 @@ use game_engine::{
     DefaultPlugins,
     app::App,
     ecs::system::schedule::UpdateGroup::{self, Startup},
-    gameplay::movement::first_person_player_fly,
     ui::frame_stats_overlay::FrameStatsOverlayPlugin,
 };
 
@@ -31,6 +30,7 @@ fn main() {
         .expect("Failed to set working directory");
 
     let mut app = App::new();
+
     app.register_plugin(DefaultPlugins::default())
         .register_plugin(FrameStatsOverlayPlugin);
 
@@ -38,7 +38,6 @@ fn main() {
         .add_system(Startup, spawn_scene)
         .add_system(Startup, spawn_grounded_overlay)
         .add_system(UpdateGroup::Update, setup_character_animations)
-        .add_system(UpdateGroup::Update, first_person_player_fly)
         .add_system(UpdateGroup::Update, update_movement)
         .add_system(UpdateGroup::Update, update_grounded_overlay);
 

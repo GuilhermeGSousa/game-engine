@@ -29,7 +29,7 @@ pub(crate) trait AnimationTransitionBlender {
     fn transition(
         &mut self,
         next_graph: GraphId,
-        graph_instances: &AnimationGraphInstances,
+        graph_instances: &mut AnimationGraphInstances,
         transition_time: f32,
         context: &AnimationGraphContext<'_>,
     );

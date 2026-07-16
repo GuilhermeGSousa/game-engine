@@ -7,6 +7,8 @@ use crate::{
     transition::AnimationTransitionBlender,
 };
 
+/// One active graph in the cross-fade. The stack is ordered oldest → newest; only the newest
+/// entry (the state being transitioned into) fades in.
 struct BlendStackEntry {
     graph_id: GraphId,
     fade_speed: f32,
@@ -14,16 +16,26 @@ struct BlendStackEntry {
 }
 
 pub(crate) struct BlendStack {
-    current_graph: GraphId,
-    layers: Vec<BlendStackEntry>,
+    entries: Vec<BlendStackEntry>,
 }
 
 impl BlendStack {
     pub(crate) fn new(initial_graph: GraphId) -> Self {
         Self {
-            current_graph: initial_graph,
-            layers: Vec::new(),
+            entries: vec![BlendStackEntry {
+                graph_id: initial_graph,
+                fade_speed: 0.0,
+                weight: 1.0,
+            }],
         }
+    }
+
+    /// The state currently being transitioned into — the single source of truth the FSM reads.
+    pub(crate) fn current(&self) -> GraphId {
+        self.entries
+            .last()
+            .expect("blend stack always retains the current graph")
+            .graph_id
     }
 }
 
@@ -36,20 +48,24 @@ impl AnimationTransitionBlender for BlendStack {
         pool: &mut PosePool,
         output: &mut Pose,
     ) {
-        // Evaluate the current graph straight into the output pose.
-        if let Some(graph_instance) = graph_instances.get(self.current_graph) {
+        let Some((base, fading_in)) = self.entries.split_first() else {
+            return;
+        };
+
+        // The settled base pose goes straight into the output...
+        if let Some(graph_instance) = graph_instances.get(base.graph_id) {
             graph_instance.evaluate(context, bone_ids, pool, output);
         }
 
-        // Cross-fade each in-progress layer on top, by its current weight.
-        for layer in &self.layers {
+        // ...then each newer graph is cross-faded on top by its current weight.
+        for entry in fading_in {
             let mut layer_pose = pool.acquire();
 
-            if let Some(graph_instance) = graph_instances.get(layer.graph_id) {
+            if let Some(graph_instance) = graph_instances.get(entry.graph_id) {
                 graph_instance.evaluate(context, bone_ids, pool, &mut layer_pose);
             }
 
-            output.blend(&layer_pose, layer.weight);
+            output.blend(&layer_pose, entry.weight);
             pool.release(layer_pose);
         }
     }
@@ -60,53 +76,44 @@ impl AnimationTransitionBlender for BlendStack {
         graph_instances: &mut AnimationGraphInstances,
         context: &AnimationGraphContext<'_>,
     ) {
-        if let Some(graph_instance) = graph_instances.get_mut(self.current_graph) {
-            graph_instance.update(delta_time, context);
+        for entry in &self.entries {
+            if let Some(graph_instance) = graph_instances.get_mut(entry.graph_id) {
+                graph_instance.update(delta_time, context);
+            }
         }
 
-        self.layers.retain_mut(|entry| {
-            let Some(graph_instance) = graph_instances.get_mut(entry.graph_id) else {
-                return false;
-            };
-
-            graph_instance.update(delta_time, context);
-            entry.weight = (entry.weight + entry.fade_speed * delta_time).min(1.0);
-
-            true
-        });
-
-        let Some(completed) = self.layers.iter().rposition(|entry| entry.weight >= 1.0) else {
+        let Some(top) = self.entries.last_mut() else {
             return;
         };
+        top.weight = (top.weight + top.fade_speed * delta_time).min(1.0);
 
-        let next_graph = self.layers[completed].graph_id;
-        let superseded = self
-            .layers
-            .drain(..=completed)
-            .map(|entry| entry.graph_id)
-            .chain(std::iter::once(self.current_graph));
-
-        for graph_id in superseded {
-            if *graph_id == *next_graph {
-                continue;
-            }
-
-            if let Some(graph_instance) = graph_instances.get_mut(graph_id) {
-                graph_instance.reset();
-            }
+        if top.weight >= 1.0 && self.entries.len() > 1 {
+            let last = self.entries.len() - 1;
+            self.entries.drain(..last);
         }
-
-        self.current_graph = next_graph;
     }
 
     fn transition(
         &mut self,
         next_graph: GraphId,
-        _graph_instances: &AnimationGraphInstances,
+        graph_instances: &mut AnimationGraphInstances,
         transition_time: f32,
         _context: &AnimationGraphContext<'_>,
     ) {
-        self.layers.push(BlendStackEntry {
+        if *self.current() == *next_graph {
+            return;
+        }
+
+        // Re-entering a state still fading lower in the stack: drop the stale occurrence so its
+        // single instance is not advanced twice and the reset below is unambiguous (invariant 2).
+        self.entries.retain(|entry| *entry.graph_id != *next_graph);
+
+        // Anchor the target's clip (and OnAnimationEnd) to the moment of entry (invariant 3).
+        if let Some(graph_instance) = graph_instances.get_mut(next_graph) {
+            graph_instance.reset();
+        }
+
+        self.entries.push(BlendStackEntry {
             graph_id: next_graph,
             fade_speed: 1.0 / transition_time,
             weight: 0.0,

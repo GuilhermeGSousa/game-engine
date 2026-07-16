@@ -148,7 +148,7 @@ pub(crate) fn material_added<M: Material>(
                 cmd.insert(render_mat, **re);
             }
             None => {
-                let new_re = *cmd.spawn(render_mat).entity();
+                let new_re = cmd.spawn(render_mat).entity();
                 cmd.insert(RenderEntity::new(new_re), entity);
             }
         }

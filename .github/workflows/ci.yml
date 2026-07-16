@@ -65,11 +65,10 @@ jobs:
             ${{ matrix.os }}-cargo-test-
 
       - name: Run tests
-        # The Jolt-backed physics tests are not run on CI (the physics crates
-        # and their example are excluded; the engine still links Jolt
-        # natively). The same suite runs against the Rapier backend in the
+        # Runs the physics suite against the Jolt backend (the native
+        # default); the same suite runs against the Rapier backend in the
         # test_physics_rapier job.
-        run: cargo test --workspace --exclude jolt-ffi --exclude physics --exclude physics-test
+        run: cargo test --workspace
 
   test_physics_rapier:
     name: Test Physics (Rapier backend)

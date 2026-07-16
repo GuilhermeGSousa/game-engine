@@ -49,10 +49,8 @@ obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
 skybox = { path = "crates/skybox" }
 world-grid = { path = "crates/world-grid" }
-
-# Physics is not supported on the web: Jolt's C++ requires thread primitives
-# that wasm32 toolchains do not provide.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Physics runs everywhere: Jolt natively, Rapier on the web (Jolt's C++
+# requires thread primitives that wasm32 toolchains do not provide).
 physics = { path = "crates/physics" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

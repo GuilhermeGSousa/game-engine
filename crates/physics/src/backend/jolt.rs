@@ -47,12 +47,30 @@ unsafe impl Sync for Stepper {}
 fn to_jolt_dofs(dofs: AllowedDofs) -> jolt_ffi::JoltAllowedDofs {
     let mut jolt_dofs = 0;
     for (axis, jolt_axis) in [
-        (AllowedDofs::TRANSLATION_X, jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_X),
-        (AllowedDofs::TRANSLATION_Y, jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Y),
-        (AllowedDofs::TRANSLATION_Z, jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Z),
-        (AllowedDofs::ROTATION_X, jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_X),
-        (AllowedDofs::ROTATION_Y, jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Y),
-        (AllowedDofs::ROTATION_Z, jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Z),
+        (
+            AllowedDofs::TRANSLATION_X,
+            jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_X,
+        ),
+        (
+            AllowedDofs::TRANSLATION_Y,
+            jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Y,
+        ),
+        (
+            AllowedDofs::TRANSLATION_Z,
+            jolt_ffi::JOLT_ALLOWED_DOFS_TRANSLATION_Z,
+        ),
+        (
+            AllowedDofs::ROTATION_X,
+            jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_X,
+        ),
+        (
+            AllowedDofs::ROTATION_Y,
+            jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Y,
+        ),
+        (
+            AllowedDofs::ROTATION_Z,
+            jolt_ffi::JOLT_ALLOWED_DOFS_ROTATION_Z,
+        ),
     ] {
         if dofs.contains(axis) {
             jolt_dofs |= jolt_axis;

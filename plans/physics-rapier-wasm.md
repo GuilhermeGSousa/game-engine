@@ -1,7 +1,12 @@
 # Rapier as the Web Physics Backend — Analysis & Plan
 
-Status: **proposal / not implemented** — revised after #48 ("Better
-Colliders, ground checks and movement") reworked the `jolt_physics` API.
+Status: **implemented** (revised after #48, "Better Colliders, ground checks
+and movement", reworked the `jolt_physics` API). Two notes from the
+implementation that differ from the design below: `probe_ground` on Rapier
+uses parry's `contact_manifolds` (closest-point and shape-cast queries both
+proved numerically unreliable for a body resting exactly on the ground), and
+Rapier scene queries scan the collider set directly instead of the query BVH,
+which is only refreshed during a step and would miss freshly spawned bodies.
 
 This document analyses bringing Rapier back as the physics backend for web
 (wasm) builds while keeping Jolt as the native default, and folding both behind

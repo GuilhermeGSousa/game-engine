@@ -3,12 +3,12 @@
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
-use jolt_physics::body::BodyId;
-use jolt_physics::collider::Collider;
-use jolt_physics::ground::GroundState;
-use jolt_physics::physics_pipeline::PhysicsPipeline;
-use jolt_physics::physics_state::PhysicsState;
-use jolt_physics::rigid_body::{AllowedDofs, MotionType, RigidBody};
+use physics::body::BodyId;
+use physics::collider::Collider;
+use physics::ground::GroundState;
+use physics::physics_pipeline::PhysicsPipeline;
+use physics::physics_state::PhysicsState;
+use physics::rigid_body::{AllowedDofs, MotionType, RigidBody};
 
 const MAX_SEPARATION: f32 = 0.05;
 const MAX_SLOPE: f32 = std::f32::consts::PI * 50.0 / 180.0;

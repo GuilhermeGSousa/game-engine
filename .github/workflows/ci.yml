@@ -66,7 +66,7 @@ jobs:
       - name: Run tests
         # Jolt's own tests are not run on CI (the physics crates and their
         # example are excluded; the engine still links Jolt natively).
-        run: cargo test --workspace --exclude jolt-ffi --exclude jolt_physics --exclude physics-test
+        run: cargo test --workspace --exclude jolt-ffi --exclude physics --exclude physics-test
 
   clippy_check:
     name: Clippy

@@ -6,9 +6,9 @@ use ecs::entity::Entity;
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::Vec3;
-use jolt_physics::collider::Collider;
-use jolt_physics::physics_state::PhysicsState;
-use jolt_physics::rigid_body::RigidBody;
+use physics::collider::Collider;
+use physics::physics_state::PhysicsState;
+use physics::rigid_body::RigidBody;
 
 /// A world with one dynamic unit sphere centred at (0, 5, 0).
 fn world_with_sphere() -> (World, Entity) {

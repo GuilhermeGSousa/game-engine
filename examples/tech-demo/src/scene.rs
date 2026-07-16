@@ -1,5 +1,5 @@
 use game_engine::{
-    ecs::CommandQueue, essential::transform::Transform, jolt_physics::collider::Collider,
+    ecs::CommandQueue, essential::transform::Transform, physics::collider::Collider,
     world_grid::WorldGrid,
 };
 use glam::Vec3;

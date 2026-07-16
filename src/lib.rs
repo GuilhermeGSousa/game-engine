@@ -7,7 +7,7 @@ pub use gameplay;
 use gameplay::GameplayPlugin;
 pub use gltf_loader;
 #[cfg(not(target_arch = "wasm32"))]
-pub use jolt_physics;
+pub use physics;
 pub use mesh;
 pub use obj_loader;
 pub use render;
@@ -23,7 +23,7 @@ use app::{
 };
 use gltf_loader::plugin::GLTFPlugin;
 #[cfg(not(target_arch = "wasm32"))]
-use jolt_physics::plugin::PhysicsPlugin;
+use physics::plugin::PhysicsPlugin;
 use obj_loader::plugin::OBJPlugin;
 use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
 use skybox::plugin::SkyboxPlugin;

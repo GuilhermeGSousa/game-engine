@@ -346,7 +346,10 @@ mod tests {
         // One frame into the 0.1s fade: a genuine blend between the two poses, not a hard cut.
         step(&mut instance);
         let mid = sample_x(&instance);
-        assert!(mid > 0.0 && mid < 10.0, "expected a cross-fade, got x={mid}");
+        assert!(
+            mid > 0.0 && mid < 10.0,
+            "expected a cross-fade, got x={mid}"
+        );
 
         // After the fade completes the stack collapses to the target and samples it exactly.
         for _ in 0..30 {

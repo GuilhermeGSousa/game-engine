@@ -42,34 +42,34 @@ pub(crate) fn spawn_grounded_overlay(mut cmd: CommandQueue) {
         },
         ..Default::default()
     },))
-    .add_child_with(
-        (
-            UINode {
-                width: UIValue::Px(230.0),
-                height: UIValue::Px(46.0),
-                padding: UIRect::axes(6.0, 10.0),
-                ..Default::default()
-            },
-            UIMaterial::flat(panel_color(false)),
-            GroundedPanel,
-        ),
-        |panel| {
-            panel.add_child((
+        .add_child_with(
+            (
                 UINode {
-                    flex_grow: 1.0,
+                    width: UIValue::Px(230.0),
+                    height: UIValue::Px(46.0),
+                    padding: UIRect::axes(6.0, 10.0),
                     ..Default::default()
                 },
-                TextComponent {
-                    text: "grounded: --".to_string(),
-                    font_size: 12.0,
-                    line_height: 16.0,
-                    font_family: FontFamily::Monospace,
-                    ..Default::default()
-                },
-                GroundedText,
-            ));
-        },
-    );
+                UIMaterial::flat(panel_color(false)),
+                GroundedPanel,
+            ),
+            |panel| {
+                panel.add_child((
+                    UINode {
+                        flex_grow: 1.0,
+                        ..Default::default()
+                    },
+                    TextComponent {
+                        text: "grounded: --".to_string(),
+                        font_size: 12.0,
+                        line_height: 16.0,
+                        font_family: FontFamily::Monospace,
+                        ..Default::default()
+                    },
+                    GroundedText,
+                ));
+            },
+        );
 }
 
 pub(crate) fn update_grounded_overlay(

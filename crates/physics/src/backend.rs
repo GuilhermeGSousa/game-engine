@@ -17,7 +17,14 @@ use glam::Vec3;
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::RigidBody;
 
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(feature = "force-rapier"),
+    feature = "jolt"
+))]
 pub mod jolt;
+#[cfg(any(target_arch = "wasm32", feature = "force-rapier"))]
+pub mod rapier;
 
 /// The closest hit of a raycast, in backend terms. The facade resolves the
 /// entity and computes the world-space hit point.

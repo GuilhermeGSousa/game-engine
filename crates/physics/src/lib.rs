@@ -20,5 +20,23 @@ pub mod rigid_body;
 mod simulation;
 
 /// The physics engine compiled into this build. Exactly one exists per
-/// target; the alias is the only place the choice is made.
+/// build; this alias is the only place the choice is made: Rapier on wasm
+/// (where Jolt's C++ cannot be compiled) or under `force-rapier`, Jolt
+/// everywhere else.
+#[cfg(any(target_arch = "wasm32", feature = "force-rapier"))]
+pub type ActiveBackend = backend::rapier::RapierBackend;
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(feature = "force-rapier"),
+    feature = "jolt"
+))]
 pub type ActiveBackend = backend::jolt::JoltBackend;
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(feature = "force-rapier"),
+    not(feature = "jolt")
+))]
+compile_error!(
+    "no physics backend selected: enable the `jolt` feature (default) or `force-rapier`"
+);

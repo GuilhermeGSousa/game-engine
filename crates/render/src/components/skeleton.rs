@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::num::NonZeroU64;
 
 use crate::{
     assets::skeleton::Skeleton, components::render_entity::RenderEntity, device::RenderDevice,
@@ -6,93 +6,154 @@ use crate::{
 };
 use ecs::{
     command::CommandQueue,
-    component::Component,
+    component::{Component, ComponentLifecycleCallback},
     entity::Entity,
     query::{query_filter::Added, Query},
-    resource::{Res, Resource},
+    resource::{Res, ResMut, Resource},
 };
 use encase::UniformBuffer;
 use essential::{assets::asset_store::AssetStore, transform::GlobalTransform};
 use glam::Mat4;
 use mesh::skeleton::SkeletonComponent;
-use wgpu::{util::DeviceExt, BindGroupDescriptor, BufferDescriptor, Device};
+use wgpu::{BindGroupDescriptor, BufferDescriptor, Device, Queue};
 
 const MAX_SKELETON_BONES: usize = 256;
 const BONE_SIZE: usize = size_of::<Mat4>();
+const SKIN_STRIDE: u32 = (MAX_SKELETON_BONES * BONE_SIZE) as u32;
+const INITIAL_SKIN_CAPACITY: u32 = 8;
 
-#[derive(Component)]
+// Byte offset of this skin's slot in the shared [`SkinUniforms`] buffer.
 pub struct RenderSkeletonComponent {
-    pub(crate) bones: wgpu::Buffer,
-    pub(crate) skeleton_bind_group: wgpu::BindGroup,
+    pub(crate) offset: u32,
 }
 
-#[derive(Resource)]
-pub(crate) struct EmptySkeletonBuffer(wgpu::BindGroup);
+impl Component for RenderSkeletonComponent {
+    fn name() -> &'static str {
+        "RenderSkeletonComponent"
+    }
 
-impl EmptySkeletonBuffer {
-    pub(crate) fn new(device: &Device, layout: &SkeletonLayout) -> Self {
-        let mut buffer = UniformBuffer::new(Vec::new());
-        buffer.write(&[Mat4::IDENTITY; MAX_SKELETON_BONES]).unwrap();
+    fn on_remove() -> Option<ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            let offset = world
+                .get_component_for_entity::<RenderSkeletonComponent>(context.entity)
+                .map(|render_skeleton| render_skeleton.offset);
 
-        let skeleton_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("lights_buffer"),
-            contents: &buffer.into_inner(),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-
-        Self(device.create_bind_group(&BindGroupDescriptor {
-            label: Some("empty_skeleton_buffer"),
-            layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: skeleton_buffer.as_entire_binding(),
-            }],
-        }))
+            if let (Some(offset), Some(skins)) = (offset, world.get_resource_mut::<SkinUniforms>())
+            {
+                skins.free_slot(offset / SKIN_STRIDE);
+            }
+        })
     }
 }
 
-impl Deref for EmptySkeletonBuffer {
-    type Target = wgpu::BindGroup;
+// One shared bone-palette buffer for all skins, bound with a dynamic offset per
+// draw. Slot 0 is reserved for an identity palette used by unskinned meshes.
+#[derive(Resource)]
+pub(crate) struct SkinUniforms {
+    buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+    free: Vec<u32>,
+    next_slot: u32,
+    capacity_slots: u32,
+}
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl SkinUniforms {
+    pub(crate) fn new(device: &Device, layout: &SkeletonLayout, queue: &Queue) -> Self {
+        let (buffer, bind_group) = Self::create_buffer(device, layout, INITIAL_SKIN_CAPACITY);
+        Self::write_identity_slot(queue, &buffer);
+
+        Self {
+            buffer,
+            bind_group,
+            free: Vec::new(),
+            next_slot: 1,
+            capacity_slots: INITIAL_SKIN_CAPACITY,
+        }
+    }
+
+    pub(crate) fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+
+    fn create_buffer(
+        device: &Device,
+        layout: &SkeletonLayout,
+        capacity_slots: u32,
+    ) -> (wgpu::Buffer, wgpu::BindGroup) {
+        let buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Skin Uniforms Buffer"),
+            size: capacity_slots as u64 * SKIN_STRIDE as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Skin Uniforms Bind Group"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &buffer,
+                    offset: 0,
+                    size: Some(NonZeroU64::new(SKIN_STRIDE as u64).unwrap()),
+                }),
+            }],
+        });
+
+        (buffer, bind_group)
+    }
+
+    fn write_identity_slot(queue: &Queue, buffer: &wgpu::Buffer) {
+        let mut identity = UniformBuffer::new(Vec::new());
+        identity
+            .write(&[Mat4::IDENTITY; MAX_SKELETON_BONES])
+            .unwrap();
+        queue.write_buffer(buffer, 0, &identity.into_inner());
+    }
+
+    fn alloc_slot(&mut self, device: &Device, layout: &SkeletonLayout, queue: &Queue) -> u32 {
+        if let Some(slot) = self.free.pop() {
+            return slot;
+        }
+
+        if self.next_slot == self.capacity_slots {
+            // Existing byte offsets stay valid; skin palettes are rewritten every
+            // frame by update_skeletons, so only the identity slot needs restoring.
+            self.capacity_slots *= 2;
+            let (buffer, bind_group) = Self::create_buffer(device, layout, self.capacity_slots);
+            Self::write_identity_slot(queue, &buffer);
+            self.buffer = buffer;
+            self.bind_group = bind_group;
+        }
+
+        let slot = self.next_slot;
+        self.next_slot += 1;
+        slot
+    }
+
+    fn free_slot(&mut self, slot: u32) {
+        self.free.push(slot);
     }
 }
 
 pub(crate) fn skeleton_added(
     skeletons: Query<(Entity, Option<&RenderEntity>), Added<(SkeletonComponent,)>>,
     skeleton_layout: Res<SkeletonLayout>,
+    mut skins: ResMut<SkinUniforms>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
 ) {
     for (entity, render_entity) in skeletons.iter() {
-        let bones_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Skeleton Buffer"),
-            size: (MAX_SKELETON_BONES * BONE_SIZE) as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let skeleton_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Skeleton Bind Group"),
-            layout: &skeleton_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: bones_buffer.as_entire_binding(),
-            }],
-        });
-
-        let render_skeleton_component = RenderSkeletonComponent {
-            bones: bones_buffer,
-            skeleton_bind_group,
-        };
+        let offset = skins.alloc_slot(&device, &skeleton_layout, &queue) * SKIN_STRIDE;
+        let render_skeleton_component = RenderSkeletonComponent { offset };
 
         match render_entity {
             Some(render_entity) => {
                 cmd.insert(render_skeleton_component, **render_entity);
             }
             None => {
-                let new_render_entity = *cmd.spawn(render_skeleton_component).entity();
+                let new_render_entity = cmd.spawn(render_skeleton_component).entity();
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
         }
@@ -104,6 +165,7 @@ pub(crate) fn update_skeletons(
     render_skeletons: Query<&RenderSkeletonComponent>,
     transforms: Query<&GlobalTransform>,
     skeleton_assets: Res<AssetStore<Skeleton>>,
+    skins: Res<SkinUniforms>,
     queue: Res<RenderQueue>,
 ) {
     for (skeleton, render_entity) in skeletons.iter() {
@@ -129,7 +191,11 @@ pub(crate) fn update_skeletons(
 
                 let mut buffer = UniformBuffer::new(Vec::new());
                 buffer.write(&bone_transforms).unwrap();
-                queue.write_buffer(&render_skeleton.bones, 0, &buffer.into_inner());
+                queue.write_buffer(
+                    &skins.buffer,
+                    render_skeleton.offset as u64,
+                    &buffer.into_inner(),
+                );
             }
             _ => continue,
         };

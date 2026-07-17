@@ -93,7 +93,7 @@ impl Plugin for UIPlugin {
             .get_resource::<RenderQueue>()
             .expect("RenderQueue resource not found");
 
-        let font_system = FontSystem::new();
+        let font_system = build_font_system();
         let swash_cache = SwashCache::new();
         let cache = Cache::new(device);
         let viewport = Viewport::new(device, &cache);
@@ -188,5 +188,31 @@ impl Plugin for UIPlugin {
             .insert_resource(TextViewport(viewport))
             .insert_resource(TextFontSystem(font_system))
             .insert_resource(TextAtlas(atlas));
+    }
+}
+
+/// Builds the text [`FontSystem`], seeding a fallback font on wasm.
+///
+/// Native resolves text against the platform's installed fonts. Browsers
+/// expose no enumerable system fonts, so cosmic-text's database is empty there
+/// and shaping panics with "no default font found"; ship a font and point
+/// every generic family at it.
+fn build_font_system() -> FontSystem {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        FontSystem::new()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut font_system = FontSystem::new();
+        let db = font_system.db_mut();
+        db.load_font_data(include_bytes!("../fonts/DejaVuSansMono.ttf").to_vec());
+        const FALLBACK: &str = "DejaVu Sans Mono";
+        db.set_sans_serif_family(FALLBACK);
+        db.set_serif_family(FALLBACK);
+        db.set_monospace_family(FALLBACK);
+        db.set_cursive_family(FALLBACK);
+        db.set_fantasy_family(FALLBACK);
+        font_system
     }
 }

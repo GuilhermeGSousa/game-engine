@@ -23,6 +23,8 @@ pub struct Light {
     pub light_type: LightType,
 }
 
+impl Light {}
+
 pub struct SpotLight {
     pub cone_angle: f32,
 }
@@ -158,7 +160,7 @@ pub(crate) fn light_added(
         };
         match render_entity {
             None => {
-                let new_render_entity = *cmd.spawn(render_light).entity();
+                let new_render_entity = cmd.spawn(render_light).entity();
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
             Some(render_entity) => {

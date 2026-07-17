@@ -1,12 +1,30 @@
 [package]
 name = "physics"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[features]
+default = ["jolt"]
+# The Jolt backend, the native default. Inert on wasm targets, where
+# `jolt-ffi` (C++ that cannot target wasm32) is never a dependency and the
+# Rapier backend is always used.
+jolt = ["dep:jolt-ffi"]
+# Use the Rapier backend on native targets too, so the wasm backend can be
+# built, tested, and debugged without a browser (and without the C++
+# toolchain and submodule Jolt needs):
+# `cargo test -p physics --no-default-features --features force-rapier`.
+force-rapier = ["dep:rapier3d"]
 
 [dependencies]
+profiling = "1"
 app = { path = "../app" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 glam = { version = "0.30.1" }
-rapier3d = { version = "0.26.1", features = ["simd-stable"] }
-nalgebra = { version = "0.34", features = ["convert-glam030"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+jolt-ffi = { path = "../jolt-ffi", optional = true }
+rapier3d = { version = "0.34", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+rapier3d = { version = "0.34" }

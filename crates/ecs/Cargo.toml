@@ -11,6 +11,7 @@ multithreaded = ["dep:tasks", "dep:fixedbitset", "dep:concurrent-queue"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+profiling = "1"
 tasks = { path = "../tasks", optional = true }
 ecs-macros = { path = "macros" }
 any_vec = "0.14.0"

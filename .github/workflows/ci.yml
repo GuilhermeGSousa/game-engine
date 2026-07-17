@@ -13,6 +13,9 @@ jobs:
     name: Build WASM
     runs-on: ubuntu-latest
     steps:
+      # No submodules needed: wasm builds use the pure-Rust Rapier physics
+      # backend, so jolt-ffi (and with it the JoltPhysics submodule) is not
+      # a dependency.
       - uses: actions/checkout@v4
 
       - name: Install stable Rust toolchain
@@ -43,6 +46,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # jolt-ffi builds the Jolt Physics C++ sources from a submodule.
+          submodules: true
 
       - name: Install stable Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -59,7 +65,36 @@ jobs:
             ${{ matrix.os }}-cargo-test-
 
       - name: Run tests
+        # Runs the physics suite against the Jolt backend (the native
+        # default); the same suite runs against the Rapier backend in the
+        # test_physics_rapier job.
         run: cargo test --workspace
+
+  test_physics_rapier:
+    name: Test Physics (Rapier backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # No submodules needed: the Rapier backend is pure Rust and builds
+      # without jolt-ffi.
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artefacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-rapier-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-rapier-
+
+      - name: Run physics tests against the Rapier backend
+        run: cargo test -p physics --no-default-features --features force-rapier
 
   clippy_check:
     name: Clippy
@@ -68,6 +103,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+        with:
+          # jolt-ffi builds the Jolt Physics C++ sources from a submodule.
+          submodules: true
       - name: Cache
         uses: actions/cache@v4
         with:
@@ -86,6 +124,8 @@ jobs:
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
       - name: Run clippy
         run: cargo clippy -- -A clippy::type_complexity -A clippy::too_many_arguments -D warnings
+      - name: Run clippy on the Rapier physics backend
+        run: cargo clippy -p physics --no-default-features --features force-rapier -- -A clippy::type_complexity -A clippy::too_many_arguments -D warnings
         
   format:
     name: Format

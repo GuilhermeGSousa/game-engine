@@ -1,8 +1,8 @@
 use ecs::system::schedule::UpdateGroup;
 use essential::assets::asset_server::{handle_asset_load_events, AssetServer};
-use essential::time::Time;
+use essential::time::{FrameStats, Time};
 
-use ecs::resource::ResMut;
+use ecs::resource::{Res, ResMut};
 use essential::transform::systems::{propagate_global_transforms, update_simple_entities};
 use essential::transform::Transform;
 
@@ -47,17 +47,37 @@ pub trait Plugin {
     }
 }
 
-/// Plugin that inserts a [`Time`] resource and an `update_time` system.
+/// Plugin that inserts a [`Time`] resource and an `update_time` system,
+/// plus a [`FrameStats`] rolling window of frame times.
 pub struct TimePlugin;
 
 fn update_time(mut time: ResMut<Time>) {
     time.update();
 }
 
+fn update_frame_stats(time: Res<Time>, mut stats: ResMut<FrameStats>) {
+    let delta = time.delta();
+    stats.push(delta);
+
+    // Opt-in visibility without any UI: RUST_LOG=info prints a summary once
+    // per second.
+    if stats.tick_summary(delta) {
+        log::info!(
+            "frame: {:.2} ms avg / {:.2} ms p99 / {:.2} ms max ({:.0} FPS)",
+            stats.average_ms(),
+            stats.percentile_ms(0.99),
+            stats.max_ms(),
+            stats.fps(),
+        );
+    }
+}
+
 impl Plugin for TimePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Time::new());
+        app.insert_resource(FrameStats::new());
         app.add_system(UpdateGroup::Update, update_time);
+        app.add_system(UpdateGroup::LateUpdate, update_frame_stats);
     }
 }
 

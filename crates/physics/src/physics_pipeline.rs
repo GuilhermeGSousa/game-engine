@@ -1,41 +1,31 @@
 use ecs::resource::Resource;
 use essential::time::Time;
 
+use crate::backend::PhysicsBackend;
 use crate::physics_state::PhysicsState;
-use rapier3d::prelude::*;
+use crate::ActiveBackend;
 
+/// Per-step scratch resources for advancing the simulation (what these are is
+/// up to the backend — e.g. a temp allocator and job system for Jolt). Owns
+/// them for the lifetime of the app, separate from [`PhysicsState`] so
+/// stepping can borrow both.
 #[derive(Resource)]
 pub struct PhysicsPipeline {
-    pipeline: rapier3d::pipeline::PhysicsPipeline,
+    stepper: <ActiveBackend as PhysicsBackend>::Stepper,
 }
 
 impl PhysicsPipeline {
     pub fn new() -> Self {
         PhysicsPipeline {
-            pipeline: rapier3d::pipeline::PhysicsPipeline::new(),
+            stepper: ActiveBackend::new_stepper(),
         }
     }
 
+    /// Advances `state` by one fixed timestep.
     pub fn step(&mut self, state: &mut PhysicsState) {
-        let gravity = vector![0.0, -9.81, 0.0];
-
-        state.integration_parameters.dt = Time::fixed_delta_time();
-
-        self.pipeline.step(
-            &gravity,
-            &state.integration_parameters,
-            &mut state.island_manager,
-            &mut state.broad_phase,
-            &mut state.narrow_phase,
-            &mut state.rigid_body_set,
-            &mut state.collider_set,
-            &mut state.impulse_joint_set,
-            &mut state.multibody_joint_set,
-            &mut state.ccd_solver,
-            Some(&mut state.query_pipeline),
-            &(),
-            &(),
-        );
+        state
+            .backend_mut()
+            .step(&mut self.stepper, Time::fixed_delta_time());
     }
 }
 

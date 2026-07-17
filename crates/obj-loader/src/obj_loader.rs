@@ -227,7 +227,7 @@ pub(crate) fn spawn_obj_component(
     for (entity, component) in objs.iter() {
         if let Some(asset) = obj_assets.get(component) {
             for mesh in &asset.meshes {
-                let child_entity = *cmd
+                let child_entity = cmd
                     .spawn((
                         MeshComponent {
                             handle: mesh.handle.clone(),

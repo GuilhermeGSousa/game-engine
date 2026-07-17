@@ -101,6 +101,19 @@ mod tests {
     }
 
     #[test]
+    fn remove_last_component_leaves_empty_entity() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position { x: 1.0, y: 2.0 },));
+        world.remove_component::<Position>(entity);
+
+        assert!(
+            world.get_component_for_entity::<Position>(entity).is_none(),
+            "component should be gone after removal"
+        );
+    }
+
+    #[test]
     fn test_query() {
         let mut world = World::new();
         let mut schedule = Schedule::new();

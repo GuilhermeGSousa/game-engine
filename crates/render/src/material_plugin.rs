@@ -20,7 +20,7 @@ use crate::{
         material::{MaterialComponent, RenderMaterialComponent},
         mesh::RenderMeshInstance,
         render_entity::RenderEntity,
-        skeleton::{EmptySkeletonBuffer, RenderSkeletonComponent},
+        skeleton::{RenderSkeletonComponent, SkinUniforms},
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, SkeletonLayout},
@@ -150,7 +150,7 @@ pub(crate) fn material_added<M: Material>(
                 cmd.insert(render_mat, **re);
             }
             None => {
-                let new_re = *cmd.spawn(render_mat).entity();
+                let new_re = cmd.spawn(render_mat).entity();
                 cmd.insert(RenderEntity::new(new_re), entity);
             }
         }
@@ -228,7 +228,7 @@ pub(crate) fn material_renderpass<M: Material>(
     render_materials: Res<RenderAssets<RenderMaterial<M>>>,
     render_window: Res<RenderWindow>,
     render_lights: Res<RenderLights>,
-    empty_skeleton: Res<EmptySkeletonBuffer>,
+    skins: Res<SkinUniforms>,
     mut draw_call_stats: ResMut<DrawCallStats>,
 ) {
     let encoder = device.command_encoder();
@@ -289,10 +289,10 @@ pub(crate) fn material_renderpass<M: Material>(
         // Batched (static) instances: entities sharing (mesh_asset_id, material_asset_id)
         // are drawn with a single instanced `draw_indexed` call. None of these entities
         // carry a `RenderSkeletonComponent` (see `sync_instance_membership`'s
-        // `Without<RenderSkeletonComponent>` filter), so the same empty skeleton bind
-        // group applies to the whole loop.
+        // `Without<RenderSkeletonComponent>` filter), so slot 0 of the shared
+        // `SkinUniforms` buffer — the reserved identity palette — applies to the whole loop.
         if M::needs_skeleton() {
-            render_pass.set_bind_group(3, &**empty_skeleton, &[]);
+            render_pass.set_bind_group(3, skins.bind_group(), &[0]);
         }
 
         for ((mesh_id, mat_id), batch) in instance_batches.iter() {
@@ -322,7 +322,7 @@ pub(crate) fn material_renderpass<M: Material>(
                 }
 
                 if M::needs_skeleton() {
-                    render_pass.set_bind_group(3, &skeleton.skeleton_bind_group, &[]);
+                    render_pass.set_bind_group(3, skins.bind_group(), &[skeleton.offset]);
                 }
 
                 render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
@@ -496,7 +496,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: M::blend_state(),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),

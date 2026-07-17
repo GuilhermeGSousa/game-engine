@@ -3,11 +3,15 @@ name = "editor"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+tracy = ["profiling/profile-with-tracy"]
+
 [[bin]]
 name = "editor"
 path = "src/main.rs"
 
 [dependencies]
+profiling = "1"
 app = { path = "../app" }
 color = { path = "../color" }
 essential = { path = "../essential" }

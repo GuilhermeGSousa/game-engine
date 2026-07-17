@@ -104,8 +104,7 @@ impl CameraUniform {
 
     pub fn update_view_proj(&mut self, camera: &Camera, transform: &GlobalTransform) {
         self.view_pos = transform.translation();
-        self.view_proj =
-            OPENGL_TO_WGPU_MATRIX * camera.build_projection_matrix() * transform.matrix().inverse();
+        self.view_proj = camera.build_projection_matrix() * transform.matrix().inverse();
     }
 }
 
@@ -211,7 +210,7 @@ pub(crate) fn camera_added(
 
         match render_entity {
             None => {
-                let new_render_entity = *cmd.spawn(render_cam).entity();
+                let new_render_entity = cmd.spawn(render_cam).entity();
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
             Some(render_entity) => {

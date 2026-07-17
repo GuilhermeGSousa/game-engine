@@ -55,7 +55,7 @@ pub(crate) fn mesh_added(
                 cmd.insert(instance, **render_entity);
             }
             None => {
-                let new_render_entity = *cmd.spawn(instance).entity();
+                let new_render_entity = cmd.spawn(instance).entity();
                 cmd.insert(RenderEntity::new(new_render_entity), entity);
             }
         }

@@ -49,15 +49,21 @@ pub struct GLTFScene {
     pub(crate) materials: Vec<AssetHandle<StandardMaterial>>,
     pub(crate) nodes: Vec<GLTFNode>,
     pub(crate) skeletons: Vec<GLTFSkeleton>,
-    pub(crate) animations: Vec<AssetHandle<AnimationClip>>,
+    pub(crate) animations: Vec<GLTFAnimation>,
     pub(crate) target_id_to_node_idx: HashMap<Uuid, GLTFAnimationTargetInfo>,
     pub(crate) cameras: Vec<GLTFCamera>,
     pub(crate) lights: Vec<GLTFLight>,
 }
 
 impl GLTFScene {
-    pub fn animations(&self) -> &Vec<AssetHandle<AnimationClip>> {
+    pub fn animations(&self) -> &Vec<GLTFAnimation> {
         &self.animations
+    }
+
+    pub fn get_animation(&self, animation_name: &str) -> Option<&GLTFAnimation> {
+        self.animations
+            .iter()
+            .find(|&anim| anim.name == animation_name)
     }
 }
 
@@ -67,6 +73,7 @@ pub struct GLTFMesh {
 }
 
 pub struct GLTFNode {
+    pub(crate) name: Option<String>,
     pub(crate) children: Vec<usize>,
     pub(crate) mesh: Option<usize>,
     pub(crate) skeleton: Option<usize>,
@@ -80,6 +87,21 @@ pub struct GLTFSkeleton {
     pub(crate) bone_ids: Vec<Uuid>,
     pub(crate) skeleton: AssetHandle<Skeleton>,
     pub(crate) root_bone: Option<usize>,
+}
+
+pub struct GLTFAnimation {
+    name: String,
+    handle: AssetHandle<AnimationClip>,
+}
+
+impl GLTFAnimation {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn handle(&self) -> AssetHandle<AnimationClip> {
+        self.handle.clone()
+    }
 }
 
 pub(crate) struct GLTFCamera {
@@ -146,6 +168,21 @@ impl AssetLoader for GLTFLoader {
         load_context: &mut essential::assets::asset_server::AssetLoadContext,
         usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
     ) -> anyhow::Result<Self::Asset> {
+        // wasm has no filesystem, so `gltf::import` (path-based) fails with
+        // "operation not supported"; fetch the bytes over HTTP and parse the
+        // self-contained GLB from memory instead.
+        #[cfg(target_arch = "wasm32")]
+        let (document, buffers, images) = {
+            let bytes = essential::assets::utils::load_binary(path.clone())
+                .await
+                .with_context(|| {
+                    format!("failed to fetch GLTF file '{}'", path.to_path().display())
+                })?;
+            gltf::import_slice(&bytes).with_context(|| {
+                format!("failed to import GLTF file '{}'", path.to_path().display())
+            })?
+        };
+        #[cfg(not(target_arch = "wasm32"))]
         let (document, buffers, images) = gltf::import(path.to_path()).with_context(|| {
             format!("failed to import GLTF file '{}'", path.to_path().display())
         })?;
@@ -293,8 +330,8 @@ impl AssetLoader for GLTFLoader {
         }
 
         let mut target_id_to_node_idx = HashMap::new();
-        let mut animation_clips = Vec::new();
-        for animation in document.animations() {
+        let mut animations = Vec::new();
+        for (index, animation) in document.animations().enumerate() {
             let mut animation_clip = AnimationClip::default();
 
             for channel in animation.channels() {
@@ -356,7 +393,13 @@ impl AssetLoader for GLTFLoader {
                     warn!("Missing an node name for node {}.", target_node_idx);
                 }
             }
-            animation_clips.push(load_context.asset_server().add(animation_clip));
+            animations.push(GLTFAnimation {
+                name: animation
+                    .name()
+                    .map(|str| str.into())
+                    .unwrap_or(format!("Animation{}", index)),
+                handle: load_context.asset_server().add(animation_clip),
+            });
         }
 
         let cameras: Vec<GLTFCamera> = document
@@ -406,7 +449,7 @@ impl AssetLoader for GLTFLoader {
             meshes,
             materials,
             skeletons,
-            animations: animation_clips,
+            animations,
             target_id_to_node_idx,
             cameras,
             lights,
@@ -550,6 +593,7 @@ impl GLTFLoader {
         let gltf_transform = gltf_node.transform();
 
         GLTFNode {
+            name: gltf_node.name().map(ToString::to_string),
             children: gltf_node.children().map(|node| node.index()).collect(),
             mesh: gltf_node.mesh().map(|mesh| mesh.index()),
             transform: Transform::from_matrix(&gltf_transform.matrix()),
@@ -571,6 +615,31 @@ impl std::ops::Deref for GLTFSpawnerComponent {
     }
 }
 
+#[derive(Component)]
+pub struct GLTFInstance {
+    roots: Vec<Entity>,
+    nodes_by_name: HashMap<String, Entity>,
+    animation_players: Vec<Entity>,
+}
+
+impl GLTFInstance {
+    pub fn roots(&self) -> &[Entity] {
+        &self.roots
+    }
+
+    pub fn get_node(&self, name: &str) -> Option<Entity> {
+        self.nodes_by_name.get(name).copied()
+    }
+
+    pub fn animation_players(&self) -> &[Entity] {
+        &self.animation_players
+    }
+
+    pub fn animation_player(&self) -> Option<Entity> {
+        self.animation_players.first().copied()
+    }
+}
+
 pub(crate) fn spawn_gltf_components(
     mut cmd: CommandQueue,
     gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
@@ -582,7 +651,7 @@ pub(crate) fn spawn_gltf_components(
 
             // Spawn all nodes
             for gltf_node in &asset.nodes {
-                let current_entity = *cmd.spawn(gltf_node.transform.clone()).entity();
+                let current_entity = cmd.spawn(gltf_node.transform.clone()).entity();
                 node_entities.push(current_entity);
             }
 
@@ -601,9 +670,20 @@ pub(crate) fn spawn_gltf_components(
                     has_parent[*child] = true;
                 }
             }
+            let mut roots = Vec::new();
             for (node_index, node_entity) in node_entities.iter().enumerate() {
                 if !has_parent[node_index] {
                     cmd.add_child(entity, *node_entity);
+                    roots.push(*node_entity);
+                }
+            }
+
+            // Back-reference data recorded onto the spawner entity once spawning finishes.
+            let mut nodes_by_name = HashMap::new();
+            let mut animation_players = Vec::new();
+            for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
+                if let Some(name) = &gltf_node.name {
+                    nodes_by_name.insert(name.clone(), node_entities[node_index]);
                 }
             }
 
@@ -616,6 +696,8 @@ pub(crate) fn spawn_gltf_components(
 
             // Insert MeshComponents and AnimationPlayers
             for (node_index, gltf_node) in asset.nodes.iter().enumerate() {
+                let mut extra_primitive_entities = Vec::new();
+
                 if let Some(gltf_mesh_index) = gltf_node.mesh {
                     let gltf_mesh = &asset.meshes[gltf_mesh_index];
 
@@ -641,7 +723,7 @@ pub(crate) fn spawn_gltf_components(
 
                     for (mesh, material_index) in primitives {
                         if let Some(material_index) = material_index {
-                            let child = *cmd.spawn(gltf_node.transform.clone()).entity();
+                            let child = cmd.spawn(Transform::default()).entity();
                             cmd.insert(
                                 MeshComponent {
                                     handle: mesh.clone(),
@@ -655,6 +737,7 @@ pub(crate) fn spawn_gltf_components(
                                 child,
                             );
                             cmd.add_child(node_entities[node_index], child);
+                            extra_primitive_entities.push(child);
                         }
                     }
                 }
@@ -674,11 +757,15 @@ pub(crate) fn spawn_gltf_components(
                     if let Some(root_bone_index) = gltf_skeleton.root_bone {
                         cmd.insert(AnimationRootBone::default(), node_entities[root_bone_index]);
                     }
+                    for child in &extra_primitive_entities {
+                        cmd.insert(skeleton_component.clone(), *child);
+                    }
                     cmd.insert(skeleton_component, node_entities[node_index]);
                     cmd.insert(
                         AnimationPlayer::new(gltf_skeleton.bones.len()),
                         node_entities[node_index],
                     );
+                    animation_players.push(node_entities[node_index]);
                 }
 
                 if let Some(camera_index) = gltf_node.camera
@@ -716,6 +803,14 @@ pub(crate) fn spawn_gltf_components(
                 }
             }
             cmd.remove::<GLTFSpawnerComponent>(entity);
+            cmd.insert(
+                GLTFInstance {
+                    roots,
+                    nodes_by_name,
+                    animation_players,
+                },
+                entity,
+            );
         }
     }
 }

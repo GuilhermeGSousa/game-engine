@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+profiling = "1"
 async-executor = "1.11"
 async-channel = "2.3.1"
 concurrent-queue = "2.5.0"

@@ -1,7 +1,10 @@
 pub use animation;
 pub use app;
+pub use color;
 pub use ecs;
 pub use essential;
+pub use gameplay;
+use gameplay::GameplayPlugin;
 pub use gltf_loader;
 pub use mesh;
 pub use obj_loader;
@@ -10,6 +13,7 @@ pub use render;
 pub use skybox;
 pub use ui;
 pub use window;
+pub use world_grid;
 
 use animation::plugin::AnimationPlugin;
 use app::{
@@ -23,6 +27,8 @@ use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialP
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
+use world_grid::plugin::WorldGridPlugin;
+
 /// Registers all standard engine plugins in the conventional order.
 #[derive(Default)]
 pub struct DefaultPlugins {
@@ -46,11 +52,14 @@ impl Plugin for DefaultPlugins {
         app.register_plugin(RenderPlugin)
             .register_plugin(SkyboxPlugin)
             .register_plugin(MaterialPlugin::<StandardMaterial>::new())
-            .register_plugin(TransformPlugin)
-            .register_plugin(PhysicsPlugin)
+            .register_plugin(TransformPlugin);
+
+        app.register_plugin(PhysicsPlugin)
             .register_plugin(AnimationPlugin)
             .register_plugin(GLTFPlugin)
-            .register_plugin(OBJPlugin);
+            .register_plugin(OBJPlugin)
+            .register_plugin(WorldGridPlugin)
+            .register_plugin(GameplayPlugin);
 
         if !self.headless {
             app.register_plugin(UIPlugin);

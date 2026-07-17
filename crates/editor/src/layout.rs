@@ -60,7 +60,7 @@ pub(crate) fn spawn_editor_ui(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) 
     let viewport = build_viewport(&mut cmd, &rtt);
     let right_panel = build_properties_panel(&mut cmd);
 
-    let main_area = *cmd
+    let main_area = cmd
         .spawn((UINode {
             width: UIValue::Percent(1.0),
             flex_grow: 1.0,
@@ -72,7 +72,7 @@ pub(crate) fn spawn_editor_ui(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) 
     cmd.add_child(main_area, viewport);
     cmd.add_child(main_area, right_panel);
 
-    let root = *cmd
+    let root = cmd
         .spawn((UINode {
             width: UIValue::Percent(1.0),
             height: UIValue::Percent(1.0),
@@ -113,7 +113,7 @@ pub(crate) fn spawn_editor_ui(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) 
 // ── Panel builders ────────────────────────────────────────────────────────────
 
 fn build_side_panel(cmd: &mut CommandQueue, width: f32, title: &str) -> Entity {
-    *cmd.spawn((
+    cmd.spawn((
         UINode {
             width: UIValue::Px(width),
             height: UIValue::Percent(1.0),
@@ -152,7 +152,7 @@ fn build_side_panel(cmd: &mut CommandQueue, width: f32, title: &str) -> Entity {
 }
 
 fn build_viewport(cmd: &mut CommandQueue, rtt: &EditorRttHandle) -> Entity {
-    *cmd.spawn((
+    cmd.spawn((
         UINode {
             flex_grow: 1.0,
             height: UIValue::Percent(1.0),
@@ -187,7 +187,7 @@ fn build_viewport(cmd: &mut CommandQueue, rtt: &EditorRttHandle) -> Entity {
 /// └───────────────────────────────┘
 /// ```
 fn build_properties_panel(cmd: &mut CommandQueue) -> Entity {
-    let panel = *cmd
+    let panel = cmd
         .spawn((
             UINode {
                 width: UIValue::Px(RIGHT_W),
@@ -225,7 +225,7 @@ fn build_properties_panel(cmd: &mut CommandQueue) -> Entity {
         )
         .entity();
 
-    let content = *cmd
+    let content = cmd
         .spawn((UINode {
             width: UIValue::Percent(1.0),
             flex_grow: 1.0,
@@ -269,7 +269,7 @@ fn build_properties_panel(cmd: &mut CommandQueue) -> Entity {
 
 /// Appends a small section-divider label (e.g. `"─ Transform ─"`) into `parent`.
 fn add_section_label(cmd: &mut CommandQueue, parent: Entity, text: &str) {
-    let label = *cmd
+    let label = cmd
         .spawn((
             UINode {
                 width: UIValue::Percent(1.0),
@@ -296,7 +296,7 @@ fn add_section_label(cmd: &mut CommandQueue, parent: Entity, text: &str) {
 /// Returns a horizontal row entity with a fixed-width label on the left and
 /// `widget` on the right (flex_grow: 1).
 fn spawn_label_row(cmd: &mut CommandQueue, label: &str, widget: Entity) -> Entity {
-    let row = *cmd
+    let row = cmd
         .spawn((UINode {
             width: UIValue::Percent(1.0),
             height: UIValue::Px(ROW_H),
@@ -330,7 +330,7 @@ fn spawn_label_row(cmd: &mut CommandQueue, label: &str, widget: Entity) -> Entit
 /// The fill child is automatically added by `setup_slider_visuals` on the first
 /// frame.  `UIInteractionStyle` gives the track a subtle hover/press tint.
 fn spawn_slider(cmd: &mut CommandQueue, value: f32, min: f32, max: f32) -> Entity {
-    *cmd.spawn((
+    cmd.spawn((
         UINode {
             flex_grow: 1.0,
             height: UIValue::Px(SLIDER_H),
@@ -355,7 +355,7 @@ fn spawn_slider(cmd: &mut CommandQueue, value: f32, min: f32, max: f32) -> Entit
 
 /// Spawns a single-line text input that spans the full content width.
 fn spawn_text_input(cmd: &mut CommandQueue, placeholder: &str) -> Entity {
-    *cmd.spawn((
+    cmd.spawn((
         UINode {
             width: UIValue::Percent(1.0),
             height: UIValue::Px(ROW_H),
@@ -381,7 +381,7 @@ fn spawn_text_input(cmd: &mut CommandQueue, placeholder: &str) -> Entity {
 
 /// Spawns a row containing a checkbox square followed by a text label.
 fn spawn_checkbox_row(cmd: &mut CommandQueue, label: &str, checked: bool) -> Entity {
-    *cmd.spawn((UINode {
+    cmd.spawn((UINode {
         width: UIValue::Percent(1.0),
         height: UIValue::Px(ROW_H),
         flex_direction: FlexDirection::Row,

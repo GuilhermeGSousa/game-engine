@@ -171,6 +171,8 @@ impl App {
     /// Runs all per-frame schedules: FixedUpdate (as many times as needed), Update,
     /// LateUpdate, Render, LateRender.  Also advances the world tick at the end.
     pub fn update(&mut self) {
+        profiling::scope!("App::update");
+
         let time = self
             .get_resource::<Time>()
             .expect("Time resource not found");
@@ -182,8 +184,14 @@ impl App {
             .expect("Compiled schedules not found!");
 
         while self.accumulated_fixed_time >= Time::fixed_delta_time() {
+            profiling::scope!("fixed_update_step");
             schedules.fixed_update(&mut self.world);
             self.accumulated_fixed_time -= Time::fixed_delta_time();
+        }
+
+        let fixed_overstep = self.accumulated_fixed_time;
+        if let Some(time) = self.get_resource_mut::<Time>() {
+            time.set_fixed_overstep(fixed_overstep);
         }
 
         schedules.update(&mut self.world);
@@ -191,7 +199,14 @@ impl App {
 
         self.world.insert_resource(schedules);
 
-        self.world.tick();
+        {
+            profiling::scope!("world_tick");
+            self.world.tick();
+        }
+
+        // The frame ends here: present_window has already run (LateRender),
+        // and this also marks frames for the headless runner.
+        profiling::finish_frame!();
     }
 
     /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`.

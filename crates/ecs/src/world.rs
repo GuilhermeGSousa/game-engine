@@ -113,6 +113,13 @@ impl World {
                     cell.trigger_on_remove(entity, &component_ids);
                 }
 
+                // The callbacks may have inserted or removed components,
+                // migrating the entity to another archetype (or despawned it
+                // outright), so the location must be re-resolved.
+                let Some(location) = self.entity_store.find_location(entity) else {
+                    return;
+                };
+
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
 
                 if let Some(swapped_entity) = archetype.entities().last() {
@@ -226,18 +233,20 @@ impl World {
 
                 let removed_id = TypeId::of::<T>();
 
-                // Update the location of the entity being swapped
-                // It will take the location of the entity being removed
-                if let Some(swapped_entity) = previous_archetype.entities().last() {
-                    self.entity_store.set_location(*swapped_entity, location);
-                }
-
                 let mut component_ids = previous_archetype.component_ids().to_vec();
                 if let Some(removed_index) = component_ids.iter().position(|id| *id == removed_id) {
                     component_ids.swap_remove(removed_index);
                 } else {
                     warn!("Entity does not have the component being removed.");
                     return;
+                }
+
+                // Update the location of the entity being swapped: it will
+                // take the location of the entity being removed. This must
+                // stay below the missing-component early return — a no-op
+                // removal must not touch other entities' locations.
+                if let Some(swapped_entity) = previous_archetype.entities().last() {
+                    self.entity_store.set_location(*swapped_entity, location);
                 }
 
                 let entity_type = generate_type_id(&component_ids);
@@ -248,25 +257,26 @@ impl World {
                 // Remove component from the removed row
                 removed_row.remove::<T>();
 
-                let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
+                let location = match self.archetype_index.entry(entity_type.clone()) {
                     Occupied(occupied_entry) => {
                         let new_archetype_index = *occupied_entry.get();
                         let new_archetype = &mut self.archetypes[*occupied_entry.get()];
                         new_archetype.add_row(removed_row);
-                        new_archetype_index
+                        EntityLocation {
+                            archetype_index: new_archetype_index as u32,
+                            row: TableRowIndex::new(self.archetypes[new_archetype_index].len() - 1),
+                        }
                     }
                     Vacant(vacant_entry) => {
                         let new_archetype_index = self.archetypes.len();
                         let archetype = Archetype::new(Table::from_row(removed_row), component_ids);
                         self.archetypes.push(archetype);
                         vacant_entry.insert(new_archetype_index);
-                        new_archetype_index
+                        EntityLocation {
+                            archetype_index: new_archetype_index as u32,
+                            row: TableRowIndex::new(0),
+                        }
                     }
-                };
-
-                let location = EntityLocation {
-                    archetype_index: archetype_index as u32,
-                    row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
                 };
 
                 // Store in entity store
@@ -627,6 +637,13 @@ impl<'w> RestrictedWorld<'w> {
         self.world_cell
             .world_mut()
             .remove_component_internal::<T>(entity, trigger_events);
+    }
+
+    /// Mutable access to a resource, so lifecycle callbacks can keep
+    /// resource-held state (e.g. lookup caches) in sync with component
+    /// additions and removals.
+    pub fn get_resource_mut<T: Resource>(&mut self) -> Option<&mut T> {
+        self.world_cell.world_mut().get_resource_mut::<T>()
     }
 }
 

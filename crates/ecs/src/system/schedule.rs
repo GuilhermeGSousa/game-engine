@@ -319,22 +319,41 @@ pub struct CompiledSchedules {
 
 impl CompiledSchedules {
     pub fn startup(&mut self, world: &mut World) {
+        profiling::scope!("schedule::startup");
         self.startup_schedule.run(world);
     }
 
     pub fn update(&mut self, world: &mut World) {
-        self.update_schedule.run(world);
-        self.late_update_schedule.run(world);
+        {
+            profiling::scope!("schedule::update");
+            self.update_schedule.run(world);
+        }
+        {
+            profiling::scope!("schedule::late_update");
+            self.late_update_schedule.run(world);
+        }
     }
 
     pub fn fixed_update(&mut self, world: &mut World) {
-        self.fixed_update_schedule.run(world);
-        self.late_fixed_update_schedule.run(world);
+        {
+            profiling::scope!("schedule::fixed_update");
+            self.fixed_update_schedule.run(world);
+        }
+        {
+            profiling::scope!("schedule::late_fixed_update");
+            self.late_fixed_update_schedule.run(world);
+        }
     }
 
     pub fn render(&mut self, world: &mut World) {
-        self.render_schedule.run(world);
-        self.late_render_schedule.run(world);
+        {
+            profiling::scope!("schedule::render");
+            self.render_schedule.run(world);
+        }
+        {
+            profiling::scope!("schedule::late_render");
+            self.late_render_schedule.run(world);
+        }
     }
 }
 
@@ -345,8 +364,9 @@ pub(crate) fn is_sync_point(system: &dyn System) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::system::{
-        config::IntoSystemConfig, executor::single_thread::SingleThreadedExecutor,
+    use crate::{
+        system::{config::IntoSystemConfig, executor::single_thread::SingleThreadedExecutor},
+        Component, IntoSystem, Query,
     };
     use petgraph::graph::NodeIndex;
 

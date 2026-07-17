@@ -78,7 +78,7 @@ pub(crate) fn setup_slider_visuals(
     mut cmd: CommandQueue,
 ) {
     for (entity, slider) in new_sliders.iter() {
-        let fill = *cmd
+        let fill = cmd
             .spawn((
                 UISliderFill,
                 UINode {

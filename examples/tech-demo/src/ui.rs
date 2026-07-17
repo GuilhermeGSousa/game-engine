@@ -1,7 +1,7 @@
 use game_engine::{
     color::LinearRgba,
     ecs::{CommandQueue, Component, Query, With},
-    jolt_physics::ground::{GroundProbe, GroundState},
+    physics::ground::{GroundProbe, GroundState},
     ui::{
         material::UIMaterial,
         node::{UINode, UIRect},

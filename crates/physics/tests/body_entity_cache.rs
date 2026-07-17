@@ -4,9 +4,9 @@
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::Vec3;
-use jolt_physics::body::BodyId;
-use jolt_physics::collider::Collider;
-use jolt_physics::physics_state::PhysicsState;
+use physics::body::BodyId;
+use physics::collider::Collider;
+use physics::physics_state::PhysicsState;
 
 fn physics_world() -> World {
     let mut world = World::new();

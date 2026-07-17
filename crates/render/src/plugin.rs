@@ -49,7 +49,19 @@ impl RenderPlugin {
     async fn initialize_renderer(
         window_handle: Option<Arc<winit::window::Window>>,
     ) -> RenderResources {
-        let instance: Instance = wgpu::Instance::default();
+        // wasm renders through WebGL2 (see the `webgl` feature and the
+        // downlevel_webgl2 limits below). `Instance::default()` enables every
+        // backend and prefers WebGPU, which yields no adapter on browsers
+        // without it, so pin wasm to GL and leave native on all backends.
+        let backends = if cfg!(target_arch = "wasm32") {
+            wgpu::Backends::GL
+        } else {
+            wgpu::Backends::all()
+        };
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends,
+            ..Default::default()
+        });
 
         let surface = window_handle.as_ref().map(|handle| {
             Arc::new(

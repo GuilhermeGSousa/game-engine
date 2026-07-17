@@ -20,8 +20,8 @@ use game_engine::{
         assets::asset_server::AssetServer,
         transform::{GlobalTransform, Transform},
     },
-    jolt_physics::{collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody},
     mesh::MeshComponent,
+    physics::{collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody},
     render::{
         assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
         components::{

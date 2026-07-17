@@ -5,12 +5,12 @@
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
-use jolt_physics::body::BodyId;
-use jolt_physics::collider::{Collider, ColliderOffset};
-use jolt_physics::ground::GroundState;
-use jolt_physics::physics_pipeline::PhysicsPipeline;
-use jolt_physics::physics_state::PhysicsState;
-use jolt_physics::rigid_body::{AllowedDofs, RigidBody};
+use physics::body::BodyId;
+use physics::collider::{Collider, ColliderOffset};
+use physics::ground::GroundState;
+use physics::physics_pipeline::PhysicsPipeline;
+use physics::physics_state::PhysicsState;
+use physics::rigid_body::{AllowedDofs, RigidBody};
 
 #[test]
 fn sphere_falls_and_rests_on_floor() {

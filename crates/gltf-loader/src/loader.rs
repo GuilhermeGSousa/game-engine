@@ -168,6 +168,21 @@ impl AssetLoader for GLTFLoader {
         load_context: &mut essential::assets::asset_server::AssetLoadContext,
         usage_setting: <Self::Asset as essential::assets::LoadableAsset>::UsageSettings,
     ) -> anyhow::Result<Self::Asset> {
+        // wasm has no filesystem, so `gltf::import` (path-based) fails with
+        // "operation not supported"; fetch the bytes over HTTP and parse the
+        // self-contained GLB from memory instead.
+        #[cfg(target_arch = "wasm32")]
+        let (document, buffers, images) = {
+            let bytes = essential::assets::utils::load_binary(path.clone())
+                .await
+                .with_context(|| {
+                    format!("failed to fetch GLTF file '{}'", path.to_path().display())
+                })?;
+            gltf::import_slice(&bytes).with_context(|| {
+                format!("failed to import GLTF file '{}'", path.to_path().display())
+            })?
+        };
+        #[cfg(not(target_arch = "wasm32"))]
         let (document, buffers, images) = gltf::import(path.to_path()).with_context(|| {
             format!("failed to import GLTF file '{}'", path.to_path().display())
         })?;

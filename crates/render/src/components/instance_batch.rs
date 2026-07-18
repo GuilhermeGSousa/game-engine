@@ -11,7 +11,7 @@ use ecs::{
 };
 use essential::{
     assets::AssetId,
-    transform::{GlobalTransform, GlobalTransformRaw, Transform},
+    transform::{GlobalTransform, GlobalTransformRaw},
 };
 
 use crate::{
@@ -219,7 +219,10 @@ pub(crate) fn sync_instance_membership<M: Material>(
 // slot yet (brand new this frame) are skipped here — `sync_instance_membership`
 // picks them up later in the same frame using `RenderMeshInstance::transform_raw`.
 pub(crate) fn sync_instance_transforms<M: Material>(
-    meshes: Query<(&MaterialComponent<M>, &GlobalTransform, &RenderEntity), Changed<(Transform,)>>,
+    meshes: Query<
+        (&MaterialComponent<M>, &GlobalTransform, &RenderEntity),
+        Changed<(GlobalTransform,)>,
+    >,
     batches: Res<InstanceBatches<M>>,
     queue: Res<RenderQueue>,
 ) {

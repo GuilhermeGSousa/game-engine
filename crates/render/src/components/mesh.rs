@@ -6,9 +6,10 @@ use ecs::{
 };
 use essential::{
     assets::AssetId,
-    transform::{GlobalTransform, Transform},
+    transform::{GlobalTransform, GlobalTransformRaw},
 };
-use mesh::mesh::MeshComponent;
+use glam::Mat4;
+use mesh::{mesh::MeshComponent, skeleton::SkeletonComponent};
 use wgpu::util::DeviceExt;
 
 use crate::{components::render_entity::RenderEntity, device::RenderDevice, queue::RenderQueue};
@@ -17,6 +18,22 @@ use crate::{components::render_entity::RenderEntity, device::RenderDevice, queue
 pub(crate) struct RenderMeshInstance {
     pub(crate) mesh_asset_id: AssetId,
     pub(crate) transform: wgpu::Buffer,
+    // CPU-side cache of `transform`'s contents, kept in sync alongside it so that
+    // `sync_instance_membership` (instance_batch.rs) can read a live entity's current
+    // matrix without a GPU buffer readback.
+    pub(crate) transform_raw: GlobalTransformRaw,
+}
+
+// The instance transform written to the GPU. Non-skinned meshes render at their
+// propagated world transform; skinned meshes must stay identity because their bone
+// palette already carries the world transform (see `update_skeletons`), so applying
+// the world transform here too would double-transform them.
+fn instance_transform_raw(transform: &GlobalTransform, skinned: bool) -> GlobalTransformRaw {
+    if skinned {
+        GlobalTransform::new(Mat4::IDENTITY).to_raw()
+    } else {
+        transform.to_raw()
+    }
 }
 
 pub(crate) fn mesh_added(
@@ -25,6 +42,7 @@ pub(crate) fn mesh_added(
             Entity,
             &MeshComponent,
             &GlobalTransform,
+            Option<&SkeletonComponent>,
             Option<&RenderEntity>,
         ),
         Added<(MeshComponent,)>,
@@ -32,16 +50,18 @@ pub(crate) fn mesh_added(
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
-    for (entity, mesh, transform, render_entity) in meshes.iter() {
+    for (entity, mesh, transform, skeleton, render_entity) in meshes.iter() {
+        let transform_raw = instance_transform_raw(transform, skeleton.is_some());
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&[transform.to_raw()]),
+            contents: bytemuck::cast_slice(&[transform_raw]),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let instance = RenderMeshInstance {
             mesh_asset_id: mesh.handle.id(),
             transform: instance_buffer,
+            transform_raw,
         };
 
         match render_entity {
@@ -57,17 +77,27 @@ pub(crate) fn mesh_added(
 }
 
 pub(crate) fn mesh_changed(
-    meshes: Query<(&MeshComponent, &GlobalTransform, &RenderEntity), Changed<(Transform,)>>,
+    meshes: Query<
+        (
+            &MeshComponent,
+            &GlobalTransform,
+            Option<&SkeletonComponent>,
+            &RenderEntity,
+        ),
+        Changed<(GlobalTransform,)>,
+    >,
     render_meshes: Query<(&mut RenderMeshInstance,)>,
     queue: Res<RenderQueue>,
 ) {
-    for (_, transform, render_entity) in meshes.iter() {
-        if let Some((render_mesh,)) = render_meshes.get_entity(**render_entity) {
+    for (_, transform, skeleton, render_entity) in meshes.iter() {
+        if let Some((mut render_mesh,)) = render_meshes.get_entity(**render_entity) {
+            let transform_raw = instance_transform_raw(transform, skeleton.is_some());
             queue.write_buffer(
                 &render_mesh.transform,
                 0,
-                bytemuck::cast_slice(&[transform.to_raw()]),
+                bytemuck::cast_slice(&[transform_raw]),
             );
+            render_mesh.transform_raw = transform_raw;
         }
     }
 }

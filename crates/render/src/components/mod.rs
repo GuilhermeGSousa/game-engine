@@ -4,6 +4,7 @@ pub mod material;
 pub mod render_entity;
 pub mod world_environment;
 
+pub(crate) mod instance_batch;
 pub(crate) mod mesh;
 pub(crate) mod skeleton;
 pub(crate) mod transform;

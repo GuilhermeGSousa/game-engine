@@ -7,6 +7,7 @@ use ecs::{
     query::{query_filter::Added, Query},
     resource::{Res, ResMut, Resource},
     system::{schedule::UpdateGroup, system_input::SystemInputData},
+    IntoSystemConfig,
 };
 use mesh::mesh::MeshComponent;
 
@@ -14,6 +15,7 @@ use crate::{
     assets::material::ShaderRef,
     components::{
         camera::RenderCamera,
+        instance_batch::{sync_instance_membership, sync_instance_transforms, InstanceBatches},
         light::RenderLights,
         material::{MaterialComponent, RenderMaterialComponent},
         mesh::RenderMeshInstance,
@@ -28,7 +30,7 @@ use crate::{
         render_window::RenderWindow,
         AssetPreparationError, RenderAsset, RenderAssetPlugin, RenderAssets,
     },
-    resources::RenderContext,
+    resources::{DrawCallStats, RenderContext},
     Material,
 };
 
@@ -163,7 +165,11 @@ pub(crate) fn clear_cameras(
     mut device: ResMut<RenderDevice>,
     render_cameras: Query<&RenderCamera>,
     render_window: Res<RenderWindow>,
+    mut draw_call_stats: ResMut<DrawCallStats>,
 ) {
+    log::debug!("draw calls last frame: {}", draw_call_stats.draw_calls);
+    draw_call_stats.draw_calls = 0;
+
     let encoder = device.command_encoder();
     for render_camera in render_cameras.iter() {
         let swapchain_view = render_window.get_view();
@@ -211,9 +217,10 @@ pub(crate) fn clear_cameras(
 pub(crate) fn material_renderpass<M: Material>(
     pipeline: Res<MaterialPipeline<M>>,
     mut device: ResMut<RenderDevice>,
-    render_mesh_query: Query<(
+    instance_batches: Res<InstanceBatches<M>>,
+    skinned_query: Query<(
         &RenderMeshInstance,
-        Option<&RenderSkeletonComponent>,
+        &RenderSkeletonComponent,
         &RenderMaterialComponent<M>,
     )>,
     render_cameras: Query<&RenderCamera>,
@@ -222,6 +229,7 @@ pub(crate) fn material_renderpass<M: Material>(
     render_window: Res<RenderWindow>,
     render_lights: Res<RenderLights>,
     skins: Res<SkinUniforms>,
+    mut draw_call_stats: ResMut<DrawCallStats>,
 ) {
     let encoder = device.command_encoder();
 
@@ -278,7 +286,34 @@ pub(crate) fn material_renderpass<M: Material>(
             render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
         }
 
-        for (mesh_instance, skeleton, render_mat_comp) in render_mesh_query.iter() {
+        // Batched (static) instances: entities sharing (mesh_asset_id, material_asset_id)
+        // are drawn with a single instanced `draw_indexed` call. None of these entities
+        // carry a `RenderSkeletonComponent` (see `sync_instance_membership`'s
+        // `Without<RenderSkeletonComponent>` filter), so slot 0 of the shared
+        // `SkinUniforms` buffer — the reserved identity palette — applies to the whole loop.
+        if M::needs_skeleton() {
+            render_pass.set_bind_group(3, skins.bind_group(), &[0]);
+        }
+
+        for ((mesh_id, mat_id), batch) in instance_batches.iter() {
+            let Some(mesh) = render_meshes.get(mesh_id) else {
+                continue;
+            };
+            let Some(render_mat) = render_materials.get(mat_id) else {
+                continue;
+            };
+
+            render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+            render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+            render_pass.set_vertex_buffer(1, batch.buffer.slice(..));
+            render_pass.draw_indexed(0..mesh.index_count, 0, 0..batch.len);
+            draw_call_stats.draw_calls += 1;
+        }
+
+        // Skinned fallback: bone matrices differ per entity, so each skinned
+        // instance still gets its own draw call and its own bone bind group.
+        for (mesh_instance, skeleton, render_mat_comp) in skinned_query.iter() {
             if let Some(mesh) = render_meshes.get(&mesh_instance.mesh_asset_id) {
                 if let Some(render_mat) = render_materials.get(&render_mat_comp.material_asset_id) {
                     render_pass.set_bind_group(0, &render_mat.bind_group, &[]);
@@ -287,14 +322,14 @@ pub(crate) fn material_renderpass<M: Material>(
                 }
 
                 if M::needs_skeleton() {
-                    let offset = skeleton.map_or(0, |sk| sk.offset);
-                    render_pass.set_bind_group(3, skins.bind_group(), &[offset]);
+                    render_pass.set_bind_group(3, skins.bind_group(), &[skeleton.offset]);
                 }
 
                 render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                 render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.set_vertex_buffer(1, mesh_instance.transform.slice(..));
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                draw_call_stats.draw_calls += 1;
             }
         }
     }
@@ -365,13 +400,22 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
 
         app.register_asset::<M>();
         app.register_plugin(RenderAssetPlugin::<RenderMaterial<M>>::new());
+        app.insert_resource(InstanceBatches::<M>::new());
 
         // mesh_added<M> must be per-material so we know which material handle to store
-        // in RenderMaterialComponent<M>.  Transform updates, however, are handled by the
-        // shared mesh_changed system already registered by RenderPlugin, which iterates
-        // over all entities with RenderEntity regardless of material type.
+        // in RenderMaterialComponent<M>.  Per-frame transform updates for already-batched
+        // instances are handled by sync_instance_transforms<M>; membership in
+        // InstanceBatches<M> (entities added/removed/moved between mesh+material groups)
+        // is (re)computed by sync_instance_membership<M>, registered below as a dependency
+        // of material_renderpass<M> rather than as its own top-level system — `.after()`
+        // dependencies are auto-registered into the schedule, so adding it separately here
+        // would run it twice per frame.
         app.add_system(UpdateGroup::LateUpdate, material_added::<M>)
-            .add_system(UpdateGroup::Render, material_renderpass::<M>);
+            .add_system(UpdateGroup::LateUpdate, sync_instance_transforms::<M>)
+            .add_system(
+                UpdateGroup::Render,
+                material_renderpass::<M>.after(sync_instance_membership::<M>),
+            );
     }
 
     fn finish(&self, app: &mut app::App) {

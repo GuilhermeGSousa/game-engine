@@ -20,7 +20,7 @@ use crate::{
         render_window::RenderWindow,
         RenderAssetPlugin,
     },
-    resources::RenderContext,
+    resources::{DrawCallStats, RenderContext},
     systems::{
         render::{finish_render, present_window},
         update_window,
@@ -257,6 +257,7 @@ impl Plugin for RenderPlugin {
             .insert_resource(skeleton_layout)
             .insert_resource(render_lights)
             .insert_resource(skin_uniforms)
+            .insert_resource(DrawCallStats::default())
             .insert_resource(WorldEnvironment::new(LinearRgba::new(0.1, 0.1, 0.1, 0.1)));
     }
 }

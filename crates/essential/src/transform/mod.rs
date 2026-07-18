@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use ecs::component::{Component, ComponentLifecycleCallback};
 use glam::{Affine3A, Mat4, Quat, Vec3};
 
@@ -161,6 +163,33 @@ impl Transform {
 
     pub fn left(&self) -> Vec3 {
         -self.right()
+    }
+
+    pub fn transform_point(&self, mut point: Vec3) -> Vec3 {
+        point = self.scale * point;
+        point = self.rotation * point;
+        point += self.translation;
+        point
+    }
+
+    pub fn mul_transform(&self, other: Transform) -> Transform {
+        let translation = self.transform_point(other.translation);
+        let rotation = self.rotation * other.rotation;
+        let scale = self.scale * other.scale;
+
+        Transform {
+            translation,
+            rotation,
+            scale,
+        }
+    }
+}
+
+impl Mul<Transform> for Transform {
+    type Output = Transform;
+
+    fn mul(self, rhs: Transform) -> Self::Output {
+        self.mul_transform(rhs)
     }
 }
 

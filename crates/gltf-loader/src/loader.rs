@@ -642,11 +642,17 @@ impl GLTFInstance {
 
 pub(crate) fn spawn_gltf_components(
     mut cmd: CommandQueue,
-    gltf_components: Query<(Entity, &GLTFSpawnerComponent)>,
+    gltf_components: Query<(Entity, &GLTFSpawnerComponent, Option<&Transform>)>,
     gltf_assets: Res<AssetStore<GLTFScene>>,
 ) {
-    for (entity, component) in gltf_components.iter() {
+    for (entity, component, transform) in gltf_components.iter() {
         if let Some(asset) = gltf_assets.get(component) {
+            let spawner_transform = transform.unwrap_or(&Transform::IDENTITY);
+
+            if transform.is_none() {
+                cmd.insert(spawner_transform.clone(), entity);
+            }
+
             let mut node_entities = Vec::new();
 
             // Spawn all nodes
@@ -703,7 +709,10 @@ pub(crate) fn spawn_gltf_components(
 
                     let mut primitives = gltf_mesh.primitives.iter().zip(&gltf_mesh.materials);
 
-                    if let Some((first_mesh, material_index)) = primitives.next()
+                    let first_primitive = primitives.next();
+                    let remaining_primitives = primitives;
+
+                    if let Some((first_mesh, material_index)) = first_primitive
                         && let Some(material_index) = material_index
                     {
                         cmd.insert(
@@ -721,7 +730,7 @@ pub(crate) fn spawn_gltf_components(
                         );
                     }
 
-                    for (mesh, material_index) in primitives {
+                    for (mesh, material_index) in remaining_primitives {
                         if let Some(material_index) = material_index {
                             let child = cmd.spawn(Transform::default()).entity();
                             cmd.insert(

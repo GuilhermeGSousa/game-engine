@@ -2,13 +2,11 @@ use ecs::{
     component::Component,
     query::{query_filter::Changed, Query},
     resource::Res,
-    Added, CommandQueue, Entity,
+    Added, CommandQueue, Entity, With,
 };
-use essential::{
-    assets::AssetId,
-    transform::{GlobalTransform, Transform},
-};
-use mesh::mesh::MeshComponent;
+use essential::{assets::AssetId, transform::GlobalTransform};
+use glam::Mat4;
+use mesh::{mesh::MeshComponent, SkeletonComponent};
 use wgpu::util::DeviceExt;
 
 use crate::{components::render_entity::RenderEntity, device::RenderDevice, queue::RenderQueue};
@@ -25,6 +23,7 @@ pub(crate) fn mesh_added(
             Entity,
             &MeshComponent,
             &GlobalTransform,
+            Option<&SkeletonComponent>,
             Option<&RenderEntity>,
         ),
         Added<(MeshComponent,)>,
@@ -32,10 +31,15 @@ pub(crate) fn mesh_added(
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
 ) {
-    for (entity, mesh, transform, render_entity) in meshes.iter() {
+    for (entity, mesh, transform, skeleton, render_entity) in meshes.iter() {
+        let raw_transform = match skeleton {
+            Some(_) => GlobalTransform::new(Mat4::IDENTITY).to_raw(),
+            None => transform.to_raw(),
+        };
+
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&[transform.to_raw()]),
+            contents: bytemuck::cast_slice(&[raw_transform]),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -57,16 +61,23 @@ pub(crate) fn mesh_added(
 }
 
 pub(crate) fn mesh_changed(
-    meshes: Query<(&MeshComponent, &GlobalTransform, &RenderEntity), Changed<(Transform,)>>,
+    meshes: Query<
+        (&GlobalTransform, Option<&SkeletonComponent>, &RenderEntity),
+        (With<MeshComponent>, Changed<(GlobalTransform,)>),
+    >,
     render_meshes: Query<(&mut RenderMeshInstance,)>,
     queue: Res<RenderQueue>,
 ) {
-    for (_, transform, render_entity) in meshes.iter() {
+    for (transform, skeleton, render_entity) in meshes.iter() {
         if let Some((render_mesh,)) = render_meshes.get_entity(**render_entity) {
+            let raw_transform = match skeleton {
+                Some(_) => GlobalTransform::new(Mat4::IDENTITY).to_raw(),
+                None => transform.to_raw(),
+            };
             queue.write_buffer(
                 &render_mesh.transform,
                 0,
-                bytemuck::cast_slice(&[transform.to_raw()]),
+                bytemuck::cast_slice(&[raw_transform]),
             );
         }
     }

@@ -1,3 +1,4 @@
+### Proper render app + schedules, better writting to GPU
 
 ### Shadow Mapping
 

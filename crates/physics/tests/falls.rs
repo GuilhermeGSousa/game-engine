@@ -133,13 +133,14 @@ fn bottom_origin_capsule_rests_with_origin_at_floor_height() {
     ));
 
     let collider = Collider::capsule(0.5, 0.5);
+    let offset = ColliderOffset::bottom_origin(&collider);
     let capsule = world.spawn((
         RigidBody {
             allowed_dofs: AllowedDofs::TRANSLATION,
             ..Default::default()
         },
         collider,
-        ColliderOffset::bottom_origin(&collider),
+        offset,
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Default::default()),
     ));
 

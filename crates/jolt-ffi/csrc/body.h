@@ -77,6 +77,12 @@ extern "C"
                                                        float radius,
                                                        float density);
 
+    bool jolt_body_creation_settings_set_mesh_shape(JoltBodyCreationSettings *settings,
+                                                    const float *vertices,
+                                                    uint32_t vertex_count,
+                                                    const uint32_t *indices,
+                                                    uint32_t index_count);
+
     /* Offsets the shape's geometry relative to the body origin (e.g. lift a
      * capsule so the origin sits at its bottom). Composes with the shape
      * setters in any call order. */

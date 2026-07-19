@@ -119,10 +119,10 @@ impl PhysicsBackend for JoltBackend {
 
     fn create_body(
         &mut self,
-        collider: Collider,
+        collider: &Collider,
         transform: &Transform,
-        rigid_body: Option<RigidBody>,
-        offset: Option<ColliderOffset>,
+        rigid_body: Option<&RigidBody>,
+        offset: Option<&ColliderOffset>,
     ) -> Self::Handle {
         let position = transform.translation.to_array();
         let rotation = transform.rotation.to_array();
@@ -158,7 +158,7 @@ impl PhysicsBackend for JoltBackend {
             match collider {
                 Collider::Sphere { radius } => {
                     jolt_ffi::jolt_body_creation_settings_set_sphere_shape(
-                        settings, radius, density,
+                        settings, *radius, density,
                     );
                 }
                 Collider::Cuboid { half_extents } => {
@@ -174,11 +174,12 @@ impl PhysicsBackend for JoltBackend {
                 } => {
                     jolt_ffi::jolt_body_creation_settings_set_capsule_shape(
                         settings,
-                        half_height,
-                        radius,
+                        *half_height,
+                        *radius,
                         density,
                     );
                 }
+                Collider::Mesh { handle: _ } => {}
             }
             let id = jolt_ffi::jolt_body_create(self.world, settings);
             jolt_ffi::jolt_body_creation_settings_destroy(settings);

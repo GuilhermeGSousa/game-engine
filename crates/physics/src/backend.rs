@@ -82,10 +82,10 @@ pub trait PhysicsBackend: Send + Sync + Sized {
     /// [`body_transform`](Self::body_transform).
     fn create_body(
         &mut self,
-        collider: Collider,
+        collider: &Collider,
         transform: &Transform,
-        rigid_body: Option<RigidBody>,
-        offset: Option<ColliderOffset>,
+        rigid_body: Option<&RigidBody>,
+        offset: Option<&ColliderOffset>,
     ) -> Self::Handle;
 
     /// Removes `body` from the simulation and destroys it, waking any bodies

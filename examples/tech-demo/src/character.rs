@@ -50,6 +50,7 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
         half_height: 2.0,
         radius: 1.0,
     };
+    let offset = ColliderOffset::bottom_origin(&collider);
     let character = cmd
         .spawn((
             Player,
@@ -63,7 +64,7 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
             collider,
             // Origin at the capsule's bottom so the GLTF skeleton root sits on
             // the ground instead of floating at the capsule center.
-            ColliderOffset::bottom_origin(&collider),
+            offset,
             Transform::from_translation_rotation(Vec3::new(0.0, 10.0, -5.0), Quat::IDENTITY),
             GroundProbe::default(),
         ))

@@ -290,7 +290,10 @@ mod tests {
         }
 
         assert_eq!(
-            world.get_component_for_entity::<Position>(entity).unwrap().x,
+            world
+                .get_component_for_entity::<Position>(entity)
+                .unwrap()
+                .x,
             101.0
         );
     }

@@ -128,7 +128,9 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
-    cmd.spawn(GLTFSpawnerComponent(asset_server.load(SPONZA_PATH)));
+    cmd.spawn(GLTFSpawnerComponent::from_handle(
+        asset_server.load(SPONZA_PATH),
+    ));
     cmd.spawn(WorldGrid::default());
 }
 

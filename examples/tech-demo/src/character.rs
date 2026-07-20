@@ -51,7 +51,7 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
     let character = cmd
         .spawn((
             Player,
-            GLTFSpawnerComponent(char_handle),
+            GLTFSpawnerComponent::from_handle(char_handle),
             RigidBody {
                 density: 1000.0,
                 allowed_dofs: AllowedDofs::TRANSLATION | AllowedDofs::ROTATION_Y,

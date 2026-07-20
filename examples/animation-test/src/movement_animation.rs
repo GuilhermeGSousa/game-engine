@@ -67,7 +67,7 @@ pub(crate) fn spawn_character(mut cmd: CommandQueue, asset_server: Res<AssetServ
 
     cmd.spawn((
         AnimatedCharacter,
-        GLTFSpawnerComponent(model),
+        GLTFSpawnerComponent::from_handle(model),
         LoadingAnimationStore {
             idle,
             walk,

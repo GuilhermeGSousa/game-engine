@@ -28,7 +28,7 @@ use gltf::{Node, Primitive, buffer::Data};
 use image::ImageBuffer;
 use log::warn;
 use mesh::{mesh::MeshComponent, skeleton::SkeletonComponent};
-use physics::shape::PhysicsMeshShapeGenerator;
+use physics::shape::MeshCollider;
 use render::{
     MaterialComponent,
     assets::{
@@ -748,7 +748,7 @@ pub(crate) fn spawn_gltf_components(
                         );
 
                         if component.generate_physics_shapes {
-                            cmd.insert(PhysicsMeshShapeGenerator, node_entities[node_index]);
+                            cmd.insert(MeshCollider, node_entities[node_index]);
                         }
                     }
 
@@ -767,6 +767,10 @@ pub(crate) fn spawn_gltf_components(
                                 },
                                 child,
                             );
+
+                            if component.generate_physics_shapes {
+                                cmd.insert(MeshCollider, child);
+                            }
                             cmd.add_child(node_entities[node_index], child);
                             extra_primitive_entities.push(child);
                         }

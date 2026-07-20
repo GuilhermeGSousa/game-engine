@@ -1,7 +1,7 @@
 use ecs::component::{Component, ComponentLifecycleCallback};
 use ecs::{CommandQueue, Entity, Query, ResMut, Without};
 
-use essential::transform::Transform;
+use essential::transform::GlobalTransform;
 use glam::Vec3;
 
 use crate::body::BodyId;
@@ -110,7 +110,7 @@ pub(crate) fn register_colliders(
     colliders: Query<
         (
             Entity,
-            &Transform,
+            &GlobalTransform,
             &Collider,
             Option<&RigidBody>,
             Option<&ColliderOffset>,
@@ -120,8 +120,9 @@ pub(crate) fn register_colliders(
     mut physics_state: ResMut<PhysicsState>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, transform, collider, rigid_body, offset) in colliders.iter() {
-        let body_id = physics_state.create_body(collider, transform, rigid_body, offset);
+    for (entity, global_transform, collider, rigid_body, offset) in colliders.iter() {
+        let transform = global_transform.to_transform();
+        let body_id = physics_state.create_body(collider, &transform, rigid_body, offset);
         physics_state.register_body_entity(body_id, entity);
         cmd.insert(body_id, entity);
 

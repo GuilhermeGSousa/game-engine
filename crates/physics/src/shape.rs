@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use ecs::{
     events::event_reader::EventReader, CommandQueue, Component, Entity, Query, Res, ResMut,
-    Resource, With,
+    Resource, With, Without,
 };
 use essential::assets::{asset_store::AssetStore, handle::AssetLifetimeEvent, AssetId};
 use log::warn;
@@ -62,10 +62,10 @@ impl PhysicsMeshShapes {
 }
 
 #[derive(Component)]
-pub struct PhysicsMeshShapeGenerator;
+pub struct MeshCollider;
 
 pub(crate) fn generate_mesh_shapes(
-    meshes_to_generate: Query<(Entity, &MeshComponent), With<PhysicsMeshShapeGenerator>>,
+    meshes_to_generate: Query<(Entity, &MeshComponent), (With<MeshCollider>, Without<Collider>)>,
     meshes: Res<AssetStore<Mesh>>,
     mut mesh_shapes: ResMut<PhysicsMeshShapes>,
     mut cmd: CommandQueue,
@@ -75,14 +75,13 @@ pub(crate) fn generate_mesh_shapes(
             continue;
         };
 
-        cmd.remove::<PhysicsMeshShapeGenerator>(entity);
-
         // The mesh data will not change, so a rejected mesh would be rejected
         // identically every frame: drop the request rather than retrying.
         let shape = match mesh_shapes.get_or_create_mesh_shape(mesh_comp.handle.id(), mesh) {
             Ok(shape) => shape,
             Err(error) => {
                 warn!("Skipping collider for entity {entity:?}: {error}");
+                cmd.remove::<MeshCollider>(entity);
                 continue;
             }
         };

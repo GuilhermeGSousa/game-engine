@@ -24,7 +24,10 @@ impl Plugin for PhysicsPlugin {
             .add_system(UpdateGroup::LateFixedUpdate, step_simulation)
             .add_system(UpdateGroup::LateFixedUpdate, probe_ground)
             .add_system(UpdateGroup::Update, generate_mesh_shapes)
-            .add_system(UpdateGroup::Update, register_colliders)
+            // LateUpdate, so `TransformPlugin` has already propagated global
+            // transforms this frame: bodies are placed from world space, and
+            // a collider on a nested entity inherits its parent's scale.
+            .add_system(UpdateGroup::LateUpdate, register_colliders)
             .add_system(UpdateGroup::Update, interpolate_body_transforms)
             .add_system(UpdateGroup::Update, clean_shapes_for_dropped_meshes);
     }

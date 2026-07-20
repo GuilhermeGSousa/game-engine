@@ -202,6 +202,18 @@ extern "C" {
         offset: *const f32,
     );
 
+    /// Scales the shape's geometry, so one shape can back bodies of different
+    /// sizes (an entity's `Transform` scale). Applied inside the offset,
+    /// which therefore stays in unscaled body space.
+    ///
+    /// Non-uniform and negative scales are supported; a mirrored scale keeps
+    /// mesh triangles wound correctly. A component of zero is invalid and
+    /// leaves the shape unscaled.
+    pub fn jolt_body_creation_settings_set_shape_scale(
+        settings: *mut JoltBodyCreationSettings,
+        scale: *const f32,
+    );
+
     /// Creates a body from `settings` and adds it to the simulation, active
     /// unless static. The settings remain owned by the caller and can be
     /// reused.

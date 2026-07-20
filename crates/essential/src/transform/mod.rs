@@ -217,6 +217,19 @@ impl GlobalTransform {
         self.0.to_scale_rotation_translation().1
     }
 
+    pub fn scale(&self) -> Vec3 {
+        self.0.to_scale_rotation_translation().0
+    }
+
+    pub fn to_transform(&self) -> Transform {
+        let (scale, rotation, translation) = self.0.to_scale_rotation_translation();
+        Transform {
+            translation,
+            rotation,
+            scale,
+        }
+    }
+
     pub fn to_raw(&self) -> GlobalTransformRaw {
         GlobalTransformRaw {
             matrix: self.matrix().to_cols_array_2d(),

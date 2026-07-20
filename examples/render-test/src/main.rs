@@ -33,14 +33,43 @@ use terminal_renderer::{
 #[cfg(not(feature = "terminal"))]
 use debug_gizmos::plugin::DebugGizmosPlugin;
 #[cfg(not(feature = "terminal"))]
+use ecs::{resource::ResMut, Entity};
+#[cfg(not(feature = "terminal"))]
+use essential::transform::GlobalTransform;
+#[cfg(not(feature = "terminal"))]
+use game_engine::{
+    mesh::MeshComponent,
+    physics::{
+        body::BodyId, collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody,
+    },
+    window::input::{Input, MouseButton},
+};
+#[cfg(not(feature = "terminal"))]
 use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
+#[cfg(not(feature = "terminal"))]
+use render::{
+    assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
+    components::camera::Camera,
+    MaterialComponent,
+};
 
 use world_grid::WorldGrid;
 
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
 
+#[cfg(not(feature = "terminal"))]
+const SPHERE_RADIUS: f32 = 0.35;
+#[cfg(not(feature = "terminal"))]
+const MUZZLE_SPEED: f32 = 25.0;
+
 #[derive(Component)]
 struct Cube;
+
+/// A sphere that has been fired but whose body does not exist yet, carrying
+/// the launch velocity until one does.
+#[cfg(not(feature = "terminal"))]
+#[derive(Component)]
+struct Projectile(Vec3);
 
 fn main() {
     cfg_if::cfg_if! {
@@ -75,6 +104,8 @@ fn main() {
             .add_system(UpdateGroup::Startup, spawn_camera_windowed)
             .add_system(UpdateGroup::Startup, spawn_scene)
             .add_system(UpdateGroup::Update, rotate_cube)
+            .add_system(UpdateGroup::Update, shoot_sphere)
+            .add_system(UpdateGroup::Update, launch_projectiles)
             .add_system(UpdateGroup::Update, first_person_player_fly);
         app.register_plugin(DebugGizmosPlugin);
     }
@@ -128,10 +159,99 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
-    cmd.spawn(GLTFSpawnerComponent::from_handle(
-        asset_server.load(SPONZA_PATH),
-    ));
+    // `with_physics_shapes` gives every spawned mesh a
+    // `PhysicsMeshShapeGenerator`, so the level gets static triangle-mesh
+    // colliders built from the same vertex data the renderer draws.
+    cmd.spawn(
+        GLTFSpawnerComponent::from_handle(asset_server.load(SPONZA_PATH)).with_physics_shapes(),
+    );
     cmd.spawn(WorldGrid::default());
+}
+
+/// Fires a sphere along the camera's view direction on left click, to check
+/// Sponza's generated mesh colliders actually stop things.
+#[cfg(not(feature = "terminal"))]
+fn shoot_sphere(
+    cameras: Query<(&Camera, &GlobalTransform)>,
+    input: Res<Input>,
+    mut cmd: CommandQueue,
+    asset_server: Res<AssetServer>,
+) {
+    if !input.is_mouse_button_just_pressed(MouseButton::Left) {
+        return;
+    }
+    let Some((_, camera_transform)) = cameras.iter().next() else {
+        return;
+    };
+
+    let forward = camera_transform
+        .matrix()
+        .transform_vector3(Vec3::NEG_Z)
+        .normalize();
+    // Clear of the camera, so the sphere is not spawned inside the player.
+    let origin = camera_transform.translation() + forward * (SPHERE_RADIUS * 4.0);
+
+    let material = asset_server
+        .add(StandardMaterial::new(None, None).with_base_color_factor(LinearRgba::random_color()));
+    cmd.spawn((
+        Projectile(forward * MUZZLE_SPEED),
+        RigidBody::default(),
+        Collider::sphere(SPHERE_RADIUS),
+        MeshComponent {
+            handle: asset_server.add(make_uv_sphere(SPHERE_RADIUS, 12, 24)),
+        },
+        MaterialComponent { handle: material },
+        Transform::from_translation_rotation(origin, Quat::IDENTITY),
+    ));
+}
+
+/// `RigidBody` carries no initial velocity, and the body itself is not created
+/// until `register_colliders` runs, so a freshly fired sphere has nothing to
+/// push until the frame after it spawns. Launch it once its `BodyId` appears.
+#[cfg(not(feature = "terminal"))]
+fn launch_projectiles(
+    projectiles: Query<(Entity, &Projectile, &BodyId)>,
+    mut physics: ResMut<PhysicsState>,
+    mut cmd: CommandQueue,
+) {
+    for (entity, projectile, body) in projectiles.iter() {
+        physics.set_linear_velocity(*body, projectile.0);
+        cmd.remove::<Projectile>(entity);
+    }
+}
+
+#[cfg(not(feature = "terminal"))]
+fn make_uv_sphere(radius: f32, rings: u32, segments: u32) -> Mesh {
+    let mut vertices = Vec::with_capacity(((rings + 1) * (segments + 1)) as usize);
+    let mut indices = Vec::with_capacity((rings * segments * 6) as usize);
+
+    for ring in 0..=rings {
+        let phi = std::f32::consts::PI * ring as f32 / rings as f32;
+        let (sin_phi, cos_phi) = phi.sin_cos();
+        for segment in 0..=segments {
+            let theta = std::f32::consts::TAU * segment as f32 / segments as f32;
+            let (sin_theta, cos_theta) = theta.sin_cos();
+            let normal = [sin_phi * cos_theta, cos_phi, sin_phi * sin_theta];
+            vertices.push(Vertex {
+                pos_coords: [normal[0] * radius, normal[1] * radius, normal[2] * radius],
+                normal,
+                ..Vertex::default()
+            });
+        }
+    }
+
+    let stride = segments + 1;
+    for ring in 0..rings {
+        for segment in 0..segments {
+            let a = ring * stride + segment;
+            let b = a + stride;
+            indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+        }
+    }
+
+    let mut mesh = Mesh { vertices, indices };
+    mesh.compute_tangents();
+    mesh
 }
 
 fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {

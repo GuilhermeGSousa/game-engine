@@ -124,6 +124,9 @@ struct JoltBodyCreationSettings
 	// RotatedTranslatedShape, so it composes with the shape setters in any
 	// call order.
 	JPH::Vec3 shape_offset = JPH::Vec3::sZero();
+	// Applied inside the offset wrap, so the offset stays in body space
+	// rather than being scaled along with the geometry.
+	JPH::Vec3 shape_scale = JPH::Vec3::sReplicate(1.0f);
 };
 
 // Holds a reference rather than owning the allocation: Jolt shapes are

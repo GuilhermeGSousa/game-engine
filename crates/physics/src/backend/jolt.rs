@@ -162,6 +162,7 @@ impl PhysicsBackend for JoltBackend {
     ) -> Self::BodyHandle {
         let position = transform.translation.to_array();
         let rotation = transform.rotation.to_array();
+        let scale = transform.scale.to_array();
         let motion_type = match rigid_body {
             Some(rb) => match rb.motion_type {
                 MotionType::Dynamic => jolt_ffi::JOLT_MOTION_TYPE_DYNAMIC,
@@ -188,6 +189,9 @@ impl PhysicsBackend for JoltBackend {
                 let offset = offset.0.to_array();
                 jolt_ffi::jolt_body_creation_settings_set_shape_offset(settings, offset.as_ptr());
             }
+            // Shapes are shared between bodies, so an entity's scale cannot be
+            // baked into the geometry: it goes on the body instead.
+            jolt_ffi::jolt_body_creation_settings_set_shape_scale(settings, scale.as_ptr());
             // The body takes its own reference, so the collider keeps owning
             // the shape and may share it with any number of other bodies.
             jolt_ffi::jolt_body_creation_settings_set_shape(settings, collider.shape().0.as_ptr());

@@ -22,8 +22,7 @@ use game_engine::{
     },
     mesh::MeshComponent,
     physics::{
-        collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody,
-        shape::MeshCollider,
+        collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody, shape::MeshCollider,
     },
     render::{
         assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},

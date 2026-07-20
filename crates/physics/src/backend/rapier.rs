@@ -7,22 +7,53 @@
 //! engine↔Rapier math conversions go through arrays at this boundary, the
 //! same way the Jolt backend converts at the FFI boundary.
 
+use std::sync::Arc;
+
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
+use log::warn;
+use mesh::Mesh;
 use rapier3d::parry::bounding_volume::BoundingVolume;
 use rapier3d::parry::query::{ContactManifold, DefaultQueryDispatcher, PersistentQueryDispatcher};
 use rapier3d::prelude::{
     BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderSet, ImpulseJointSet, IntegrationParameters,
     IslandManager, LockedAxes, MultibodyJointSet, NarrowPhase, Ray, RigidBodyBuilder,
-    RigidBodyHandle, RigidBodySet,
+    RigidBodyHandle, RigidBodySet, SharedShape,
 };
 
-use crate::backend::{PhysicsBackend, RawGroundHit, RawRayHit};
+use crate::backend::{MeshShapeCreationError, PhysicsBackend, RawGroundHit, RawRayHit};
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::{AllowedDofs, MotionType, RigidBody};
 
 /// Jolt's default gravity, so both backends simulate the same world.
 const GRAVITY: [f32; 3] = [0.0, -9.81, 0.0];
+
+/// Subdivisions used when a non-uniform scale has to turn a round shape into
+/// a polygonal approximation. Shapes that scale exactly — cuboids, triangle
+/// meshes, uniformly scaled balls — ignore it.
+const SCALE_SUBDIVISIONS: u32 = 20;
+
+/// Applies an entity's `Transform` scale to its shape.
+///
+/// Unlike Jolt, which wraps the shape in a `ScaledShape` and keeps sharing the
+/// original, Rapier scales by rebuilding: the result is a new shape that does
+/// not share the source's allocation or its triangle BVH. Scaled colliders
+/// therefore cost more here than on the Jolt backend.
+fn scaled_shape(shape: &SharedShape, scale: Vec3) -> SharedShape {
+    if (scale - Vec3::ONE).abs().max_element() <= 1e-6 {
+        return shape.clone();
+    }
+    match shape.scale_dyn(to_rapier_vec(scale), SCALE_SUBDIVISIONS) {
+        Some(scaled) => SharedShape(Arc::from(scaled)),
+        // Only shapes that cannot represent the scale at all (e.g. a
+        // heightfield mirrored on an axis); better an unscaled collider than
+        // none.
+        None => {
+            warn!("collider shape cannot be scaled by {scale:?}, using it unscaled");
+            shape.clone()
+        }
+    }
+}
 
 fn to_rapier_vec(v: Vec3) -> rapier3d::math::Vector {
     rapier3d::math::Vector::from_array(v.to_array())
@@ -87,7 +118,10 @@ pub struct Stepper {
 // revisit if profiling ever says otherwise.
 
 impl PhysicsBackend for RapierBackend {
-    type Handle = RigidBodyHandle;
+    type BodyHandle = RigidBodyHandle;
+
+    type ShapeHandle = SharedShape;
+
     type Stepper = Stepper;
 
     fn new() -> Self {
@@ -130,11 +164,11 @@ impl PhysicsBackend for RapierBackend {
 
     fn create_body(
         &mut self,
-        collider: Collider,
+        collider: &Collider,
         transform: &Transform,
-        rigid_body: Option<RigidBody>,
-        offset: Option<ColliderOffset>,
-    ) -> Self::Handle {
+        rigid_body: Option<&RigidBody>,
+        offset: Option<&ColliderOffset>,
+    ) -> Self::BodyHandle {
         let mut body_builder = match rigid_body {
             None => RigidBodyBuilder::fixed(),
             Some(rb) => match rb.motion_type {
@@ -142,6 +176,7 @@ impl PhysicsBackend for RapierBackend {
                 MotionType::Kinematic => RigidBodyBuilder::kinematic_velocity_based(),
             },
         }
+        // Only the translation and rotation: the scale belongs to the shape.
         .pose(to_rapier_pose(transform));
         if let Some(rigid_body) = rigid_body {
             body_builder = body_builder.locked_axes(to_locked_axes(rigid_body.allowed_dofs));
@@ -150,17 +185,9 @@ impl PhysicsBackend for RapierBackend {
 
         // Density is unused for static bodies; any sane value works here.
         let density = rigid_body.map_or(1000.0, |rigid_body| rigid_body.density);
-        let mut collider_builder = match collider {
-            Collider::Sphere { radius } => ColliderBuilder::ball(radius),
-            Collider::Cuboid { half_extents } => {
-                ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
-            }
-            Collider::Capsule {
-                half_height,
-                radius,
-            } => ColliderBuilder::capsule_y(half_height, radius),
-        }
-        .density(density);
+        let mut collider_builder =
+            ColliderBuilder::new(scaled_shape(&collider.shape().0, transform.scale))
+                .density(density);
         if let Some(offset) = offset {
             // The offset is the collider's pose relative to the body, so it
             // shifts the geometry without showing up in `body_transform`.
@@ -172,7 +199,36 @@ impl PhysicsBackend for RapierBackend {
         handle
     }
 
-    fn destroy_body(&mut self, body: Self::Handle) {
+    fn create_sphere_shape(radius: f32) -> Self::ShapeHandle {
+        SharedShape::ball(radius)
+    }
+
+    fn create_cuboid_shape(width: f32, height: f32, length: f32) -> Self::ShapeHandle {
+        SharedShape::cuboid(width, height, length)
+    }
+
+    fn create_capsule_shape(half_height: f32, radius: f32) -> Self::ShapeHandle {
+        SharedShape::capsule_y(half_height, radius)
+    }
+
+    fn create_shape_from_mesh(mesh: &Mesh) -> Result<Self::ShapeHandle, MeshShapeCreationError> {
+        let vertices: Vec<rapier3d::math::Vector> = mesh
+            .vertices
+            .iter()
+            .map(|vertex| rapier3d::math::Vector::from_array(vertex.pos_coords))
+            .collect();
+        // `chunks_exact` drops a trailing partial triangle, matching the Jolt
+        // shim rather than failing the whole mesh over it.
+        let indices: Vec<[u32; 3]> = mesh
+            .indices
+            .chunks_exact(3)
+            .map(|triangle| [triangle[0], triangle[1], triangle[2]])
+            .collect();
+
+        SharedShape::trimesh(vertices, indices).map_err(|_| MeshShapeCreationError)
+    }
+
+    fn destroy_body(&mut self, body: Self::BodyHandle) {
         self.bodies.remove(
             body,
             &mut self.islands,
@@ -183,7 +239,7 @@ impl PhysicsBackend for RapierBackend {
         );
     }
 
-    fn body_transform(&self, body: Self::Handle) -> Transform {
+    fn body_transform(&self, body: Self::BodyHandle) -> Transform {
         let pose = self.bodies[body].position();
 
         Transform::from_translation_rotation(
@@ -192,19 +248,19 @@ impl PhysicsBackend for RapierBackend {
         )
     }
 
-    fn linear_velocity(&self, body: Self::Handle) -> Vec3 {
+    fn linear_velocity(&self, body: Self::BodyHandle) -> Vec3 {
         from_rapier_vec(self.bodies[body].linvel())
     }
 
-    fn set_linear_velocity(&mut self, body: Self::Handle, velocity: Vec3) {
+    fn set_linear_velocity(&mut self, body: Self::BodyHandle, velocity: Vec3) {
         self.bodies[body].set_linvel(to_rapier_vec(velocity), true);
     }
 
-    fn add_impulse(&mut self, body: Self::Handle, impulse: Vec3) {
+    fn add_impulse(&mut self, body: Self::BodyHandle, impulse: Vec3) {
         self.bodies[body].apply_impulse(to_rapier_vec(impulse), true);
     }
 
-    fn add_impulse_at(&mut self, body: Self::Handle, impulse: Vec3, position: Vec3) {
+    fn add_impulse_at(&mut self, body: Self::BodyHandle, impulse: Vec3, position: Vec3) {
         self.bodies[body].apply_impulse_at_point(
             to_rapier_vec(impulse),
             to_rapier_vec(position),
@@ -212,21 +268,21 @@ impl PhysicsBackend for RapierBackend {
         );
     }
 
-    fn add_force(&mut self, body: Self::Handle, force: Vec3) {
+    fn add_force(&mut self, body: Self::BodyHandle, force: Vec3) {
         self.bodies[body].add_force(to_rapier_vec(force), true);
     }
 
-    fn add_force_at(&mut self, body: Self::Handle, force: Vec3, position: Vec3) {
+    fn add_force_at(&mut self, body: Self::BodyHandle, force: Vec3, position: Vec3) {
         self.bodies[body].add_force_at_point(to_rapier_vec(force), to_rapier_vec(position), true);
     }
 
-    fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<RawRayHit<Self::Handle>> {
+    fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<RawRayHit<Self::BodyHandle>> {
         // With an unnormalised direction, a time of impact of 1.0 is the tip
         // of `direction` — so the hit's time of impact is exactly the
         // `RawRayHit` fraction.
         let ray = Ray::new(to_rapier_vec(origin), to_rapier_vec(direction));
 
-        let mut best: Option<RawRayHit<Self::Handle>> = None;
+        let mut best: Option<RawRayHit<Self::BodyHandle>> = None;
         for (_, collider) in self.colliders.iter() {
             let Some(intersection) =
                 collider
@@ -254,9 +310,9 @@ impl PhysicsBackend for RapierBackend {
 
     fn probe_ground(
         &self,
-        body: Self::Handle,
+        body: Self::BodyHandle,
         max_separation: f32,
-    ) -> Option<RawGroundHit<Self::Handle>> {
+    ) -> Option<RawGroundHit<Self::BodyHandle>> {
         // Collide the body's shape against every collider whose bounds come
         // within `max_separation` of it, exactly like the Jolt probe's
         // narrow-phase query with a separation margin. Contact manifolds are
@@ -268,7 +324,7 @@ impl PhysicsBackend for RapierBackend {
 
         // Keeps the manifold whose normal points most upward, matching the
         // Jolt shim's collector.
-        let mut best: Option<RawGroundHit<Self::Handle>> = None;
+        let mut best: Option<RawGroundHit<Self::BodyHandle>> = None;
         let mut best_dot = f32::NEG_INFINITY;
 
         for collider_handle in self.bodies[body].colliders() {

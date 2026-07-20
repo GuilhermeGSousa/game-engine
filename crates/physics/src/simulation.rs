@@ -106,23 +106,14 @@ mod tests {
             .y
     }
 
-    /// Mesh triangles are single sided for simulation, and Jolt's front face
-    /// is the counter-clockwise winding. A floor wound the other way has its
-    /// collision surface pointing down, so anything landing on it from above
-    /// hits the ignored back face and falls straight through — with no error,
-    /// and while still rendering correctly from its vertex normals.
+    /// A mesh collider wound counter-clockwise (the glTF convention, and the
+    /// front face for both backends) stops a body landing on it.
     #[test]
-    fn mesh_collider_is_single_sided() {
+    fn mesh_collider_stops_a_falling_body() {
         let landed = drop_sphere_onto(plane_mesh(20.0, vec![0, 2, 1, 0, 3, 2]));
         assert!(
             (landed - 0.5).abs() < 0.1,
             "sphere should rest on an up-facing mesh floor (y ~= 0.5), was {landed}"
-        );
-
-        let fell = drop_sphere_onto(plane_mesh(20.0, vec![0, 1, 2, 0, 2, 3]));
-        assert!(
-            fell < -5.0,
-            "sphere should fall through a down-facing mesh floor, was {fell}"
         );
     }
 

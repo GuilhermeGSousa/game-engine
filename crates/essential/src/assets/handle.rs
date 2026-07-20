@@ -4,7 +4,9 @@ use crate::assets::AssetPath;
 
 use super::{Asset, AssetId};
 use crossbeam_channel::Sender;
+use ecs::Event;
 
+#[derive(Clone, Event)]
 pub enum AssetLifetimeEvent {
     Dropped(AssetId, Option<AssetPath<'static>>),
 }

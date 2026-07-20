@@ -8,7 +8,8 @@
 //! about it. Exactly one backend is compiled into a build; see the
 //! [`ActiveBackend`](crate::ActiveBackend) alias.
 
-use std::fmt::Debug;
+use std::error::Error;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 use essential::transform::Transform;
@@ -130,5 +131,15 @@ pub trait PhysicsBackend: Send + Sync + Sized {
     fn create_sphere_shape(radius: f32) -> Self::ShapeHandle;
     fn create_cuboid_shape(width: f32, height: f32, length: f32) -> Self::ShapeHandle;
     fn create_capsule_shape(half_height: f32, radius: f32) -> Self::ShapeHandle;
-    fn create_shape_from_mesh(mesh: &Mesh) -> Self::ShapeHandle;
+    fn create_shape_from_mesh(mesh: &Mesh) -> Result<Self::ShapeHandle, MeshShapeCreationError>;
 }
+
+#[derive(Debug)]
+pub struct MeshShapeCreationError;
+
+impl Display for MeshShapeCreationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Failed to create mesh shape")
+    }
+}
+impl Error for MeshShapeCreationError {}

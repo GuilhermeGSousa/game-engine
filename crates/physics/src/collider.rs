@@ -16,6 +16,12 @@ pub struct Collider {
 }
 
 impl Collider {
+    pub fn from_shape(shape: SharedPhysicsShape) -> Self {
+        Self {
+            shared_shape: shape,
+        }
+    }
+
     /// A sphere collider of the given radius.
     pub fn sphere(radius: f32) -> Self {
         Self {
@@ -84,6 +90,7 @@ impl Component for Collider {
                     state.destroy_body(body);
                     state.unregister_body_entity(body);
                 }
+
                 world.remove_component::<BodyId>(context.entity, true);
                 // Without a body there are no more fixed-step poses; left in
                 // place the interpolator would keep rewriting the Transform

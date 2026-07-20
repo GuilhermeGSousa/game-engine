@@ -7,7 +7,7 @@ use essential::transform::Transform;
 use glam::{Quat, Vec3};
 use mesh::Mesh;
 
-use crate::backend::{PhysicsBackend, RawGroundHit, RawRayHit};
+use crate::backend::{MeshShapeCreationError, PhysicsBackend, RawGroundHit, RawRayHit};
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::{AllowedDofs, MotionType, RigidBody};
 
@@ -359,7 +359,7 @@ impl PhysicsBackend for JoltBackend {
         })
     }
 
-    fn create_shape_from_mesh(mesh: &Mesh) -> Self::ShapeHandle {
+    fn create_shape_from_mesh(mesh: &Mesh) -> Result<Self::ShapeHandle, MeshShapeCreationError> {
         // `Vertex` interleaves normals, UVs and skinning weights with the
         // positions, so the positions have to be packed before Jolt can read
         // them as xyz triples.
@@ -379,13 +379,12 @@ impl PhysicsBackend for JoltBackend {
                 mesh.indices.len() as u32,
             )
         };
-        assert!(
-            !shape.is_null(),
-            "Jolt rejected the collision mesh ({} vertices, {} indices)",
-            mesh.vertices.len(),
-            mesh.indices.len()
-        );
-        ShapeHandle(shape)
+
+        if !shape.is_null() {
+            Ok(ShapeHandle(shape))
+        } else {
+            Err(MeshShapeCreationError)
+        }
     }
 }
 

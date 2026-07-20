@@ -17,6 +17,7 @@ force-rapier = ["dep:rapier3d"]
 
 [dependencies]
 profiling = "1"
+log = "0.4.27"
 app = { path = "../app" }
 essential = { path = "../essential" }
 mesh = { path = "../mesh" }

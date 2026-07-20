@@ -8,6 +8,7 @@ use crate::{
     movement::apply_character_movement,
     physics_pipeline::PhysicsPipeline,
     physics_state::PhysicsState,
+    shape::{clean_shapes_for_dropped_meshes, generate_mesh_shapes, PhysicsMeshShapes},
     simulation::step_simulation,
 };
 
@@ -18,10 +19,13 @@ impl Plugin for PhysicsPlugin {
         app.register_component_lifecycle::<Collider>();
         app.insert_resource(PhysicsPipeline::new())
             .insert_resource(PhysicsState::new())
+            .insert_resource(PhysicsMeshShapes::default())
             .add_system(UpdateGroup::FixedUpdate, apply_character_movement)
             .add_system(UpdateGroup::LateFixedUpdate, step_simulation)
             .add_system(UpdateGroup::LateFixedUpdate, probe_ground)
+            .add_system(UpdateGroup::Update, generate_mesh_shapes)
             .add_system(UpdateGroup::Update, register_colliders)
-            .add_system(UpdateGroup::Update, interpolate_body_transforms);
+            .add_system(UpdateGroup::Update, interpolate_body_transforms)
+            .add_system(UpdateGroup::Update, clean_shapes_for_dropped_meshes);
     }
 }

@@ -164,11 +164,8 @@ extern "C" {
     /// A capsule with total height `2 * (half_height + radius)`: a cylinder
     /// of `2 * half_height` capped by hemispheres of `radius`, along the
     /// local Y axis.
-    pub fn jolt_create_capsule_shape(
-        half_height: f32,
-        radius: f32,
-        density: f32,
-    ) -> *mut JoltShape;
+    pub fn jolt_create_capsule_shape(half_height: f32, radius: f32, density: f32)
+        -> *mut JoltShape;
 
     /// A triangle mesh. `vertices` is `vertex_count` xyz triples; `indices`
     /// is `index_count` vertex indices, three per triangle, wound

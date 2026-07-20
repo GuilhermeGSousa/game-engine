@@ -46,10 +46,7 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
 
     cmd.insert_resource(GLTFCharacterAsset(char_handle.clone()));
 
-    let collider = Collider::Capsule {
-        half_height: 2.0,
-        radius: 1.0,
-    };
+    let collider = Collider::capsule(2.0, 1.0);
     let offset = ColliderOffset::bottom_origin(&collider);
     let character = cmd
         .spawn((

@@ -16,6 +16,7 @@ pub mod physics_state;
 pub mod plugin;
 pub mod ray;
 pub mod rigid_body;
+pub mod shape;
 
 mod simulation;
 

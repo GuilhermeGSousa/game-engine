@@ -1,66 +1,54 @@
 use ecs::component::{Component, ComponentLifecycleCallback};
-use essential::assets::handle::AssetHandle;
+use ecs::{CommandQueue, Entity, Query, ResMut, Without};
+
 use essential::transform::Transform;
 use glam::Vec3;
-use mesh::Mesh;
 
 use crate::body::BodyId;
 use crate::interpolation::TransformInterpolation;
 use crate::physics_state::PhysicsState;
 use crate::rigid_body::RigidBody;
+use crate::shape::{PhysicsShape, SharedPhysicsShape};
 
-#[derive(Clone, Debug)]
-pub enum Collider {
-    Sphere {
-        radius: f32,
-    },
-    Cuboid {
-        half_extents: Vec3,
-    },
-    /// A capsule along the local Y axis with total height
-    /// `2 * (half_height + radius)`: a cylinder of `2 * half_height` capped
-    /// by hemispheres of `radius`.
-    Capsule {
-        half_height: f32,
-        radius: f32,
-    },
-    Mesh {
-        handle: AssetHandle<Mesh>,
-    },
+#[derive(Clone)]
+pub struct Collider {
+    shared_shape: SharedPhysicsShape,
 }
 
 impl Collider {
     /// A sphere collider of the given radius.
     pub fn sphere(radius: f32) -> Self {
-        Self::Sphere { radius }
+        Self {
+            shared_shape: SharedPhysicsShape::new(PhysicsShape::create_sphere_shape(radius)),
+        }
     }
 
     /// A box collider (`width`/`height`/`length` are half-extents).
     pub fn cuboid(width: f32, height: f32, length: f32) -> Self {
-        Self::Cuboid {
-            half_extents: Vec3::new(width, height, length),
+        Self {
+            shared_shape: SharedPhysicsShape::new(PhysicsShape::create_cuboid_shape(
+                width, height, length,
+            )),
         }
     }
 
     /// A capsule collider (see [`Collider::Capsule`]).
     pub fn capsule(half_height: f32, radius: f32) -> Self {
-        Self::Capsule {
-            half_height,
-            radius,
+        Self {
+            shared_shape: SharedPhysicsShape::new(PhysicsShape::create_capsule_shape(
+                half_height,
+                radius,
+            )),
         }
     }
 
     /// Distance from the shape's center to its lowest point.
     pub fn bottom_offset(&self) -> f32 {
-        match self {
-            Collider::Sphere { radius } => *radius,
-            Collider::Cuboid { half_extents } => half_extents.y,
-            Collider::Capsule {
-                half_height,
-                radius,
-            } => half_height + radius,
-            Collider::Mesh { handle: _ } => 0.0,
-        }
+        todo!()
+    }
+
+    pub(crate) fn shape(&self) -> &PhysicsShape {
+        &self.shared_shape
     }
 }
 
@@ -84,35 +72,7 @@ impl Component for Collider {
     }
 
     fn on_add() -> Option<ComponentLifecycleCallback> {
-        Some(|mut world, context| {
-            // TODO: fix it
-            // let collider = world
-            //     .get_component_for_entity::<Collider>(context.entity)
-            //     .expect("on_add ran for an entity without a Collider");
-            // let binding = Transform::default();
-            // let transform = world
-            //     .get_component_for_entity::<Transform>(context.entity)
-            //     .unwrap_or(&binding);
-            // let rigid_body = world.get_component_for_entity::<RigidBody>(context.entity);
-            // let offset = world.get_component_for_entity::<ColliderOffset>(context.entity);
-
-            // let Some(state) = world.get_resource_mut::<PhysicsState>() else {
-            //     return;
-            // };
-            // let body = state.create_body(collider, transform, rigid_body, offset);
-            // state.register_body_entity(body, context.entity);
-            // world.insert_component(body, context.entity, false);
-
-            // // Non-static bodies move in fixed-step increments; the pose
-            // // history lets frame-rate rendering interpolate between steps.
-            // if rigid_body.is_some() {
-            //     world.insert_component(
-            //         TransformInterpolation::from_transform(&transform),
-            //         context.entity,
-            //         false,
-            //     );
-            // }
-        })
+        None
     }
 
     fn on_remove() -> Option<ComponentLifecycleCallback> {
@@ -136,5 +96,30 @@ impl Component for Collider {
                 }
             }
         })
+    }
+}
+
+pub(crate) fn register_colliders(
+    colliders: Query<
+        (
+            Entity,
+            &Transform,
+            &Collider,
+            Option<&RigidBody>,
+            Option<&ColliderOffset>,
+        ),
+        Without<BodyId>,
+    >,
+    mut physics_state: ResMut<PhysicsState>,
+    mut cmd: CommandQueue,
+) {
+    for (entity, transform, collider, rigid_body, offset) in colliders.iter() {
+        let body_id = physics_state.create_body(collider, transform, rigid_body, offset);
+        physics_state.register_body_entity(body_id, entity);
+        cmd.insert(body_id, entity);
+
+        if rigid_body.is_some() {
+            cmd.insert(TransformInterpolation::from_transform(&transform), entity);
+        }
     }
 }

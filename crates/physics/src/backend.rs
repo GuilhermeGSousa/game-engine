@@ -13,6 +13,7 @@ use std::hash::Hash;
 
 use essential::transform::Transform;
 use glam::Vec3;
+use mesh::Mesh;
 
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::RigidBody;
@@ -60,7 +61,12 @@ pub struct RawGroundHit<Handle> {
 pub trait PhysicsBackend: Send + Sync + Sized {
     /// The backend's native body handle, wrapped by the shared
     /// [`BodyId`](crate::body::BodyId) component and opaque above this trait.
-    type Handle: Copy + PartialEq + Eq + Hash + Debug + Send + Sync;
+    type BodyHandle: Copy + PartialEq + Eq + Hash + Debug + Send + Sync;
+
+    /// The backend's native collision shape, wrapped by the shared
+    /// [`PhysicsShape`](crate::shape::PhysicsShape). Shared behind an `Arc`
+    /// by every [`Collider`] using it, hence the thread bounds.
+    type ShapeHandle: Send + Sync;
 
     /// Per-step scratch held by
     /// [`PhysicsPipeline`](crate::physics_pipeline::PhysicsPipeline),
@@ -86,38 +92,43 @@ pub trait PhysicsBackend: Send + Sync + Sized {
         transform: &Transform,
         rigid_body: Option<&RigidBody>,
         offset: Option<&ColliderOffset>,
-    ) -> Self::Handle;
+    ) -> Self::BodyHandle;
 
     /// Removes `body` from the simulation and destroys it, waking any bodies
     /// that were touching it. The handle is invalid afterwards.
-    fn destroy_body(&mut self, body: Self::Handle);
+    fn destroy_body(&mut self, body: Self::BodyHandle);
 
     /// A body's current world-space pose (translation and rotation).
-    fn body_transform(&self, body: Self::Handle) -> Transform;
+    fn body_transform(&self, body: Self::BodyHandle) -> Transform;
 
-    fn linear_velocity(&self, body: Self::Handle) -> Vec3;
+    fn linear_velocity(&self, body: Self::BodyHandle) -> Vec3;
 
     /// Also wakes the body, so a sleeping body picks the velocity up.
-    fn set_linear_velocity(&mut self, body: Self::Handle, velocity: Vec3);
+    fn set_linear_velocity(&mut self, body: Self::BodyHandle, velocity: Vec3);
 
-    fn add_impulse(&mut self, body: Self::Handle, impulse: Vec3);
+    fn add_impulse(&mut self, body: Self::BodyHandle, impulse: Vec3);
 
-    fn add_impulse_at(&mut self, body: Self::Handle, impulse: Vec3, position: Vec3);
+    fn add_impulse_at(&mut self, body: Self::BodyHandle, impulse: Vec3, position: Vec3);
 
-    fn add_force(&mut self, body: Self::Handle, force: Vec3);
+    fn add_force(&mut self, body: Self::BodyHandle, force: Vec3);
 
-    fn add_force_at(&mut self, body: Self::Handle, force: Vec3, position: Vec3);
+    fn add_force_at(&mut self, body: Self::BodyHandle, force: Vec3, position: Vec3);
 
     /// Casts a ray from `origin` along `direction` — whose length is the
     /// maximum cast distance — and returns the closest hit, if any.
-    fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<RawRayHit<Self::Handle>>;
+    fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<RawRayHit<Self::BodyHandle>>;
 
     /// Collides `body`'s shape against the world (ignoring `body` itself)
     /// and reports the contact with the most upward-facing normal within
     /// `max_separation` of the shape, or `None` when airborne.
     fn probe_ground(
         &self,
-        body: Self::Handle,
+        body: Self::BodyHandle,
         max_separation: f32,
-    ) -> Option<RawGroundHit<Self::Handle>>;
+    ) -> Option<RawGroundHit<Self::BodyHandle>>;
+
+    fn create_sphere_shape(radius: f32) -> Self::ShapeHandle;
+    fn create_cuboid_shape(width: f32, height: f32, length: f32) -> Self::ShapeHandle;
+    fn create_capsule_shape(half_height: f32, radius: f32) -> Self::ShapeHandle;
+    fn create_shape_from_mesh(mesh: &Mesh) -> Self::ShapeHandle;
 }

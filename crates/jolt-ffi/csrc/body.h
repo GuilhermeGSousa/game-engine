@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "shape.h"
 #include "world.h"
 
 /* Positions and half-extents are xyz float triples; rotations are xyzw
@@ -61,31 +62,15 @@ extern "C"
     void jolt_body_creation_settings_set_allowed_dofs(JoltBodyCreationSettings *settings,
                                                       JoltAllowedDofs allowed_dofs);
 
-    /* `density` (kg/m^3) sets the shape's density, from which Jolt derives a
-     * dynamic body's mass; it has no effect on static bodies. */
-    void jolt_body_creation_settings_set_sphere_shape(JoltBodyCreationSettings *settings,
-                                                      float radius,
-                                                      float density);
-    void jolt_body_creation_settings_set_box_shape(JoltBodyCreationSettings *settings,
-                                                   const float half_extents[3],
-                                                   float density);
-    /* A capsule with total height 2 * (half_height + radius): a cylinder of
-     * 2 * half_height capped by hemispheres of `radius`, along the local Y
-     * axis. */
-    void jolt_body_creation_settings_set_capsule_shape(JoltBodyCreationSettings *settings,
-                                                       float half_height,
-                                                       float radius,
-                                                       float density);
-
-    bool jolt_body_creation_settings_set_mesh_shape(JoltBodyCreationSettings *settings,
-                                                    const float *vertices,
-                                                    uint32_t vertex_count,
-                                                    const uint32_t *indices,
-                                                    uint32_t index_count);
+    /* Sets the shape the body is built from (see shape.h). The settings take
+     * their own reference, so `shape` may be destroyed straight afterwards or
+     * reused for any number of other bodies. */
+    void jolt_body_creation_settings_set_shape(JoltBodyCreationSettings *settings,
+                                               const JoltShape *shape);
 
     /* Offsets the shape's geometry relative to the body origin (e.g. lift a
-     * capsule so the origin sits at its bottom). Composes with the shape
-     * setters in any call order. */
+     * capsule so the origin sits at its bottom). Composes with
+     * jolt_body_creation_settings_set_shape in any call order. */
     void jolt_body_creation_settings_set_shape_offset(JoltBodyCreationSettings *settings,
                                                       const float offset[3]);
 

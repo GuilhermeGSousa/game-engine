@@ -61,7 +61,7 @@ pub enum MotionType {
 /// in the same bundle as (or before) the `Collider` so it is visible when
 /// the body is created. Fields are read at that moment only — changing them
 /// afterwards does not affect the live body.
-#[derive(Component, Clone, Copy, Debug)]
+#[derive(Component, Clone, Debug)]
 pub struct RigidBody {
     /// Density in kg/m³; the body's mass is the collider shape's volume times
     /// this. Defaults to 1000 (water).

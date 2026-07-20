@@ -4,14 +4,7 @@
 #include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
-#include <Jolt/Physics/Collision/Shape/BoxShape.h>
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
-#include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
-#include <Jolt/Physics/Collision/Shape/SphereShape.h>
-
-#include <Jolt/Math/Float3.h>
-#include <Jolt/Geometry/IndexedTriangle.h>
 
 #include <cfloat>
 #include <cmath>
@@ -61,66 +54,10 @@ extern "C"
 		settings->settings.mAllowedDOFs = static_cast<JPH::EAllowedDOFs>(allowed_dofs);
 	}
 
-	void jolt_body_creation_settings_set_sphere_shape(JoltBodyCreationSettings *settings,
-													  float radius,
-													  float density)
+	void jolt_body_creation_settings_set_shape(JoltBodyCreationSettings *settings,
+											   const JoltShape *shape)
 	{
-		JPH::SphereShape *shape = new JPH::SphereShape(radius);
-		shape->SetDensity(density);
-		settings->settings.SetShape(shape);
-	}
-
-	void jolt_body_creation_settings_set_box_shape(JoltBodyCreationSettings *settings,
-												   const float half_extents[3],
-												   float density)
-	{
-		JPH::BoxShape *shape =
-			new JPH::BoxShape(JPH::Vec3(half_extents[0], half_extents[1], half_extents[2]));
-		shape->SetDensity(density);
-		settings->settings.SetShape(shape);
-	}
-
-	void jolt_body_creation_settings_set_capsule_shape(JoltBodyCreationSettings *settings,
-													   float half_height,
-													   float radius,
-													   float density)
-	{
-		JPH::CapsuleShape *shape = new JPH::CapsuleShape(half_height, radius);
-		shape->SetDensity(density);
-		settings->settings.SetShape(shape);
-	}
-
-	bool jolt_body_creation_settings_set_mesh_shape(JoltBodyCreationSettings *settings,
-													const float *vertices,
-													uint32_t vertex_count,
-													const uint32_t *indices,
-													uint32_t index_count)
-	{
-		JPH::VertexList vertex_list;
-		vertex_list.reserve(vertex_count);
-		for (uint32_t i = 0; i < vertex_count; ++i)
-		{
-			vertex_list.emplace_back(vertices[3 * i], vertices[3 * i + 1], vertices[3 * i + 2]);
-		}
-
-		JPH::IndexedTriangleList triangle_list;
-		triangle_list.reserve(index_count / 3);
-		for (uint32_t i = 0; i + 2 < index_count; i += 3)
-		{
-			triangle_list.emplace_back(indices[i], indices[i + 1], indices[i + 2]);
-		}
-
-		JPH::MeshShapeSettings mesh(std::move(vertex_list), std::move(triangle_list));
-
-		JPH::Shape::ShapeResult result = mesh.Create();
-
-		if (!result.IsValid())
-		{
-			return false;
-		}
-
-		settings->settings.SetShape(result.Get());
-		return true;
+		settings->settings.SetShape(shape->shape);
 	}
 
 	void jolt_body_creation_settings_set_shape_offset(JoltBodyCreationSettings *settings,

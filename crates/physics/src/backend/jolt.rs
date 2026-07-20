@@ -155,33 +155,25 @@ impl PhysicsBackend for JoltBackend {
                 let offset = offset.0.to_array();
                 jolt_ffi::jolt_body_creation_settings_set_shape_offset(settings, offset.as_ptr());
             }
-            match collider {
-                Collider::Sphere { radius } => {
-                    jolt_ffi::jolt_body_creation_settings_set_sphere_shape(
-                        settings, *radius, density,
-                    );
-                }
+            let shape = match collider {
+                Collider::Sphere { radius } => jolt_ffi::jolt_create_sphere_shape(*radius, density),
                 Collider::Cuboid { half_extents } => {
-                    jolt_ffi::jolt_body_creation_settings_set_box_shape(
-                        settings,
-                        half_extents.to_array().as_ptr(),
-                        density,
-                    );
+                    jolt_ffi::jolt_create_box_shape(half_extents.to_array().as_ptr(), density)
                 }
                 Collider::Capsule {
                     half_height,
                     radius,
-                } => {
-                    jolt_ffi::jolt_body_creation_settings_set_capsule_shape(
-                        settings,
-                        *half_height,
-                        *radius,
-                        density,
-                    );
+                } => jolt_ffi::jolt_create_capsule_shape(*half_height, *radius, density),
+                // Needs the mesh asset resolved to vertex/index buffers,
+                // which this layer has no access to yet.
+                Collider::Mesh { handle: _ } => {
+                    todo!("build a mesh shape from the resolved Mesh asset")
                 }
-                Collider::Mesh { handle: _ } => {}
-            }
+            };
+            jolt_ffi::jolt_body_creation_settings_set_shape(settings, shape);
             let id = jolt_ffi::jolt_body_create(self.world, settings);
+            // The body holds its own reference to the shape from here on.
+            jolt_ffi::jolt_shape_destroy(shape);
             jolt_ffi::jolt_body_creation_settings_destroy(settings);
             id
         }

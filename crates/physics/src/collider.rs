@@ -66,7 +66,7 @@ impl Collider {
 
 /// Local offset of the collider's geometry relative to the entity origin.
 /// Optional sibling of [`Collider`], read when the body is created.
-#[derive(Component, Clone, Copy, Debug)]
+#[derive(Component, Clone, Debug)]
 pub struct ColliderOffset(pub Vec3);
 
 impl ColliderOffset {

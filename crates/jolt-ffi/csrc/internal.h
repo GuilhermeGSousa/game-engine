@@ -126,6 +126,16 @@ struct JoltBodyCreationSettings
 	JPH::Vec3 shape_offset = JPH::Vec3::sZero();
 };
 
+// Holds a reference rather than owning the allocation: Jolt shapes are
+// refcounted and every body created from one keeps its own reference, so
+// destroying the handle must not free a shape still in use.
+struct JoltShape
+{
+	JPH::RefConst<JPH::Shape> shape;
+
+	explicit JoltShape(const JPH::Shape *new_shape) : shape(new_shape) {}
+};
+
 struct JoltStepper
 {
 	JPH::TempAllocatorImpl temp_allocator;

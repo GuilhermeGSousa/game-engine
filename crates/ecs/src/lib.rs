@@ -45,7 +45,7 @@ mod tests {
         entity::Entity,
         events::{event_channel::EventChannel, Event},
         query::{
-            query_filter::{Added, Changed, Or, With},
+            query_filter::{Added, Changed, Or, With, Without},
             Query,
         },
         resource::{Res, ResMut, Resource},
@@ -257,6 +257,71 @@ mod tests {
         schedule.add_system(system_query_hp_changed);
 
         schedule.compile::<SingleThreadedExecutor>().run(&mut world);
+    }
+
+    #[test]
+    fn without_filter_prunes_archetypes() {
+        let mut world = World::new();
+
+        world.spawn((Health, Position { x: 1.0, y: 2.0 }));
+        world.spawn((Position { x: 3.0, y: 4.0 },));
+        world.spawn((Position { x: 5.0, y: 6.0 },));
+
+        let with_health = Query::<&Position, With<Health>>::new(world.as_unsafe_world_cell_mut());
+        assert_eq!(with_health.iter().count(), 1);
+
+        let without_health =
+            Query::<&Position, Without<Health>>::new(world.as_unsafe_world_cell_mut());
+        assert_eq!(without_health.iter().count(), 2);
+    }
+
+    #[test]
+    fn mutable_query_writes_persist() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Position { x: 1.0, y: 2.0 },));
+        world.spawn((Position { x: 10.0, y: 20.0 },));
+
+        {
+            let query = Query::<&mut Position>::new(world.as_unsafe_world_cell_mut());
+            for mut position in query.iter() {
+                position.x += 100.0;
+            }
+        }
+
+        assert_eq!(
+            world.get_component_for_entity::<Position>(entity).unwrap().x,
+            101.0
+        );
+    }
+
+    #[derive(Resource, Default)]
+    struct MatchCount(usize);
+
+    fn count_positions(query: Query<&Position>, mut count: ResMut<MatchCount>) {
+        count.0 = query.iter().count();
+    }
+
+    #[test]
+    fn cached_query_state_sees_archetypes_created_between_runs() {
+        // The cached QueryState only inspects newly-appended archetypes each
+        // run; make sure an archetype created after the first run is still
+        // matched on the second run.
+        let mut world = World::new();
+        world.insert_resource(MatchCount::default());
+        world.spawn((Position { x: 0.0, y: 0.0 },));
+
+        let mut schedule = Schedule::new();
+        schedule.add_system(count_positions);
+        let mut compiled = schedule.compile::<SingleThreadedExecutor>();
+
+        compiled.run(&mut world);
+        assert_eq!(world.get_resource::<MatchCount>().unwrap().0, 1);
+
+        // New archetype (Position + Health) appears after the first run.
+        world.spawn((Position { x: 1.0, y: 1.0 }, Health));
+        compiled.run(&mut world);
+        assert_eq!(world.get_resource::<MatchCount>().unwrap().0, 2);
     }
 
     #[test]

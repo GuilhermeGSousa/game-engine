@@ -67,4 +67,17 @@ extern "C"
     {
         delete shape;
     }
+
+    void jolt_shape_get_local_bounds(const JoltShape *shape,
+                                     float out_min[3],
+                                     float out_max[3])
+    {
+        JPH::AABox bounds = shape->shape->GetLocalBounds();
+        out_min[0] = bounds.mMin.GetX();
+        out_min[1] = bounds.mMin.GetY();
+        out_min[2] = bounds.mMin.GetZ();
+        out_max[0] = bounds.mMax.GetX();
+        out_max[1] = bounds.mMax.GetY();
+        out_max[2] = bounds.mMax.GetZ();
+    }
 }

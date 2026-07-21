@@ -186,6 +186,14 @@ extern "C" {
     /// keep theirs and stay valid.
     pub fn jolt_shape_destroy(shape: *mut JoltShape);
 
+    /// The shape's axis-aligned bounds in its own local space, before any body
+    /// position, rotation or scale.
+    pub fn jolt_shape_get_local_bounds(
+        shape: *const JoltShape,
+        out_min: *mut f32,
+        out_max: *mut f32,
+    );
+
     /// Sets the shape the body is built from. The settings take their own
     /// reference, so `shape` may be destroyed straight afterwards or reused
     /// for any number of other bodies.

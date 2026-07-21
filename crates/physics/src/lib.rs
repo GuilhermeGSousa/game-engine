@@ -5,6 +5,7 @@
 //! behind the [`backend::PhysicsBackend`] trait. Native builds use Jolt
 //! Physics (via the in-repo `jolt-ffi` bindings).
 
+pub mod aabb;
 pub mod backend;
 pub mod body;
 pub mod collider;

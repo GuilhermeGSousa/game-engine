@@ -48,9 +48,8 @@ impl Collider {
         }
     }
 
-    /// Distance from the shape's center to its lowest point.
     pub fn bottom_offset(&self) -> f32 {
-        todo!()
+        -self.shared_shape.local_aabb().min().y
     }
 
     pub(crate) fn shape(&self) -> &PhysicsShape {
@@ -106,7 +105,7 @@ impl Component for Collider {
     }
 }
 
-pub(crate) fn register_colliders(
+pub fn register_colliders(
     colliders: Query<
         (
             Entity,

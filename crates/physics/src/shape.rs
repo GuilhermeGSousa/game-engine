@@ -9,6 +9,7 @@ use log::warn;
 use mesh::{Mesh, MeshComponent};
 
 use crate::{
+    aabb::Aabb,
     backend::{MeshShapeCreationError, PhysicsBackend},
     collider::Collider,
     ActiveBackend,
@@ -31,6 +32,12 @@ impl PhysicsShape {
 
     pub fn create_capsule_shape(half_height: f32, radius: f32) -> Self {
         Self(ActiveBackend::create_capsule_shape(half_height, radius))
+    }
+
+    /// The shape's axis-aligned bounds (min, max) in its own local space,
+    /// before any body pose or scale.
+    pub fn local_aabb(&self) -> Aabb {
+        <ActiveBackend as PhysicsBackend>::shape_local_aabb(&self.0)
     }
 }
 

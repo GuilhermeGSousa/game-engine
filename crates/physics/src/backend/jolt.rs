@@ -7,6 +7,7 @@ use essential::transform::Transform;
 use glam::{Quat, Vec3};
 use mesh::Mesh;
 
+use crate::aabb::Aabb;
 use crate::backend::{MeshShapeCreationError, PhysicsBackend, RawGroundHit, RawRayHit};
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::{AllowedDofs, MotionType, RigidBody};
@@ -339,6 +340,21 @@ impl PhysicsBackend for JoltBackend {
             normal: Vec3::from(result.normal),
             velocity: Vec3::from(result.velocity),
         })
+    }
+
+    fn shape_local_aabb(shape: &Self::ShapeHandle) -> Aabb {
+        let mut min = [0.0f32; 3];
+        let mut max = [0.0f32; 3];
+        // SAFETY: `shape` is a live handle; both out-buffers are valid xyz
+        // triples the shim always fills.
+        unsafe {
+            jolt_ffi::jolt_shape_get_local_bounds(
+                shape.as_ptr(),
+                min.as_mut_ptr(),
+                max.as_mut_ptr(),
+            );
+        }
+        Aabb::new(min.into(), max.into())
     }
 
     fn create_sphere_shape(radius: f32) -> Self::ShapeHandle {

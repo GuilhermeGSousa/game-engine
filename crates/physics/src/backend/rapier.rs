@@ -199,6 +199,11 @@ impl PhysicsBackend for RapierBackend {
         handle
     }
 
+    fn shape_local_aabb(shape: &Self::ShapeHandle) -> (Vec3, Vec3) {
+        let aabb = shape.compute_local_aabb();
+        (from_rapier_vec(aabb.mins), from_rapier_vec(aabb.maxs))
+    }
+
     fn create_sphere_shape(radius: f32) -> Self::ShapeHandle {
         SharedShape::ball(radius)
     }

@@ -47,6 +47,13 @@ extern "C"
      * keep theirs and stay valid. */
     void jolt_shape_destroy(JoltShape *shape);
 
+    /* The shape's axis-aligned bounds in its own local space, before any body
+     * position, rotation or scale. Used to derive dimensions the engine no
+     * longer tracks itself (e.g. how far a shape extends below its origin). */
+    void jolt_shape_get_local_bounds(const JoltShape *shape,
+                                     float out_min[3],
+                                     float out_max[3]);
+
 #ifdef __cplusplus
 }
 #endif

@@ -16,6 +16,7 @@ use essential::transform::Transform;
 use glam::Vec3;
 use mesh::Mesh;
 
+use crate::aabb::Aabb;
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::RigidBody;
 
@@ -127,6 +128,11 @@ pub trait PhysicsBackend: Send + Sync + Sized {
         body: Self::BodyHandle,
         max_separation: f32,
     ) -> Option<RawGroundHit<Self::BodyHandle>>;
+
+    /// The shape's axis-aligned bounds (min, max) in its own local space,
+    /// before any body pose or scale. The engine no longer stores a
+    /// collider's dimensions, so this is how they are recovered.
+    fn shape_local_aabb(shape: &Self::ShapeHandle) -> Aabb;
 
     fn create_sphere_shape(radius: f32) -> Self::ShapeHandle;
     fn create_cuboid_shape(width: f32, height: f32, length: f32) -> Self::ShapeHandle;

@@ -21,7 +21,7 @@ use rapier3d::prelude::{
     RigidBodyHandle, RigidBodySet, SharedShape,
 };
 
-use crate::backend::{MeshShapeCreationError, PhysicsBackend, RawGroundHit, RawRayHit};
+use crate::backend::{Aabb, MeshShapeCreationError, PhysicsBackend, RawGroundHit, RawRayHit};
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::{AllowedDofs, MotionType, RigidBody};
 
@@ -199,9 +199,10 @@ impl PhysicsBackend for RapierBackend {
         handle
     }
 
-    fn shape_local_aabb(shape: &Self::ShapeHandle) -> (Vec3, Vec3) {
+    fn shape_local_aabb(shape: &Self::ShapeHandle) -> Aabb {
         let aabb = shape.compute_local_aabb();
-        (from_rapier_vec(aabb.mins), from_rapier_vec(aabb.maxs))
+
+        Aabb::new(from_rapier_vec(aabb.mins), from_rapier_vec(aabb.maxs))
     }
 
     fn create_sphere_shape(radius: f32) -> Self::ShapeHandle {

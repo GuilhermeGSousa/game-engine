@@ -64,7 +64,7 @@ impl PhysicsMeshShapes {
     }
 
     pub(crate) fn drop_shape(&mut self, asset_id: &AssetId) {
-        self.cache.remove(&asset_id);
+        self.cache.remove(asset_id);
     }
 }
 

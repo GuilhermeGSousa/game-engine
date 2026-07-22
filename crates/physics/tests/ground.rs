@@ -3,6 +3,9 @@
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
+mod common;
+use common::{physics_world, register_bodies};
+
 use physics::body::BodyId;
 use physics::collider::Collider;
 use physics::ground::GroundState;
@@ -12,13 +15,6 @@ use physics::rigid_body::{AllowedDofs, MotionType, RigidBody};
 
 const MAX_SEPARATION: f32 = 0.05;
 const MAX_SLOPE: f32 = std::f32::consts::PI * 50.0 / 180.0;
-
-fn physics_world() -> World {
-    let mut world = World::new();
-    world.register_component_lifetimes::<Collider>();
-    world.insert_resource(PhysicsState::new());
-    world
-}
 
 fn step(world: &mut World, pipeline: &mut PhysicsPipeline, steps: u32) {
     for _ in 0..steps {
@@ -40,6 +36,7 @@ fn settled_sphere_reports_on_ground() {
         Collider::sphere(1.0),
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Quat::IDENTITY),
     ));
+    register_bodies(&mut world);
 
     step(&mut world, &mut pipeline, 120);
 
@@ -80,6 +77,7 @@ fn reports_in_air_before_landing() {
         Collider::sphere(1.0),
         Transform::from_translation_rotation(Vec3::new(0.0, 10.0, 0.0), Quat::IDENTITY),
     ));
+    register_bodies(&mut world);
 
     let body = *world.get_component_for_entity::<BodyId>(sphere).unwrap();
     let state = world.get_resource::<PhysicsState>().unwrap();
@@ -112,6 +110,7 @@ fn steep_slope_reports_on_steep_ground() {
         Collider::capsule(0.5, 0.5),
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Quat::IDENTITY),
     ));
+    register_bodies(&mut world);
 
     step(&mut world, &mut pipeline, 60);
 
@@ -139,6 +138,7 @@ fn set_velocity_wakes_a_sleeping_body() {
         Collider::sphere(1.0),
         Transform::from_translation_rotation(Vec3::new(0.0, 3.0, 0.0), Quat::IDENTITY),
     ));
+    register_bodies(&mut world);
 
     // 4 seconds: lands and sleeps (Jolt sleeps after ~0.5 s at rest).
     step(&mut world, &mut pipeline, 240);
@@ -176,6 +176,7 @@ fn moving_platform_reports_ground_velocity() {
         Collider::sphere(0.5),
         Transform::from_translation_rotation(Vec3::new(0.0, 2.0, 0.0), Quat::IDENTITY),
     ));
+    register_bodies(&mut world);
 
     step(&mut world, &mut pipeline, 90);
 

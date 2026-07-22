@@ -5,8 +5,10 @@
 
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
+use mesh::Mesh;
 
-use crate::backend::{PhysicsBackend, RawGroundHit, RawRayHit};
+use crate::aabb::Aabb;
+use crate::backend::{MeshShapeCreationError, PhysicsBackend, RawGroundHit, RawRayHit};
 use crate::collider::{Collider, ColliderOffset};
 use crate::rigid_body::{AllowedDofs, MotionType, RigidBody};
 
@@ -16,6 +18,9 @@ const NUM_BODY_MUTEXES: u32 = 0; // 0 = let Jolt pick a default
                                  // (see `new_stepper`). Keep them in step with that allocator's size.
 const MAX_BODY_PAIRS: u32 = 10_240;
 const MAX_CONTACT_CONSTRAINTS: u32 = 10_240;
+// Shapes are shared between bodies, so density can no longer come from an
+// individual body's `RigidBody`. See the note on `create_sphere_shape`.
+const SHAPE_DENSITY: f32 = 1000.0; // water
 
 /// Owns the Jolt physics world: the body store, broad/narrow phases, and the
 /// collision-layer interfaces it was initialised with (all held together on
@@ -31,6 +36,36 @@ pub struct JoltBackend {
 // once.
 unsafe impl Send for JoltBackend {}
 unsafe impl Sync for JoltBackend {}
+
+/// Owns one reference to a Jolt collision shape, released on drop.
+///
+/// Shapes are immutable and refcounted, so a single handle can back any
+/// number of bodies; each body takes its own reference, so dropping this
+/// never invalidates a shape still in use.
+pub struct ShapeHandle(*mut jolt_ffi::JoltShape);
+
+// SAFETY: a Jolt shape is immutable once built, so there is nothing to race
+// on when it is read from several threads. The only mutable state is
+// `JPH::RefTarget`'s reference count, which is an atomic with release/acquire
+// ordering, making the drop below safe from any thread.
+unsafe impl Send for ShapeHandle {}
+unsafe impl Sync for ShapeHandle {}
+
+impl ShapeHandle {
+    fn as_ptr(&self) -> *const jolt_ffi::JoltShape {
+        self.0
+    }
+}
+
+impl Drop for ShapeHandle {
+    fn drop(&mut self) {
+        // SAFETY: the pointer came from a `jolt_create_*_shape` call, which
+        // transferred one reference, and this is the only release of it.
+        unsafe {
+            jolt_ffi::jolt_shape_destroy(self.0);
+        }
+    }
+}
 
 /// Per-step scratch: a temporary allocator and a job system thread pool
 /// (owned together on the C++ side of the `jolt-ffi` shim).
@@ -80,7 +115,9 @@ fn to_jolt_dofs(dofs: AllowedDofs) -> jolt_ffi::JoltAllowedDofs {
 }
 
 impl PhysicsBackend for JoltBackend {
-    type Handle = jolt_ffi::JoltBodyId;
+    type BodyHandle = jolt_ffi::JoltBodyId;
+    type ShapeHandle = ShapeHandle;
+
     type Stepper = Stepper;
 
     fn new() -> Self {
@@ -119,13 +156,14 @@ impl PhysicsBackend for JoltBackend {
 
     fn create_body(
         &mut self,
-        collider: Collider,
+        collider: &Collider,
         transform: &Transform,
-        rigid_body: Option<RigidBody>,
-        offset: Option<ColliderOffset>,
-    ) -> Self::Handle {
+        rigid_body: Option<&RigidBody>,
+        offset: Option<&ColliderOffset>,
+    ) -> Self::BodyHandle {
         let position = transform.translation.to_array();
         let rotation = transform.rotation.to_array();
+        let scale = transform.scale.to_array();
         let motion_type = match rigid_body {
             Some(rb) => match rb.motion_type {
                 MotionType::Dynamic => jolt_ffi::JOLT_MOTION_TYPE_DYNAMIC,
@@ -133,9 +171,6 @@ impl PhysicsBackend for JoltBackend {
             },
             None => jolt_ffi::JOLT_MOTION_TYPE_STATIC,
         };
-        // Density is unused for static bodies; any sane value works here.
-        let density = rigid_body.map_or(1000.0, |rigid_body| rigid_body.density);
-
         // SAFETY: `self.world` is a valid world; the position/half-extent
         // arrays are valid xyz triples and the rotation a valid xyzw
         // quaternion. The settings are created, used, and destroyed within
@@ -155,38 +190,19 @@ impl PhysicsBackend for JoltBackend {
                 let offset = offset.0.to_array();
                 jolt_ffi::jolt_body_creation_settings_set_shape_offset(settings, offset.as_ptr());
             }
-            match collider {
-                Collider::Sphere { radius } => {
-                    jolt_ffi::jolt_body_creation_settings_set_sphere_shape(
-                        settings, radius, density,
-                    );
-                }
-                Collider::Cuboid { half_extents } => {
-                    jolt_ffi::jolt_body_creation_settings_set_box_shape(
-                        settings,
-                        half_extents.to_array().as_ptr(),
-                        density,
-                    );
-                }
-                Collider::Capsule {
-                    half_height,
-                    radius,
-                } => {
-                    jolt_ffi::jolt_body_creation_settings_set_capsule_shape(
-                        settings,
-                        half_height,
-                        radius,
-                        density,
-                    );
-                }
-            }
+            // Shapes are shared between bodies, so an entity's scale cannot be
+            // baked into the geometry: it goes on the body instead.
+            jolt_ffi::jolt_body_creation_settings_set_shape_scale(settings, scale.as_ptr());
+            // The body takes its own reference, so the collider keeps owning
+            // the shape and may share it with any number of other bodies.
+            jolt_ffi::jolt_body_creation_settings_set_shape(settings, collider.shape().0.as_ptr());
             let id = jolt_ffi::jolt_body_create(self.world, settings);
             jolt_ffi::jolt_body_creation_settings_destroy(settings);
             id
         }
     }
 
-    fn destroy_body(&mut self, body: Self::Handle) {
+    fn destroy_body(&mut self, body: Self::BodyHandle) {
         // SAFETY: `body` refers to a body created in this world and not yet
         // destroyed (`Collider`'s lifecycle guarantees one destroy per
         // create).
@@ -195,7 +211,7 @@ impl PhysicsBackend for JoltBackend {
         }
     }
 
-    fn body_transform(&self, body: Self::Handle) -> Transform {
+    fn body_transform(&self, body: Self::BodyHandle) -> Transform {
         let mut position = [0.0f32; 3];
         let mut rotation = [0.0f32; 4];
         // SAFETY: `body` is a valid body id within this world, and the output
@@ -212,7 +228,7 @@ impl PhysicsBackend for JoltBackend {
         Transform::from_translation_rotation(Vec3::from(position), Quat::from_array(rotation))
     }
 
-    fn linear_velocity(&self, body: Self::Handle) -> Vec3 {
+    fn linear_velocity(&self, body: Self::BodyHandle) -> Vec3 {
         let mut velocity = [0.0f32; 3];
         // SAFETY: `body` is a body in this world and the out-buffer is a
         // valid xyz triple.
@@ -222,7 +238,7 @@ impl PhysicsBackend for JoltBackend {
         Vec3::from(velocity)
     }
 
-    fn set_linear_velocity(&mut self, body: Self::Handle, velocity: Vec3) {
+    fn set_linear_velocity(&mut self, body: Self::BodyHandle, velocity: Vec3) {
         let velocity = velocity.to_array();
         // SAFETY: `body` is a body in this world; `velocity` is a valid xyz
         // triple.
@@ -231,14 +247,14 @@ impl PhysicsBackend for JoltBackend {
         }
     }
 
-    fn add_impulse(&mut self, body: Self::Handle, impulse: Vec3) {
+    fn add_impulse(&mut self, body: Self::BodyHandle, impulse: Vec3) {
         // SAFETY: `body` is a body in this world; the array a valid triple.
         unsafe {
             jolt_ffi::jolt_body_add_impulse(self.world, body, impulse.to_array().as_ptr());
         }
     }
 
-    fn add_impulse_at(&mut self, body: Self::Handle, impulse: Vec3, position: Vec3) {
+    fn add_impulse_at(&mut self, body: Self::BodyHandle, impulse: Vec3, position: Vec3) {
         // SAFETY: `body` is a body in this world; the arrays valid triples.
         unsafe {
             jolt_ffi::jolt_body_add_impulse_at(
@@ -250,14 +266,14 @@ impl PhysicsBackend for JoltBackend {
         }
     }
 
-    fn add_force(&mut self, body: Self::Handle, force: Vec3) {
+    fn add_force(&mut self, body: Self::BodyHandle, force: Vec3) {
         // SAFETY: `body` is a body in this world; the array a valid triple.
         unsafe {
             jolt_ffi::jolt_body_add_force(self.world, body, force.to_array().as_ptr());
         }
     }
 
-    fn add_force_at(&mut self, body: Self::Handle, force: Vec3, position: Vec3) {
+    fn add_force_at(&mut self, body: Self::BodyHandle, force: Vec3, position: Vec3) {
         // SAFETY: `body` is a body in this world; the arrays valid triples.
         unsafe {
             jolt_ffi::jolt_body_add_force_at(
@@ -269,7 +285,7 @@ impl PhysicsBackend for JoltBackend {
         }
     }
 
-    fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<RawRayHit<Self::Handle>> {
+    fn cast_ray(&self, origin: Vec3, direction: Vec3) -> Option<RawRayHit<Self::BodyHandle>> {
         let origin_array = origin.to_array();
         let direction_array = direction.to_array();
         let mut hit = jolt_ffi::JoltRayHit {
@@ -298,9 +314,9 @@ impl PhysicsBackend for JoltBackend {
 
     fn probe_ground(
         &self,
-        body: Self::Handle,
+        body: Self::BodyHandle,
         max_separation: f32,
-    ) -> Option<RawGroundHit<Self::Handle>> {
+    ) -> Option<RawGroundHit<Self::BodyHandle>> {
         let mut result = jolt_ffi::JoltGroundProbeResult {
             state: jolt_ffi::JOLT_GROUND_STATE_IN_AIR,
             body: 0,
@@ -324,6 +340,71 @@ impl PhysicsBackend for JoltBackend {
             normal: Vec3::from(result.normal),
             velocity: Vec3::from(result.velocity),
         })
+    }
+
+    fn shape_local_aabb(shape: &Self::ShapeHandle) -> Aabb {
+        let mut min = [0.0f32; 3];
+        let mut max = [0.0f32; 3];
+        // SAFETY: `shape` is a live handle; both out-buffers are valid xyz
+        // triples the shim always fills.
+        unsafe {
+            jolt_ffi::jolt_shape_get_local_bounds(
+                shape.as_ptr(),
+                min.as_mut_ptr(),
+                max.as_mut_ptr(),
+            );
+        }
+        Aabb::new(min.into(), max.into())
+    }
+
+    fn create_sphere_shape(radius: f32) -> Self::ShapeHandle {
+        // SAFETY: the constructor allocates a shape and transfers one
+        // reference, released by `ShapeHandle::drop`.
+        ShapeHandle(unsafe { jolt_ffi::jolt_create_sphere_shape(radius, SHAPE_DENSITY) })
+    }
+
+    fn create_cuboid_shape(width: f32, height: f32, length: f32) -> Self::ShapeHandle {
+        let half_extents = [width, height, length];
+        // SAFETY: `half_extents` is a valid xyz triple, read during the call
+        // only; the returned reference is released by `ShapeHandle::drop`.
+        ShapeHandle(unsafe {
+            jolt_ffi::jolt_create_box_shape(half_extents.as_ptr(), SHAPE_DENSITY)
+        })
+    }
+
+    fn create_capsule_shape(half_height: f32, radius: f32) -> Self::ShapeHandle {
+        // SAFETY: as `create_sphere_shape`.
+        ShapeHandle(unsafe {
+            jolt_ffi::jolt_create_capsule_shape(half_height, radius, SHAPE_DENSITY)
+        })
+    }
+
+    fn create_shape_from_mesh(mesh: &Mesh) -> Result<Self::ShapeHandle, MeshShapeCreationError> {
+        // `Vertex` interleaves normals, UVs and skinning weights with the
+        // positions, so the positions have to be packed before Jolt can read
+        // them as xyz triples.
+        let positions: Vec<f32> = mesh
+            .vertices
+            .iter()
+            .flat_map(|vertex| vertex.pos_coords)
+            .collect();
+
+        // SAFETY: `positions` holds `mesh.vertices.len()` xyz triples and
+        // `mesh.indices` `len()` indices; both are read during the call only.
+        let shape = unsafe {
+            jolt_ffi::jolt_create_mesh_shape(
+                positions.as_ptr(),
+                mesh.vertices.len() as u32,
+                mesh.indices.as_ptr(),
+                mesh.indices.len() as u32,
+            )
+        };
+
+        if !shape.is_null() {
+            Ok(ShapeHandle(shape))
+        } else {
+            Err(MeshShapeCreationError)
+        }
     }
 }
 

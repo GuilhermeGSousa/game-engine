@@ -2,9 +2,11 @@
 //! fall under gravity and come to rest on top of the floor. Bodies are created
 //! by spawning `Collider` components — never directly.
 
-use ecs::world::World;
 use essential::transform::Transform;
 use glam::{Quat, Vec3};
+mod common;
+use common::{physics_world, register_bodies};
+
 use physics::body::BodyId;
 use physics::collider::{Collider, ColliderOffset};
 use physics::ground::GroundState;
@@ -14,9 +16,7 @@ use physics::rigid_body::{AllowedDofs, RigidBody};
 
 #[test]
 fn sphere_falls_and_rests_on_floor() {
-    let mut world = World::new();
-    world.register_component_lifetimes::<Collider>();
-    world.insert_resource(PhysicsState::new());
+    let mut world = physics_world();
     let mut pipeline = PhysicsPipeline::new();
 
     // Static floor: a 100 x 1 x 100 (half-extent) box centred at the origin, so
@@ -32,6 +32,7 @@ fn sphere_falls_and_rests_on_floor() {
         Collider::sphere(1.0),
         Transform::from_translation_rotation(Vec3::new(0.0, 10.0, 0.0), Default::default()),
     ));
+    register_bodies(&mut world);
 
     let body = *world
         .get_component_for_entity::<BodyId>(sphere)
@@ -71,9 +72,7 @@ fn sphere_falls_and_rests_on_floor() {
 /// land upright and stay upright.
 #[test]
 fn capsule_with_locked_rotation_rests_upright() {
-    let mut world = World::new();
-    world.register_component_lifetimes::<Collider>();
-    world.insert_resource(PhysicsState::new());
+    let mut world = physics_world();
     let mut pipeline = PhysicsPipeline::new();
 
     // Floor top at y = 1.
@@ -92,6 +91,7 @@ fn capsule_with_locked_rotation_rests_upright() {
         Collider::capsule(0.5, 0.5),
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Default::default()),
     ));
+    register_bodies(&mut world);
 
     for _ in 0..180 {
         pipeline.step(world.get_resource_mut::<PhysicsState>().unwrap());
@@ -121,9 +121,7 @@ fn capsule_with_locked_rotation_rests_upright() {
 /// GLTF skeleton root expects to be.
 #[test]
 fn bottom_origin_capsule_rests_with_origin_at_floor_height() {
-    let mut world = World::new();
-    world.register_component_lifetimes::<Collider>();
-    world.insert_resource(PhysicsState::new());
+    let mut world = physics_world();
     let mut pipeline = PhysicsPipeline::new();
 
     // Floor top at y = 1.
@@ -133,15 +131,17 @@ fn bottom_origin_capsule_rests_with_origin_at_floor_height() {
     ));
 
     let collider = Collider::capsule(0.5, 0.5);
+    let offset = ColliderOffset::bottom_origin(&collider);
     let capsule = world.spawn((
         RigidBody {
             allowed_dofs: AllowedDofs::TRANSLATION,
             ..Default::default()
         },
         collider,
-        ColliderOffset::bottom_origin(&collider),
+        offset,
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Default::default()),
     ));
+    register_bodies(&mut world);
 
     for _ in 0..180 {
         pipeline.step(world.get_resource_mut::<PhysicsState>().unwrap());

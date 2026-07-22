@@ -1,5 +1,6 @@
 use ecs::system::schedule::UpdateGroup;
 use essential::assets::asset_server::{handle_asset_load_events, AssetServer};
+use essential::assets::handle::AssetLifetimeEvent;
 use essential::time::{FrameStats, Time};
 
 use ecs::resource::{Res, ResMut};
@@ -87,6 +88,7 @@ pub struct AssetManagerPlugin;
 impl Plugin for AssetManagerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(AssetServer::new());
+        app.register_event::<AssetLifetimeEvent>();
         app.add_system(UpdateGroup::LateUpdate, handle_asset_load_events);
     }
 }

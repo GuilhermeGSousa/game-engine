@@ -10,4 +10,4 @@ use crate::ActiveBackend;
 /// entity by [`Collider`](crate::collider::Collider)'s lifecycle when the
 /// body is created.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Component)]
-pub struct BodyId(pub(crate) <ActiveBackend as PhysicsBackend>::Handle);
+pub struct BodyId(pub(crate) <ActiveBackend as PhysicsBackend>::BodyHandle);

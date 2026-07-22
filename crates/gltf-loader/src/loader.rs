@@ -28,6 +28,7 @@ use gltf::{Node, Primitive, buffer::Data};
 use image::ImageBuffer;
 use log::warn;
 use mesh::{mesh::MeshComponent, skeleton::SkeletonComponent};
+use physics::shape::MeshCollider;
 use render::{
     MaterialComponent,
     assets::{
@@ -605,13 +606,30 @@ impl GLTFLoader {
 }
 
 #[derive(Component)]
-pub struct GLTFSpawnerComponent(pub AssetHandle<GLTFScene>);
+pub struct GLTFSpawnerComponent {
+    pub handle: AssetHandle<GLTFScene>,
+    pub generate_physics_shapes: bool,
+}
+
+impl GLTFSpawnerComponent {
+    pub fn from_handle(handle: AssetHandle<GLTFScene>) -> Self {
+        Self {
+            handle,
+            generate_physics_shapes: false,
+        }
+    }
+
+    pub fn with_physics_shapes(mut self) -> Self {
+        self.generate_physics_shapes = true;
+        self
+    }
+}
 
 impl std::ops::Deref for GLTFSpawnerComponent {
     type Target = AssetHandle<GLTFScene>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.handle
     }
 }
 
@@ -728,6 +746,10 @@ pub(crate) fn spawn_gltf_components(
                             },
                             node_entities[node_index],
                         );
+
+                        if component.generate_physics_shapes {
+                            cmd.insert(MeshCollider, node_entities[node_index]);
+                        }
                     }
 
                     for (mesh, material_index) in remaining_primitives {
@@ -745,6 +767,10 @@ pub(crate) fn spawn_gltf_components(
                                 },
                                 child,
                             );
+
+                            if component.generate_physics_shapes {
+                                cmd.insert(MeshCollider, child);
+                            }
                             cmd.add_child(node_entities[node_index], child);
                             extra_primitive_entities.push(child);
                         }

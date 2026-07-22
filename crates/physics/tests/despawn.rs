@@ -2,7 +2,9 @@
 //! eagerly and never destroyed, so a "removed" collider kept colliding
 //! forever. A body must leave the simulation with its `Collider` component.
 
-use ecs::world::World;
+mod common;
+use common::{physics_world, register_bodies};
+
 use essential::transform::Transform;
 use glam::Vec3;
 use physics::body::BodyId;
@@ -13,9 +15,7 @@ use physics::rigid_body::RigidBody;
 
 #[test]
 fn despawned_collider_stops_colliding() {
-    let mut world = World::new();
-    world.register_component_lifetimes::<Collider>();
-    world.insert_resource(PhysicsState::new());
+    let mut world = physics_world();
     let mut pipeline = PhysicsPipeline::new();
 
     // Floor top at y = 1; unit sphere dropped from y = 5.
@@ -28,6 +28,7 @@ fn despawned_collider_stops_colliding() {
         Collider::sphere(1.0),
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Default::default()),
     ));
+    register_bodies(&mut world);
 
     // One second: enough for the sphere to land, short enough that it cannot
     // have gone to sleep yet (Jolt sleeps after ~0.5 s at rest, and the drop

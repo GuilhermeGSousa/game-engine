@@ -1,10 +1,12 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use crate::assets::AssetPath;
 
 use super::{Asset, AssetId};
 use crossbeam_channel::Sender;
+use ecs::Event;
 
+#[derive(Clone, Event)]
 pub enum AssetLifetimeEvent {
     Dropped(AssetId, Option<AssetPath<'static>>),
 }
@@ -32,6 +34,15 @@ impl Drop for StrongAssetHandle {
     }
 }
 
+impl Debug for StrongAssetHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StrongAssetHandle")
+            .field("id", &self.id)
+            .field("path", &self.path)
+            .finish()
+    }
+}
+
 pub struct AssetHandle<A: Asset> {
     handle: Arc<StrongAssetHandle>,
     _marker: PhantomData<A>,
@@ -56,5 +67,13 @@ impl<A: Asset> Clone for AssetHandle<A> {
             handle: self.handle.clone(),
             _marker: PhantomData,
         }
+    }
+}
+
+impl<A: Asset> Debug for AssetHandle<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssetHandle")
+            .field("handle", &self.handle)
+            .finish()
     }
 }

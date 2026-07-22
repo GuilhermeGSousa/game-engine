@@ -6,19 +6,21 @@ use ecs::entity::Entity;
 use ecs::world::World;
 use essential::transform::Transform;
 use glam::Vec3;
+mod common;
+use common::{physics_world, register_bodies};
+
 use physics::collider::Collider;
 use physics::physics_state::PhysicsState;
 use physics::rigid_body::RigidBody;
 
 /// A world with one dynamic unit sphere centred at (0, 5, 0).
 fn world_with_sphere() -> (World, Entity) {
-    let mut world = World::new();
-    world.register_component_lifetimes::<Collider>();
-    world.insert_resource(PhysicsState::new());
+    let mut world = physics_world();
 
     let transform =
         Transform::from_translation_rotation(Vec3::new(0.0, 5.0, 0.0), Default::default());
     let entity = world.spawn((RigidBody::default(), Collider::sphere(1.0), transform));
+    register_bodies(&mut world);
 
     (world, entity)
 }
@@ -74,14 +76,13 @@ fn ray_misses_when_pointing_away() {
 fn ray_hits_static_geometry_entity() {
     // Static geometry is spawned as an entity like everything else, so hits
     // against it resolve to that entity too.
-    let mut world = World::new();
-    world.register_component_lifetimes::<Collider>();
-    world.insert_resource(PhysicsState::new());
+    let mut world = physics_world();
 
     let floor = world.spawn((
         Collider::cuboid(100.0, 1.0, 100.0),
         Transform::from_translation_rotation(Vec3::ZERO, Default::default()),
     ));
+    register_bodies(&mut world);
 
     // Floor top is at y = 1, i.e. 4 of the ray's 10 units away.
     let state = world.get_resource::<PhysicsState>().unwrap();

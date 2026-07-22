@@ -61,10 +61,10 @@ impl PhysicsState {
     /// `Collider::on_add`.
     pub(crate) fn create_body(
         &mut self,
-        collider: Collider,
+        collider: &Collider,
         transform: &Transform,
-        rigid_body: Option<RigidBody>,
-        offset: Option<ColliderOffset>,
+        rigid_body: Option<&RigidBody>,
+        offset: Option<&ColliderOffset>,
     ) -> BodyId {
         BodyId(
             self.backend

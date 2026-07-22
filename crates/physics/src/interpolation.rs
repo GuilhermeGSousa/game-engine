@@ -68,13 +68,21 @@ mod tests {
     use essential::{time::Time, transform::Transform};
     use glam::Vec3;
 
-    use crate::collider::Collider;
+    use crate::collider::{register_colliders, Collider};
     use crate::physics_pipeline::PhysicsPipeline;
     use crate::physics_state::PhysicsState;
     use crate::rigid_body::RigidBody;
     use crate::simulation::step_simulation;
 
     use super::interpolate_body_transforms;
+
+    /// Bodies are created by `register_colliders`, not by `Collider`'s
+    /// lifecycle, so it has to run before anything steps the simulation.
+    fn register_bodies(world: &mut World) {
+        let mut schedule = Schedule::new();
+        schedule.add_system(register_colliders);
+        schedule.compile::<SingleThreadedExecutor>().run(world);
+    }
 
     /// After a fixed step, the rendered Transform must sweep from the pre-step
     /// pose to the post-step pose as the fixed-step overstep advances, instead
@@ -83,6 +91,8 @@ mod tests {
     fn transform_blends_between_fixed_steps() {
         let mut world = World::new();
         world.register_component_lifetimes::<Collider>();
+        // Inserts the GlobalTransform that `register_colliders` reads.
+        world.register_component_lifetimes::<Transform>();
         world.insert_resource(PhysicsState::new());
         world.insert_resource(PhysicsPipeline::new());
         world.insert_resource(Time::new());
@@ -93,6 +103,7 @@ mod tests {
             Collider::sphere(1.0),
             Transform::from_translation_rotation(start, Default::default()),
         ));
+        register_bodies(&mut world);
 
         let mut step = Schedule::new();
         step.add_system(step_simulation);
@@ -143,5 +154,49 @@ mod tests {
             (y_mid - expected_mid).abs() < 1e-6,
             "at alpha 0.5 the transform should be halfway ({expected_mid}), was {y_mid}"
         );
+    }
+
+    /// Jolt reports poses with no scale of its own, so stepping and
+    /// interpolating a scaled body must leave its scale alone rather than
+    /// resetting it to one.
+    #[test]
+    fn stepping_preserves_transform_scale() {
+        let mut world = World::new();
+        world.register_component_lifetimes::<Collider>();
+        // Inserts the GlobalTransform that `register_colliders` reads.
+        world.register_component_lifetimes::<Transform>();
+        world.insert_resource(PhysicsState::new());
+        world.insert_resource(PhysicsPipeline::new());
+        world.insert_resource(Time::new());
+
+        let scale = Vec3::new(2.0, 3.0, 4.0);
+        let sphere = world.spawn((
+            RigidBody::default(),
+            Collider::sphere(1.0),
+            Transform::from_translation_rotation_scale(
+                Vec3::new(0.0, 10.0, 0.0),
+                Default::default(),
+                scale,
+            ),
+        ));
+        register_bodies(&mut world);
+
+        let mut schedule = Schedule::new();
+        schedule.add_system(step_simulation);
+        schedule.add_system(interpolate_body_transforms);
+        let mut schedule = schedule.compile::<SingleThreadedExecutor>();
+
+        for _ in 0..3 {
+            schedule.run(&mut world);
+            let transform = world
+                .get_component_for_entity::<Transform>(sphere)
+                .unwrap()
+                .clone();
+            assert!(
+                (transform.scale - scale).length() < 1e-6,
+                "scale should survive the step, was {:?}",
+                transform.scale
+            );
+        }
     }
 }

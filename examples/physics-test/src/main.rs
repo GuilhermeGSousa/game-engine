@@ -21,7 +21,9 @@ use game_engine::{
         transform::{GlobalTransform, Transform},
     },
     mesh::MeshComponent,
-    physics::{collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody},
+    physics::{
+        collider::Collider, physics_state::PhysicsState, rigid_body::RigidBody, shape::MeshCollider,
+    },
     render::{
         assets::{material::StandardMaterial, mesh::Mesh, vertex::Vertex},
         components::{
@@ -83,7 +85,8 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
             .with_base_color_factor(LinearRgba::new(0.4, 0.4, 0.45, 1.0)),
     );
     cmd.spawn((
-        Collider::cuboid(20.0, 0.5, 20.0),
+        // Collider::cuboid(20.0, 0.5, 20.0),
+        MeshCollider,
         MeshComponent { handle: floor_mesh },
         MaterialComponent {
             handle: floor_material,
@@ -244,7 +247,11 @@ fn make_plane(width: f32, length: f32) -> Mesh {
             ..Vertex::default()
         },
     ];
-    let indices = vec![0, 1, 2, 0, 2, 3];
+    // Counter-clockwise seen from above, so the face points +Y. Both the
+    // renderer (FrontFace::Ccw + back-face culling) and Jolt's mesh shapes
+    // treat CCW as the front, and mesh triangles are single sided, so the
+    // opposite winding is a floor you fall through as well as cannot see.
+    let indices = vec![0, 2, 1, 0, 3, 2];
 
     let mut mesh = Mesh { vertices, indices };
     mesh.compute_tangents();

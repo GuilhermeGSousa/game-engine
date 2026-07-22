@@ -4,10 +4,8 @@
 #include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
-#include <Jolt/Physics/Collision/Shape/BoxShape.h>
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
-#include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 
 #include <cfloat>
 #include <cmath>
@@ -57,33 +55,10 @@ extern "C"
 		settings->settings.mAllowedDOFs = static_cast<JPH::EAllowedDOFs>(allowed_dofs);
 	}
 
-	void jolt_body_creation_settings_set_sphere_shape(JoltBodyCreationSettings *settings,
-													  float radius,
-													  float density)
+	void jolt_body_creation_settings_set_shape(JoltBodyCreationSettings *settings,
+											   const JoltShape *shape)
 	{
-		JPH::SphereShape *shape = new JPH::SphereShape(radius);
-		shape->SetDensity(density);
-		settings->settings.SetShape(shape);
-	}
-
-	void jolt_body_creation_settings_set_box_shape(JoltBodyCreationSettings *settings,
-												   const float half_extents[3],
-												   float density)
-	{
-		JPH::BoxShape *shape =
-			new JPH::BoxShape(JPH::Vec3(half_extents[0], half_extents[1], half_extents[2]));
-		shape->SetDensity(density);
-		settings->settings.SetShape(shape);
-	}
-
-	void jolt_body_creation_settings_set_capsule_shape(JoltBodyCreationSettings *settings,
-													   float half_height,
-													   float radius,
-													   float density)
-	{
-		JPH::CapsuleShape *shape = new JPH::CapsuleShape(half_height, radius);
-		shape->SetDensity(density);
-		settings->settings.SetShape(shape);
+		settings->settings.SetShape(shape->shape);
 	}
 
 	void jolt_body_creation_settings_set_shape_offset(JoltBodyCreationSettings *settings,
@@ -92,10 +67,28 @@ extern "C"
 		settings->shape_offset = JPH::Vec3(offset[0], offset[1], offset[2]);
 	}
 
+	void jolt_body_creation_settings_set_shape_scale(JoltBodyCreationSettings *settings,
+													 const float scale[3])
+	{
+		settings->shape_scale = JPH::Vec3(scale[0], scale[1], scale[2]);
+	}
+
 	JoltBodyId jolt_body_create(JoltWorld *world, const JoltBodyCreationSettings *settings)
 	{
-		// Copy so the offset wrap never mutates the caller's reusable settings.
+		// Copy so the wraps below never mutate the caller's reusable settings.
 		JPH::BodyCreationSettings creation = settings->settings;
+
+		// Scale first: wrapping the other way round would scale the offset
+		// along with the geometry.
+		//
+		// A zero component is not a valid scale (Jolt's own check is compiled
+		// out by NDEBUG, so it would silently produce a degenerate shape).
+		bool scaled = !settings->shape_scale.IsClose(JPH::Vec3::sReplicate(1.0f));
+		bool degenerate = settings->shape_scale.ReduceMin() == 0.0f ||
+						  settings->shape_scale.ReduceMax() == 0.0f;
+		if (scaled && !degenerate)
+			creation.SetShape(new JPH::ScaledShape(creation.GetShape(), settings->shape_scale));
+
 		if (!settings->shape_offset.IsNearZero())
 			creation.SetShape(new JPH::RotatedTranslatedShape(settings->shape_offset,
 															  JPH::Quat::sIdentity(),

@@ -7,3 +7,4 @@
 #include "body.h"
 #include "ray.h"
 #include "world.h"
+#include "shape.h"

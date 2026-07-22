@@ -35,6 +35,17 @@ pub struct JoltBodyCreationSettings {
     _marker: PhantomData<(*mut u8, PhantomPinned)>,
 }
 
+/// Opaque collision shape (wraps a reference to a `JPH::Shape`).
+///
+/// Shapes are immutable and refcounted: one shape may back any number of
+/// bodies. This handle owns one reference and bodies take their own, so
+/// [`jolt_shape_destroy`] may be called while bodies still use the shape.
+#[repr(C)]
+pub struct JoltShape {
+    _data: [u8; 0],
+    _marker: PhantomData<(*mut u8, PhantomPinned)>,
+}
+
 /// A Jolt body id (`JPH::BodyID::GetIndexAndSequenceNumber()`).
 pub type JoltBodyId = u32;
 
@@ -144,36 +155,71 @@ extern "C" {
         allowed_dofs: JoltAllowedDofs,
     );
 
-    /// `density` (kg/m³) sets the shape's density, from which Jolt derives a
-    /// dynamic body's mass; it has no effect on static bodies.
-    pub fn jolt_body_creation_settings_set_sphere_shape(
-        settings: *mut JoltBodyCreationSettings,
-        radius: f32,
-        density: f32,
-    );
+    /// `density` (kg/m³) is the density of the shape's volume, from which
+    /// Jolt derives a dynamic body's mass; it has no effect on static bodies.
+    pub fn jolt_create_sphere_shape(radius: f32, density: f32) -> *mut JoltShape;
 
-    pub fn jolt_body_creation_settings_set_box_shape(
-        settings: *mut JoltBodyCreationSettings,
-        half_extents: *const f32,
-        density: f32,
-    );
+    pub fn jolt_create_box_shape(half_extents: *const f32, density: f32) -> *mut JoltShape;
 
     /// A capsule with total height `2 * (half_height + radius)`: a cylinder
     /// of `2 * half_height` capped by hemispheres of `radius`, along the
     /// local Y axis.
-    pub fn jolt_body_creation_settings_set_capsule_shape(
+    pub fn jolt_create_capsule_shape(half_height: f32, radius: f32, density: f32)
+        -> *mut JoltShape;
+
+    /// A triangle mesh. `vertices` is `vertex_count` xyz triples; `indices`
+    /// is `index_count` vertex indices, three per triangle, wound
+    /// counter-clockwise. Triangles are single sided for simulation. Returns
+    /// null if Jolt rejected the mesh.
+    ///
+    /// Takes no density: a mesh need not form a closed hull, so it has no
+    /// volume to derive a mass from, and Jolt requires mesh-shaped bodies to
+    /// be static.
+    pub fn jolt_create_mesh_shape(
+        vertices: *const f32,
+        vertex_count: u32,
+        indices: *const u32,
+        index_count: u32,
+    ) -> *mut JoltShape;
+
+    /// Releases the handle's reference. Bodies already created from the shape
+    /// keep theirs and stay valid.
+    pub fn jolt_shape_destroy(shape: *mut JoltShape);
+
+    /// The shape's axis-aligned bounds in its own local space, before any body
+    /// position, rotation or scale.
+    pub fn jolt_shape_get_local_bounds(
+        shape: *const JoltShape,
+        out_min: *mut f32,
+        out_max: *mut f32,
+    );
+
+    /// Sets the shape the body is built from. The settings take their own
+    /// reference, so `shape` may be destroyed straight afterwards or reused
+    /// for any number of other bodies.
+    pub fn jolt_body_creation_settings_set_shape(
         settings: *mut JoltBodyCreationSettings,
-        half_height: f32,
-        radius: f32,
-        density: f32,
+        shape: *const JoltShape,
     );
 
     /// Offsets the shape's geometry relative to the body origin (e.g. lift a
-    /// capsule so the origin sits at its bottom). Composes with the shape
-    /// setters in any call order.
+    /// capsule so the origin sits at its bottom). Composes with
+    /// [`jolt_body_creation_settings_set_shape`] in any call order.
     pub fn jolt_body_creation_settings_set_shape_offset(
         settings: *mut JoltBodyCreationSettings,
         offset: *const f32,
+    );
+
+    /// Scales the shape's geometry, so one shape can back bodies of different
+    /// sizes (an entity's `Transform` scale). Applied inside the offset,
+    /// which therefore stays in unscaled body space.
+    ///
+    /// Non-uniform and negative scales are supported; a mirrored scale keeps
+    /// mesh triangles wound correctly. A component of zero is invalid and
+    /// leaves the shape unscaled.
+    pub fn jolt_body_creation_settings_set_shape_scale(
+        settings: *mut JoltBodyCreationSettings,
+        scale: *const f32,
     );
 
     /// Creates a body from `settings` and adds it to the simulation, active

@@ -6,6 +6,7 @@ use ecs::{
     component::Component,
     events::{
         event_channel::{update_event_channel, EventChannel},
+        event_writer::EventWriter,
         Event,
     },
     resource::{ResMut, Resource},
@@ -17,7 +18,9 @@ use log::info;
 use runner::AppExit;
 
 use essential::{
-    assets::{asset_server::AssetServer, asset_store::AssetStore, Asset},
+    assets::{
+        asset_server::AssetServer, asset_store::AssetStore, handle::AssetLifetimeEvent, Asset,
+    },
     time::Time,
 };
 
@@ -94,8 +97,10 @@ impl App {
 
         self.add_system(
             UpdateGroup::Update,
-            |mut asset_store: ResMut<AssetStore<A>>, asset_server: ResMut<AssetServer>| {
-                asset_store.track_assets(asset_server);
+            |mut asset_store: ResMut<AssetStore<A>>,
+             asset_server: ResMut<AssetServer>,
+             events: EventWriter<AssetLifetimeEvent>| {
+                asset_store.track_assets(asset_server, events);
             },
         );
 

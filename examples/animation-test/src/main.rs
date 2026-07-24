@@ -8,10 +8,10 @@ use game_engine::{
 use gameplay::{movement::first_person_player_fly, player::spawn_first_person_player};
 use glam::Vec3;
 
-use debug_gizmos::plugin::DebugGizmosPlugin;
+use debug_gizmos::DebugGizmosPlugin;
 use world_grid::WorldGrid;
 
-use crate::demo_overlay::{spawn_entity_gizmos, spawn_overlay, update_overlay};
+use crate::demo_overlay::{draw_entity_gizmos, spawn_overlay, update_overlay};
 use crate::movement_animation::{
     setup_animations, setup_state_machine, spawn_character, update_movement,
 };
@@ -49,7 +49,7 @@ fn main() {
         .add_system(UpdateGroup::Update, setup_animations)
         .add_system(UpdateGroup::Update, update_movement)
         .add_system(UpdateGroup::Update, update_overlay)
-        .add_system(UpdateGroup::Update, spawn_entity_gizmos);
+        .add_system(UpdateGroup::Update, draw_entity_gizmos);
 
     app.run();
 }

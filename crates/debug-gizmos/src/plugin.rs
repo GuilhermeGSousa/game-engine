@@ -1,25 +1,42 @@
 use app::Plugin;
-use essential::assets::asset_server::AssetServer;
-use render::MaterialPlugin;
+use ecs::system::schedule::UpdateGroup;
+use render::{device::RenderDevice, layouts::CameraLayout, resources::RenderContext};
 
-use crate::{components::sphere_added, material::DebugGizmoMaterial, shapes::GizmoShapes};
+use crate::{pipeline::GizmoPipeline, render::render_gizmos, storage::GizmoStorage};
 
+/// Registers immediate-mode debug gizmos.
+///
+/// After adding this plugin, any system can request a
+/// [`DebugGizmos`](crate::gizmos::DebugGizmos) parameter and draw lines,
+/// spheres, cuboids, and other shapes for the current frame.
+///
+/// Must be registered *after* the render plugin: it reads GPU resources such as
+/// [`RenderDevice`] and [`CameraLayout`] during [`Plugin::finish`].
 pub struct DebugGizmosPlugin;
 
 impl Plugin for DebugGizmosPlugin {
     fn build(&self, app: &mut app::App) {
-        app.register_plugin(MaterialPlugin::<DebugGizmoMaterial>::new());
+        app.insert_resource(GizmoStorage::default());
+        app.add_system(UpdateGroup::Render, render_gizmos);
+    }
 
-        app.add_system(ecs::system::schedule::UpdateGroup::Update, sphere_added);
+    fn finish(&self, app: &mut app::App) {
+        let surface_format = app
+            .get_resource::<RenderContext>()
+            .expect("RenderContext not found; register RenderPlugin before DebugGizmosPlugin")
+            .surface_config
+            .format;
 
-        let asset_server = app
-            .get_resource::<AssetServer>()
-            .expect("AssetServer not found, make sure its plugin is registered");
+        let camera_layout = app
+            .get_resource::<CameraLayout>()
+            .expect("CameraLayout not found; register RenderPlugin before DebugGizmosPlugin");
 
-        app.insert_resource(GizmoShapes {
-            line: asset_server.add(GizmoShapes::make_line()),
-            sphere: asset_server.add(GizmoShapes::make_unit_sphere()),
-            cube: asset_server.add(GizmoShapes::make_unit_cube()),
-        });
+        let device = app
+            .get_resource::<RenderDevice>()
+            .expect("RenderDevice not found; register RenderPlugin before DebugGizmosPlugin");
+
+        let pipeline = GizmoPipeline::new(device, camera_layout, surface_format);
+
+        app.insert_resource(pipeline);
     }
 }

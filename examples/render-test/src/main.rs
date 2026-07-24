@@ -335,10 +335,8 @@ fn draw_terminal(mut terminal: ResMut<TerminalContext>, terminal_frame: Res<Term
 /// visualising simulation state.
 #[cfg(not(feature = "terminal"))]
 fn draw_gizmos(mut gizmos: DebugGizmos, bodies: Query<&GlobalTransform, With<BodyId>>) {
-    // World-origin axes (X red / Y green / Z blue).
     gizmos.axes(&Transform::from_translation(Vec3::ZERO), 1.0);
 
-    // A static reference box floating in the scene.
     let box_transform = Transform::from_translation_rotation_scale(
         Vec3::new(2.0, 1.0, 0.0),
         Quat::IDENTITY,
@@ -346,7 +344,6 @@ fn draw_gizmos(mut gizmos: DebugGizmos, bodies: Query<&GlobalTransform, With<Bod
     );
     gizmos.cuboid(&box_transform, LinearRgba::new(1.0, 0.6, 0.1, 1.0));
 
-    // Track each fired sphere with a wireframe overlay and an up-arrow.
     for transform in bodies.iter() {
         let center = transform.translation();
         gizmos.sphere(center, SPHERE_RADIUS, LinearRgba::GREEN);

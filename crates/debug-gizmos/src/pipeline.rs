@@ -62,7 +62,6 @@ impl GizmoPipeline {
                 unclipped_depth: false,
                 conservative: false,
             },
-            // No depth attachment: gizmos draw on top of the scene.
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
                 count: 1,

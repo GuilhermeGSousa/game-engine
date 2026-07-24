@@ -37,8 +37,6 @@ pub struct DebugGizmos<'w> {
 }
 
 impl<'w> DebugGizmos<'w> {
-    // ── Lines ────────────────────────────────────────────────────────────────
-
     /// Draws a single line between two points.
     #[inline]
     pub fn line(&mut self, start: Vec3, end: Vec3, color: LinearRgba) {
@@ -100,8 +98,6 @@ impl<'w> DebugGizmos<'w> {
         self.line(position - Vec3::Z * h, position + Vec3::Z * h, color);
     }
 
-    // ── Circles & spheres ──────────────────────────────────────────────────────
-
     /// Draws a circle of `radius` centred at `center`, lying in the plane whose
     /// normal is `normal`.
     pub fn circle(&mut self, center: Vec3, normal: Vec3, radius: f32, color: LinearRgba) {
@@ -119,12 +115,10 @@ impl<'w> DebugGizmos<'w> {
 
     /// Draws a wireframe sphere as three great circles aligned to the world axes.
     pub fn sphere(&mut self, center: Vec3, radius: f32, color: LinearRgba) {
-        self.circle(center, Vec3::Z, radius, color); // XY plane
-        self.circle(center, Vec3::Y, radius, color); // XZ plane
-        self.circle(center, Vec3::X, radius, color); // YZ plane
+        self.circle(center, Vec3::Z, radius, color);
+        self.circle(center, Vec3::Y, radius, color);
+        self.circle(center, Vec3::X, radius, color);
     }
-
-    // ── Rectangles & cuboids ────────────────────────────────────────────────────
 
     /// Draws the outline of a rectangle centred at `center`, lying in the plane
     /// with the given `normal`, sized `size` (width along the plane's first
@@ -147,7 +141,6 @@ impl<'w> DebugGizmos<'w> {
     /// scale `s` yields a box of dimensions `s` centred at `t`.
     pub fn cuboid(&mut self, transform: &Transform, color: LinearRgba) {
         let matrix = transform.compute_matrix();
-        // Unit-cube corners in [-0.5, 0.5]^3.
         let corners: [Vec3; 8] = [
             Vec3::new(-0.5, -0.5, -0.5),
             Vec3::new(0.5, -0.5, -0.5),
@@ -160,7 +153,6 @@ impl<'w> DebugGizmos<'w> {
         ]
         .map(|c| matrix.transform_point3(c));
 
-        // 4 bottom, 4 top, 4 verticals.
         const EDGES: [(usize, usize); 12] = [
             (0, 1),
             (1, 2),
@@ -186,8 +178,6 @@ impl<'w> DebugGizmos<'w> {
         let transform = Transform::from_translation_rotation_scale(center, Quat::IDENTITY, size);
         self.cuboid(&transform, color);
     }
-
-    // ── Transforms & arrows ─────────────────────────────────────────────────────
 
     /// Draws the local axes of `transform`: X in red, Y in green, Z in blue,
     /// each extending `length` units from the origin.
@@ -219,7 +209,6 @@ impl<'w> DebugGizmos<'w> {
         let dir = direction / length;
         let (tangent, bitangent) = orthonormal_basis(dir);
 
-        // Head lines make a 45° cone, scaled to a fraction of the shaft length.
         let head = (length * 0.1).min(0.5);
         let back = end - dir * head;
         for offset in [tangent, -tangent, bitangent, -bitangent] {
@@ -239,8 +228,6 @@ fn orthonormal_basis(normal: Vec3) -> (Vec3, Vec3) {
     let bitangent = n.cross(tangent);
     (tangent, bitangent)
 }
-
-// ── SystemInput impl ───────────────────────────────────────────────────────────
 
 impl<'w> SystemInput for DebugGizmos<'w> {
     type State = ();

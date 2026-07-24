@@ -23,8 +23,6 @@ pub(crate) fn render_gizmos(
     render_cameras: Query<&RenderCamera>,
     render_window: Res<RenderWindow>,
 ) {
-    // Nothing drawn this frame — still nothing to do, but make sure we leave the
-    // buffer clear for next frame.
     if storage.vertices.is_empty() {
         return;
     }
@@ -39,7 +37,6 @@ pub(crate) fn render_gizmos(
     let encoder = device.command_encoder();
 
     for render_camera in render_cameras.iter() {
-        // Route to the camera's render target texture, or to the swapchain.
         let swapchain_view = render_window.get_view();
         let color_view: &wgpu::TextureView = match &render_camera.render_target {
             Some(rt) => &rt.view,
@@ -55,7 +52,6 @@ pub(crate) fn render_gizmos(
                 view: color_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    // Draw over whatever the material passes already rendered.
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
@@ -71,6 +67,5 @@ pub(crate) fn render_gizmos(
         render_pass.draw(0..vertex_count, 0..1);
     }
 
-    // Immediate mode: consume this frame's gizmos.
     storage.clear();
 }

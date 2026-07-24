@@ -90,14 +90,11 @@ pub(crate) fn draw_entity_gizmos(
         return;
     };
 
-    // Spawner (character root) — red.
     gizmos.sphere(
         spawner.translation(),
         0.15,
         LinearRgba::new(1.0, 0.2, 0.2, 1.0),
     );
-    // Skinned mesh entity — green.
     gizmos.sphere(mesh.translation(), 0.15, LinearRgba::new(0.2, 1.0, 0.2, 1.0));
-    // Root bone — blue.
     gizmos.sphere(root.translation(), 0.12, LinearRgba::new(0.3, 0.5, 1.0, 1.0));
 }

@@ -75,11 +75,7 @@ impl<'w> DebugGizmos<'w> {
     }
 
     /// Connects a sequence of points with line segments (an open polyline).
-    pub fn linestrip(
-        &mut self,
-        points: impl IntoIterator<Item = Vec3>,
-        color: LinearRgba,
-    ) {
+    pub fn linestrip(&mut self, points: impl IntoIterator<Item = Vec3>, color: LinearRgba) {
         let mut iter = points.into_iter();
         let Some(mut prev) = iter.next() else {
             return;
@@ -183,7 +179,11 @@ impl<'w> DebugGizmos<'w> {
     /// each extending `length` units from the origin.
     pub fn axes(&mut self, transform: &Transform, length: f32) {
         let origin = transform.translation;
-        self.line(origin, origin + transform.local_x() * length, LinearRgba::RED);
+        self.line(
+            origin,
+            origin + transform.local_x() * length,
+            LinearRgba::RED,
+        );
         self.line(
             origin,
             origin + transform.local_y() * length,

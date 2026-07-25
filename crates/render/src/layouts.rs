@@ -3,8 +3,15 @@ use std::ops::Deref;
 use ecs::resource::Resource;
 use wgpu::BindGroupLayoutDescriptor;
 
+/// Bind-group layout for the camera uniform (`@group(1) @binding(0)` in the
+/// default material convention).
+///
+/// Exposed publicly so crates with their own render passes (e.g. debug gizmos)
+/// can build a pipeline whose camera bind-group layout is *the same object*
+/// that [`RenderCamera`](crate::components::camera::RenderCamera) bind groups
+/// are created from, guaranteeing wgpu bind-group compatibility.
 #[derive(Resource)]
-pub(crate) struct CameraLayout {
+pub struct CameraLayout {
     pub camera_layout: wgpu::BindGroupLayout,
 }
 

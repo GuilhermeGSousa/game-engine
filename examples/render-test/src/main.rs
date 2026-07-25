@@ -31,7 +31,7 @@ use terminal_renderer::{
 };
 
 #[cfg(not(feature = "terminal"))]
-use debug_gizmos::plugin::DebugGizmosPlugin;
+use debug_gizmos::{DebugGizmos, DebugGizmosPlugin};
 #[cfg(not(feature = "terminal"))]
 use ecs::{resource::ResMut, Entity};
 #[cfg(not(feature = "terminal"))]
@@ -106,7 +106,8 @@ fn main() {
             .add_system(UpdateGroup::Update, rotate_cube)
             .add_system(UpdateGroup::Update, shoot_sphere)
             .add_system(UpdateGroup::Update, launch_projectiles)
-            .add_system(UpdateGroup::Update, first_person_player_fly);
+            .add_system(UpdateGroup::Update, first_person_player_fly)
+            .add_system(UpdateGroup::Update, draw_gizmos);
         app.register_plugin(DebugGizmosPlugin);
     }
 
@@ -324,4 +325,28 @@ fn draw_terminal(mut terminal: ResMut<TerminalContext>, terminal_frame: Res<Term
             }
         })
         .unwrap();
+}
+
+/// Immediate-mode gizmo demo.
+///
+/// Everything here is re-issued every frame: the static reference shapes are
+/// redrawn, and a wireframe sphere is drawn around every live physics sphere by
+/// querying its current transform — the classic immediate-mode use case for
+/// visualising simulation state.
+#[cfg(not(feature = "terminal"))]
+fn draw_gizmos(mut gizmos: DebugGizmos, bodies: Query<&GlobalTransform, With<BodyId>>) {
+    gizmos.axes(&Transform::from_translation(Vec3::ZERO), 1.0);
+
+    let box_transform = Transform::from_translation_rotation_scale(
+        Vec3::new(2.0, 1.0, 0.0),
+        Quat::IDENTITY,
+        Vec3::splat(1.0),
+    );
+    gizmos.cuboid(&box_transform, LinearRgba::new(1.0, 0.6, 0.1, 1.0));
+
+    for transform in bodies.iter() {
+        let center = transform.translation();
+        gizmos.sphere(center, SPHERE_RADIUS, LinearRgba::GREEN);
+        gizmos.arrow(center, center + Vec3::Y * 0.75, LinearRgba::RED);
+    }
 }

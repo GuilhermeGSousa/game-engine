@@ -2,7 +2,7 @@
 //! markers for the important entities (spawner, skinned mesh, root bone).
 
 use color::LinearRgba;
-use debug_gizmos::components::GizmoSphere;
+use debug_gizmos::DebugGizmos;
 use game_engine::{
     animation::{player::AnimationPlayer, root::AnimationRootBone},
     ecs::{command::CommandQueue, component::Component, query::Query, With},
@@ -70,21 +70,17 @@ pub(crate) fn update_overlay(
     }
 }
 
-/// Update (runs once): drop a coloured marker on the spawner, the skinned-mesh entity, and
-/// the root bone once they all have a valid world transform. These are distinct entities
-/// (the skinned-mesh node is not the root joint), so the three markers land apart.
-pub(crate) fn spawn_entity_gizmos(
-    mut cmd: CommandQueue,
-    existing: Query<&GizmoSphere>,
+/// Update (every frame): draw a coloured wireframe marker on the spawner, the
+/// skinned-mesh entity, and the root bone. Because gizmos are immediate mode the
+/// markers are re-drawn each frame and therefore track the entities as they move.
+/// These are distinct entities (the skinned-mesh node is not the root joint), so
+/// the three markers land apart.
+pub(crate) fn draw_entity_gizmos(
+    mut gizmos: DebugGizmos,
     character: Query<&GlobalTransform, With<AnimatedCharacter>>,
     skinned_mesh: Query<&GlobalTransform, With<SkeletonComponent>>,
     root_bone: Query<&GlobalTransform, With<AnimationRootBone>>,
 ) {
-    // Markers persist once spawned; bail if we've already placed them.
-    if existing.iter().next().is_some() {
-        return;
-    }
-
     let (Some(spawner), Some(mesh), Some(root)) = (
         character.iter().next(),
         skinned_mesh.iter().next(),
@@ -94,22 +90,19 @@ pub(crate) fn spawn_entity_gizmos(
         return;
     };
 
-    // Spawner (character root) — red.
-    cmd.spawn(GizmoSphere {
-        center: spawner.translation(),
-        radius: 0.15,
-        color: LinearRgba::new(1.0, 0.2, 0.2, 1.0),
-    });
-    // Skinned mesh entity — green.
-    cmd.spawn(GizmoSphere {
-        center: mesh.translation(),
-        radius: 0.15,
-        color: LinearRgba::new(0.2, 1.0, 0.2, 1.0),
-    });
-    // Root bone — blue.
-    cmd.spawn(GizmoSphere {
-        center: root.translation(),
-        radius: 0.12,
-        color: LinearRgba::new(0.3, 0.5, 1.0, 1.0),
-    });
+    gizmos.sphere(
+        spawner.translation(),
+        0.15,
+        LinearRgba::new(1.0, 0.2, 0.2, 1.0),
+    );
+    gizmos.sphere(
+        mesh.translation(),
+        0.15,
+        LinearRgba::new(0.2, 1.0, 0.2, 1.0),
+    );
+    gizmos.sphere(
+        root.translation(),
+        0.12,
+        LinearRgba::new(0.3, 0.5, 1.0, 1.0),
+    );
 }

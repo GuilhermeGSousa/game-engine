@@ -39,6 +39,7 @@ app = { path = "crates/app" }
 animation = { path = "crates/animation" }
 essential = { path = "crates/essential" }
 render = { path = "crates/render" }
+director = { path = "crates/director" }
 mesh = { path = "crates/mesh" }
 gameplay = { path = "crates/gameplay" }
 window = { path = "crates/window" }

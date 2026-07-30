@@ -1,16 +1,14 @@
 use game_engine::{
-    ecs::CommandQueue, essential::transform::Transform, physics::collider::Collider,
-    world_grid::WorldGrid,
+    ecs::{CommandQueue, Res},
+    essential::{assets::asset_server::AssetServer, transform::Transform},
+    gltf_loader::loader::GLTFSpawnerComponent,
 };
-use glam::Vec3;
 
-pub(crate) fn spawn_scene(mut cmd: CommandQueue) {
-    cmd.spawn(WorldGrid::default());
+const FOREST_PATH: &str = "res/forest.glb";
 
-    // Static ground collider, sunk by its half-height so the top surface is
-    // flush with the world grid's y = 0 plane.
+pub(crate) fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     cmd.spawn((
-        Collider::cuboid(200.0, 1.0, 200.0),
-        Transform::from_translation(Vec3::Y * -1.0),
+        GLTFSpawnerComponent::from_handle(asset_server.load(FOREST_PATH)),
+        Transform::default(),
     ));
 }

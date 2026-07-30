@@ -8,7 +8,9 @@ use crate::{
     movement::apply_character_movement,
     physics_pipeline::PhysicsPipeline,
     physics_state::PhysicsState,
-    shape::{clean_shapes_for_dropped_meshes, generate_mesh_shapes, PhysicsMeshShapes},
+    shape::{
+        clean_shapes_for_dropped_meshes, generate_mesh_shapes, MeshCollider, PhysicsMeshShapes,
+    },
     simulation::step_simulation,
 };
 
@@ -17,6 +19,7 @@ pub struct PhysicsPlugin;
 impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut app::App) {
         app.register_component_lifecycle::<Collider>();
+        app.register_reflection::<MeshCollider>();
         app.insert_resource(PhysicsPipeline::new())
             .insert_resource(PhysicsState::new())
             .insert_resource(PhysicsMeshShapes::default())

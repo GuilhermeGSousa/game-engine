@@ -10,3 +10,4 @@ render = { path = "../render" }
 window = { path = "../window" }
 ecs = { path = "../ecs" }
 glam = { version = "0.30.1" }
+facet = "0.46"

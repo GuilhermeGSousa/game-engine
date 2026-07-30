@@ -51,7 +51,7 @@ use uuid::Uuid;
 // imported intensity by this factor to undo that conversion.
 const LUMINOUS_EFFICACY: f32 = 683.0;
 
-const EXTRAS_COMPONENTS_KEY: &'static str = "components";
+const EXTRAS_COMPONENTS_KEY: &str = "components";
 
 pub(crate) struct GLTFLoader;
 
@@ -81,7 +81,7 @@ impl GLTFScene {
 
 pub struct GLTFMesh {
     pub(crate) primitives: Vec<AssetHandle<Mesh>>,
-    pub(crate) materials: Vec<Option<usize>>,
+    pub(crate) materials: Vec<usize>,
 }
 
 pub struct GLTFNode {
@@ -271,9 +271,11 @@ impl AssetLoader for GLTFLoader {
         }
 
         let mut meshes = Vec::new();
+
+        let mut default_material = None;
         for mesh in document.meshes() {
             let mut primitives = Vec::new();
-            let mut materials = Vec::new();
+            let mut primitive_materials = Vec::new();
             for gltf_primitive in mesh.primitives() {
                 primitives.push(
                     GLTFLoader::load_primitive(
@@ -289,12 +291,19 @@ impl AssetLoader for GLTFLoader {
                         )
                     })?,
                 );
-                materials.push(gltf_primitive.material().index());
+                primitive_materials.push(match gltf_primitive.material().index() {
+                    Some(material_index) => material_index,
+                    None => *default_material.get_or_insert_with(|| {
+                        materials
+                            .push(load_context.asset_server().add(StandardMaterial::default()));
+                        materials.len() - 1
+                    }),
+                });
             }
 
             meshes.push(GLTFMesh {
                 primitives,
-                materials,
+                materials: primitive_materials,
             });
         }
 
@@ -669,6 +678,7 @@ impl std::ops::Deref for GLTFSpawnerComponent {
 
 #[derive(Component)]
 pub struct GLTFInstance {
+    handle: AssetHandle<GLTFScene>,
     roots: Vec<Entity>,
     nodes_by_name: HashMap<String, Entity>,
     animation_players: Vec<Entity>,
@@ -689,6 +699,10 @@ impl GLTFInstance {
 
     pub fn animation_player(&self) -> Option<Entity> {
         self.animation_players.first().copied()
+    }
+
+    pub fn handle(&self) -> &AssetHandle<GLTFScene> {
+        &self.handle
     }
 }
 
@@ -764,9 +778,7 @@ pub(crate) fn spawn_gltf_components(
                     let first_primitive = primitives.next();
                     let remaining_primitives = primitives;
 
-                    if let Some((first_mesh, material_index)) = first_primitive
-                        && let Some(material_index) = material_index
-                    {
+                    if let Some((first_mesh, material_index)) = first_primitive {
                         cmd.insert(
                             MeshComponent {
                                 handle: first_mesh.clone(),
@@ -787,27 +799,25 @@ pub(crate) fn spawn_gltf_components(
                     }
 
                     for (mesh, material_index) in remaining_primitives {
-                        if let Some(material_index) = material_index {
-                            let child = cmd.spawn(Transform::default()).entity();
-                            cmd.insert(
-                                MeshComponent {
-                                    handle: mesh.clone(),
-                                },
-                                child,
-                            );
-                            cmd.insert(
-                                MaterialComponent {
-                                    handle: asset.materials[*material_index].clone(),
-                                },
-                                child,
-                            );
+                        let child = cmd.spawn(Transform::default()).entity();
+                        cmd.insert(
+                            MeshComponent {
+                                handle: mesh.clone(),
+                            },
+                            child,
+                        );
+                        cmd.insert(
+                            MaterialComponent {
+                                handle: asset.materials[*material_index].clone(),
+                            },
+                            child,
+                        );
 
-                            if component.generate_physics_shapes {
-                                cmd.insert(MeshCollider, child);
-                            }
-                            cmd.add_child(node_entities[node_index], child);
-                            extra_primitive_entities.push(child);
+                        if component.generate_physics_shapes {
+                            cmd.insert(MeshCollider, child);
                         }
+                        cmd.add_child(node_entities[node_index], child);
+                        extra_primitive_entities.push(child);
                     }
                 }
 
@@ -885,6 +895,7 @@ pub(crate) fn spawn_gltf_components(
                     roots,
                     nodes_by_name,
                     animation_players,
+                    handle: component.handle.clone(),
                 },
                 entity,
             );

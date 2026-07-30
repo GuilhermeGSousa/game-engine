@@ -56,7 +56,6 @@ use render::{
 use world_grid::WorldGrid;
 
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
-const FOREST_PATH: &str = "res/forest.glb";
 
 #[cfg(not(feature = "terminal"))]
 const SPHERE_RADIUS: f32 = 0.35;
@@ -168,7 +167,7 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // `PhysicsMeshShapeGenerator`, so the level gets static triangle-mesh
     // colliders built from the same vertex data the renderer draws.
     cmd.spawn(GLTFSpawnerComponent::from_handle(
-        asset_server.load(FOREST_PATH),
+        asset_server.load(SPONZA_PATH),
     ));
     cmd.spawn(WorldGrid::default());
 }

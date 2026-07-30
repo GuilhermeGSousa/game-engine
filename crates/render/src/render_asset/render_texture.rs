@@ -6,7 +6,7 @@ use crate::{
 };
 use ecs::{
     resource::{Res, Resource},
-    system::system_input::SystemInputData,
+    system::input::SystemInputData,
 };
 use std::ops::Deref;
 use wgpu::TextureUsages;

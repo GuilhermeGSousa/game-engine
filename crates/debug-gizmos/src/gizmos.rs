@@ -1,7 +1,7 @@
 use color::LinearRgba;
 use ecs::{
     resource::ResMut,
-    system::{access::SystemAccess, system_input::SystemInput},
+    system::{access::SystemAccess, input::SystemInput},
     world::UnsafeWorldCell,
 };
 use essential::transform::Transform;

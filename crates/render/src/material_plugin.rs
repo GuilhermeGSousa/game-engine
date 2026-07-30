@@ -6,7 +6,7 @@ use ecs::{
     entity::Entity,
     query::{query_filter::Added, Query},
     resource::{Res, ResMut, Resource},
-    system::{schedule::UpdateGroup, system_input::SystemInputData},
+    system::{input::SystemInputData, schedule::UpdateGroup},
 };
 use mesh::mesh::MeshComponent;
 

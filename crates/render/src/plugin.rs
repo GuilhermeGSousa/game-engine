@@ -1,7 +1,7 @@
 use crate::{
     assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture},
     components::{
-        camera::{camera_added, camera_changed},
+        camera::{camera_added, camera_changed, sync_camera_aspect},
         light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
         world_environment::WorldEnvironment,
     },
@@ -143,7 +143,9 @@ impl Plugin for RenderPlugin {
             .register_asset::<Texture>()
             .register_asset::<Skeleton>();
 
-        app.add_system(UpdateGroup::LateUpdate, camera_added)
+        // Before camera_changed, which bakes aspect into the projection matrix.
+        app.add_system(UpdateGroup::LateUpdate, sync_camera_aspect)
+            .add_system(UpdateGroup::LateUpdate, camera_added)
             .add_system(UpdateGroup::LateUpdate, camera_changed)
             .add_system(UpdateGroup::LateUpdate, mesh_added)
             .add_system(UpdateGroup::LateUpdate, mesh_changed)

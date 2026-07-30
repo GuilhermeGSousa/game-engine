@@ -1,10 +1,12 @@
 use std::f32::consts::PI;
 
+use facet::Facet;
 use game_engine::animation::graph::AnimationGraph;
 use game_engine::animation::node::AnimationClipNode;
 use game_engine::animation::node::AnimationPlayMode::PlayOnce;
 use game_engine::animation::node::state_machine::{AnimationFSMTrigger, AnimationStateMachine};
 use game_engine::animation::player::{AnimationHandleComponent, AnimationPlayer};
+use game_engine::director::VirtualCamera;
 use game_engine::ecs::{Entity, Query, ResMut, With, Without};
 use game_engine::essential::transform::Transform;
 use game_engine::gameplay::camera::{CameraPivot, EntityFollow};
@@ -16,11 +18,10 @@ use game_engine::physics::movement::CharacterMovement;
 use game_engine::physics::physics_state::PhysicsState;
 use game_engine::physics::rigid_body::MotionType::Dynamic;
 use game_engine::physics::rigid_body::{AllowedDofs, RigidBody};
-use game_engine::render::components::Camera;
 use game_engine::window::input::{Input, KeyCode, PhysicalKey};
 use game_engine::{
-    ecs::{CommandQueue, Component, Res, Resource},
-    essential::assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
+    ecs::{CommandQueue, Component, Res},
+    essential::assets::{asset_server::AssetServer, asset_store::AssetStore},
     gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
 };
 use glam::{Quat, Vec2, Vec3};
@@ -33,10 +34,16 @@ pub(crate) struct Player;
 #[derive(Component)]
 pub(crate) struct AnimationsReady;
 
-#[derive(Resource)]
-pub(crate) struct GLTFCharacterAsset(AssetHandle<GLTFScene>);
+#[derive(Component, Facet)]
+pub(crate) struct PlayerSpawner {
+    should_spawn: bool,
+}
 
-pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQueue) {
+pub(crate) fn spawn_character(
+    spawners: Query<(&Transform, &mut PlayerSpawner)>,
+    asset_server: Res<AssetServer>,
+    mut cmd: CommandQueue,
+) {
     let char_handle = asset_server.load_with_usage_settings::<GLTFScene>(
         CHAR_ASSET,
         GLTFUsageSettings {
@@ -44,58 +51,62 @@ pub(crate) fn spawn_character(asset_server: Res<AssetServer>, mut cmd: CommandQu
         },
     );
 
-    cmd.insert_resource(GLTFCharacterAsset(char_handle.clone()));
+    for (spawn_point, mut spawner) in spawners.iter() {
+        if !spawner.should_spawn {
+            return;
+        }
 
-    let collider = Collider::capsule(2.0, 1.0);
-    let offset = ColliderOffset::bottom_origin(&collider);
-    let character = cmd
-        .spawn((
-            Player,
-            GLTFSpawnerComponent::from_handle(char_handle),
-            RigidBody {
-                density: 1000.0,
-                allowed_dofs: AllowedDofs::TRANSLATION | AllowedDofs::ROTATION_Y,
-                motion_type: Dynamic,
+        let collider = Collider::capsule(2.0, 1.0);
+        let offset = ColliderOffset::bottom_origin(&collider);
+        let character = cmd
+            .spawn((
+                Player,
+                GLTFSpawnerComponent::from_handle(char_handle.clone()),
+                RigidBody {
+                    density: 1000.0,
+                    allowed_dofs: AllowedDofs::TRANSLATION | AllowedDofs::ROTATION_Y,
+                    motion_type: Dynamic,
+                },
+                CharacterMovement::new(0.1),
+                collider,
+                // Origin at the capsule's bottom so the GLTF skeleton root sits on
+                // the ground instead of floating at the capsule center.
+                offset,
+                Transform::from_translation_rotation(Vec3::new(0.0, 10.0, -5.0), Quat::IDENTITY),
+                GroundProbe::default(),
+            ))
+            .entity();
+
+        cmd.spawn((
+            CameraPivot::default(),
+            spawn_point.clone(),
+            EntityFollow {
+                target: character,
+                offset: Vec3::Y,
             },
-            CharacterMovement::new(0.1),
-            collider,
-            // Origin at the capsule's bottom so the GLTF skeleton root sits on
-            // the ground instead of floating at the capsule center.
-            offset,
-            Transform::from_translation_rotation(Vec3::new(0.0, 10.0, -5.0), Quat::IDENTITY),
-            GroundProbe::default(),
         ))
-        .entity();
-    //
+        .add_child((
+            VirtualCamera::new(0),
+            Transform::from_translation_rotation(Vec3::NEG_Z * 10.0, Quat::from_rotation_y(PI)),
+        ));
 
-    cmd.spawn((
-        CameraPivot::default(),
-        Transform::default(),
-        EntityFollow {
-            target: character,
-            offset: Vec3::Y,
-        },
-    ))
-    .add_child((
-        Camera::default(),
-        Transform::from_translation_rotation(Vec3::NEG_Z * 10.0, Quat::from_rotation_y(PI)),
-    ));
+        spawner.should_spawn = false;
+    }
 }
 
 pub(crate) fn setup_character_animations(
-    char_asset: Res<GLTFCharacterAsset>,
     players: Query<(Entity, &GLTFInstance), (With<Player>, Without<AnimationsReady>)>,
     server: Res<AssetServer>,
     mut cmd: CommandQueue,
     gltf_store: Res<AssetStore<GLTFScene>>,
 ) {
-    let Some(gltf_char) = gltf_store.get(&char_asset.0) else {
-        return;
-    };
-
     // The GLTFInstance only exists once the scene has finished spawning; follow it
     // straight to the animated node instead of scanning every AnimationPlayer.
     let Some((player_entity, instance)) = players.iter().next() else {
+        return;
+    };
+
+    let Some(gltf_char) = gltf_store.get(instance.handle()) else {
         return;
     };
 

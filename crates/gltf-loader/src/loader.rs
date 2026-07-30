@@ -23,7 +23,7 @@ use essential::{
     transform::Transform,
 };
 use glam::{Mat4, Vec3};
-use gltf::{Node, Primitive, buffer::Data};
+use gltf::{Node, Primitive, buffer::Data, json};
 
 use image::ImageBuffer;
 use log::warn;
@@ -40,7 +40,18 @@ use render::{
         light::{Light, LightType, SpotLight},
     },
 };
+use serde_json::Value;
 use uuid::Uuid;
+
+// glTF (KHR_lights_punctual) stores light intensity in photometric units: lux
+// (lm/m^2) for directional lights and candela (lm/sr) for point/spot lights.
+// Blender produces these by scaling the artist's watt-based energy by the
+// luminous efficacy of an ideal source, 683 lm/W. This engine has no camera
+// exposure stage and lights at the radiometric (watt) scale, so we divide the
+// imported intensity by this factor to undo that conversion.
+const LUMINOUS_EFFICACY: f32 = 683.0;
+
+const EXTRAS_COMPONENTS_KEY: &str = "components";
 
 pub(crate) struct GLTFLoader;
 
@@ -70,7 +81,7 @@ impl GLTFScene {
 
 pub struct GLTFMesh {
     pub(crate) primitives: Vec<AssetHandle<Mesh>>,
-    pub(crate) materials: Vec<Option<usize>>,
+    pub(crate) materials: Vec<usize>,
 }
 
 pub struct GLTFNode {
@@ -81,6 +92,7 @@ pub struct GLTFNode {
     pub(crate) transform: Transform,
     pub(crate) camera: Option<usize>,
     pub(crate) light: Option<usize>,
+    pub(crate) extra_components: Vec<GLTFExtraComponentData>,
 }
 
 pub struct GLTFSkeleton {
@@ -141,6 +153,11 @@ pub(crate) struct GLTFAnimationTargetInfo {
     pub(crate) node_index: usize,
 }
 
+pub(crate) struct GLTFExtraComponentData {
+    pub(crate) name: String,
+    pub(crate) data: String,
+}
+
 #[derive(Default)]
 pub struct GLTFUsageSettings {
     pub root_bone: Option<&'static str>,
@@ -188,10 +205,7 @@ impl AssetLoader for GLTFLoader {
             format!("failed to import GLTF file '{}'", path.to_path().display())
         })?;
 
-        let nodes = document
-            .nodes()
-            .map(|node| GLTFLoader::extract_node(&node))
-            .collect();
+        let nodes = document.nodes().map(GLTFLoader::extract_node).collect();
 
         let mut decoded_images = Vec::new();
         for (image_index, data) in images.into_iter().enumerate() {
@@ -257,9 +271,11 @@ impl AssetLoader for GLTFLoader {
         }
 
         let mut meshes = Vec::new();
+
+        let mut default_material = None;
         for mesh in document.meshes() {
             let mut primitives = Vec::new();
-            let mut materials = Vec::new();
+            let mut primitive_materials = Vec::new();
             for gltf_primitive in mesh.primitives() {
                 primitives.push(
                     GLTFLoader::load_primitive(
@@ -275,12 +291,19 @@ impl AssetLoader for GLTFLoader {
                         )
                     })?,
                 );
-                materials.push(gltf_primitive.material().index());
+                primitive_materials.push(match gltf_primitive.material().index() {
+                    Some(material_index) => material_index,
+                    None => *default_material.get_or_insert_with(|| {
+                        materials
+                            .push(load_context.asset_server().add(StandardMaterial::default()));
+                        materials.len() - 1
+                    }),
+                });
             }
 
             meshes.push(GLTFMesh {
                 primitives,
-                materials,
+                materials: primitive_materials,
             });
         }
 
@@ -439,7 +462,7 @@ impl AssetLoader for GLTFLoader {
                 };
                 GLTFLight {
                     color,
-                    intensity: light.intensity(),
+                    intensity: light.intensity() / LUMINOUS_EFFICACY,
                     light_type,
                 }
             })
@@ -590,7 +613,7 @@ impl GLTFLoader {
         Ok(asset_server.add(primitive))
     }
 
-    fn extract_node(gltf_node: &Node) -> GLTFNode {
+    fn extract_node(gltf_node: Node) -> GLTFNode {
         let gltf_transform = gltf_node.transform();
 
         GLTFNode {
@@ -601,6 +624,26 @@ impl GLTFLoader {
             skeleton: gltf_node.skin().map(|skin| skin.index()),
             camera: gltf_node.camera().map(|c| c.index()),
             light: gltf_node.light().map(|l| l.index()),
+            extra_components: Self::parse_extras(gltf_node.extras()),
+        }
+    }
+
+    fn parse_extras(extras: &json::Extras) -> Vec<GLTFExtraComponentData> {
+        if let Some(extras) = extras
+            && let Ok(value) = serde_json::from_str::<Value>(extras.get())
+            && let Value::Object(mut data) = value
+            && let Some(component_data) = data.remove(EXTRAS_COMPONENTS_KEY)
+            && let Value::Object(component_data) = component_data
+        {
+            component_data
+                .into_iter()
+                .map(|(k, v)| GLTFExtraComponentData {
+                    name: k,
+                    data: v.to_string(),
+                })
+                .collect()
+        } else {
+            Vec::default()
         }
     }
 }
@@ -635,6 +678,7 @@ impl std::ops::Deref for GLTFSpawnerComponent {
 
 #[derive(Component)]
 pub struct GLTFInstance {
+    handle: AssetHandle<GLTFScene>,
     roots: Vec<Entity>,
     nodes_by_name: HashMap<String, Entity>,
     animation_players: Vec<Entity>,
@@ -655,6 +699,10 @@ impl GLTFInstance {
 
     pub fn animation_player(&self) -> Option<Entity> {
         self.animation_players.first().copied()
+    }
+
+    pub fn handle(&self) -> &AssetHandle<GLTFScene> {
+        &self.handle
     }
 }
 
@@ -730,9 +778,7 @@ pub(crate) fn spawn_gltf_components(
                     let first_primitive = primitives.next();
                     let remaining_primitives = primitives;
 
-                    if let Some((first_mesh, material_index)) = first_primitive
-                        && let Some(material_index) = material_index
-                    {
+                    if let Some((first_mesh, material_index)) = first_primitive {
                         cmd.insert(
                             MeshComponent {
                                 handle: first_mesh.clone(),
@@ -753,27 +799,25 @@ pub(crate) fn spawn_gltf_components(
                     }
 
                     for (mesh, material_index) in remaining_primitives {
-                        if let Some(material_index) = material_index {
-                            let child = cmd.spawn(Transform::default()).entity();
-                            cmd.insert(
-                                MeshComponent {
-                                    handle: mesh.clone(),
-                                },
-                                child,
-                            );
-                            cmd.insert(
-                                MaterialComponent {
-                                    handle: asset.materials[*material_index].clone(),
-                                },
-                                child,
-                            );
+                        let child = cmd.spawn(Transform::default()).entity();
+                        cmd.insert(
+                            MeshComponent {
+                                handle: mesh.clone(),
+                            },
+                            child,
+                        );
+                        cmd.insert(
+                            MaterialComponent {
+                                handle: asset.materials[*material_index].clone(),
+                            },
+                            child,
+                        );
 
-                            if component.generate_physics_shapes {
-                                cmd.insert(MeshCollider, child);
-                            }
-                            cmd.add_child(node_entities[node_index], child);
-                            extra_primitive_entities.push(child);
+                        if component.generate_physics_shapes {
+                            cmd.insert(MeshCollider, child);
                         }
+                        cmd.add_child(node_entities[node_index], child);
+                        extra_primitive_entities.push(child);
                     }
                 }
 
@@ -836,6 +880,14 @@ pub(crate) fn spawn_gltf_components(
                         node_entities[node_index],
                     );
                 }
+
+                for extra_component in &gltf_node.extra_components {
+                    cmd.insert_from_json(
+                        extra_component.name.clone(),
+                        extra_component.data.clone(),
+                        node_entities[node_index],
+                    );
+                }
             }
             cmd.remove::<GLTFSpawnerComponent>(entity);
             cmd.insert(
@@ -843,6 +895,7 @@ pub(crate) fn spawn_gltf_components(
                     roots,
                     nodes_by_name,
                     animation_players,
+                    handle: component.handle.clone(),
                 },
                 entity,
             );

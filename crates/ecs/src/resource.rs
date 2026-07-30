@@ -6,7 +6,7 @@ use std::{
 pub use ecs_macros::Resource;
 
 use crate::{
-    component::Tick, query::change_detection::DetectChanges, system::system_input::SystemInput,
+    component::Tick, query::change_detection::DetectChanges, system::input::SystemInput,
     world::UnsafeWorldCell,
 };
 

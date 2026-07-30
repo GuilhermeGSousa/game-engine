@@ -1,5 +1,6 @@
 use any_vec::any_value::AnyValueWrapper;
 use anymap3::AnyMap;
+use facet::Facet;
 use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{
@@ -7,6 +8,8 @@ use std::{
 };
 
 use crate::component::bundle::ComponentBundle;
+use crate::component::reflection::ComponentReflection;
+use crate::component::registry::ComponentRegistry;
 use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
@@ -18,7 +21,7 @@ use crate::{
     component::{Component, ComponentId, ComponentLifecycleCallbacks, ComponentLifecycleContext},
     entity::{Entity, EntityLocation, EntityType},
     resource::Resource,
-    system::system_input::SystemInput,
+    system::input::SystemInput,
     table::{Table, TableRowIndex},
     utilities::TypeIdMap,
 };
@@ -42,6 +45,7 @@ use crate::{
 pub struct World {
     archetypes: Vec<Archetype>,
     resources: AnyMap,
+    component_registry: ComponentRegistry,
     entity_store: EntityStore,
     archetype_index: HashMap<EntityType, usize>,
     component_lifetimes: TypeIdMap<ComponentLifecycleCallbacks>,
@@ -61,6 +65,7 @@ impl World {
             component_lifetimes: Default::default(),
             entity_store: EntityStore::new(),
             current_tick: 0,
+            component_registry: ComponentRegistry::default(),
         }
     }
 
@@ -158,7 +163,7 @@ impl World {
         self.remove_component_internal::<T>(entity, true);
     }
 
-    pub(crate) fn insert_component_internal<T: Component>(
+    fn insert_component_internal<T: Component>(
         &mut self,
         component: T,
         entity: Entity,
@@ -465,6 +470,18 @@ impl World {
                 self.insert_component(Children::from_children(vec![child]), parent);
             }
         }
+    }
+
+    pub fn register_component<T: Component>(&mut self) {
+        self.component_registry.register_component::<T>();
+    }
+
+    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) {
+        self.component_registry.register_refection::<T>();
+    }
+
+    pub(crate) fn get_reflection(&self, name: &str) -> Option<&ComponentReflection> {
+        self.component_registry.get_reflection(name)
     }
 }
 

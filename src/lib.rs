@@ -1,6 +1,7 @@
 pub use animation;
 pub use app;
 pub use color;
+pub use director;
 pub use ecs;
 pub use essential;
 pub use gameplay;
@@ -20,6 +21,7 @@ use app::{
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
     App, Plugin,
 };
+use director::CameraDirectorPlugin;
 use gltf_loader::plugin::GLTFPlugin;
 use obj_loader::plugin::OBJPlugin;
 use physics::plugin::PhysicsPlugin;
@@ -49,7 +51,10 @@ impl Plugin for DefaultPlugins {
         if !self.headless {
             app.register_plugin(WindowPlugin);
         }
+        // CameraPlugin goes before RenderPlugin so it demotes stray window
+        // cameras before `camera_added` gives them render resources.
         app.register_plugin(TransformPlugin)
+            .register_plugin(CameraDirectorPlugin)
             .register_plugin(RenderPlugin)
             .register_plugin(SkyboxPlugin)
             .register_plugin(MaterialPlugin::<StandardMaterial>::new());

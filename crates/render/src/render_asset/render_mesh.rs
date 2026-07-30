@@ -20,7 +20,7 @@ impl RenderAsset for RenderMesh {
 
     fn prepare_asset(
         source_asset: &Self::SourceAsset,
-        params: &mut ecs::system::system_input::SystemInputData<Self::PreparationParams>,
+        params: &mut ecs::system::input::SystemInputData<Self::PreparationParams>,
     ) -> Result<Self, AssetPreparationError> {
         let (context,) = params;
 

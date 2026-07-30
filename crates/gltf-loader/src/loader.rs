@@ -42,6 +42,14 @@ use render::{
 };
 use uuid::Uuid;
 
+// glTF (KHR_lights_punctual) stores light intensity in photometric units: lux
+// (lm/m^2) for directional lights and candela (lm/sr) for point/spot lights.
+// Blender produces these by scaling the artist's watt-based energy by the
+// luminous efficacy of an ideal source, 683 lm/W. This engine has no camera
+// exposure stage and lights at the radiometric (watt) scale, so we divide the
+// imported intensity by this factor to undo that conversion.
+const LUMINOUS_EFFICACY: f32 = 683.0;
+
 pub(crate) struct GLTFLoader;
 
 #[derive(Asset)]
@@ -188,10 +196,7 @@ impl AssetLoader for GLTFLoader {
             format!("failed to import GLTF file '{}'", path.to_path().display())
         })?;
 
-        let nodes = document
-            .nodes()
-            .map(|node| GLTFLoader::extract_node(&node))
-            .collect();
+        let nodes = document.nodes().map(GLTFLoader::extract_node).collect();
 
         let mut decoded_images = Vec::new();
         for (image_index, data) in images.into_iter().enumerate() {
@@ -439,7 +444,7 @@ impl AssetLoader for GLTFLoader {
                 };
                 GLTFLight {
                     color,
-                    intensity: light.intensity(),
+                    intensity: light.intensity() / LUMINOUS_EFFICACY,
                     light_type,
                 }
             })
@@ -590,8 +595,12 @@ impl GLTFLoader {
         Ok(asset_server.add(primitive))
     }
 
-    fn extract_node(gltf_node: &Node) -> GLTFNode {
+    fn extract_node(gltf_node: Node) -> GLTFNode {
         let gltf_transform = gltf_node.transform();
+
+        if let Some(extras) = gltf_node.extras() {
+            println!("Extras found: {}", extras.get());
+        };
 
         GLTFNode {
             name: gltf_node.name().map(ToString::to_string),

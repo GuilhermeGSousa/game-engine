@@ -56,6 +56,7 @@ use render::{
 use world_grid::WorldGrid;
 
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
+const FOREST_PATH: &str = "res/forest.glb";
 
 #[cfg(not(feature = "terminal"))]
 const SPHERE_RADIUS: f32 = 0.35;
@@ -100,7 +101,10 @@ fn main() {
 
     #[cfg(not(feature = "terminal"))]
     {
+        use game_engine::ui::frame_stats_overlay::FrameStatsOverlayPlugin;
+
         app.register_plugin(DefaultPlugins::default())
+            .register_plugin(FrameStatsOverlayPlugin)
             .add_system(UpdateGroup::Startup, spawn_camera_windowed)
             .add_system(UpdateGroup::Startup, spawn_scene)
             .add_system(UpdateGroup::Update, rotate_cube)
@@ -163,9 +167,9 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // `with_physics_shapes` gives every spawned mesh a
     // `PhysicsMeshShapeGenerator`, so the level gets static triangle-mesh
     // colliders built from the same vertex data the renderer draws.
-    cmd.spawn(
-        GLTFSpawnerComponent::from_handle(asset_server.load(SPONZA_PATH)).with_physics_shapes(),
-    );
+    cmd.spawn(GLTFSpawnerComponent::from_handle(
+        asset_server.load(FOREST_PATH),
+    ));
     cmd.spawn(WorldGrid::default());
 }
 

@@ -33,10 +33,12 @@ impl ComponentRegistry {
                 let _ = self
                     .component_info
                     .get(occupied_entry.get().0)
-                    .expect(&format!(
-                        "Registered component {} has no matching component info",
-                        T::name()
-                    ));
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "Registered component {} has no matching component info",
+                            T::name()
+                        )
+                    });
             }
             Vacant(vacant_entry) => {
                 vacant_entry.insert(ComponentIndex(self.component_info.len()));

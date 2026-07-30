@@ -2,9 +2,9 @@ pub mod access;
 pub mod config;
 pub mod executor;
 mod graph;
+pub mod input;
 pub mod schedule;
 mod sync_point;
-pub mod input;
 
 use std::any::TypeId;
 

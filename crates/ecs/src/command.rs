@@ -242,7 +242,10 @@ impl Command for InsertErasedCommand {
         let partial = match reflection.alloc_shape() {
             Ok(partial) => partial,
             Err(err) => {
-                warn!("Failed to allocate component '{}': {err}", self.component_name);
+                warn!(
+                    "Failed to allocate component '{}': {err}",
+                    self.component_name
+                );
                 return;
             }
         };
@@ -270,7 +273,10 @@ impl Command for InsertErasedCommand {
         };
 
         if let Err(err) = reflection.insert(heap_value, world, self.entity) {
-            warn!("Failed to insert component '{}': {err}", self.component_name);
+            warn!(
+                "Failed to insert component '{}': {err}",
+                self.component_name
+            );
         }
     }
 }

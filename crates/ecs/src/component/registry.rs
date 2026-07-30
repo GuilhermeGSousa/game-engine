@@ -7,8 +7,12 @@ use std::{
 };
 
 use derive_more::{Deref, DerefMut};
+use facet::Facet;
 
-use crate::{component::ComponentId, Component};
+use crate::{
+    component::{reflection::ComponentReflection, ComponentId},
+    Component,
+};
 
 pub(crate) struct ComponentInfo {}
 
@@ -18,6 +22,7 @@ pub(crate) struct ComponentIndex(usize);
 #[derive(Default)]
 pub(crate) struct ComponentRegistry {
     component_map: HashMap<ComponentId, ComponentIndex>,
+    reflection_map: HashMap<&'static str, ComponentReflection>,
     component_info: Vec<ComponentInfo>,
 }
 
@@ -25,7 +30,7 @@ impl ComponentRegistry {
     pub(crate) fn register_component<T: Component>(&mut self) {
         match self.component_map.entry(TypeId::of::<T>()) {
             Occupied(occupied_entry) => {
-                let info = self
+                let _ = self
                     .component_info
                     .get(occupied_entry.get().0)
                     .expect(&format!(
@@ -38,5 +43,16 @@ impl ComponentRegistry {
                 self.component_info.push(ComponentInfo {});
             }
         };
+    }
+
+    pub(crate) fn register_refection<T: Component + for<'a> Facet<'a>>(&mut self) {
+        self.register_component::<T>();
+
+        self.reflection_map
+            .insert(T::name(), ComponentReflection::from_type::<T>());
+    }
+
+    pub(crate) fn get_reflection(&self, name: &str) -> Option<&ComponentReflection> {
+        self.reflection_map.get(name)
     }
 }

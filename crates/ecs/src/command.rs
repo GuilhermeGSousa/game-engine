@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use facet::Facet;
+
 use crate::{
     component::{bundle::ComponentBundle, Component},
     entity::{entity_store::EntityStore, Entity},
@@ -91,6 +93,19 @@ impl<'w, 's> CommandQueue<'w, 's> {
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
         self.queue_state
             .add_command(InsertResource::<T>::new(resource));
+    }
+
+    pub fn insert_from_json<T: Component + for<'a> Facet<'a>>(
+        &mut self,
+        component_name: String,
+        component_data: String,
+        entity: Entity,
+    ) {
+        self.queue_state.add_command(InsertErasedCommand::new(
+            component_name,
+            component_data,
+            entity,
+        ));
     }
 }
 
@@ -195,6 +210,46 @@ impl<T: Component> InsertCommand<T> {
 impl<T: Component> Command for InsertCommand<T> {
     fn execute(self: Box<Self>, world: &mut World) {
         world.insert_component(self.component, self.entity);
+    }
+}
+
+pub(crate) struct InsertErasedCommand {
+    entity: Entity,
+    component_name: String,
+    component_data: String,
+}
+
+impl InsertErasedCommand {
+    pub fn new(component_name: String, component_data: String, entity: Entity) -> Self {
+        Self {
+            entity,
+            component_name,
+            component_data,
+        }
+    }
+}
+
+impl Command for InsertErasedCommand {
+    fn execute(self: Box<Self>, world: &mut World) {
+        let Some(reflection) = world.get_reflection(&self.component_name).cloned() else {
+            return;
+        };
+
+        let Ok(partial) = reflection.alloc_shape() else {
+            return;
+        };
+
+        let Ok(partial) = facet_json::from_str_into_borrowed(&self.component_data, partial) else {
+            return;
+        };
+
+        let Ok(heap_value) = partial.build() else {
+            return;
+        };
+
+        let Ok(()) = reflection.insert(heap_value, world, self.entity) else {
+            return;
+        };
     }
 }
 

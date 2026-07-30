@@ -14,6 +14,7 @@ use ecs::{
     world::World,
     IntoSystemConfig,
 };
+use facet::Facet;
 use log::info;
 use runner::AppExit;
 
@@ -148,6 +149,10 @@ impl App {
     pub fn insert_resource<R: Resource>(&mut self, value: R) -> &mut Self {
         self.world.insert_resource(value);
         self
+    }
+
+    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) {
+        self.world.register_reflection::<T>();
     }
 
     pub fn remove_resource<R: Resource>(&mut self) -> Option<R> {

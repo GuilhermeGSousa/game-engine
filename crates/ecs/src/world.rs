@@ -1,5 +1,6 @@
 use any_vec::any_value::AnyValueWrapper;
 use anymap3::AnyMap;
+use facet::Facet;
 use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{
@@ -7,6 +8,7 @@ use std::{
 };
 
 use crate::component::bundle::ComponentBundle;
+use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
 use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
@@ -161,7 +163,7 @@ impl World {
         self.remove_component_internal::<T>(entity, true);
     }
 
-    pub(crate) fn insert_component_internal<T: Component>(
+    fn insert_component_internal<T: Component>(
         &mut self,
         component: T,
         entity: Entity,
@@ -470,8 +472,16 @@ impl World {
         }
     }
 
-    pub(crate) fn register_component<T: Component>(&mut self) {
+    pub fn register_component<T: Component>(&mut self) {
         self.component_registry.register_component::<T>();
+    }
+
+    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) {
+        self.component_registry.register_refection::<T>();
+    }
+
+    pub(crate) fn get_reflection(&self, name: &str) -> Option<&ComponentReflection> {
+        self.component_registry.get_reflection(name)
     }
 }
 

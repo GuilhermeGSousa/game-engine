@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::component::bundle::ComponentBundle;
+use crate::component::registry::ComponentRegistry;
 use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
@@ -18,7 +19,7 @@ use crate::{
     component::{Component, ComponentId, ComponentLifecycleCallbacks, ComponentLifecycleContext},
     entity::{Entity, EntityLocation, EntityType},
     resource::Resource,
-    system::system_input::SystemInput,
+    system::input::SystemInput,
     table::{Table, TableRowIndex},
     utilities::TypeIdMap,
 };
@@ -42,6 +43,7 @@ use crate::{
 pub struct World {
     archetypes: Vec<Archetype>,
     resources: AnyMap,
+    component_registry: ComponentRegistry,
     entity_store: EntityStore,
     archetype_index: HashMap<EntityType, usize>,
     component_lifetimes: TypeIdMap<ComponentLifecycleCallbacks>,
@@ -61,6 +63,7 @@ impl World {
             component_lifetimes: Default::default(),
             entity_store: EntityStore::new(),
             current_tick: 0,
+            component_registry: ComponentRegistry::default(),
         }
     }
 
@@ -465,6 +468,10 @@ impl World {
                 self.insert_component(Children::from_children(vec![child]), parent);
             }
         }
+    }
+
+    pub(crate) fn register_component<T: Component>(&mut self) {
+        self.component_registry.register_component::<T>();
     }
 }
 

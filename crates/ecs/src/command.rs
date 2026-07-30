@@ -4,7 +4,7 @@ use crate::{
     component::{bundle::ComponentBundle, Component},
     entity::{entity_store::EntityStore, Entity},
     resource::Resource,
-    system::system_input::SystemInput,
+    system::input::SystemInput,
     world::World,
 };
 

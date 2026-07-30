@@ -4,13 +4,13 @@ pub mod executor;
 mod graph;
 pub mod schedule;
 mod sync_point;
-pub mod system_input;
+pub mod input;
 
 use std::any::TypeId;
 
 pub use config::{AlreadyConfigured, IntoSystemConfig, SystemConfig};
 
-use system_input::SystemInput;
+use input::SystemInput;
 use typle::typle;
 
 use crate::{

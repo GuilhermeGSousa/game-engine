@@ -1,7 +1,7 @@
 use crate::{
     events::{event_channel::EventChannel, Event},
     resource::ResMut,
-    system::system_input::SystemInput,
+    system::input::SystemInput,
     world::UnsafeWorldCell,
 };
 

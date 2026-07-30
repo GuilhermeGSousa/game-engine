@@ -1,13 +1,16 @@
 """Game-engine components — author ECS components on objects for GLTF export.
 
-Add components (by name + JSON data) to any object in a sidebar panel; the
-add-on mirrors them into an ``obj["components"]`` custom property, which the
-glTF exporter writes into each node's ``extras`` (requires *Include > Custom
-Properties* in the export dialog, on by default).  The engine's GLTF loader
-then turns those entries into real ECS components at spawn time.
+Add components to any object in a sidebar panel; each component is a list of
+typed fields (key + type + value) edited with proper widgets — no hand-written
+JSON.  The add-on mirrors them into an ``obj["components"]`` custom property,
+which the glTF exporter writes into each node's ``extras`` (requires *Include >
+Custom Properties* in the export dialog, on by default).  The engine's GLTF
+loader then turns those entries into real ECS components at spawn time.
 
 See ``core.py`` for the extras contract and the bpy-free helpers.
 """
+
+import json
 
 import bpy
 from bpy.app.handlers import persistent
@@ -17,39 +20,84 @@ from . import core
 bl_info = {
     "name": "Game Engine Components",
     "author": "game-engine",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (4, 0, 0),
     "location": "View3D > Sidebar (N) > Components",
     "description": "Author ECS components on objects, exported via GLTF node extras",
     "category": "Object",
 }
 
-# When True, ``sync_object`` is a no-op.  Used while bulk-loading items from an
-# existing custom property so per-item update callbacks don't thrash the sync.
+_FIELD_TYPE_ITEMS = [
+    ("FLOAT", "Float", "A floating-point number", 0),
+    ("INT", "Int", "A whole number", 1),
+    ("BOOL", "Bool", "A true/false toggle", 2),
+    ("STRING", "String", "Text", 3),
+    ("VEC3", "Vec3", "Three floats [x, y, z]", 4),
+    ("COLOR", "Color", "An RGBA color", 5),
+    ("JSON", "JSON", "Raw JSON — for nested objects or anything else", 6),
+]
+
+# When True, ``sync_object`` is a no-op.  Used while bulk-loading fields from an
+# existing custom property so per-field update callbacks don't thrash the sync.
 _suspend_sync = False
 
 
 # --------------------------------------------------------------------------- #
-# Sync: UI list  <->  obj["components"] custom property
+# Sync: UI  <->  obj["components"] custom property
 # --------------------------------------------------------------------------- #
-def sync_object(obj):
-    """Rebuild ``obj["components"]`` from the object's ``game_components`` list.
+def _field_neutral(field):
+    """Convert a ``GameComponentField`` to the plain dict ``core`` expects."""
+    ftype = field.type
+    if ftype == "FLOAT":
+        value = field.float_value
+    elif ftype == "INT":
+        value = field.int_value
+    elif ftype == "BOOL":
+        value = field.bool_value
+    elif ftype == "STRING":
+        value = field.string_value
+    elif ftype == "VEC3":
+        value = list(field.vec3_value)
+    elif ftype == "COLOR":
+        value = list(field.color_value)
+    else:  # JSON — raw text
+        value = field.string_value
+    return {"key": field.key, "type": ftype, "value": value}
 
-    Returns a list of human-readable errors (empty on success).  Removes the
-    custom property entirely when there are no valid components.
+
+def sync_object(obj):
+    """Rebuild ``obj["components"]`` from the object's ``game_components``.
+
+    Returns a list of human-readable errors (empty on success).  Per-component
+    errors are also written onto each item's ``error`` for inline display.
     """
     if _suspend_sync or obj is None:
         return []
-    items = [(it.name, it.data) for it in obj.game_components]
-    components, errors = core.assemble_components(items)
+
+    components = {}
+    errors = []
+    for item in obj.game_components:
+        name = (item.name or "").strip()
+        data, item_errors = core.component_from_fields(_field_neutral(f) for f in item.fields)
+        if not name:
+            item_errors = ["Component has no name"] + item_errors
+        joined = "; ".join(item_errors)
+        if item.error != joined:
+            item.error = joined
+        if not name:
+            errors.extend(item_errors)
+            continue
+        if name in components:
+            errors.append("Duplicate component '{}' (last one wins)".format(name))
+        errors.extend("{}: {}".format(name, e) for e in item_errors)
+        components[name] = data
+
     try:
         if components:
             obj[core.RESERVED_KEY] = components
         elif core.RESERVED_KEY in obj:
             del obj[core.RESERVED_KEY]
     except (TypeError, ValueError) as exc:
-        # Blender custom properties cannot store JSON ``null``; surface it
-        # rather than crashing the edit.
         errors.append(
             "Could not write components — Blender custom properties don't "
             "support JSON null: {}".format(exc)
@@ -57,53 +105,87 @@ def sync_object(obj):
     return errors
 
 
+def _set_field(field, key, ftype, value):
+    field.key = key
+    field.type = ftype
+    if ftype == "FLOAT":
+        field.float_value = float(value)
+    elif ftype == "INT":
+        field.int_value = int(value)
+    elif ftype == "BOOL":
+        field.bool_value = bool(value)
+    elif ftype == "STRING":
+        field.string_value = str(value)
+    elif ftype == "VEC3":
+        field.vec3_value = value
+    elif ftype == "COLOR":
+        field.color_value = value
+    else:  # JSON
+        field.string_value = value if isinstance(value, str) else json.dumps(value)
+
+
 def backfill_object(obj):
-    """Populate the UI list from an existing ``obj["components"]`` property."""
+    """Populate the UI from an existing ``obj["components"]`` property."""
     global _suspend_sync
     if core.RESERVED_KEY not in obj:
         return
-    pairs = core.split_components(obj[core.RESERVED_KEY])
+    plain = core.to_plain(obj[core.RESERVED_KEY])
+    if not isinstance(plain, dict):
+        return
     _suspend_sync = True
     try:
         obj.game_components.clear()
-        for name, data_text in pairs:
+        for name, data in plain.items():
             item = obj.game_components.add()
             item.name = name
-            item.data = data_text
+            if isinstance(data, dict):
+                for key, ftype, value in core.fields_from_component(data):
+                    _set_field(item.fields.add(), key, ftype, value)
     finally:
         _suspend_sync = False
 
 
-def _on_item_update(self, context):
-    """Validate this item's JSON and re-sync the owning object."""
-    ok, err = core.validate_json(self.data)
-    new_error = "" if ok else err
-    if self.error != new_error:
-        self.error = new_error
+def _resync(self, context):
+    """Update callback shared by every editable property."""
     sync_object(self.id_data)
 
 
 # --------------------------------------------------------------------------- #
 # Data model
 # --------------------------------------------------------------------------- #
+class GameComponentField(bpy.types.PropertyGroup):
+    key: bpy.props.StringProperty(name="Key", description="Field name", update=_resync)
+    type: bpy.props.EnumProperty(
+        name="Type", items=_FIELD_TYPE_ITEMS, default="FLOAT", update=_resync
+    )
+    float_value: bpy.props.FloatProperty(name="Value", update=_resync)
+    int_value: bpy.props.IntProperty(name="Value", update=_resync)
+    bool_value: bpy.props.BoolProperty(name="Value", update=_resync)
+    string_value: bpy.props.StringProperty(name="Value", update=_resync)
+    vec3_value: bpy.props.FloatVectorProperty(name="Value", size=3, update=_resync)
+    color_value: bpy.props.FloatVectorProperty(
+        name="Value", subtype="COLOR", size=4, min=0.0, max=1.0,
+        default=(1.0, 1.0, 1.0, 1.0), update=_resync,
+    )
+
+
 class GameComponentItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(
         name="Component",
         description="Component type name (matches the Rust type registered with register_type)",
         default="NewComponent",
-        update=_on_item_update,
+        update=_resync,
     )
-    data: bpy.props.StringProperty(
-        name="Data",
-        description="Component fields as a JSON object; use {} for a marker component",
-        default="{}",
-        update=_on_item_update,
-    )
-    error: bpy.props.StringProperty(
-        name="Error",
-        description="Last JSON validation error (empty when valid)",
-        default="",
-    )
+    fields: bpy.props.CollectionProperty(type=GameComponentField)
+    error: bpy.props.StringProperty(default="")
+
+
+def _value_prop_name(ftype):
+    return {
+        "FLOAT": "float_value", "INT": "int_value", "BOOL": "bool_value",
+        "STRING": "string_value", "VEC3": "vec3_value", "COLOR": "color_value",
+        "JSON": "string_value",
+    }[ftype]
 
 
 # --------------------------------------------------------------------------- #
@@ -112,7 +194,7 @@ class GameComponentItem(bpy.types.PropertyGroup):
 class GAME_UL_components(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         row = layout.row(align=True)
-        status = 'ERROR' if item.error else 'CHECKMARK'
+        status = 'ERROR' if item.error else 'DOT'
         row.label(text=item.name or "(unnamed)", icon=status)
 
 
@@ -145,13 +227,27 @@ class VIEW3D_PT_game_components(bpy.types.Panel):
         col.operator("object.game_component_copy_to_selected", icon='PASTEDOWN', text="")
 
         idx = obj.game_components_index
-        if 0 <= idx < len(obj.game_components):
-            item = obj.game_components[idx]
-            box = layout.box()
-            box.prop(item, "name")
-            box.prop(item, "data")
-            if item.error:
-                box.label(text=item.error, icon='ERROR')
+        if not (0 <= idx < len(obj.game_components)):
+            return
+        item = obj.game_components[idx]
+
+        box = layout.box()
+        box.prop(item, "name")
+
+        if len(item.fields) == 0:
+            box.label(text="No fields (marker component)", icon='RADIOBUT_OFF')
+
+        for i, field in enumerate(item.fields):
+            frow = box.row(align=True)
+            frow.prop(field, "key", text="")
+            frow.prop(field, "type", text="")
+            frow.prop(field, _value_prop_name(field.type), text="")
+            frow.operator("object.game_component_field_remove", text="", icon='X').index = i
+
+        box.operator("object.game_component_field_add", icon='ADD', text="Add Field")
+
+        if item.error:
+            box.label(text=item.error, icon='ERROR')
 
         layout.separator()
         layout.label(text="Export: enable Include > Custom Properties", icon='INFO')
@@ -160,6 +256,16 @@ class VIEW3D_PT_game_components(bpy.types.Panel):
 # --------------------------------------------------------------------------- #
 # Operators
 # --------------------------------------------------------------------------- #
+def _active_item(context):
+    obj = context.object
+    if obj is None:
+        return None
+    idx = obj.game_components_index
+    if 0 <= idx < len(obj.game_components):
+        return obj.game_components[idx]
+    return None
+
+
 class OBJECT_OT_game_component_add(bpy.types.Operator):
     bl_idname = "object.game_component_add"
     bl_label = "Add Component"
@@ -174,7 +280,6 @@ class OBJECT_OT_game_component_add(bpy.types.Operator):
         obj = context.object
         item = obj.game_components.add()
         item.name = "NewComponent"
-        item.data = "{}"
         obj.game_components_index = len(obj.game_components) - 1
         sync_object(obj)
         return {'FINISHED'}
@@ -198,6 +303,40 @@ class OBJECT_OT_game_component_remove(bpy.types.Operator):
             obj.game_components_index, len(obj.game_components) - 1
         )
         sync_object(obj)
+        return {'FINISHED'}
+
+
+class OBJECT_OT_game_component_field_add(bpy.types.Operator):
+    bl_idname = "object.game_component_field_add"
+    bl_label = "Add Field"
+    bl_description = "Add a field to the active component"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return _active_item(context) is not None
+
+    def execute(self, context):
+        item = _active_item(context)
+        field = item.fields.add()
+        field.key = "field"
+        sync_object(context.object)
+        return {'FINISHED'}
+
+
+class OBJECT_OT_game_component_field_remove(bpy.types.Operator):
+    bl_idname = "object.game_component_field_remove"
+    bl_label = "Remove Field"
+    bl_description = "Remove this field from the active component"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    index: bpy.props.IntProperty()
+
+    def execute(self, context):
+        item = _active_item(context)
+        if item is not None and 0 <= self.index < len(item.fields):
+            item.fields.remove(self.index)
+            sync_object(context.object)
         return {'FINISHED'}
 
 
@@ -231,16 +370,26 @@ class OBJECT_OT_game_component_copy_to_selected(bpy.types.Operator):
         return context.object is not None and len(context.selected_objects) > 1
 
     def execute(self, context):
+        global _suspend_sync
         src = context.object
-        pairs = [(it.name, it.data) for it in src.game_components]
         for obj in context.selected_objects:
             if obj is src:
                 continue
-            obj.game_components.clear()
-            for name, data_text in pairs:
-                item = obj.game_components.add()
-                item.name = name
-                item.data = data_text
+            _suspend_sync = True
+            try:
+                obj.game_components.clear()
+                for src_item in src.game_components:
+                    dst_item = obj.game_components.add()
+                    dst_item.name = src_item.name
+                    for src_field in src_item.fields:
+                        _set_field(
+                            dst_item.fields.add(),
+                            src_field.key,
+                            src_field.type,
+                            _field_neutral(src_field)["value"],
+                        )
+            finally:
+                _suspend_sync = False
             sync_object(obj)
         self.report({'INFO'}, "Copied components to selected objects")
         return {'FINISHED'}
@@ -267,11 +416,14 @@ def _load_post(_dummy):
 # Registration
 # --------------------------------------------------------------------------- #
 _CLASSES = (
+    GameComponentField,
     GameComponentItem,
     GAME_UL_components,
     VIEW3D_PT_game_components,
     OBJECT_OT_game_component_add,
     OBJECT_OT_game_component_remove,
+    OBJECT_OT_game_component_field_add,
+    OBJECT_OT_game_component_field_remove,
     OBJECT_OT_game_component_sync,
     OBJECT_OT_game_component_copy_to_selected,
 )

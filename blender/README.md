@@ -26,16 +26,31 @@ reserved `components` key:
 
 ## Install
 
-1. Zip the `game_engine_components/` folder (or point Blender at it directly).
-2. Blender → *Edit ▸ Preferences ▸ Add-ons ▸ Install from Disk…* → pick the zip.
-3. Enable **Game Engine Components**.
+Run the installer — it copies the add-on into Blender's add-ons folder and
+works with Blender from the Cosmic store / Flatpak or a native install:
+
+```sh
+./blender/install.sh          # install / update (copy)
+./blender/install.sh --test   # install, then run the headless export test
+```
+
+Re-run it after editing the add-on source to push the changes to Blender.
+
+Then enable it: *Edit ▸ Preferences ▸ Add-ons* → search **Game Engine
+Components** → enable.
+
+Manual alternative: zip the `game_engine_components/` folder and use
+*Preferences ▸ Add-ons ▸ Install from Disk…*.
 
 ## Use
 
 1. Select an object. Open the 3D viewport sidebar (**N**) → **Components** tab.
-2. **Add** a component, set its **name**, and edit its **Data** as JSON
-   (`{}` for a marker). Invalid JSON is flagged inline and simply not exported.
-3. Export with *File ▸ Export ▸ glTF 2.0*, and keep
+2. **Add** a component and set its **name** (the Rust type name).
+3. **Add Field** for each of the component's fields: type a key, pick a **type**
+   from the dropdown (Float, Int, Bool, String, Vec3, Color, or JSON for nested
+   data), and edit the value with the widget that appears. A component with no
+   fields is a marker (`{}`). No hand-written JSON required.
+4. Export with *File ▸ Export ▸ glTF 2.0*, and keep
    **Include ▸ Custom Properties** checked (it is by default).
 
 The add-on keeps an `obj["components"]` custom property in sync with the list
@@ -46,20 +61,37 @@ exporter patching required.
 Use **Copy Components to Selected** to apply the active object's components to
 every other selected object.
 
+## Field types
+
+| Type   | Widget           | JSON output        |
+|--------|------------------|--------------------|
+| Float  | number field     | `2.5`              |
+| Int    | number field     | `100`              |
+| Bool   | checkbox         | `true` / `false`   |
+| String | text field       | `"red"`            |
+| Vec3   | 3 number fields  | `[x, y, z]`        |
+| Color  | color picker     | `[r, g, b, a]`     |
+| JSON   | text (raw JSON)  | parsed as-is       |
+
+Use **JSON** for a nested object (e.g. `{"str": 5, "dex": 7}`) or anything the
+scalar/vector types can't express. Loading a file that already has a
+`components` custom property back-fills the UI, inferring a field type per value.
+
 ## Notes / limitations
 
 - **JSON `null` is unsupported** in field values — Blender custom properties
-  can't store `None`. Use a real value or omit the field.
-- **Numbers**: `100` exports as an integer, `100.0` as a float. The engine's
-  deserializer tolerates int↔float for numeric fields.
-- Data is edited as a single-line JSON string. That is fine for the small
-  payloads components usually carry; a larger multi-line editor is a possible
-  future addition.
+  can't store `None`. Use a real value or omit the field (this only affects the
+  raw **JSON** field type; the scalar/vector types can't produce null).
+- **Numbers**: an **Int** field exports as an integer, **Float** as a float. The
+  engine's deserializer tolerates int↔float for numeric fields.
 
 ## Tests
 
 - `python3 blender/test_core.py` — unit tests for the JSON assembly logic
   (no Blender needed).
-- `blender --background --python blender/export_test.py` — full round-trip:
-  tags a cube, exports a GLB, and asserts `extras.components` matches the
-  contract. Exits non-zero on failure.
+- Full round-trip — tags a cube, exports a GLB, asserts `extras.components`
+  matches the contract (exits non-zero on failure). Use `--factory-startup` and
+  an absolute path:
+  - Flatpak: `flatpak run org.blender.Blender --background --factory-startup --python "$PWD/blender/export_test.py"`
+  - Native:  `blender --background --factory-startup --python "$PWD/blender/export_test.py"`
+  - Or just: `./blender/install.sh --test`

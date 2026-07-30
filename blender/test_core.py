@@ -12,57 +12,76 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "gam
 import core  # noqa: E402
 
 
-def test_validate_json():
-    assert core.validate_json("{}") == (True, "")
-    assert core.validate_json("") == (True, "")          # blank == marker
-    assert core.validate_json('{"max": 100}') == (True, "")
-    ok, err = core.validate_json("{not json}")
-    assert not ok and err
-    ok, err = core.validate_json("[1, 2, 3]")            # must be an object
-    assert not ok and err
-    ok, err = core.validate_json("42")
+def field(key, ftype, value):
+    return {"key": key, "type": ftype, "value": value}
+
+
+def test_validate_json_text():
+    assert core.validate_json_text("{}") == (True, "")
+    assert core.validate_json_text("") == (True, "")
+    assert core.validate_json_text('{"a": 1}') == (True, "")
+    ok, err = core.validate_json_text("{nope}")
     assert not ok and err
 
 
-def test_assemble_components():
-    comps, errors = core.assemble_components([
-        ("Health", '{"max": 100, "current": 100}'),
-        ("Enemy", "{}"),
-        ("Marker", ""),                                  # blank -> {}
+def test_component_from_fields_typed():
+    data, errors = core.component_from_fields([
+        field("max", "INT", 100),
+        field("regen", "FLOAT", 2.5),
+        field("alive", "BOOL", True),
+        field("team", "STRING", "red"),
+        field("spawn", "VEC3", [1.0, 2.0, 3.0]),
+        field("tint", "COLOR", [1.0, 0.0, 0.0, 1.0]),
     ])
-    assert comps == {
-        "Health": {"max": 100, "current": 100},
-        "Enemy": {},
-        "Marker": {},
+    assert errors == []
+    assert data == {
+        "max": 100, "regen": 2.5, "alive": True, "team": "red",
+        "spawn": [1.0, 2.0, 3.0], "tint": [1.0, 0.0, 0.0, 1.0],
     }
+
+
+def test_marker_component_is_empty():
+    data, errors = core.component_from_fields([])
+    assert data == {}
     assert errors == []
 
 
-def test_assemble_skips_bad_rows():
-    comps, errors = core.assemble_components([
-        ("Health", '{"max": 100}'),
-        ("", "{}"),                                      # blank name skipped
-        ("Broken", "{oops}"),                            # bad json skipped
+def test_json_field_parsed_and_nested():
+    data, errors = core.component_from_fields([
+        field("stats", "JSON", '{"str": 5, "dex": 7}'),
+        field("empty", "JSON", ""),
     ])
-    assert comps == {"Health": {"max": 100}}
+    assert errors == []
+    assert data == {"stats": {"str": 5, "dex": 7}, "empty": {}}
+
+
+def test_bad_rows_skipped():
+    data, errors = core.component_from_fields([
+        field("ok", "INT", 1),
+        field("", "INT", 2),                 # blank key skipped
+        field("broken", "JSON", "{oops}"),   # invalid json skipped
+    ])
+    assert data == {"ok": 1}
     assert len(errors) == 2
 
 
-def test_duplicate_last_wins():
-    comps, errors = core.assemble_components([
-        ("Health", '{"max": 1}'),
-        ("Health", '{"max": 2}'),
-    ])
-    assert comps == {"Health": {"max": 2}}
-    assert any("Duplicate" in e for e in errors)
-
-
-def test_split_round_trip():
-    original = {"Health": {"max": 100, "current": 100}, "Enemy": {}}
-    pairs = core.split_components(original)
-    rebuilt, errors = core.assemble_components(pairs)
-    assert rebuilt == original
+def test_infer_and_round_trip():
+    data = {
+        "max": 100, "regen": 2.5, "alive": True, "team": "red",
+        "spawn": [1.0, 2.0, 3.0], "tint": [1.0, 0.0, 0.0, 1.0],
+        "stats": {"str": 5},
+    }
+    inferred = core.fields_from_component(data)
+    types = {key: ftype for key, ftype, _ in inferred}
+    assert types == {
+        "max": "INT", "regen": "FLOAT", "alive": "BOOL", "team": "STRING",
+        "spawn": "VEC3", "tint": "COLOR", "stats": "JSON",
+    }
+    rebuilt, errors = core.component_from_fields(
+        {"key": k, "type": t, "value": v} for k, t, v in inferred
+    )
     assert errors == []
+    assert rebuilt == data
 
 
 def test_to_plain_passthrough():

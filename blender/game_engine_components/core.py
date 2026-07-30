@@ -13,9 +13,10 @@ The engine reads components from a GLTF node's extras under one reserved key:
         }
     }
 
-``assemble_components`` builds that ``components`` object from the add-on's UI
-list; ``split_components`` is its inverse, used to back-fill the UI when a file
-already carries the custom property.
+Components are authored as a list of typed **fields** (key + type + value)
+rather than raw JSON.  ``component_from_fields`` turns those fields into a
+component's JSON value; ``fields_from_component`` is the inverse, inferring a
+field type per JSON value so an existing custom property can be edited in the UI.
 """
 
 import json
@@ -23,62 +24,87 @@ import json
 # The single reserved custom-property / extras key that holds every component.
 RESERVED_KEY = "components"
 
+# Field value types the UI offers.  JSON is the escape hatch for nested objects
+# or anything the scalar/vector types can't express.
+FIELD_TYPES = ("FLOAT", "INT", "BOOL", "STRING", "VEC3", "COLOR", "JSON")
 
-def validate_json(text):
-    """Validate one component's JSON text.
 
-    Returns ``(ok, error_message)``.  Blank text is treated as an empty object
-    (``{}``) so marker components need no typing.  The value must be a JSON
-    object, since each component maps to a struct of named fields.
+def validate_json_text(text):
+    """Validate the text of a ``JSON``-typed field.
+
+    Returns ``(ok, error_message)``.  Blank text is treated as an empty object.
     """
     text = (text or "").strip()
     if text == "":
         return True, ""
     try:
-        value = json.loads(text)
+        json.loads(text)
     except json.JSONDecodeError as exc:
         return False, "{} (line {}, col {})".format(exc.msg, exc.lineno, exc.colno)
-    if not isinstance(value, dict):
-        return False, 'Data must be a JSON object, e.g. {} or {"field": 1}'
     return True, ""
 
 
-def assemble_components(items):
-    """Build the ``components`` dict from ``(name, data_text)`` pairs.
+def component_from_fields(fields):
+    """Build one component's JSON value from typed fields.
 
-    Entries with a blank name or invalid JSON are skipped and reported in the
-    returned ``errors`` list, so a single bad row never discards the good ones.
-    Blank data becomes ``{}`` (a marker component).
+    ``fields`` is an iterable of dicts ``{"key", "type", "value"}`` where
+    ``value`` is already a plain Python value (float / int / bool / str / list),
+    except for type ``"JSON"`` whose ``value`` is raw JSON text.  Entries with a
+    blank key or invalid JSON are skipped and reported; the rest still make it in.
     """
-    components = {}
+    data = {}
     errors = []
-    for name, data_text in items:
-        name = (name or "").strip()
-        if not name:
-            errors.append("Skipped a component with an empty name")
+    for field in fields:
+        key = (field.get("key") or "").strip()
+        if not key:
+            errors.append("Skipped a field with an empty name")
             continue
-        ok, err = validate_json(data_text)
-        if not ok:
-            errors.append("'{}': {}".format(name, err))
-            continue
-        text = (data_text or "").strip()
-        if name in components:
-            errors.append("Duplicate component '{}' (last one wins)".format(name))
-        components[name] = json.loads(text) if text else {}
-    return components, errors
+        ftype = field.get("type")
+        value = field.get("value")
+        if ftype == "JSON":
+            text = value.strip() if isinstance(value, str) else ""
+            if text == "":
+                value = {}
+            else:
+                try:
+                    value = json.loads(text)
+                except json.JSONDecodeError as exc:
+                    errors.append("'{}': {}".format(key, exc.msg))
+                    continue
+        if key in data:
+            errors.append("Duplicate field '{}' (last one wins)".format(key))
+        data[key] = value
+    return data, errors
 
 
-def split_components(idprop_value):
-    """Inverse of :func:`assemble_components`.
+def fields_from_component(data):
+    """Inverse of :func:`component_from_fields`.
 
-    Given a dict-like custom-property value (a Blender ``IDPropertyGroup`` or a
-    plain dict), yield ``(name, json_text)`` pairs suitable for re-populating the
-    UI list.
+    Infer a ``(key, type, value)`` tuple per entry of a component's JSON object,
+    for populating the UI from an existing custom property.
     """
-    plain = to_plain(idprop_value)
-    if not isinstance(plain, dict):
-        return []
-    return [(name, json.dumps(value)) for name, value in plain.items()]
+    return [_infer_field(key, value) for key, value in data.items()]
+
+
+def _infer_field(key, value):
+    # bool must be checked before int (bool is a subclass of int in Python).
+    if isinstance(value, bool):
+        return (key, "BOOL", value)
+    if isinstance(value, int):
+        return (key, "INT", value)
+    if isinstance(value, float):
+        return (key, "FLOAT", value)
+    if isinstance(value, str):
+        return (key, "STRING", value)
+    if isinstance(value, (list, tuple)):
+        numeric = all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value)
+        if numeric and len(value) == 3:
+            return (key, "VEC3", [float(x) for x in value])
+        if numeric and len(value) == 4:
+            return (key, "COLOR", [float(x) for x in value])
+        return (key, "JSON", json.dumps(value))
+    # dicts, null, or anything else -> raw JSON escape hatch
+    return (key, "JSON", json.dumps(value))
 
 
 def to_plain(value):

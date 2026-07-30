@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use facet::Facet;
+use log::warn;
 
 use crate::{
     component::{bundle::ComponentBundle, Component},
@@ -95,7 +95,7 @@ impl<'w, 's> CommandQueue<'w, 's> {
             .add_command(InsertResource::<T>::new(resource));
     }
 
-    pub fn insert_from_json<T: Component + for<'a> Facet<'a>>(
+    pub fn insert_from_json(
         &mut self,
         component_name: String,
         component_data: String,
@@ -232,24 +232,46 @@ impl InsertErasedCommand {
 impl Command for InsertErasedCommand {
     fn execute(self: Box<Self>, world: &mut World) {
         let Some(reflection) = world.get_reflection(&self.component_name).cloned() else {
+            warn!(
+                "Skipping component '{}': no type registered under that name (register it with register_reflection)",
+                self.component_name
+            );
             return;
         };
 
-        let Ok(partial) = reflection.alloc_shape() else {
-            return;
+        let partial = match reflection.alloc_shape() {
+            Ok(partial) => partial,
+            Err(err) => {
+                warn!("Failed to allocate component '{}': {err}", self.component_name);
+                return;
+            }
         };
 
-        let Ok(partial) = facet_json::from_str_into_borrowed(&self.component_data, partial) else {
-            return;
+        let partial = match facet_json::from_str_into_borrowed(&self.component_data, partial) {
+            Ok(partial) => partial,
+            Err(err) => {
+                warn!(
+                    "Failed to deserialize component '{}' from `{}`: {err}",
+                    self.component_name, self.component_data
+                );
+                return;
+            }
         };
 
-        let Ok(heap_value) = partial.build() else {
-            return;
+        let heap_value = match partial.build() {
+            Ok(heap_value) => heap_value,
+            Err(err) => {
+                warn!(
+                    "Failed to build component '{}' (are all required fields present?): {err}",
+                    self.component_name
+                );
+                return;
+            }
         };
 
-        let Ok(()) = reflection.insert(heap_value, world, self.entity) else {
-            return;
-        };
+        if let Err(err) = reflection.insert(heap_value, world, self.entity) {
+            warn!("Failed to insert component '{}': {err}", self.component_name);
+        }
     }
 }
 

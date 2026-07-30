@@ -23,7 +23,7 @@ use essential::{
     transform::Transform,
 };
 use glam::{Mat4, Vec3};
-use gltf::{Node, Primitive, buffer::Data};
+use gltf::{Node, Primitive, buffer::Data, json};
 
 use image::ImageBuffer;
 use log::warn;
@@ -40,6 +40,7 @@ use render::{
         light::{Light, LightType, SpotLight},
     },
 };
+use serde_json::Value;
 use uuid::Uuid;
 
 // glTF (KHR_lights_punctual) stores light intensity in photometric units: lux
@@ -49,6 +50,8 @@ use uuid::Uuid;
 // exposure stage and lights at the radiometric (watt) scale, so we divide the
 // imported intensity by this factor to undo that conversion.
 const LUMINOUS_EFFICACY: f32 = 683.0;
+
+const EXTRAS_COMPONENTS_KEY: &'static str = "components";
 
 pub(crate) struct GLTFLoader;
 
@@ -89,6 +92,7 @@ pub struct GLTFNode {
     pub(crate) transform: Transform,
     pub(crate) camera: Option<usize>,
     pub(crate) light: Option<usize>,
+    pub(crate) extra_components: Vec<GLTFExtraComponentData>,
 }
 
 pub struct GLTFSkeleton {
@@ -147,6 +151,11 @@ pub(crate) struct GLTFNodePathInfo {
 
 pub(crate) struct GLTFAnimationTargetInfo {
     pub(crate) node_index: usize,
+}
+
+pub(crate) struct GLTFExtraComponentData {
+    pub(crate) name: String,
+    pub(crate) data: String,
 }
 
 #[derive(Default)]
@@ -598,10 +607,6 @@ impl GLTFLoader {
     fn extract_node(gltf_node: Node) -> GLTFNode {
         let gltf_transform = gltf_node.transform();
 
-        if let Some(extras) = gltf_node.extras() {
-            println!("Extras found: {}", extras.get());
-        };
-
         GLTFNode {
             name: gltf_node.name().map(ToString::to_string),
             children: gltf_node.children().map(|node| node.index()).collect(),
@@ -610,6 +615,26 @@ impl GLTFLoader {
             skeleton: gltf_node.skin().map(|skin| skin.index()),
             camera: gltf_node.camera().map(|c| c.index()),
             light: gltf_node.light().map(|l| l.index()),
+            extra_components: Self::parse_extras(gltf_node.extras()),
+        }
+    }
+
+    fn parse_extras(extras: &json::Extras) -> Vec<GLTFExtraComponentData> {
+        if let Some(extras) = extras
+            && let Ok(value) = serde_json::from_str::<Value>(extras.get())
+            && let Value::Object(mut data) = value
+            && let Some(component_data) = data.remove(EXTRAS_COMPONENTS_KEY)
+            && let Value::Object(component_data) = component_data
+        {
+            component_data
+                .into_iter()
+                .map(|(k, v)| GLTFExtraComponentData {
+                    name: k,
+                    data: v.to_string(),
+                })
+                .collect()
+        } else {
+            Vec::default()
         }
     }
 }
@@ -842,6 +867,14 @@ pub(crate) fn spawn_gltf_components(
                             intensity: gltf_light.intensity,
                             light_type,
                         },
+                        node_entities[node_index],
+                    );
+                }
+
+                for extra_component in &gltf_node.extra_components {
+                    cmd.insert_from_json(
+                        extra_component.name.clone(),
+                        extra_component.data.clone(),
                         node_entities[node_index],
                     );
                 }

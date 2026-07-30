@@ -151,8 +151,9 @@ impl App {
         self
     }
 
-    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) {
+    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
         self.world.register_reflection::<T>();
+        self
     }
 
     pub fn remove_resource<R: Resource>(&mut self) -> Option<R> {

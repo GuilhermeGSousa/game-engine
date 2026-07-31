@@ -1,13 +1,15 @@
 use color::LinearRgba;
+use derive_more::Deref;
 use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
     query::{query_filter::Added, Query},
     resource::{Res, Resource},
+    Changed,
 };
 
-use encase::{ShaderType, UniformBuffer};
+use encase::{ShaderSize, ShaderType, UniformBuffer};
 use essential::transform::GlobalTransform;
 use glam::Vec3;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
@@ -51,7 +53,16 @@ pub(crate) struct LightsUniform {
     pub(crate) light_count: i32,
 }
 
-#[derive(Component, ShaderType, Clone, Copy)]
+#[derive(Component, Clone, Copy, Deref)]
+pub struct RenderLightSlot(u32);
+
+impl RenderLightSlot {
+    pub(crate) fn update_slot(&mut self, new_slot: u32) {
+        self.0 = new_slot;
+    }
+}
+
+#[derive(ShaderType, Clone, Copy)]
 pub struct RenderLight {
     pub(crate) translation: Vec3,
     pub(crate) intensity: f32,
@@ -76,14 +87,85 @@ impl RenderLight {
     }
 }
 
+impl Component for RenderLight {
+    fn name() -> &'static str {
+        std::any::type_name::<RenderLight>()
+    }
+
+    fn on_add() -> Option<ecs::component::ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            let slot = if let Some(lights) = world.get_resource_mut::<RenderLights>() {
+                lights.push_light(context.entity);
+                RenderLightSlot(lights.len() as u32 - 1)
+            } else {
+                return;
+            };
+
+            world.insert_component(slot, context.entity, false);
+
+            if let (Some(lights), Some(queue)) = (
+                world.get_resource::<RenderLights>(),
+                world.get_resource::<RenderQueue>(),
+            ) {
+                lights.write_count(&queue);
+            }
+        })
+    }
+
+    fn on_remove() -> Option<ecs::component::ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            let Some(&slot) = world.get_component_for_entity::<RenderLightSlot>(context.entity)
+            else {
+                return;
+            };
+
+            let moved_entity = if let Some(lights) = world.get_resource_mut::<RenderLights>() {
+                lights.swap_remove_light(&slot)
+            } else {
+                return;
+            };
+
+            world.remove_component::<RenderLightSlot>(context.entity, false);
+
+            if let Some(moved_entity) = moved_entity {
+                if let Some(moved_slot) =
+                    world.get_component_for_entity_mut::<RenderLightSlot>(moved_entity)
+                {
+                    moved_slot.update_slot(*slot);
+                }
+
+                let moved_light = world
+                    .get_component_for_entity::<RenderLight>(moved_entity)
+                    .copied();
+
+                if let (Some(moved_light), Some(lights), Some(queue)) = (
+                    moved_light,
+                    world.get_resource::<RenderLights>(),
+                    world.get_resource::<RenderQueue>(),
+                ) {
+                    lights.write_buffer(&queue, &moved_light, slot);
+                }
+            }
+
+            if let (Some(lights), Some(queue)) = (
+                world.get_resource::<RenderLights>(),
+                world.get_resource::<RenderQueue>(),
+            ) {
+                lights.write_count(&queue);
+            }
+        })
+    }
+}
+
 #[derive(Resource)]
 pub(crate) struct RenderLights {
     pub(crate) bind_group: wgpu::BindGroup,
     pub(crate) buffer: Buffer,
+    pub(crate) slots: Vec<Entity>,
 }
 
 impl RenderLights {
-    pub fn new(device: &wgpu::Device, layout: &LightLayout) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, layout: &LightLayout) -> Self {
         let lights = LightsUniform {
             lights: [RenderLight::zeroed(); MAX_LIGHTS],
             light_count: 0,
@@ -110,35 +192,55 @@ impl RenderLights {
         Self {
             bind_group: lights_bind_group,
             buffer: lights_buffer,
+            slots: Vec::new(),
         }
     }
 
-    pub fn write_buffer(&self, queue: &wgpu::Queue, uniform: LightsUniform) {
+    pub(crate) fn write_buffer(
+        &self,
+        queue: &wgpu::Queue,
+        light: &RenderLight,
+        offset: RenderLightSlot,
+    ) {
+        let slot_offset = light.size().get() * *offset as u64;
+
         let mut buffer = UniformBuffer::new(Vec::new());
-        buffer.write(&uniform).unwrap();
-        queue.write_buffer(&self.buffer, 0, &buffer.into_inner());
+        buffer.write(light).unwrap();
+        queue.write_buffer(&self.buffer, slot_offset, &buffer.into_inner());
+    }
+
+    pub(crate) fn write_count(&self, queue: &wgpu::Queue) {
+        let count_offset = RenderLight::SHADER_SIZE.get() * MAX_LIGHTS as u64;
+        let count = self.slots.len() as i32;
+
+        let mut buffer = UniformBuffer::new(Vec::new());
+        buffer.write(&count).unwrap();
+        queue.write_buffer(&self.buffer, count_offset, &buffer.into_inner());
+    }
+
+    pub(crate) fn push_light(&mut self, light: Entity) {
+        self.slots.push(light);
+    }
+
+    pub(crate) fn swap_remove_light(&mut self, slot: &RenderLightSlot) -> Option<Entity> {
+        let index = **slot as usize;
+        self.slots.swap_remove(index);
+        self.slots.get(index).copied()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.slots.len()
     }
 }
 
-pub(crate) fn prepare_lights_buffer(
-    lights: Query<&RenderLight>,
+pub(crate) fn update_changed_lights(
+    lights: Query<(&RenderLight, &RenderLightSlot), Changed<RenderLight>>,
     lights_buffer: Res<RenderLights>,
-    context: Res<RenderQueue>,
+    queue: Res<RenderQueue>,
 ) {
-    let mut light_array = [RenderLight::zeroed(); MAX_LIGHTS];
-    let mut current_index = 0;
-    for light in lights.iter() {
-        light_array[current_index] = *light;
-        current_index += 1;
+    for (light, slot) in lights.iter() {
+        lights_buffer.write_buffer(&queue, light, *slot);
     }
-
-    lights_buffer.write_buffer(
-        &context.queue,
-        LightsUniform {
-            lights: light_array,
-            light_count: current_index as i32,
-        },
-    );
 }
 
 pub(crate) fn light_added(
@@ -171,7 +273,10 @@ pub(crate) fn light_added(
 }
 
 pub(crate) fn light_changed(
-    lights: Query<(&Light, &GlobalTransform, &RenderEntity)>,
+    lights: Query<
+        (&Light, &GlobalTransform, &RenderEntity),
+        ecs::Or<(Changed<Light>, Changed<GlobalTransform>)>,
+    >,
     render_lights: Query<&mut RenderLight>,
 ) {
     for (light, transform, render_entity) in lights.iter() {

@@ -34,6 +34,7 @@ async-trait = "0.1.50"
 anyhow = "1.0.97"
 winit = { version = "0.30" }
 offset-allocator = { version = "0.2.0" }
+derive_more = { version = "2", features = ["full"] }
 
 [dependencies.image]
 version = "0.25.5"

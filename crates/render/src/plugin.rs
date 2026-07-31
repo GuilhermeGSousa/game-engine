@@ -2,13 +2,11 @@ use crate::{
     assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture},
     components::{
         camera::{camera_added, camera_changed, sync_camera_aspect},
-        light::{light_added, light_changed, prepare_lights_buffer, RenderLights},
-        world_environment::WorldEnvironment,
-    },
-    components::{
+        light::{light_added, light_changed, update_changed_lights, RenderLight, RenderLights},
         mesh::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
         skeleton::{skeleton_added, update_skeletons, RenderSkeletonComponent, SkinUniforms},
+        world_environment::WorldEnvironment,
     },
     device::RenderDevice,
     layouts::{CameraLayout, LightLayout, SkeletonLayout},
@@ -160,7 +158,7 @@ impl Plugin for RenderPlugin {
 
         app.add_system(UpdateGroup::Render, clear_cameras)
             .add_system(UpdateGroup::Render, update_skeletons)
-            .add_system(UpdateGroup::Render, prepare_lights_buffer)
+            .add_system(UpdateGroup::Render, update_changed_lights)
             .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
     }
 
@@ -239,6 +237,7 @@ impl Plugin for RenderPlugin {
 
         app.register_component_lifecycle::<RenderEntity>();
         app.register_component_lifecycle::<RenderSkeletonComponent>();
+        app.register_component_lifecycle::<RenderLight>();
 
         let render_lights = RenderLights::new(&device, &light_layout);
         let skin_uniforms = SkinUniforms::new(&device, &skeleton_layout, &queue);

@@ -3,9 +3,7 @@ use anymap3::AnyMap;
 use facet::Facet;
 use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use std::{
-    any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
-};
+use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::component::bundle::ComponentBundle;
 use crate::component::reflection::ComponentReflection;
@@ -656,9 +654,20 @@ impl<'w> RestrictedWorld<'w> {
             .remove_component_internal::<T>(entity, trigger_events);
     }
 
-    /// Mutable access to a resource, so lifecycle callbacks can keep
-    /// resource-held state (e.g. lookup caches) in sync with component
-    /// additions and removals.
+    pub fn get_component_for_entity<T: Component>(&self, entity: Entity) -> Option<&T> {
+        self.world_cell.world().get_component_for_entity(entity)
+    }
+
+    pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        self.world_cell
+            .world_mut()
+            .get_component_for_entity_mut(entity)
+    }
+
+    pub fn get_resource<T: Resource>(&self) -> Option<&T> {
+        self.world_cell.world().get_resource()
+    }
+
     pub fn get_resource_mut<T: Resource>(&mut self) -> Option<&mut T> {
         self.world_cell.world_mut().get_resource_mut::<T>()
     }
@@ -669,13 +678,5 @@ impl<'w> From<&'w mut World> for RestrictedWorld<'w> {
         RestrictedWorld {
             world_cell: world.as_unsafe_world_cell(),
         }
-    }
-}
-
-impl<'w> Deref for RestrictedWorld<'w> {
-    type Target = World;
-
-    fn deref(&self) -> &Self::Target {
-        self.world_cell.world()
     }
 }

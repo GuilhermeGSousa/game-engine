@@ -101,18 +101,18 @@ fn vs_main(
         instance.model_matrix_3,
     );
 
-    // Normalizing each column strips non-uniform scale, leaving the pure rotation.
-    // A pure rotation matrix is its own inverse-transpose, making this correct for normals.
-    let normal_matrix = mat3x3<f32>(
-        normalize(instance.model_matrix_0.xyz),
-        normalize(instance.model_matrix_1.xyz),
-        normalize(instance.model_matrix_2.xyz),
-    );
-
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 
     var out: VertexOutput;
     out.tex_coords = model.tex_coords;
+
+    // Normalizing each column strips non-uniform scale, leaving the pure rotation.
+    // A pure rotation matrix is its own inverse-transpose, making this correct for normals.
+    var normal_matrix = mat3x3<f32>(
+        normalize(instance.model_matrix_0.xyz),
+        normalize(instance.model_matrix_1.xyz),
+        normalize(instance.model_matrix_2.xyz),
+    );
 
     let total_weight = model.bone_weights.x + model.bone_weights.y + model.bone_weights.z + model.bone_weights.w;
     if total_weight > 0 {
@@ -123,6 +123,15 @@ fn vs_main(
         let skinned_pos = pose_transform * world_position;
         out.clip_position = camera.view_proj * skinned_pos;
         out.world_position = skinned_pos.xyz;
+
+        // Skinned meshes carry their world transform in the bone palette, not
+        // the instance matrix (which is identity for them), so normals must
+        // be rotated by the same blended pose used for position above.
+        normal_matrix = mat3x3<f32>(
+            normalize(pose_transform[0].xyz),
+            normalize(pose_transform[1].xyz),
+            normalize(pose_transform[2].xyz),
+        );
     } else {
         out.clip_position = camera.view_proj * world_position;
         out.world_position = world_position.xyz;

@@ -6,7 +6,10 @@ use game_engine::{
 };
 
 use crate::{
-    character::{PlayerSpawner, setup_character_animations, spawn_character, update_movement},
+    character::{
+        PlayerSpawner, face_camera_direction, setup_character_animations, spawn_character,
+        update_movement,
+    },
     scene::spawn_scene,
     ui::{spawn_grounded_overlay, update_grounded_overlay},
 };
@@ -40,6 +43,7 @@ fn main() {
         .add_system(Startup, spawn_grounded_overlay)
         .add_system(UpdateGroup::Update, setup_character_animations)
         .add_system(UpdateGroup::Update, update_movement)
+        .add_system(UpdateGroup::Update, face_camera_direction)
         .add_system(UpdateGroup::Update, update_grounded_overlay);
 
     app.run();

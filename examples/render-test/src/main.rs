@@ -53,8 +53,6 @@ use render::{
     MaterialComponent,
 };
 
-use world_grid::WorldGrid;
-
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
 
 #[cfg(not(feature = "terminal"))]
@@ -166,10 +164,10 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // `with_physics_shapes` gives every spawned mesh a
     // `PhysicsMeshShapeGenerator`, so the level gets static triangle-mesh
     // colliders built from the same vertex data the renderer draws.
-    cmd.spawn(GLTFSpawnerComponent::from_handle(
-        asset_server.load(SPONZA_PATH),
-    ));
-    cmd.spawn(WorldGrid::default());
+    cmd.spawn(
+        GLTFSpawnerComponent::from_handle(asset_server.load(SPONZA_PATH)).with_physics_shapes(),
+    );
+    // cmd.spawn(WorldGrid::default());
 }
 
 /// Fires a sphere along the camera's view direction on left click, to check

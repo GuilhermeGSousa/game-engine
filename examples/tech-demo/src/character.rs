@@ -265,6 +265,28 @@ pub(crate) fn setup_character_animations(
     cmd.insert(AnimationsReady, player_entity);
 }
 
+/// Locks the character's yaw to the camera's so it always faces away from the
+/// camera, into the screen — movement input below is world-axis, not
+/// camera-relative, so this is the only thing that turns the model.
+///
+/// No extra flip needed: the camera child is spawned rotated 180°
+/// (`spawn_character`) to look back at the pivot it orbits, and the model's
+/// own rest pose already faces the opposite way from the engine's generic
+/// `-Z`-forward convention, so the two flips cancel out.
+pub(crate) fn face_camera_direction(
+    players: Query<&mut Transform, With<Player>>,
+    pivots: Query<&CameraPivot>,
+) {
+    let Some(pivot) = pivots.iter().next() else {
+        return;
+    };
+
+    let facing = Quat::from_rotation_y(pivot.yaw());
+    for mut transform in players.iter() {
+        transform.rotation = facing;
+    }
+}
+
 pub(crate) fn update_movement(
     movement: Query<(&mut CharacterMovement, &GLTFInstance, &GroundProbe, &BodyId), With<Player>>,
     anim_players: Query<&mut AnimationPlayer>,

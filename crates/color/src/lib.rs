@@ -2,7 +2,7 @@ mod hsl;
 mod linear_rgba;
 mod srgba;
 
-pub use hsl::Hsl;
+pub use hsl::Hsla;
 pub use linear_rgba::LinearRgba;
 pub use srgba::Srgba;
 
@@ -15,7 +15,7 @@ pub use srgba::Srgba;
 pub enum Color {
     LinearRgba(LinearRgba),
     Srgba(Srgba),
-    Hsl(Hsl),
+    Hsla(Hsla),
 }
 
 impl Color {
@@ -38,7 +38,7 @@ impl Color {
 
     #[inline]
     pub const fn hsl(h: f32, s: f32, l: f32, a: f32) -> Self {
-        Self::Hsl(Hsl::new(h, s, l, a))
+        Self::Hsla(Hsla::new(h, s, l, a))
     }
 
     /// Construct from raw RGBA bytes (0–255), interpreting them as linear values.
@@ -75,7 +75,7 @@ impl Color {
         match self {
             Self::LinearRgba(c) => c,
             Self::Srgba(c) => c.to_linear(),
-            Self::Hsl(c) => c.to_linear(),
+            Self::Hsla(c) => c.to_linear(),
         }
     }
 
@@ -88,9 +88,9 @@ impl Color {
     }
 
     #[inline]
-    pub fn to_hsl(self) -> Hsl {
+    pub fn to_hsl(self) -> Hsla {
         match self {
-            Self::Hsl(c) => c,
+            Self::Hsla(c) => c,
             _ => self.to_linear().to_hsl(),
         }
     }
@@ -120,8 +120,8 @@ impl From<Srgba> for Color {
     }
 }
 
-impl From<Hsl> for Color {
-    fn from(c: Hsl) -> Self {
-        Self::Hsl(c)
+impl From<Hsla> for Color {
+    fn from(c: Hsla) -> Self {
+        Self::Hsla(c)
     }
 }

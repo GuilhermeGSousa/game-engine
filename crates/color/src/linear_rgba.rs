@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use rand::RngExt;
 
-use crate::{Hsl, Srgba};
+use crate::{Hsla, Srgba};
 
 /// Linear RGBA color, suitable for use as a GPU uniform.
 ///
@@ -75,8 +75,8 @@ impl LinearRgba {
     }
 
     #[inline]
-    pub fn to_hsl(self) -> Hsl {
-        Hsl::from(self)
+    pub fn to_hsl(self) -> Hsla {
+        Hsla::from(self)
     }
 }
 

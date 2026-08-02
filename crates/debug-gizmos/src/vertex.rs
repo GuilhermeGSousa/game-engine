@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use color::LinearRgba;
+use color::Color;
 use glam::Vec3;
 
 /// A single vertex of a gizmo line list.
@@ -17,7 +17,7 @@ pub struct GizmoVertex {
 
 impl GizmoVertex {
     #[inline]
-    pub fn new(position: Vec3, color: LinearRgba) -> Self {
+    pub fn new(position: Vec3, color: Color) -> Self {
         Self {
             position: position.to_array(),
             color: color.to_array(),

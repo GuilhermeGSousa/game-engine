@@ -5,7 +5,8 @@ use crate::{Hsl, Srgba};
 
 /// Linear RGBA color, suitable for use as a GPU uniform.
 ///
-/// Values are in the range [0.0, 1.0] in linear light.
+/// Values are in the range [0.0, 1.0] in linear light. This is the canonical
+/// representation every [`Color`](crate::Color) variant converts to.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable, encase::ShaderType)]
 pub struct LinearRgba {

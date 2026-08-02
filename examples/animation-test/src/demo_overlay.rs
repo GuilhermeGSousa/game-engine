@@ -1,7 +1,7 @@
 //! On-screen debug overlay (load state + current FSM state) and one-shot debug-gizmo
 //! markers for the important entities (spawner, skinned mesh, root bone).
 
-use color::LinearRgba;
+use color::Color;
 use debug_gizmos::DebugGizmos;
 use game_engine::{
     animation::{player::AnimationPlayer, root::AnimationRootBone},
@@ -90,19 +90,7 @@ pub(crate) fn draw_entity_gizmos(
         return;
     };
 
-    gizmos.sphere(
-        spawner.translation(),
-        0.15,
-        LinearRgba::new(1.0, 0.2, 0.2, 1.0),
-    );
-    gizmos.sphere(
-        mesh.translation(),
-        0.15,
-        LinearRgba::new(0.2, 1.0, 0.2, 1.0),
-    );
-    gizmos.sphere(
-        root.translation(),
-        0.12,
-        LinearRgba::new(0.3, 0.5, 1.0, 1.0),
-    );
+    gizmos.sphere(spawner.translation(), 0.15, Color::rgba(1.0, 0.2, 0.2, 1.0));
+    gizmos.sphere(mesh.translation(), 0.15, Color::rgba(0.2, 1.0, 0.2, 1.0));
+    gizmos.sphere(root.translation(), 0.12, Color::rgba(0.3, 0.5, 1.0, 1.0));
 }

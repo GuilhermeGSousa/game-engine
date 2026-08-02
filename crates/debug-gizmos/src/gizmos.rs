@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     resource::ResMut,
     system::{access::SystemAccess, input::SystemInput},
@@ -39,7 +39,7 @@ pub struct DebugGizmos<'w> {
 impl<'w> DebugGizmos<'w> {
     /// Draws a single line between two points.
     #[inline]
-    pub fn line(&mut self, start: Vec3, end: Vec3, color: LinearRgba) {
+    pub fn line(&mut self, start: Vec3, end: Vec3, color: Color) {
         self.storage.push_line(start, end, color, color);
     }
 
@@ -50,15 +50,15 @@ impl<'w> DebugGizmos<'w> {
         &mut self,
         start: Vec3,
         end: Vec3,
-        start_color: LinearRgba,
-        end_color: LinearRgba,
+        start_color: Color,
+        end_color: Color,
     ) {
         self.storage.push_line(start, end, start_color, end_color);
     }
 
     /// Draws a line from `start` extending along `vector`.
     #[inline]
-    pub fn ray(&mut self, start: Vec3, vector: Vec3, color: LinearRgba) {
+    pub fn ray(&mut self, start: Vec3, vector: Vec3, color: Color) {
         self.line(start, start + vector, color);
     }
 
@@ -68,14 +68,14 @@ impl<'w> DebugGizmos<'w> {
         &mut self,
         start: Vec3,
         vector: Vec3,
-        start_color: LinearRgba,
-        end_color: LinearRgba,
+        start_color: Color,
+        end_color: Color,
     ) {
         self.line_gradient(start, start + vector, start_color, end_color);
     }
 
     /// Connects a sequence of points with line segments (an open polyline).
-    pub fn linestrip(&mut self, points: impl IntoIterator<Item = Vec3>, color: LinearRgba) {
+    pub fn linestrip(&mut self, points: impl IntoIterator<Item = Vec3>, color: Color) {
         let mut iter = points.into_iter();
         let Some(mut prev) = iter.next() else {
             return;
@@ -87,7 +87,7 @@ impl<'w> DebugGizmos<'w> {
     }
 
     /// Draws a small three-axis cross centred on `position`.
-    pub fn cross(&mut self, position: Vec3, size: f32, color: LinearRgba) {
+    pub fn cross(&mut self, position: Vec3, size: f32, color: Color) {
         let h = size * 0.5;
         self.line(position - Vec3::X * h, position + Vec3::X * h, color);
         self.line(position - Vec3::Y * h, position + Vec3::Y * h, color);
@@ -96,7 +96,7 @@ impl<'w> DebugGizmos<'w> {
 
     /// Draws a circle of `radius` centred at `center`, lying in the plane whose
     /// normal is `normal`.
-    pub fn circle(&mut self, center: Vec3, normal: Vec3, radius: f32, color: LinearRgba) {
+    pub fn circle(&mut self, center: Vec3, normal: Vec3, radius: f32, color: Color) {
         let (tangent, bitangent) = orthonormal_basis(normal);
         let seg = DEFAULT_CIRCLE_SEGMENTS;
         let mut prev = center + tangent * radius;
@@ -110,7 +110,7 @@ impl<'w> DebugGizmos<'w> {
     }
 
     /// Draws a wireframe sphere as three great circles aligned to the world axes.
-    pub fn sphere(&mut self, center: Vec3, radius: f32, color: LinearRgba) {
+    pub fn sphere(&mut self, center: Vec3, radius: f32, color: Color) {
         self.circle(center, Vec3::Z, radius, color);
         self.circle(center, Vec3::Y, radius, color);
         self.circle(center, Vec3::X, radius, color);
@@ -119,7 +119,7 @@ impl<'w> DebugGizmos<'w> {
     /// Draws the outline of a rectangle centred at `center`, lying in the plane
     /// with the given `normal`, sized `size` (width along the plane's first
     /// tangent, height along the second).
-    pub fn rect(&mut self, center: Vec3, normal: Vec3, size: Vec2, color: LinearRgba) {
+    pub fn rect(&mut self, center: Vec3, normal: Vec3, size: Vec2, color: Color) {
         let (tangent, bitangent) = orthonormal_basis(normal);
         let hx = tangent * (size.x * 0.5);
         let hy = bitangent * (size.y * 0.5);
@@ -135,7 +135,7 @@ impl<'w> DebugGizmos<'w> {
     /// The box is the unit cube (side length 1, centred at the origin) placed
     /// and sized by the transform, so a `Transform` with translation `t` and
     /// scale `s` yields a box of dimensions `s` centred at `t`.
-    pub fn cuboid(&mut self, transform: &Transform, color: LinearRgba) {
+    pub fn cuboid(&mut self, transform: &Transform, color: Color) {
         let matrix = transform.compute_matrix();
         let corners: [Vec3; 8] = [
             Vec3::new(-0.5, -0.5, -0.5),
@@ -170,7 +170,7 @@ impl<'w> DebugGizmos<'w> {
 
     /// Convenience wrapper around [`cuboid`](Self::cuboid): an axis-aligned box
     /// of the given `size` centred at `center`.
-    pub fn cuboid_min_max(&mut self, center: Vec3, size: Vec3, color: LinearRgba) {
+    pub fn cuboid_min_max(&mut self, center: Vec3, size: Vec3, color: Color) {
         let transform = Transform::from_translation_rotation_scale(center, Quat::IDENTITY, size);
         self.cuboid(&transform, color);
     }
@@ -182,23 +182,23 @@ impl<'w> DebugGizmos<'w> {
         self.line(
             origin,
             origin + transform.local_x() * length,
-            LinearRgba::RED,
+            Color::RED,
         );
         self.line(
             origin,
             origin + transform.local_y() * length,
-            LinearRgba::GREEN,
+            Color::GREEN,
         );
         self.line(
             origin,
             origin + transform.local_z() * length,
-            LinearRgba::BLUE,
+            Color::BLUE,
         );
     }
 
     /// Draws an arrow from `start` to `end`, including a small arrowhead at the
     /// tip.
-    pub fn arrow(&mut self, start: Vec3, end: Vec3, color: LinearRgba) {
+    pub fn arrow(&mut self, start: Vec3, end: Vec3, color: Color) {
         self.line(start, end, color);
 
         let direction = end - start;

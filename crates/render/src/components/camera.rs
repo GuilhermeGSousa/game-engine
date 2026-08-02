@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::{Color, LinearRgba};
 use encase::{ShaderType, UniformBuffer};
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
@@ -54,7 +54,7 @@ pub struct Camera {
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
-    pub clear_color: LinearRgba,
+    pub clear_color: Color,
     pub render_target: RenderTarget,
 }
 
@@ -81,7 +81,7 @@ impl Default for Camera {
             fovy: std::f32::consts::FRAC_PI_4,
             znear: 0.1,
             zfar: 100.0,
-            clear_color: LinearRgba::new(0.118, 0.831, 0.922, 1.0),
+            clear_color: Color::rgba(0.118, 0.831, 0.922, 1.0),
             render_target: RenderTarget::main_window(),
         }
     }
@@ -207,7 +207,7 @@ pub(crate) fn camera_added(
             camera_uniform,
             camera_buffer,
             depth_texture,
-            clear_color: camera.clear_color,
+            clear_color: camera.clear_color.to_linear(),
             render_target,
         };
 

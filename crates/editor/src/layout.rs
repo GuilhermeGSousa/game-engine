@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use derive_more::Deref;
 use ecs::{
     command::CommandQueue,
@@ -25,13 +25,13 @@ use ui::{
 pub struct EditorRttHandle(pub AssetHandle<Texture>);
 
 // ── Colours ───────────────────────────────────────────────────────────────────
-const COL_TITLEBAR: LinearRgba = LinearRgba::new(0.11, 0.11, 0.11, 1.0);
-const COL_PANEL: LinearRgba = LinearRgba::new(0.10, 0.10, 0.10, 1.0);
-const COL_PANEL_HDR: LinearRgba = LinearRgba::new(0.14, 0.14, 0.14, 1.0);
-const COL_VIEWPORT_BG: LinearRgba = LinearRgba::new(0.05, 0.05, 0.05, 1.0);
-const COL_BORDER: LinearRgba = LinearRgba::new(0.25, 0.25, 0.25, 1.0);
-const COL_SLIDER_TRACK: LinearRgba = LinearRgba::new(0.18, 0.18, 0.18, 1.0);
-const COL_INPUT_BG: LinearRgba = LinearRgba::new(0.13, 0.13, 0.13, 1.0);
+const COL_TITLEBAR: Color = Color::rgba(0.11, 0.11, 0.11, 1.0);
+const COL_PANEL: Color = Color::rgba(0.10, 0.10, 0.10, 1.0);
+const COL_PANEL_HDR: Color = Color::rgba(0.14, 0.14, 0.14, 1.0);
+const COL_VIEWPORT_BG: Color = Color::rgba(0.05, 0.05, 0.05, 1.0);
+const COL_BORDER: Color = Color::rgba(0.25, 0.25, 0.25, 1.0);
+const COL_SLIDER_TRACK: Color = Color::rgba(0.18, 0.18, 0.18, 1.0);
+const COL_INPUT_BG: Color = Color::rgba(0.13, 0.13, 0.13, 1.0);
 
 // ── Sizes ─────────────────────────────────────────────────────────────────────
 const TITLEBAR_H: f32 = 36.0;
@@ -345,9 +345,9 @@ fn spawn_slider(cmd: &mut CommandQueue, value: f32, min: f32, max: f32) -> Entit
         Interactable,
         UIInteractionStyle {
             normal: COL_SLIDER_TRACK,
-            hovered: LinearRgba::new(0.22, 0.22, 0.22, 1.0),
-            pressed: LinearRgba::new(0.16, 0.16, 0.16, 1.0),
-            disabled: LinearRgba::new(0.12, 0.12, 0.12, 0.5),
+            hovered: Color::rgba(0.22, 0.22, 0.22, 1.0),
+            pressed: Color::rgba(0.16, 0.16, 0.16, 1.0),
+            disabled: Color::rgba(0.12, 0.12, 0.12, 0.5),
         },
     ))
     .entity()
@@ -404,9 +404,9 @@ fn spawn_checkbox_row(cmd: &mut CommandQueue, label: &str, checked: bool) -> Ent
             },
             UIMaterial::with_border(
                 if checked {
-                    LinearRgba::new(0.20, 0.50, 0.90, 1.0)
+                    Color::rgba(0.20, 0.50, 0.90, 1.0)
                 } else {
-                    LinearRgba::new(0.12, 0.12, 0.12, 1.0)
+                    Color::rgba(0.12, 0.12, 0.12, 1.0)
                 },
                 COL_BORDER,
                 1.0,

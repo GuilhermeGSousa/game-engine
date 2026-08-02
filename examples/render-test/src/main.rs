@@ -1,5 +1,5 @@
 use app::App;
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     command::CommandQueue, query::Query, resource::Res, system::schedule::UpdateGroup, Component,
     With,
@@ -132,13 +132,13 @@ fn spawn_camera_terminal(
     let camera = Camera {
         aspect,
         render_target: RenderTarget::texture(rtt),
-        clear_color: LinearRgba::BLACK,
+        clear_color: Color::BLACK,
         ..Camera::default()
     };
     cmd.spawn((
         camera,
         Light {
-            color: LinearRgba::WHITE,
+            color: Color::WHITE,
             intensity: 100.0,
             light_type: LightType::Point,
         },
@@ -153,9 +153,10 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
         &mut cmd,
         Vec3::new(0.0, 2.0, 0.0),
         Light {
-            color: LinearRgba::WHITE,
+            color: Color::WHITE,
             intensity: 10.0,
             light_type: LightType::Point,
+            shadowmaps_enabled: false,
         },
     );
 }
@@ -194,7 +195,7 @@ fn shoot_sphere(
     let origin = camera_transform.translation() + forward * (SPHERE_RADIUS * 4.0);
 
     let material = asset_server
-        .add(StandardMaterial::new(None, None).with_base_color_factor(LinearRgba::random_color()));
+        .add(StandardMaterial::new(None, None).with_base_color_factor(Color::random_color()));
     cmd.spawn((
         Projectile(forward * MUZZLE_SPEED),
         RigidBody::default(),
@@ -343,11 +344,11 @@ fn draw_gizmos(mut gizmos: DebugGizmos, bodies: Query<&GlobalTransform, With<Bod
         Quat::IDENTITY,
         Vec3::splat(1.0),
     );
-    gizmos.cuboid(&box_transform, LinearRgba::new(1.0, 0.6, 0.1, 1.0));
+    gizmos.cuboid(&box_transform, Color::rgba(1.0, 0.6, 0.1, 1.0));
 
     for transform in bodies.iter() {
         let center = transform.translation();
-        gizmos.sphere(center, SPHERE_RADIUS, LinearRgba::GREEN);
-        gizmos.arrow(center, center + Vec3::Y * 0.75, LinearRgba::RED);
+        gizmos.sphere(center, SPHERE_RADIUS, Color::GREEN);
+        gizmos.arrow(center, center + Vec3::Y * 0.75, Color::RED);
     }
 }

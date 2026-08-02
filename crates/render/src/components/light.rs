@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::{Color, LinearRgba};
 use derive_more::Deref;
 use ecs::{
     command::CommandQueue,
@@ -20,20 +20,59 @@ const MAX_LIGHTS: usize = 128;
 
 #[derive(Component)]
 pub struct Light {
-    pub color: LinearRgba,
+    pub color: Color,
     pub intensity: f32,
+    pub shadowmaps_enabled: bool,
     pub light_type: LightType,
 }
 
-impl Light {}
+impl Light {
+    pub fn point_light() -> Self {
+        Self {
+            color: Color::WHITE,
+            intensity: 1.0,
+            shadowmaps_enabled: false,
+            light_type: LightType::Point,
+        }
+    }
 
-pub struct SpotLight {
-    pub cone_angle: f32,
+    pub fn spot_light(cone_angle: f32) -> Self {
+        Self {
+            color: Color::WHITE,
+            intensity: 1.0,
+            shadowmaps_enabled: false,
+            light_type: LightType::Spot { cone_angle },
+        }
+    }
+
+    pub fn directional_light() -> Self {
+        Self {
+            color: Color::WHITE,
+            intensity: 1.0,
+            shadowmaps_enabled: false,
+            light_type: LightType::Directional,
+        }
+    }
+
+    pub fn with_intensity(mut self, intensity: f32) -> Self {
+        self.intensity = intensity;
+        self
+    }
+
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn with_shadows(mut self) -> Self {
+        self.shadowmaps_enabled = true;
+        self
+    }
 }
 
 pub enum LightType {
     Point,
-    Spot(SpotLight),
+    Spot { cone_angle: f32 },
     Directional,
 }
 
@@ -41,7 +80,7 @@ impl LightType {
     pub fn index(&self) -> u32 {
         match *self {
             LightType::Point => 0,
-            LightType::Spot(_) => 1,
+            LightType::Spot { .. } => 1,
             LightType::Directional => 2,
         }
     }
@@ -251,12 +290,12 @@ pub(crate) fn light_added(
         let local_z = light_transform.rotation() * Vec3::Z;
         let render_light = RenderLight {
             translation: light_transform.translation(),
-            color: light.color,
+            color: light.color.to_linear(),
             intensity: light.intensity,
             direction: -local_z,
             light_type: light.light_type.index(),
             cos_cone_angle: match &light.light_type {
-                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                LightType::Spot { cone_angle } => f32::cos(*cone_angle),
                 _ => 0.0,
             },
         };
@@ -283,12 +322,12 @@ pub(crate) fn light_changed(
         if let Some(mut render_light) = render_lights.get_entity(**render_entity) {
             let local_z = transform.rotation() * Vec3::Z;
             render_light.direction = -local_z;
-            render_light.color = light.color;
+            render_light.color = light.color.to_linear();
             render_light.translation = transform.translation();
             render_light.intensity = light.intensity;
             render_light.light_type = light.light_type.index();
             render_light.cos_cone_angle = match &light.light_type {
-                LightType::Spot(spot_light) => f32::cos(spot_light.cone_angle),
+                LightType::Spot { cone_angle } => f32::cos(*cone_angle),
                 _ => 0.0,
             };
         }

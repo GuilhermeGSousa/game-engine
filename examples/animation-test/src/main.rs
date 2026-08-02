@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use game_engine::{
     app::App,
     ecs::{command::CommandQueue, system::schedule::UpdateGroup},
@@ -61,9 +61,10 @@ fn spawn_camera(mut cmd: CommandQueue) {
         &mut cmd,
         Vec3::new(0.0, 1.0, 0.0),
         Light {
-            color: LinearRgba::new(1.0, 1.0, 1.0, 1.0),
+            color: Color::rgba(1.0, 1.0, 1.0, 1.0),
             intensity: 20.0,
             light_type: LightType::Point,
+            shadowmaps_enabled: false,
         },
     );
 }

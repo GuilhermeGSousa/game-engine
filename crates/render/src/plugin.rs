@@ -25,7 +25,7 @@ use crate::{
     },
 };
 use app::plugins::Plugin;
-use color::LinearRgba;
+use color::Color;
 use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
 use std::sync::{Arc, Mutex};
 use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
@@ -258,6 +258,6 @@ impl Plugin for RenderPlugin {
             .insert_resource(skeleton_layout)
             .insert_resource(render_lights)
             .insert_resource(skin_uniforms)
-            .insert_resource(WorldEnvironment::new(LinearRgba::new(0.1, 0.1, 0.1, 0.1)));
+            .insert_resource(WorldEnvironment::new(Color::rgba(0.1, 0.1, 0.1, 0.1)));
     }
 }

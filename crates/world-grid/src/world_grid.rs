@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     component::{ComponentLifecycleCallback, ComponentLifecycleContext},
     Changed, Component, Query, ResMut,
@@ -15,10 +15,10 @@ use crate::material::{WorldGridMaterial, WorldGridUniform};
 pub struct WorldGrid {
     pub cell_size: f32,
     pub coarse_cells: f32,
-    pub line_color: LinearRgba,
+    pub line_color: Color,
     pub fade_start: f32,
     pub fade_end: f32,
-    pub surface_color: LinearRgba,
+    pub surface_color: Color,
 }
 
 impl Default for WorldGrid {
@@ -26,10 +26,10 @@ impl Default for WorldGrid {
         Self {
             cell_size: 1.0,
             coarse_cells: 10.0,
-            line_color: LinearRgba::new(0.28, 0.28, 0.28, 0.85),
+            line_color: Color::rgba(0.28, 0.28, 0.28, 0.85),
             fade_start: 20.0,
             fade_end: 80.0,
-            surface_color: LinearRgba::WHITE,
+            surface_color: Color::WHITE,
         }
     }
 }
@@ -57,12 +57,12 @@ fn world_grid_on_add(
         .unwrap();
 
     let uniform = WorldGridUniform {
-        line_color: grid.line_color,
+        line_color: grid.line_color.to_linear(),
         cell_size: grid.cell_size,
         coarse_cells: grid.coarse_cells,
         fade_start: grid.fade_start,
         fade_end: grid.fade_end,
-        surface_color: grid.surface_color,
+        surface_color: grid.surface_color.to_linear(),
     };
 
     let (mesh_handle, material_handle) = {
@@ -103,11 +103,11 @@ pub(crate) fn on_world_grid_changed(
             return;
         };
 
-        material.uniform.line_color = grid.line_color;
+        material.uniform.line_color = grid.line_color.to_linear();
         material.uniform.cell_size = grid.cell_size;
         material.uniform.coarse_cells = grid.coarse_cells;
         material.uniform.fade_start = grid.fade_start;
         material.uniform.fade_end = grid.fade_end;
-        material.uniform.surface_color = grid.surface_color;
+        material.uniform.surface_color = grid.surface_color.to_linear();
     });
 }

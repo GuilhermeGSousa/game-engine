@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use color::LinearRgba;
+use color::{Color, LinearRgba};
 use essential::assets::{handle::AssetHandle, Asset};
 use glam::Vec3;
 use render_macros::AsBindGroup;
@@ -150,7 +150,7 @@ impl StandardMaterial {
         material
     }
 
-    pub fn with_base_color_factor(mut self, factor: LinearRgba) -> Self {
+    pub fn with_base_color_factor(mut self, factor: Color) -> Self {
         self.set_base_color_factor(factor);
         self
     }
@@ -227,12 +227,12 @@ impl StandardMaterial {
 
     /// Multiplied with the base color texture (or used directly when no
     /// texture is set).  Linear RGBA; defaults to white.
-    pub fn set_base_color_factor(&mut self, factor: LinearRgba) {
-        self.uniform.base_color_factor = factor;
+    pub fn set_base_color_factor(&mut self, factor: Color) {
+        self.uniform.base_color_factor = factor.to_linear();
     }
 
-    pub fn base_color_factor(&self) -> LinearRgba {
-        self.uniform.base_color_factor
+    pub fn base_color_factor(&self) -> Color {
+        Color::from(self.uniform.base_color_factor)
     }
 
     /// Multiplied with the blue channel of the metallic-roughness texture.

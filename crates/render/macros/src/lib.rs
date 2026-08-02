@@ -46,6 +46,8 @@ struct MaterialAttr {
     lighting: Option<bool>,
     /// `needs_skeleton()` override.  Defaults to `false` in the trait.
     skeleton: Option<bool>,
+    /// `needs_shadows()` override.  Defaults to `false` in the trait.
+    shadows: Option<bool>,
     /// `cull_mode()` override: `"back"`, `"front"`, or `"none"`.
     cull_mode: Option<String>,
     /// `topology()` override: `"triangle_list"` or `"line_list"`.
@@ -182,6 +184,7 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
         camera: None,
         lighting: None,
         skeleton: None,
+        shadows: None,
         cull_mode: None,
         topology: None,
         clear_depth: None,
@@ -206,6 +209,8 @@ fn parse_material_attr(attrs: &[syn::Attribute]) -> MaterialAttr {
                 result.lighting = Some(parse_bool_value(&meta)?);
             } else if meta.path.is_ident("skeleton") {
                 result.skeleton = Some(parse_bool_value(&meta)?);
+            } else if meta.path.is_ident("shadows") {
+                result.shadows = Some(parse_bool_value(&meta)?);
             } else if meta.path.is_ident("cull_mode") {
                 result.cull_mode = Some(parse_str_value(&meta)?);
             } else if meta.path.is_ident("topology") {
@@ -452,6 +457,15 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
         })
         .unwrap_or_default();
 
+    let shadows_fn = m
+        .shadows
+        .map(|val| {
+            quote! {
+                fn needs_shadows() -> bool { #val }
+            }
+        })
+        .unwrap_or_default();
+
     let cull_mode_fn = m
         .cull_mode
         .as_deref()
@@ -543,6 +557,7 @@ fn gen_material_impl(name: &Ident, m: &MaterialAttr) -> TokenStream2 {
             #camera_fn
             #lighting_fn
             #skeleton_fn
+            #shadows_fn
             #cull_mode_fn
             #topology_fn
             #clear_depth_fn

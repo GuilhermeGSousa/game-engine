@@ -17,17 +17,6 @@ const AMBIENT_INTENSITY = 0.03;
 // Roughness below this produces a near-singular specular lobe.
 const MIN_ROUGHNESS = 0.045;
 
-// Must match MaterialUniform in material.rs (64 bytes, 16-byte aligned).
-// Layout:
-//  0..16  base_color_factor  vec4<f32>
-// 16..28  emissive_factor    vec3<f32>
-// 28..32  metallic_factor    f32
-// 32..36  roughness_factor   f32
-// 36..40  occlusion_strength f32
-// 40..44  flags              u32
-// 44..48  alpha_cutoff       f32
-// 48..56  uv_scale           vec2<f32>
-// 56..64  _padding           vec2<u32>
 struct MaterialUniform {
     base_color_factor: vec4<f32>,
     emissive_factor: vec3<f32>,
@@ -191,6 +180,12 @@ var<uniform> lights: Lights;
 
 @group(3) @binding(0)
 var<uniform> bones: Skeleton;
+
+@group(4) @binding(0)
+var t_shadow: texture_2d_array<f32>;
+
+@group(4) @binding(0)
+var sampler_shadow: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

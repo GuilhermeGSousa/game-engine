@@ -25,7 +25,10 @@ use director::CameraDirectorPlugin;
 use gltf_loader::plugin::GLTFPlugin;
 use obj_loader::plugin::OBJPlugin;
 use physics::plugin::PhysicsPlugin;
-use render::{assets::material::StandardMaterial, plugin::RenderPlugin, MaterialPlugin};
+use render::{
+    assets::material::StandardMaterial, plugin::RenderPlugin,
+    shadow_pipeline::ShadowPipelinePlugin, MaterialPlugin,
+};
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
@@ -57,7 +60,8 @@ impl Plugin for DefaultPlugins {
             .register_plugin(CameraDirectorPlugin)
             .register_plugin(RenderPlugin)
             .register_plugin(SkyboxPlugin)
-            .register_plugin(MaterialPlugin::<StandardMaterial>::new());
+            .register_plugin(ShadowPipelinePlugin)
+            .register_plugin(MaterialPlugin::<StandardMaterial>::default());
 
         app.register_plugin(PhysicsPlugin)
             .register_plugin(AnimationPlugin)

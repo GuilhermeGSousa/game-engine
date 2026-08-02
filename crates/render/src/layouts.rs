@@ -1,7 +1,10 @@
-use std::ops::Deref;
+use std::{num::NonZero, ops::Deref};
 
+use derive_more::Deref;
 use ecs::resource::Resource;
 use wgpu::BindGroupLayoutDescriptor;
+
+use crate::components::light::MAX_SHADOW_CASTERS;
 
 /// Bind-group layout for the camera uniform (`@group(1) @binding(0)` in the
 /// default material convention).
@@ -69,7 +72,7 @@ impl Deref for LightLayout {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Deref)]
 pub(crate) struct SkeletonLayout(pub(crate) wgpu::BindGroupLayout);
 
 impl SkeletonLayout {
@@ -92,10 +95,33 @@ impl SkeletonLayout {
     }
 }
 
-impl Deref for SkeletonLayout {
-    type Target = wgpu::BindGroupLayout;
+#[derive(Resource, Deref)]
+pub(crate) struct ShadowsLayout(pub(crate) wgpu::BindGroupLayout);
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl ShadowsLayout {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let skeleton_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("shadows_bind_group_layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    count: None,
+                },
+            ],
+        });
+
+        Self(skeleton_layout)
     }
 }

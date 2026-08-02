@@ -21,7 +21,7 @@ use crate::{
         skeleton::{RenderSkeletonComponent, SkinUniforms},
     },
     device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, SkeletonLayout},
+    layouts::{CameraLayout, LightLayout, ShadowsLayout, SkeletonLayout},
     render_asset::{
         render_mesh::RenderMesh,
         render_texture::{DummyRenderTexture, RenderTexture},
@@ -408,6 +408,13 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
                 .get_resource::<SkeletonLayout>()
                 .expect("SkeletonLayout not found");
             all_layouts.push(skeleton_layout);
+        }
+
+        if M::needs_shadows() {
+            let shadows_layout = app
+                .get_resource::<ShadowsLayout>()
+                .expect("SkeletonLayout not found");
+            all_layouts.push(shadows_layout);
         }
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

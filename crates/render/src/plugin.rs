@@ -9,7 +9,7 @@ use crate::{
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, SkeletonLayout},
+    layouts::{CameraLayout, LightLayout, ShadowsLayout, SkeletonLayout},
     material_plugin::clear_cameras,
     queue::RenderQueue,
     render_asset::{
@@ -81,7 +81,7 @@ impl RenderPlugin {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::empty(),
+                    required_features: wgpu::Features::TEXTURE_BINDING_ARRAY,
                     required_limits: if cfg!(target_arch = "wasm32") {
                         Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits())
                     } else {
@@ -235,6 +235,8 @@ impl Plugin for RenderPlugin {
 
         let skeleton_layout = SkeletonLayout::new(&device);
 
+        let shadows_layout = ShadowsLayout::new(&device);
+
         app.register_component_lifecycle::<RenderEntity>();
         app.register_component_lifecycle::<RenderSkeletonComponent>();
         app.register_component_lifecycle::<RenderLight>();
@@ -256,6 +258,7 @@ impl Plugin for RenderPlugin {
             .insert_resource(camera_layouts)
             .insert_resource(light_layout)
             .insert_resource(skeleton_layout)
+            .insert_resource(shadows_layout)
             .insert_resource(render_lights)
             .insert_resource(skin_uniforms)
             .insert_resource(WorldEnvironment::new(Color::rgba(0.1, 0.1, 0.1, 0.1)));

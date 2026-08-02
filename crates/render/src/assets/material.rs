@@ -109,6 +109,7 @@ pub trait AsBindGroup {
     fragment_shader = include_str!("../shaders/shader.wgsl"),
     lighting = true,
     skeleton = true,
+    shadows = true,
 )]
 pub struct StandardMaterial {
     #[texture(0)]
@@ -444,6 +445,17 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
     ///
     /// Defaults to `false`.  Enable only for skinned-mesh materials.
     fn needs_skeleton() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    /// Whether this material reas the built-in shadow maps (texture array and sampler) at
+    /// @group(4) @binging(0 - 1)
+    ///
+    /// Defaults to `false`
+    fn needs_shadows() -> bool
     where
         Self: Sized,
     {

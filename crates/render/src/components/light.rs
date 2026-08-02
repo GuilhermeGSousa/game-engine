@@ -17,6 +17,7 @@ use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 use crate::{components::render_entity::RenderEntity, layouts::LightLayout, queue::RenderQueue};
 
 const MAX_LIGHTS: usize = 128;
+pub(crate) const MAX_SHADOW_CASTERS: u32 = 128;
 
 #[derive(Component)]
 pub struct Light {
@@ -101,6 +102,9 @@ impl RenderLightSlot {
     }
 }
 
+#[derive(Component, Clone, Copy, Deref)]
+pub struct RenderShadowCasterSlot(u32);
+
 #[derive(ShaderType, Clone, Copy)]
 pub struct RenderLight {
     pub(crate) translation: Vec3,
@@ -111,6 +115,7 @@ pub struct RenderLight {
 
     // Spotlight
     pub(crate) cos_cone_angle: f32,
+    // Shadows
 }
 
 impl RenderLight {

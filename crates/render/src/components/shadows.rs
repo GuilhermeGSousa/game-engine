@@ -5,13 +5,26 @@ use ecs::{
     component::Component,
     entity::Entity,
     resource::{Res, ResMut, Resource},
+    Changed, Query,
 };
-use wgpu::BindGroupDescriptor;
+use encase::UniformBuffer;
+use glam::{Mat4, Vec3};
+use wgpu::{
+    util::DeviceExt, BindGroupDescriptor, Operations, RenderPassDepthStencilAttachment,
+    RenderPassDescriptor, StoreOp, TextureView,
+};
 
 use crate::{
-    components::light::{push_render_light_to_gpu, LightType, RenderLight},
+    components::{
+        light::{push_render_light_to_gpu, LightType, RenderLight},
+        mesh::RenderMeshInstance,
+        skeleton::{RenderSkeletonComponent, SkinUniforms},
+    },
     device::RenderDevice,
     layouts::{PointShadowLayout, SpotDirectionalShadowLayout},
+    queue::RenderQueue,
+    render_asset::{render_mesh::RenderMesh, RenderAssets},
+    shadow_pipeline::ShadowPipeline,
 };
 
 // Cap on simultaneous shadow-casting lights, per pool (spot+directional
@@ -273,6 +286,10 @@ impl<K: ShadowMapKind> ShadowMapPool<K> {
         }
     }
 
+    pub(crate) fn get_view(&self, index: usize) -> Option<&TextureView> {
+        self.views.get(index)
+    }
+
     fn resize_to(&mut self, device: &wgpu::Device, layout: &K::Layout, capacity: u32) {
         let (texture, views, bind_group) = Self::build_gpu_resources(device, layout, capacity);
         self.texture = texture;
@@ -300,4 +317,154 @@ pub(crate) fn resize_shadow_maps(
 ) {
     spot_directional_shadow_maps.reconcile_capacity(&device, &spot_directional_shadow_layout);
     point_shadow_maps.reconcile_capacity(&device, &point_shadow_layout);
+}
+
+const DIRECTIONAL_SHADOW_DISTANCE: f32 = 50.0;
+const DIRECTIONAL_SHADOW_HALF_EXTENT: f32 = 50.0;
+const DIRECTIONAL_SHADOW_NEAR: f32 = 0.1;
+const DIRECTIONAL_SHADOW_FAR: f32 = 200.0;
+
+// Spot lights have no explicit range in this engine yet, so this is just a
+// generous fixed far plane rather than something derived from the light.
+const SPOT_SHADOW_NEAR: f32 = 0.1;
+const SPOT_SHADOW_FAR: f32 = 100.0;
+
+// `Vec3::Y` degenerates as an up vector once `direction` is nearly parallel
+// to it (straight up/down directional or spot lights), so fall back to Z.
+fn shadow_up_vector(direction: Vec3) -> Vec3 {
+    if direction.dot(Vec3::Y).abs() > 0.999 {
+        Vec3::Z
+    } else {
+        Vec3::Y
+    }
+}
+
+#[derive(Component)]
+pub(crate) struct RenderShadowCasterViewProj {
+    buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+}
+
+impl RenderShadowCasterViewProj {
+    pub(crate) fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Self {
+        let mut bytes = UniformBuffer::new(Vec::new());
+        bytes.write(&Mat4::IDENTITY).unwrap();
+
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("shadow_caster_view_proj"),
+            contents: &bytes.into_inner(),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("shadow_caster_view_proj_bind_group"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+        });
+
+        Self { buffer, bind_group }
+    }
+
+    pub(crate) fn write(&self, queue: &wgpu::Queue, view_proj: Mat4) {
+        let mut bytes = UniformBuffer::new(Vec::new());
+        bytes.write(&view_proj).unwrap();
+        queue.write_buffer(&self.buffer, 0, &bytes.into_inner());
+    }
+}
+
+pub(crate) fn update_shadow_view_proj(
+    lights: Query<(&RenderLight, &RenderShadowCasterViewProj), Changed<RenderLight>>,
+    queue: Res<RenderQueue>,
+) {
+    for (light, view_proj) in lights.iter() {
+        view_proj.write(&queue, shadow_view_proj(light));
+    }
+}
+
+fn shadow_view_proj(light: &RenderLight) -> Mat4 {
+    let up = shadow_up_vector(light.direction);
+
+    if light.light_type == LightType::Directional.index() {
+        let eye = -light.direction * DIRECTIONAL_SHADOW_DISTANCE;
+        let view = Mat4::look_at_rh(eye, eye + light.direction, up);
+        let half = DIRECTIONAL_SHADOW_HALF_EXTENT;
+        let proj = Mat4::orthographic_rh(
+            -half,
+            half,
+            -half,
+            half,
+            DIRECTIONAL_SHADOW_NEAR,
+            DIRECTIONAL_SHADOW_FAR,
+        );
+        proj * view
+    } else {
+        let view = Mat4::look_at_rh(light.translation, light.translation + light.direction, up);
+        let fov = 2.0 * light.cos_cone_angle.clamp(-1.0, 1.0).acos();
+        let proj = Mat4::perspective_rh(fov, 1.0, SPOT_SHADOW_NEAR, SPOT_SHADOW_FAR);
+        proj * view
+    }
+}
+
+// Renders one depth-only pass per shadow-casting spot/directional light into
+// its slot in `RenderSpotDirectionalShadowMaps`. Every mesh instance is
+// redrawn into every caster with no culling — same as `material_renderpass`,
+// which redraws every instance per camera today.
+pub(crate) fn render_shadow_maps(
+    pipeline: Res<ShadowPipeline>,
+    mut device: ResMut<RenderDevice>,
+    spot_directional_shadow_maps: Res<RenderSpotDirectionalShadowMaps>,
+    _point_shadow_maps: Res<RenderPointShadowMaps>,
+    lights: Query<(&RenderLight, &RenderShadowCasterViewProj)>,
+    render_mesh_query: Query<(&RenderMeshInstance, Option<&RenderSkeletonComponent>)>,
+    render_meshes: Res<RenderAssets<RenderMesh>>,
+    skins: Res<SkinUniforms>,
+) {
+    for (light, view_proj) in lights.iter() {
+        if light.light_type == LightType::Point.index() {
+            // TODO: point-light (cube) shadows.
+            continue;
+        }
+
+        let Ok(layer) = usize::try_from(light.shadow_layer) else {
+            continue;
+        };
+
+        let Some(view) = spot_directional_shadow_maps.get_view(layer) else {
+            continue;
+        };
+
+        let encoder = device.command_encoder();
+        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("Shadow Depth Render Pass"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                view,
+                depth_ops: Some(Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&pipeline.pipeline);
+        render_pass.set_bind_group(0, &view_proj.bind_group, &[]);
+
+        for (mesh_instance, skeleton) in render_mesh_query.iter() {
+            if let Some(mesh) = render_meshes.get(&mesh_instance.mesh_asset_id) {
+                let offset = skeleton.map_or(0, |sk| sk.offset);
+                render_pass.set_bind_group(1, skins.bind_group(), &[offset]);
+
+                render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(1, mesh_instance.transform.slice(..));
+                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            }
+        }
+    }
 }

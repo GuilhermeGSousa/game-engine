@@ -1,15 +1,20 @@
 use app::Plugin;
-use ecs::Resource;
+use ecs::{system::schedule::UpdateGroup, Resource};
 use essential::transform::GlobalTransformRaw;
 use mesh::Vertex;
 use wgpu::{
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, DepthBiasState, DepthStencilState,
-    FragmentState, MultisampleState, PipelineCache, PipelineCompilationOptions,
-    PipelineLayoutDescriptor, PrimitiveState, RenderPipelineDescriptor, ShaderModuleDescriptor,
-    StencilState, TextureFormat,
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, DepthBiasState,
+    DepthStencilState, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor,
+    PrimitiveState, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderStages, StencilState,
+    TextureFormat,
 };
 
-use crate::{assets::vertex::VertexBufferLayout, device::RenderDevice, resources::RenderContext};
+use crate::{
+    assets::vertex::VertexBufferLayout,
+    components::shadows::{render_shadow_maps, update_shadow_view_proj},
+    device::RenderDevice,
+    layouts::SkeletonLayout,
+};
 
 #[derive(Resource)]
 pub(crate) struct ShadowPipeline {
@@ -20,7 +25,10 @@ pub(crate) struct ShadowPipeline {
 pub struct ShadowPipelinePlugin;
 
 impl Plugin for ShadowPipelinePlugin {
-    fn build(&self, app: &mut app::App) {}
+    fn build(&self, app: &mut app::App) {
+        app.add_system(UpdateGroup::LateUpdate, update_shadow_view_proj);
+        app.add_system(UpdateGroup::Render, render_shadow_maps);
+    }
 
     fn finish(&self, app: &mut app::App) {
         let device = app
@@ -32,19 +40,28 @@ impl Plugin for ShadowPipelinePlugin {
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shadow.wgsl").into()),
         });
 
-        let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Shadow Bind Group Layout"),
-            entries: &[BindGroupLayoutEntry {
-                binding: todo!(),
-                visibility: todo!(),
-                ty: todo!(),
-                count: todo!(),
-            }],
-        });
+        let light_view_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Shadow Bind Group Layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let skeleton_layout = app
+            .get_resource::<SkeletonLayout>()
+            .expect("SkeletonLayout not found: make sure the RenderPlugin is registered.");
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Shadow Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[&light_view_bind_group_layout, skeleton_layout],
             push_constant_ranges: &[],
         });
 
@@ -85,7 +102,7 @@ impl Plugin for ShadowPipelinePlugin {
 
         app.insert_resource(ShadowPipeline {
             pipeline,
-            bind_group_layout,
+            bind_group_layout: light_view_bind_group_layout,
         });
     }
 }

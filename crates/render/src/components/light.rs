@@ -11,16 +11,21 @@ use ecs::{
 
 use encase::{ShaderSize, ShaderType, UniformBuffer};
 use essential::transform::GlobalTransform;
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
 use crate::{
     components::{
         render_entity::RenderEntity,
-        shadows::{RenderPointShadowMaps, RenderShadowCasterSlot, RenderSpotDirectionalShadowMaps},
+        shadows::{
+            RenderPointShadowMaps, RenderShadowCasterSlot, RenderShadowCasterViewProj,
+            RenderSpotDirectionalShadowMaps,
+        },
     },
+    device::RenderDevice,
     layouts::LightLayout,
     queue::RenderQueue,
+    shadow_pipeline::ShadowPipeline,
 };
 
 const MAX_LIGHTS: usize = 128;
@@ -127,7 +132,7 @@ pub(crate) fn push_render_light_to_gpu(world: &ecs::world::RestrictedWorld<'_>, 
         world.get_resource::<RenderLights>(),
         world.get_resource::<RenderQueue>(),
     ) {
-        lights.write_buffer(&queue, &render_light, *render_light_slot);
+        lights.write_buffer(queue, render_light, *render_light_slot);
     }
 }
 
@@ -141,10 +146,7 @@ pub struct RenderLight {
 
     // Spotlight
     pub(crate) cos_cone_angle: f32,
-
-    // Shadows
     pub(crate) shadow_layer: i32,
-    pub(crate) shadow_view_proj: Mat4,
 }
 
 impl RenderLight {
@@ -157,7 +159,6 @@ impl RenderLight {
             light_type: 0,
             cos_cone_angle: 0.0,
             shadow_layer: -1,
-            shadow_view_proj: Mat4::IDENTITY,
         }
     }
 }
@@ -209,6 +210,17 @@ impl Component for RenderLight {
                         {
                             render_light.shadow_layer = shadow_slot as i32;
                         }
+
+                        if let (Some(device), Some(shadow_pipeline)) = (
+                            world.get_resource::<RenderDevice>(),
+                            world.get_resource::<ShadowPipeline>(),
+                        ) {
+                            let view_proj = RenderShadowCasterViewProj::new(
+                                device,
+                                &shadow_pipeline.bind_group_layout,
+                            );
+                            world.insert_component(view_proj, context.entity, false);
+                        }
                     }
                     // Shadow-caster pool exhausted; fall back to unshadowed.
                     None => {
@@ -225,7 +237,7 @@ impl Component for RenderLight {
                 world.get_resource::<RenderLights>(),
                 world.get_resource::<RenderQueue>(),
             ) {
-                lights.write_count(&queue);
+                lights.write_count(queue);
             }
         })
     }
@@ -259,7 +271,7 @@ impl Component for RenderLight {
                 world.get_resource::<RenderLights>(),
                 world.get_resource::<RenderQueue>(),
             ) {
-                lights.write_count(&queue);
+                lights.write_count(queue);
             }
         })
     }
@@ -357,6 +369,7 @@ pub(crate) fn light_added(
 ) {
     for (entity, light, light_transform, render_entity) in lights.iter() {
         let local_z = light_transform.rotation() * Vec3::Z;
+
         let render_light = RenderLight {
             translation: light_transform.translation(),
             color: light.color.to_linear(),
@@ -372,7 +385,6 @@ pub(crate) fn light_added(
             } else {
                 -1
             },
-            shadow_view_proj: Mat4::IDENTITY,
         };
         match render_entity {
             None => {

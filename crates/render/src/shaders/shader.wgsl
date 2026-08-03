@@ -37,7 +37,6 @@ struct Light {
     light_type: u32,
     cos_cone_angle: f32,
     shadow_layer: i32,
-    shadow_view_proj: mat4x4<f32>,
 };
 
 struct Lights {
@@ -185,10 +184,16 @@ var<uniform> lights: Lights;
 var<uniform> bones: Skeleton;
 
 @group(4) @binding(0)
-var t_shadow: texture_2d_array<f32>;
+var t_shadow_spot_directional: texture_2d_array<f32>;
 
-@group(4) @binding(0)
-var sampler_shadow: sampler_comparison;
+@group(4) @binding(1)
+var sampler_shadow_spot_directional: sampler_comparison;
+
+@group(5) @binding(0)
+var t_shadow_point: texture_2d_array<f32>;
+
+@group(5) @binding(1)
+var sampler_shadow_point: sampler_comparison;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

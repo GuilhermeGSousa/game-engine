@@ -74,6 +74,7 @@ impl World {
     }
 
     pub(crate) fn spawn_allocated<T: ComponentBundle>(&mut self, entity: Entity, bundle: T) {
+        profiling::scope!("world::spawn");
         let type_ids = T::get_component_ids();
         let entity_type = generate_type_id(&type_ids);
 
@@ -103,6 +104,7 @@ impl World {
 
     /// Removes an entity and all of its components from the world.
     pub fn despawn(&mut self, entity: Entity) {
+        profiling::scope!("world::despawn");
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 {
@@ -164,6 +166,7 @@ impl World {
         entity: Entity,
         trigger_events: bool,
     ) {
+        profiling::scope!("world::insert_component");
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
@@ -227,6 +230,7 @@ impl World {
         entity: Entity,
         trigger_events: bool,
     ) {
+        profiling::scope!("world::remove_component");
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 let previous_archetype = &mut self.archetypes[location.archetype_index as usize];

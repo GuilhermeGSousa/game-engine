@@ -65,6 +65,10 @@ impl QueryState {
             return;
         }
 
+        // Only reached when new archetypes have appeared; the steady-state
+        // early-return above keeps this zone out of most frames.
+        profiling::scope!("query::match_archetypes");
+
         // Compute the required component ids once, not once per archetype.
         let required = T::component_ids();
         let start = self.archetypes_len;
@@ -122,6 +126,7 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     /// [`SystemInput`] implementation); this full scan is primarily for
     /// standalone / ad-hoc use against a world.
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
+        profiling::scope!("query::scan", std::any::type_name::<T>());
         let required = T::component_ids();
         let matched_indices: Vec<usize> = world
             .world()
@@ -250,6 +255,7 @@ where
         state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
+        profiling::scope!("query::fetch_state", std::any::type_name::<T>());
         state.update::<T, F>(world.world());
         Query::from_matched_indices(world, state.matched_indices.clone())
     }

@@ -1,10 +1,8 @@
-use std::{num::NonZero, ops::Deref};
+use std::ops::Deref;
 
 use derive_more::Deref;
 use ecs::resource::Resource;
 use wgpu::BindGroupLayoutDescriptor;
-
-use crate::components::light::MAX_SHADOW_CASTERS;
 
 /// Bind-group layout for the camera uniform (`@group(1) @binding(0)` in the
 /// default material convention).
@@ -95,13 +93,17 @@ impl SkeletonLayout {
     }
 }
 
+// Bind-group layout for the shared spot+directional shadow-map array
+// (`@group(4)` in the default material convention). Both light types only
+// ever need a single 2D depth view per caster, unlike point lights which
+// need a full cube (see `PointShadowLayout`).
 #[derive(Resource, Deref)]
-pub(crate) struct ShadowsLayout(pub(crate) wgpu::BindGroupLayout);
+pub(crate) struct SpotDirectionalShadowLayout(pub(crate) wgpu::BindGroupLayout);
 
-impl ShadowsLayout {
+impl SpotDirectionalShadowLayout {
     pub fn new(device: &wgpu::Device) -> Self {
-        let skeleton_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("shadows_bind_group_layout"),
+        let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("spot_directional_shadow_bind_group_layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -122,6 +124,41 @@ impl ShadowsLayout {
             ],
         });
 
-        Self(skeleton_layout)
+        Self(layout)
+    }
+}
+
+// Bind-group layout for the point-light shadow cube-map array (`@group(5)`
+// in the default material convention). Point lights are omnidirectional and
+// need a full cube per caster, unlike spot/directional lights which share a
+// plain 2D array (see `SpotDirectionalShadowLayout`).
+#[derive(Resource, Deref)]
+pub(crate) struct PointShadowLayout(pub(crate) wgpu::BindGroupLayout);
+
+impl PointShadowLayout {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("point_shadow_bind_group_layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::CubeArray,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    count: None,
+                },
+            ],
+        });
+
+        Self(layout)
     }
 }

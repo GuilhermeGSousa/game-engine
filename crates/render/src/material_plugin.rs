@@ -21,7 +21,9 @@ use crate::{
         skeleton::{RenderSkeletonComponent, SkinUniforms},
     },
     device::RenderDevice,
-    layouts::{CameraLayout, LightLayout, ShadowsLayout, SkeletonLayout},
+    layouts::{
+        CameraLayout, LightLayout, PointShadowLayout, SkeletonLayout, SpotDirectionalShadowLayout,
+    },
     render_asset::{
         render_mesh::RenderMesh,
         render_texture::{DummyRenderTexture, RenderTexture},
@@ -60,6 +62,8 @@ use crate::{
 // | 1     | Camera uniform                   | `M::needs_camera()` → true     |
 // | 2     | Lighting uniform                 | `M::needs_lighting()` → true   |
 // | 3     | Skeleton (bone) uniforms         | `M::needs_skeleton()` → true   |
+// | 4     | Spot/directional shadow maps     | `M::needs_shadows()` → true    |
+// | 5     | Point-light shadow maps          | `M::needs_shadows()` → true    |
 //
 // Your WGSL only needs to declare the groups that your material actually uses.
 
@@ -411,10 +415,15 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         }
 
         if M::needs_shadows() {
-            let shadows_layout = app
-                .get_resource::<ShadowsLayout>()
-                .expect("SkeletonLayout not found");
-            all_layouts.push(shadows_layout);
+            let spot_directional_shadow_layout = app
+                .get_resource::<SpotDirectionalShadowLayout>()
+                .expect("SpotDirectionalShadowLayout not found");
+            all_layouts.push(spot_directional_shadow_layout);
+
+            let point_shadow_layout = app
+                .get_resource::<PointShadowLayout>()
+                .expect("PointShadowLayout not found");
+            all_layouts.push(point_shadow_layout);
         }
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

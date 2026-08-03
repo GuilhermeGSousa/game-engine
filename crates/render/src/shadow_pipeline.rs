@@ -4,8 +4,9 @@ use essential::transform::GlobalTransformRaw;
 use mesh::Vertex;
 use wgpu::{
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, DepthBiasState, DepthStencilState,
-    FragmentState, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor,
-    PrimitiveState, RenderPipelineDescriptor, ShaderModuleDescriptor, StencilState, TextureFormat,
+    FragmentState, MultisampleState, PipelineCache, PipelineCompilationOptions,
+    PipelineLayoutDescriptor, PrimitiveState, RenderPipelineDescriptor, ShaderModuleDescriptor,
+    StencilState, TextureFormat,
 };
 
 use crate::{assets::vertex::VertexBufferLayout, device::RenderDevice, resources::RenderContext};
@@ -33,7 +34,7 @@ impl Plugin for ShadowPipelinePlugin {
 
         let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("Shadow Bind Group Layout"),
-            entries: &vec![BindGroupLayoutEntry {
+            entries: &[BindGroupLayoutEntry {
                 binding: todo!(),
                 visibility: todo!(),
                 ty: todo!(),
@@ -53,7 +54,7 @@ impl Plugin for ShadowPipelinePlugin {
             vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: Some("vs_main"),
-                buffers: &vec![Vertex::describe(), GlobalTransformRaw::describe()],
+                buffers: &[Vertex::describe(), GlobalTransformRaw::describe()],
                 compilation_options: PipelineCompilationOptions::default(),
             },
             fragment: None,

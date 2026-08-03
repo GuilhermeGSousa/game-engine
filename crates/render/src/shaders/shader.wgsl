@@ -36,6 +36,8 @@ struct Light {
     direction: vec3<f32>,
     light_type: u32,
     cos_cone_angle: f32,
+    shadow_layer: i32,
+    shadow_view_proj: mat4x4<f32>,
 };
 
 struct Lights {
@@ -44,7 +46,8 @@ struct Lights {
 };
 
 struct Skeleton {
-    bones: array<mat4x4<f32>, MAX_BONE_COUNT>};
+    bones: array<mat4x4<f32>, MAX_BONE_COUNT>,
+};
 
 struct CameraUniform {
     view_pos: vec3<f32>,
@@ -185,7 +188,7 @@ var<uniform> bones: Skeleton;
 var t_shadow: texture_2d_array<f32>;
 
 @group(4) @binding(0)
-var sampler_shadow: sampler;
+var sampler_shadow: sampler_comparison;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

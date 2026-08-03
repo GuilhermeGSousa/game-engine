@@ -1,7 +1,4 @@
-struct CameraUniform {
-    view_pos: vec3<f32>,
-    view_proj: mat4x4<f32>,
-};
+const MAX_BONE_COUNT: i32 = 128;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -21,12 +18,19 @@ struct TransformInput {
     @location(10) model_matrix_3: vec4<f32>,
 }
 
+struct Skeleton {
+    bones: array<mat4x4<f32>, MAX_BONE_COUNT>,
+};
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
 }
 
 @group(0) @binding(0)
-var<uniform> camera: CameraUniform;
+var view_proj: mat4x4<f32>;
+
+@group(1) @binding(0)
+var<uniform> bones: Skeleton;
 
 @vertex
 fn vs_main(
@@ -44,6 +48,18 @@ fn vs_main(
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * world_position;
+
+    let total_weight = model.bone_weights.x + model.bone_weights.y + model.bone_weights.z + model.bone_weights.w;
+    if total_weight > 0 {
+        var pose_transform = mat4x4<f32>();
+        for (var i: i32 = 0; i < 4; i = i + 1) {
+            pose_transform += bones.bones[model.bone_indices[i]] * model.bone_weights[i];
+        }
+        let skinned_pos = pose_transform * world_position;
+        out.clip_position = view_proj * skinned_pos;
+    } else {
+        out.clip_position = view_proj * world_position;
+    }
+
     return out;
 }

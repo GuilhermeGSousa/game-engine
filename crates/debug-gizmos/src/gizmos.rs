@@ -46,13 +46,7 @@ impl<'w> DebugGizmos<'w> {
     /// Draws a line whose colour is interpolated from `start_color` to
     /// `end_color` along its length.
     #[inline]
-    pub fn line_gradient(
-        &mut self,
-        start: Vec3,
-        end: Vec3,
-        start_color: Color,
-        end_color: Color,
-    ) {
+    pub fn line_gradient(&mut self, start: Vec3, end: Vec3, start_color: Color, end_color: Color) {
         self.storage.push_line(start, end, start_color, end_color);
     }
 
@@ -179,21 +173,9 @@ impl<'w> DebugGizmos<'w> {
     /// each extending `length` units from the origin.
     pub fn axes(&mut self, transform: &Transform, length: f32) {
         let origin = transform.translation;
-        self.line(
-            origin,
-            origin + transform.local_x() * length,
-            Color::RED,
-        );
-        self.line(
-            origin,
-            origin + transform.local_y() * length,
-            Color::GREEN,
-        );
-        self.line(
-            origin,
-            origin + transform.local_z() * length,
-            Color::BLUE,
-        );
+        self.line(origin, origin + transform.local_x() * length, Color::RED);
+        self.line(origin, origin + transform.local_y() * length, Color::GREEN);
+        self.line(origin, origin + transform.local_z() * length, Color::BLUE);
     }
 
     /// Draws an arrow from `start` to `end`, including a small arrowhead at the

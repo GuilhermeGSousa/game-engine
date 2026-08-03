@@ -11,13 +11,24 @@ use ecs::{
 
 use encase::{ShaderSize, ShaderType, UniformBuffer};
 use essential::transform::GlobalTransform;
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
 
-use crate::{components::render_entity::RenderEntity, layouts::LightLayout, queue::RenderQueue};
+use crate::{
+    components::{
+        render_entity::RenderEntity,
+        shadows::{RenderPointShadowMaps, RenderShadowCasterSlot, RenderSpotDirectionalShadowMaps},
+    },
+    layouts::LightLayout,
+    queue::RenderQueue,
+};
 
 const MAX_LIGHTS: usize = 128;
-pub(crate) const MAX_SHADOW_CASTERS: u32 = 128;
+
+/// Sentinel [`RenderLight::shadow_layer`] value set by [`light_added`] to ask
+/// [`RenderLight::on_add`] to allocate a shadow-caster slot. Never observed
+/// outside that same tick — resolved to either a real layer index or `-1`.
+const SHADOW_LAYER_REQUESTED: i32 = -2;
 
 #[derive(Component)]
 pub struct Light {
@@ -102,8 +113,23 @@ impl RenderLightSlot {
     }
 }
 
-#[derive(Component, Clone, Copy, Deref)]
-pub struct RenderShadowCasterSlot(u32);
+// Re-uploads `entity`'s `RenderLight` immediately. Needed anywhere a
+// `RenderLight` field is mutated through `RestrictedWorld` (component
+// lifecycle callbacks) rather than a `Query<&mut RenderLight>` — the former
+// bypasses `Mut`'s change-tick marking, so `update_changed_lights`'s
+// `Changed<RenderLight>` filter would never pick the write up otherwise.
+// `pub(crate)`: also called from `RenderShadowCasterSlot::on_remove`
+// (components/shadows.rs).
+pub(crate) fn push_render_light_to_gpu(world: &ecs::world::RestrictedWorld<'_>, entity: Entity) {
+    if let (Some(render_light), Some(render_light_slot), Some(lights), Some(queue)) = (
+        world.get_component_for_entity::<RenderLight>(entity),
+        world.get_component_for_entity::<RenderLightSlot>(entity),
+        world.get_resource::<RenderLights>(),
+        world.get_resource::<RenderQueue>(),
+    ) {
+        lights.write_buffer(&queue, &render_light, *render_light_slot);
+    }
+}
 
 #[derive(ShaderType, Clone, Copy)]
 pub struct RenderLight {
@@ -115,7 +141,10 @@ pub struct RenderLight {
 
     // Spotlight
     pub(crate) cos_cone_angle: f32,
+
     // Shadows
+    pub(crate) shadow_layer: i32,
+    pub(crate) shadow_view_proj: Mat4,
 }
 
 impl RenderLight {
@@ -127,6 +156,8 @@ impl RenderLight {
             direction: Vec3::ZERO,
             light_type: 0,
             cos_cone_angle: 0.0,
+            shadow_layer: -1,
+            shadow_view_proj: Mat4::IDENTITY,
         }
     }
 }
@@ -146,6 +177,49 @@ impl Component for RenderLight {
             };
 
             world.insert_component(slot, context.entity, false);
+
+            let casts_shadows = world
+                .get_component_for_entity::<RenderLight>(context.entity)
+                .is_some_and(|light| light.shadow_layer == SHADOW_LAYER_REQUESTED);
+
+            if casts_shadows {
+                let is_point = world
+                    .get_component_for_entity::<RenderLight>(context.entity)
+                    .is_some_and(|light| light.light_type == LightType::Point.index());
+
+                let shadow_slot = if is_point {
+                    world
+                        .get_resource_mut::<RenderPointShadowMaps>()
+                        .and_then(|shadow_maps| shadow_maps.push_caster(context.entity))
+                } else {
+                    world
+                        .get_resource_mut::<RenderSpotDirectionalShadowMaps>()
+                        .and_then(|shadow_maps| shadow_maps.push_caster(context.entity))
+                };
+
+                match shadow_slot {
+                    Some(shadow_slot) => {
+                        world.insert_component(
+                            RenderShadowCasterSlot(shadow_slot),
+                            context.entity,
+                            false,
+                        );
+                        if let Some(render_light) =
+                            world.get_component_for_entity_mut::<RenderLight>(context.entity)
+                        {
+                            render_light.shadow_layer = shadow_slot as i32;
+                        }
+                    }
+                    // Shadow-caster pool exhausted; fall back to unshadowed.
+                    None => {
+                        if let Some(render_light) =
+                            world.get_component_for_entity_mut::<RenderLight>(context.entity)
+                        {
+                            render_light.shadow_layer = -1;
+                        }
+                    }
+                }
+            }
 
             if let (Some(lights), Some(queue)) = (
                 world.get_resource::<RenderLights>(),
@@ -178,17 +252,7 @@ impl Component for RenderLight {
                     moved_slot.update_slot(*slot);
                 }
 
-                let moved_light = world
-                    .get_component_for_entity::<RenderLight>(moved_entity)
-                    .copied();
-
-                if let (Some(moved_light), Some(lights), Some(queue)) = (
-                    moved_light,
-                    world.get_resource::<RenderLights>(),
-                    world.get_resource::<RenderQueue>(),
-                ) {
-                    lights.write_buffer(&queue, &moved_light, slot);
-                }
+                push_render_light_to_gpu(&world, moved_entity);
             }
 
             if let (Some(lights), Some(queue)) = (
@@ -303,6 +367,12 @@ pub(crate) fn light_added(
                 LightType::Spot { cone_angle } => f32::cos(*cone_angle),
                 _ => 0.0,
             },
+            shadow_layer: if light.shadowmaps_enabled {
+                SHADOW_LAYER_REQUESTED
+            } else {
+                -1
+            },
+            shadow_view_proj: Mat4::IDENTITY,
         };
         match render_entity {
             None => {

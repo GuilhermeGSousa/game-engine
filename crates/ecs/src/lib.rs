@@ -17,6 +17,7 @@ pub mod common;
 pub mod component;
 pub mod entity;
 pub mod events;
+pub mod extract;
 pub mod query;
 pub mod resource;
 pub mod system;
@@ -29,6 +30,7 @@ pub use command::CommandQueue;
 pub use component::Component;
 pub use entity::Entity;
 pub use events::Event;
+pub use extract::{Extract, MainWorld, ScratchMainWorld};
 pub use query::{
     query_filter::{Added, Changed, Or, With, Without},
     Query,

@@ -243,8 +243,9 @@ pub struct CompiledScheduleData {
 /// 3. **LateFixedUpdate** — runs once after each FixedUpdate pass.
 /// 4. **Update** — the main per-frame update phase.
 /// 5. **LateUpdate** — cleanup/reaction phase (e.g. event flushing, transform propagation).
-/// 6. **Render** — submits draw calls to the GPU.
-/// 7. **LateRender** — post-render work (e.g. UI overlay).
+/// 6. **Extract** — copies data out of the main world and into a sub-app's world.
+/// 7. **Render** — submits draw calls to the GPU.
+/// 8. **LateRender** — post-render work (e.g. UI overlay).
 ///
 /// TODO: This will live here until we abstract update groups away from schedules
 #[derive(Hash, PartialEq, Eq)]
@@ -259,6 +260,14 @@ pub enum UpdateGroup {
     LateUpdate,
     /// Runs after each `FixedUpdate` pass.
     LateFixedUpdate,
+    /// Copies data from the main world into a sub-app's world.
+    ///
+    /// Only meaningful on a sub-app: this schedule runs against the sub-app's
+    /// own world with the main world temporarily moved in as a
+    /// [`MainWorld`](crate::extract::MainWorld) resource, so extract systems can
+    /// read the main world through [`Extract`](crate::extract::Extract) while
+    /// writing to the sub-app's world with ordinary parameters.
+    Extract,
     /// GPU render submission.
     Render,
     /// Post-render overlay (e.g. UI).
@@ -272,6 +281,7 @@ pub struct Schedules {
     fixed_update_schedule: Schedule,
     late_update_schedule: Schedule,
     late_fixed_update_schedule: Schedule,
+    extract_schedule: Schedule,
     render_schedule: Schedule,
     late_render_schedule: Schedule,
 }
@@ -289,6 +299,7 @@ impl Schedules {
             UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system(system),
             UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
             UpdateGroup::LateFixedUpdate => self.late_fixed_update_schedule.add_system(system),
+            UpdateGroup::Extract => self.extract_schedule.add_system(system),
             UpdateGroup::Render => self.render_schedule.add_system(system),
             UpdateGroup::LateRender => self.late_render_schedule.add_system(system),
         };
@@ -301,6 +312,7 @@ impl Schedules {
             fixed_update_schedule: self.fixed_update_schedule.compile::<T>(),
             late_update_schedule: self.late_update_schedule.compile::<T>(),
             late_fixed_update_schedule: self.late_fixed_update_schedule.compile::<T>(),
+            extract_schedule: self.extract_schedule.compile::<T>(),
             render_schedule: self.render_schedule.compile::<T>(),
             late_render_schedule: self.late_render_schedule.compile::<T>(),
         }
@@ -313,6 +325,7 @@ pub struct CompiledSchedules {
     fixed_update_schedule: CompiledSchedule,
     late_update_schedule: CompiledSchedule,
     late_fixed_update_schedule: CompiledSchedule,
+    extract_schedule: CompiledSchedule,
     render_schedule: CompiledSchedule,
     late_render_schedule: CompiledSchedule,
 }
@@ -343,6 +356,16 @@ impl CompiledSchedules {
             profiling::scope!("schedule::late_fixed_update");
             self.late_fixed_update_schedule.run(world);
         }
+    }
+
+    /// Runs the `Extract` schedule.
+    ///
+    /// `world` is the sub-app's own world, which must already hold the
+    /// [`MainWorld`](crate::extract::MainWorld) resource — see
+    /// [`SubApp::extract`](../../../app/struct.SubApp.html#method.extract).
+    pub fn extract(&mut self, world: &mut World) {
+        profiling::scope!("schedule::extract");
+        self.extract_schedule.run(world);
     }
 
     pub fn render(&mut self, world: &mut World) {

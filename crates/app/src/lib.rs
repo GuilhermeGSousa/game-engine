@@ -1,7 +1,3 @@
-#[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
-use ecs::system::executor::multi_thread::MultiThreadedExecutor;
-#[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
-use ecs::system::executor::single_thread::SingleThreadedExecutor;
 use ecs::{
     component::Component,
     events::{
@@ -10,7 +6,7 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::schedule::{CompiledSchedules, Schedules, UpdateGroup},
+    system::schedule::UpdateGroup,
     world::World,
     IntoSystemConfig,
 };
@@ -25,13 +21,15 @@ use essential::{
     time::Time,
 };
 
-use crate::{plugins::PluginsState, runner::run_once};
+use crate::{plugins::PluginsState, runner::run_once, sub_app::SubApps};
 
 pub mod plugins;
 pub mod runner;
+pub mod sub_app;
 
 // Re-export the most commonly needed types so users don't have to know the module layout.
 pub use plugins::Plugin;
+pub use sub_app::{ExtractFn, SubApp, SubAppLabel};
 
 pub(crate) struct HokeyPokeyPlugin;
 impl Plugin for HokeyPokeyPlugin {
@@ -40,9 +38,14 @@ impl Plugin for HokeyPokeyPlugin {
 
 /// The top-level container for the game engine.
 ///
-/// An `App` owns a [`World`], a set of per-group [`Schedule`]s, and a list of
-/// [`Plugin`]s.  Call [`run`](App::run) to hand control over to the configured
-/// runner (typically the window event loop).
+/// An `App` owns a set of [`SubApp`]s and a list of [`Plugin`]s.  Call
+/// [`run`](App::run) to hand control over to the configured runner (typically
+/// the window event loop).
+///
+/// Every `App` has a main sub-app — the game world — and may hold further
+/// sub-apps, each with its own [`World`] and schedules.  The `App`'s own
+/// world-facing methods (`insert_resource`, `add_system`, …) all target the
+/// main sub-app; reach the others through [`sub_app_mut`](App::sub_app_mut).
 ///
 /// # Typical setup
 /// ```ignore
@@ -55,7 +58,7 @@ impl Plugin for HokeyPokeyPlugin {
 /// ```
 pub struct App {
     runner: runner::RunnerFn,
-    world: World,
+    sub_apps: SubApps,
     accumulated_fixed_time: f32,
     plugins: Vec<Box<dyn Plugin>>,
     plugin_state: PluginsState,
@@ -63,15 +66,62 @@ pub struct App {
 
 impl App {
     pub fn new() -> App {
-        let mut world = World::new();
-        world.init_resource::<Schedules>();
         Self {
             runner: Box::new(runner::run_once),
-            world,
+            sub_apps: SubApps::new(),
             accumulated_fixed_time: 0.0,
             plugins: Vec::new(),
             plugin_state: PluginsState::Building,
         }
+    }
+
+    /// The main (game) sub-app.
+    pub fn main(&self) -> &SubApp {
+        &self.sub_apps.main
+    }
+
+    /// The main (game) sub-app.
+    pub fn main_mut(&mut self) -> &mut SubApp {
+        &mut self.sub_apps.main
+    }
+
+    /// The main sub-app's world.
+    pub fn world(&self) -> &World {
+        self.sub_apps.main.world()
+    }
+
+    /// The main sub-app's world.
+    pub fn world_mut(&mut self) -> &mut World {
+        self.sub_apps.main.world_mut()
+    }
+
+    /// Adds a sub-app under `label`, replacing any existing one.
+    ///
+    /// Sub-apps run sequentially after the main sub-app, in insertion order.
+    pub fn insert_sub_app(&mut self, label: SubAppLabel, sub_app: SubApp) -> &mut Self {
+        info!("Registering sub-app: {}", label);
+        self.sub_apps.insert(label, sub_app);
+        self
+    }
+
+    pub fn get_sub_app(&self, label: SubAppLabel) -> Option<&SubApp> {
+        self.sub_apps.get(label)
+    }
+
+    pub fn get_sub_app_mut(&mut self, label: SubAppLabel) -> Option<&mut SubApp> {
+        self.sub_apps.get_mut(label)
+    }
+
+    /// Returns the sub-app registered under `label`.
+    ///
+    /// # Panics
+    /// Panics if no such sub-app has been inserted — usually a plugin ordering
+    /// problem, where the plugin that owns the sub-app has not been registered
+    /// yet.
+    pub fn sub_app_mut(&mut self, label: SubAppLabel) -> &mut SubApp {
+        self.sub_apps
+            .get_mut(label)
+            .unwrap_or_else(|| panic!("Sub-app {label} not found"))
     }
 
     /// Builds and registers a [`Plugin`].
@@ -105,7 +155,7 @@ impl App {
             },
         );
 
-        self.world.insert_resource(asset_store);
+        self.sub_apps.main.insert_resource(asset_store);
         self
     }
 
@@ -121,16 +171,16 @@ impl App {
         self
     }
 
-    /// Registers a system in the given [`UpdateGroup`].
+    /// Registers a system in the given [`UpdateGroup`] on the main sub-app.
+    ///
+    /// To register a system on another sub-app, go through
+    /// [`sub_app_mut`](App::sub_app_mut).
     pub fn add_system<M>(
         &mut self,
         update_group: UpdateGroup,
         system: impl IntoSystemConfig<M> + 'static,
     ) -> &mut Self {
-        self.get_resource_mut::<Schedules>()
-            .expect("Schedules resource not found!")
-            .add_system(update_group, system);
-
+        self.sub_apps.main.add_system(update_group, system);
         self
     }
 
@@ -145,27 +195,28 @@ impl App {
         self
     }
 
-    /// Inserts a resource into the world (replacing any existing one of the same type).
+    /// Inserts a resource into the main sub-app's world (replacing any existing
+    /// one of the same type).
     pub fn insert_resource<R: Resource>(&mut self, value: R) -> &mut Self {
-        self.world.insert_resource(value);
+        self.sub_apps.main.insert_resource(value);
         self
     }
 
     pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
-        self.world.register_reflection::<T>();
+        self.sub_apps.main.register_reflection::<T>();
         self
     }
 
     pub fn remove_resource<R: Resource>(&mut self) -> Option<R> {
-        self.world.remove_resource()
+        self.sub_apps.main.remove_resource()
     }
 
     pub fn get_resource<R: Resource>(&self) -> Option<&R> {
-        self.world.get_resource()
+        self.sub_apps.main.get_resource()
     }
 
     pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
-        self.world.get_resource_mut()
+        self.sub_apps.main.get_resource_mut()
     }
 
     pub fn with_resource<R: Resource, F, T: Resource>(&mut self, f: F)
@@ -179,8 +230,12 @@ impl App {
         self.insert_resource(output);
     }
 
-    /// Runs all per-frame schedules: FixedUpdate (as many times as needed), Update,
-    /// LateUpdate, Render, LateRender.  Also advances the world tick at the end.
+    /// Runs one frame.
+    ///
+    /// The main sub-app runs FixedUpdate (as many times as needed), Update,
+    /// LateUpdate, Render and LateRender.  Each additional sub-app then
+    /// extracts from the main world and runs its own schedules.  Every world's
+    /// tick is advanced at the end.
     pub fn update(&mut self) {
         profiling::scope!("App::update");
 
@@ -190,13 +245,9 @@ impl App {
 
         self.accumulated_fixed_time += time.delta().as_secs_f32();
 
-        let mut schedules = self
-            .remove_resource::<CompiledSchedules>()
-            .expect("Compiled schedules not found!");
-
         while self.accumulated_fixed_time >= Time::fixed_delta_time() {
             profiling::scope!("fixed_update_step");
-            schedules.fixed_update(&mut self.world);
+            self.sub_apps.main.run_fixed_update();
             self.accumulated_fixed_time -= Time::fixed_delta_time();
         }
 
@@ -205,14 +256,16 @@ impl App {
             time.set_fixed_overstep(fixed_overstep);
         }
 
-        schedules.update(&mut self.world);
-        schedules.render(&mut self.world);
+        self.sub_apps.main.run_update();
+        self.sub_apps.main.run_render();
 
-        self.world.insert_resource(schedules);
+        // Sub-apps run after the main render phase, so that ordering still
+        // holds once render systems move out of the main world.
+        self.sub_apps.update_sub_apps();
 
         {
             profiling::scope!("world_tick");
-            self.world.tick();
+            self.sub_apps.main.tick();
         }
 
         // The frame ends here: present_window has already run (LateRender),
@@ -220,9 +273,10 @@ impl App {
         profiling::finish_frame!();
     }
 
-    /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`.
+    /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`
+    /// on the main sub-app's world.
     pub fn register_component_lifecycle<T: Component>(&mut self) -> &mut Self {
-        self.world.register_component_lifetimes::<T>();
+        self.sub_apps.main.register_component_lifecycle::<T>();
         self
     }
 
@@ -246,7 +300,8 @@ impl App {
         next_state
     }
 
-    /// Calls [`Plugin::finish`] on every registered plugin, then runs the `Startup` schedule.
+    /// Calls [`Plugin::finish`] on every registered plugin, then compiles and
+    /// runs the `Startup` schedule of every sub-app.
     ///
     /// Should be called once after all plugins have been registered and all async work is ready.
     pub fn finish_plugin_build(&mut self) {
@@ -261,28 +316,11 @@ impl App {
 
         self.plugin_state = PluginsState::Finished;
 
-        self.compile_schedules();
-
-        let mut schedules = self
-            .remove_resource::<CompiledSchedules>()
-            .expect("Compiled schedules not found!");
-
-        schedules.startup(&mut self.world);
-
-        self.insert_resource(schedules);
-    }
-
-    fn compile_schedules(&mut self) {
-        let schedules = self
-            .remove_resource::<Schedules>()
-            .expect("Schedules resource not found!");
-
-        #[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
-        let compiled_schedules = schedules.compile::<MultiThreadedExecutor>();
-        #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
-        let compiled_schedules = schedules.compile::<SingleThreadedExecutor>();
-
-        self.insert_resource(compiled_schedules);
+        // Main sub-app first in both passes: its startup systems set up the
+        // state the other sub-apps will extract from.
+        self.sub_apps
+            .for_each(|sub_app| sub_app.compile_schedules());
+        self.sub_apps.for_each(|sub_app| sub_app.run_startup());
     }
 }
 

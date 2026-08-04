@@ -26,11 +26,21 @@ use crate::{
         update_window,
     },
 };
-use app::plugins::Plugin;
+use app::{
+    plugins::Plugin,
+    sub_app::{SubApp, SubAppLabel},
+};
 use color::LinearRgba;
 use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
 use std::sync::{Arc, Mutex};
 use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
+
+/// Label of the render sub-app — the world that owns GPU-side data.
+///
+/// Reach it with `app.sub_app_mut(RENDER_APP)`.  It is created by
+/// [`RenderPlugin`], so plugins that add systems or resources to it must be
+/// registered after it.
+pub const RENDER_APP: SubAppLabel = SubAppLabel("RenderApp");
 
 pub struct RenderResources {
     pub device: Device,
@@ -109,6 +119,12 @@ impl RenderPlugin {
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut app::App) {
+        // The render world. Empty for now: GPU resources and render entities
+        // still live in the main world, and the render systems below still run
+        // against it. The sub-app is created and driven every frame so that the
+        // migration can proceed one system at a time.
+        app.insert_sub_app(RENDER_APP, SubApp::new());
+
         let future_render_resources_wrapper = Arc::new(Mutex::new(None));
         app.insert_resource(FutureRenderResources(
             future_render_resources_wrapper.clone(),

@@ -9,7 +9,7 @@ use crate::{
     component::{Component, ComponentId, Tick},
     entity::Entity,
     query::{change_detection::Mut, query_filter::QueryFilter},
-    system::{access::SystemAccess, system_input::SystemInput},
+    system::{access::SystemAccess, input::SystemInput},
     table::{Column, TableRowIndex},
     world::{UnsafeWorldCell, World},
 };

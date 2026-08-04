@@ -1,22 +1,28 @@
-use ecs::{Query, Res, With};
+use director::VirtualCamera;
+use ecs::{Query, Res, With, entity::hierarchy::Children};
 use essential::{time::Time, transform::Transform};
 use glam::{Quat, Vec3};
-use render::components::camera::Camera;
 use window::input::{Input, InputState, KeyCode, PhysicalKey};
 
 use crate::player::Player;
 
 pub fn first_person_player_fly(
-    players: Query<&mut Transform, With<Player>>,
-    cameras: Query<&mut Transform, With<Camera>>,
+    players: Query<(&mut Transform, &Children), With<Player>>,
+    cameras: Query<&mut Transform, With<VirtualCamera>>,
     input: Res<Input>,
     time: Res<Time>,
 ) {
-    let Some(mut player_transform) = players.iter().next() else {
+    let Some((mut player_transform, children)) = players.iter().next() else {
         return;
     };
 
-    let Some(mut camera_transform) = cameras.iter().next() else {
+    // The world also has a standalone fallback `VirtualCamera` (the director's
+    // never-empty stack bottom), so we can't just take the first camera the
+    // query finds — it has to be the player's own child camera specifically.
+    let Some(mut camera_transform) = children
+        .into_iter()
+        .find_map(|child| cameras.get_entity(*child))
+    else {
         return;
     };
 

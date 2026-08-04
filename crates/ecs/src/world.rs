@@ -1,12 +1,13 @@
 use any_vec::any_value::AnyValueWrapper;
 use anymap3::AnyMap;
+use facet::Facet;
 use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use std::{
-    any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ops::Deref, ptr,
-};
+use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::component::bundle::ComponentBundle;
+use crate::component::reflection::ComponentReflection;
+use crate::component::registry::ComponentRegistry;
 use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
@@ -18,7 +19,7 @@ use crate::{
     component::{Component, ComponentId, ComponentLifecycleCallbacks, ComponentLifecycleContext},
     entity::{Entity, EntityLocation, EntityType},
     resource::Resource,
-    system::system_input::SystemInput,
+    system::input::SystemInput,
     table::{Table, TableRowIndex},
     utilities::TypeIdMap,
 };
@@ -42,6 +43,7 @@ use crate::{
 pub struct World {
     archetypes: Vec<Archetype>,
     resources: AnyMap,
+    component_registry: ComponentRegistry,
     entity_store: EntityStore,
     archetype_index: HashMap<EntityType, usize>,
     component_lifetimes: TypeIdMap<ComponentLifecycleCallbacks>,
@@ -61,6 +63,7 @@ impl World {
             component_lifetimes: Default::default(),
             entity_store: EntityStore::new(),
             current_tick: 0,
+            component_registry: ComponentRegistry::default(),
         }
     }
 
@@ -160,7 +163,7 @@ impl World {
         self.remove_component_internal::<T>(entity, true);
     }
 
-    pub(crate) fn insert_component_internal<T: Component>(
+    fn insert_component_internal<T: Component>(
         &mut self,
         component: T,
         entity: Entity,
@@ -470,6 +473,18 @@ impl World {
             }
         }
     }
+
+    pub fn register_component<T: Component>(&mut self) {
+        self.component_registry.register_component::<T>();
+    }
+
+    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) {
+        self.component_registry.register_refection::<T>();
+    }
+
+    pub(crate) fn get_reflection(&self, name: &str) -> Option<&ComponentReflection> {
+        self.component_registry.get_reflection(name)
+    }
 }
 
 impl Default for World {
@@ -643,9 +658,20 @@ impl<'w> RestrictedWorld<'w> {
             .remove_component_internal::<T>(entity, trigger_events);
     }
 
-    /// Mutable access to a resource, so lifecycle callbacks can keep
-    /// resource-held state (e.g. lookup caches) in sync with component
-    /// additions and removals.
+    pub fn get_component_for_entity<T: Component>(&self, entity: Entity) -> Option<&T> {
+        self.world_cell.world().get_component_for_entity(entity)
+    }
+
+    pub fn get_component_for_entity_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        self.world_cell
+            .world_mut()
+            .get_component_for_entity_mut(entity)
+    }
+
+    pub fn get_resource<T: Resource>(&self) -> Option<&T> {
+        self.world_cell.world().get_resource()
+    }
+
     pub fn get_resource_mut<T: Resource>(&mut self) -> Option<&mut T> {
         self.world_cell.world_mut().get_resource_mut::<T>()
     }
@@ -656,13 +682,5 @@ impl<'w> From<&'w mut World> for RestrictedWorld<'w> {
         RestrictedWorld {
             world_cell: world.as_unsafe_world_cell(),
         }
-    }
-}
-
-impl<'w> Deref for RestrictedWorld<'w> {
-    type Target = World;
-
-    fn deref(&self) -> &Self::Target {
-        self.world_cell.world()
     }
 }

@@ -4,14 +4,14 @@ use crate::LinearRgba;
 ///
 /// Hue is normalised to [0.0, 1.0) rather than [0°, 360°).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Hsl {
+pub struct Hsla {
     pub h: f32,
     pub s: f32,
     pub l: f32,
     pub a: f32,
 }
 
-impl Hsl {
+impl Hsla {
     #[inline]
     pub const fn new(h: f32, s: f32, l: f32, a: f32) -> Self {
         Self { h, s, l, a }
@@ -29,7 +29,7 @@ impl Hsl {
     }
 }
 
-impl From<LinearRgba> for Hsl {
+impl From<LinearRgba> for Hsla {
     fn from(c: LinearRgba) -> Self {
         let max = c.r.max(c.g).max(c.b);
         let min = c.r.min(c.g).min(c.b);
@@ -56,8 +56,8 @@ impl From<LinearRgba> for Hsl {
     }
 }
 
-impl From<Hsl> for LinearRgba {
-    fn from(c: Hsl) -> Self {
+impl From<Hsla> for LinearRgba {
+    fn from(c: Hsla) -> Self {
         if c.s == 0.0 {
             return LinearRgba::new(c.l, c.l, c.l, c.a);
         }

@@ -3,7 +3,7 @@ use std::slice::Iter;
 use crate::{
     events::{event_channel::EventChannel, Event},
     resource::Res,
-    system::system_input::SystemInput,
+    system::input::SystemInput,
     world::UnsafeWorldCell,
 };
 

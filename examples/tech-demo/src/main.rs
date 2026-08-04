@@ -6,7 +6,10 @@ use game_engine::{
 };
 
 use crate::{
-    character::{setup_character_animations, spawn_character, update_movement},
+    character::{
+        PlayerSpawner, face_camera_direction, setup_character_animations, spawn_character,
+        update_movement,
+    },
     scene::spawn_scene,
     ui::{spawn_grounded_overlay, update_grounded_overlay},
 };
@@ -33,11 +36,14 @@ fn main() {
     app.register_plugin(DefaultPlugins::default())
         .register_plugin(FrameStatsOverlayPlugin);
 
-    app.add_system(Startup, spawn_character)
+    app.register_reflection::<PlayerSpawner>();
+
+    app.add_system(UpdateGroup::Update, spawn_character)
         .add_system(Startup, spawn_scene)
         .add_system(Startup, spawn_grounded_overlay)
         .add_system(UpdateGroup::Update, setup_character_animations)
         .add_system(UpdateGroup::Update, update_movement)
+        .add_system(UpdateGroup::Update, face_camera_direction)
         .add_system(UpdateGroup::Update, update_grounded_overlay);
 
     app.run();

@@ -1,5 +1,5 @@
 use app::App;
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     command::CommandQueue, query::Query, resource::Res, system::schedule::UpdateGroup, Component,
     With,
@@ -31,7 +31,7 @@ use terminal_renderer::{
 };
 
 #[cfg(not(feature = "terminal"))]
-use debug_gizmos::plugin::DebugGizmosPlugin;
+use debug_gizmos::{DebugGizmos, DebugGizmosPlugin};
 #[cfg(not(feature = "terminal"))]
 use ecs::{resource::ResMut, Entity};
 #[cfg(not(feature = "terminal"))]
@@ -52,8 +52,6 @@ use render::{
     components::camera::Camera,
     MaterialComponent,
 };
-
-use world_grid::WorldGrid;
 
 const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
 
@@ -100,13 +98,17 @@ fn main() {
 
     #[cfg(not(feature = "terminal"))]
     {
+        use game_engine::ui::frame_stats_overlay::FrameStatsOverlayPlugin;
+
         app.register_plugin(DefaultPlugins::default())
+            .register_plugin(FrameStatsOverlayPlugin)
             .add_system(UpdateGroup::Startup, spawn_camera_windowed)
             .add_system(UpdateGroup::Startup, spawn_scene)
             .add_system(UpdateGroup::Update, rotate_cube)
             .add_system(UpdateGroup::Update, shoot_sphere)
             .add_system(UpdateGroup::Update, launch_projectiles)
-            .add_system(UpdateGroup::Update, first_person_player_fly);
+            .add_system(UpdateGroup::Update, first_person_player_fly)
+            .add_system(UpdateGroup::Update, draw_gizmos);
         app.register_plugin(DebugGizmosPlugin);
     }
 
@@ -130,13 +132,13 @@ fn spawn_camera_terminal(
     let camera = Camera {
         aspect,
         render_target: RenderTarget::texture(rtt),
-        clear_color: LinearRgba::BLACK,
+        clear_color: Color::BLACK,
         ..Camera::default()
     };
     cmd.spawn((
         camera,
         Light {
-            color: LinearRgba::WHITE,
+            color: Color::WHITE,
             intensity: 100.0,
             light_type: LightType::Point,
         },
@@ -151,9 +153,10 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
         &mut cmd,
         Vec3::new(0.0, 2.0, 0.0),
         Light {
-            color: LinearRgba::WHITE,
+            color: Color::WHITE,
             intensity: 10.0,
             light_type: LightType::Point,
+            shadowmaps_enabled: false,
         },
     );
 }
@@ -165,7 +168,7 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     cmd.spawn(
         GLTFSpawnerComponent::from_handle(asset_server.load(SPONZA_PATH)).with_physics_shapes(),
     );
-    cmd.spawn(WorldGrid::default());
+    // cmd.spawn(WorldGrid::default());
 }
 
 /// Fires a sphere along the camera's view direction on left click, to check
@@ -192,7 +195,7 @@ fn shoot_sphere(
     let origin = camera_transform.translation() + forward * (SPHERE_RADIUS * 4.0);
 
     let material = asset_server
-        .add(StandardMaterial::new(None, None).with_base_color_factor(LinearRgba::random_color()));
+        .add(StandardMaterial::new(None, None).with_base_color_factor(Color::random_color()));
     cmd.spawn((
         Projectile(forward * MUZZLE_SPEED),
         RigidBody::default(),
@@ -324,4 +327,28 @@ fn draw_terminal(mut terminal: ResMut<TerminalContext>, terminal_frame: Res<Term
             }
         })
         .unwrap();
+}
+
+/// Immediate-mode gizmo demo.
+///
+/// Everything here is re-issued every frame: the static reference shapes are
+/// redrawn, and a wireframe sphere is drawn around every live physics sphere by
+/// querying its current transform — the classic immediate-mode use case for
+/// visualising simulation state.
+#[cfg(not(feature = "terminal"))]
+fn draw_gizmos(mut gizmos: DebugGizmos, bodies: Query<&GlobalTransform, With<BodyId>>) {
+    gizmos.axes(&Transform::from_translation(Vec3::ZERO), 1.0);
+
+    let box_transform = Transform::from_translation_rotation_scale(
+        Vec3::new(2.0, 1.0, 0.0),
+        Quat::IDENTITY,
+        Vec3::splat(1.0),
+    );
+    gizmos.cuboid(&box_transform, Color::rgba(1.0, 0.6, 0.1, 1.0));
+
+    for transform in bodies.iter() {
+        let center = transform.translation();
+        gizmos.sphere(center, SPHERE_RADIUS, Color::GREEN);
+        gizmos.arrow(center, center + Vec3::Y * 0.75, Color::RED);
+    }
 }

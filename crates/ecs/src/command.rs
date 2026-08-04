@@ -1,10 +1,12 @@
 use std::marker::PhantomData;
 
+use log::warn;
+
 use crate::{
     component::{bundle::ComponentBundle, Component},
     entity::{entity_store::EntityStore, Entity},
     resource::Resource,
-    system::system_input::SystemInput,
+    system::input::SystemInput,
     world::World,
 };
 
@@ -91,6 +93,19 @@ impl<'w, 's> CommandQueue<'w, 's> {
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
         self.queue_state
             .add_command(InsertResource::<T>::new(resource));
+    }
+
+    pub fn insert_from_json(
+        &mut self,
+        component_name: String,
+        component_data: String,
+        entity: Entity,
+    ) {
+        self.queue_state.add_command(InsertErasedCommand::new(
+            component_name,
+            component_data,
+            entity,
+        ));
     }
 }
 
@@ -196,6 +211,74 @@ impl<T: Component> InsertCommand<T> {
 impl<T: Component> Command for InsertCommand<T> {
     fn execute(self: Box<Self>, world: &mut World) {
         world.insert_component(self.component, self.entity);
+    }
+}
+
+pub(crate) struct InsertErasedCommand {
+    entity: Entity,
+    component_name: String,
+    component_data: String,
+}
+
+impl InsertErasedCommand {
+    pub fn new(component_name: String, component_data: String, entity: Entity) -> Self {
+        Self {
+            entity,
+            component_name,
+            component_data,
+        }
+    }
+}
+
+impl Command for InsertErasedCommand {
+    fn execute(self: Box<Self>, world: &mut World) {
+        let Some(reflection) = world.get_reflection(&self.component_name).cloned() else {
+            warn!(
+                "Skipping component '{}': no type registered under that name (register it with register_reflection)",
+                self.component_name
+            );
+            return;
+        };
+
+        let partial = match reflection.alloc_shape() {
+            Ok(partial) => partial,
+            Err(err) => {
+                warn!(
+                    "Failed to allocate component '{}': {err}",
+                    self.component_name
+                );
+                return;
+            }
+        };
+
+        let partial = match facet_json::from_str_into_borrowed(&self.component_data, partial) {
+            Ok(partial) => partial,
+            Err(err) => {
+                warn!(
+                    "Failed to deserialize component '{}' from `{}`: {err}",
+                    self.component_name, self.component_data
+                );
+                return;
+            }
+        };
+
+        let heap_value = match partial.build() {
+            Ok(heap_value) => heap_value,
+            Err(err) => {
+                warn!(
+                    "Failed to build component '{}' (are all required fields present?): {err}",
+                    self.component_name
+                );
+                return;
+            }
+        };
+
+        if let Err(err) = reflection.insert(heap_value, world, self.entity) {
+            warn!(
+                "Failed to insert component '{}': {err}",
+                self.component_name
+            );
+        }
     }
 }
 

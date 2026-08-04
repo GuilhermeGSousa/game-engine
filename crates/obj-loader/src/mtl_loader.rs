@@ -2,7 +2,7 @@ use std::io::{BufReader, Cursor};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use color::LinearRgba;
+use color::Color;
 use essential::assets::{
     Asset, AssetPath, LoadableAsset, asset_loader::AssetLoader, asset_server::AssetLoadContext,
     handle::AssetHandle, utils::load_to_string,
@@ -64,9 +64,8 @@ impl AssetLoader for MTLLoader {
             }
 
             if let Some(diffuse) = m.diffuse {
-                material.set_base_color_factor(LinearRgba::new(
-                    diffuse[0], diffuse[1], diffuse[2], 1.0,
-                ));
+                material
+                    .set_base_color_factor(Color::rgba(diffuse[0], diffuse[1], diffuse[2], 1.0));
             }
 
             if let Some(shininess) = m.shininess {

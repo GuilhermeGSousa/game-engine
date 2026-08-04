@@ -23,3 +23,6 @@ derive_more = { version = "2", features = ["full"] }
 fixedbitset = { version = "0.5.7", optional = true }
 concurrent-queue = { version = "2.5.0", optional = true }
 crossbeam-channel = "0.5.0"
+facet = { version = "0.46", features = ["reflect"] }
+facet-json = "0.46"
+anyhow = "1.0.97"

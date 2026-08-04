@@ -5,6 +5,7 @@ use ecs::{
     Resource, With, Without,
 };
 use essential::assets::{asset_store::AssetStore, handle::AssetLifetimeEvent, AssetId};
+use facet::Facet;
 use log::warn;
 use mesh::{Mesh, MeshComponent};
 
@@ -68,7 +69,7 @@ impl PhysicsMeshShapes {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Facet)]
 pub struct MeshCollider;
 
 pub(crate) fn generate_mesh_shapes(

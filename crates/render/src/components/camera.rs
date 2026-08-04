@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::{Color, LinearRgba};
 use encase::{ShaderType, UniformBuffer};
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
@@ -54,7 +54,7 @@ pub struct Camera {
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
-    pub clear_color: LinearRgba,
+    pub clear_color: Color,
     pub render_target: RenderTarget,
 }
 
@@ -81,7 +81,7 @@ impl Default for Camera {
             fovy: std::f32::consts::FRAC_PI_4,
             znear: 0.1,
             zfar: 100.0,
-            clear_color: LinearRgba::new(0.118, 0.831, 0.922, 1.0),
+            clear_color: Color::rgba(0.118, 0.831, 0.922, 1.0),
             render_target: RenderTarget::main_window(),
         }
     }
@@ -194,7 +194,10 @@ pub(crate) fn camera_added(
                 let size = rt.texture.size();
                 (size.width, size.height)
             }
-            None => (context.surface_config.width, context.surface_config.height),
+            None => (
+                context.surface_config.width.max(1),
+                context.surface_config.height.max(1),
+            ),
         };
         let depth_texture =
             RenderTexture::create_depth_texture(&device, depth_w, depth_h, "depth_texture");
@@ -204,7 +207,7 @@ pub(crate) fn camera_added(
             camera_uniform,
             camera_buffer,
             depth_texture,
-            clear_color: camera.clear_color,
+            clear_color: camera.clear_color.to_linear(),
             render_target,
         };
 
@@ -261,6 +264,28 @@ pub fn create_rtt(
         texture,
         view,
         sampler,
+    }
+}
+
+/// Keeps window cameras' projection matching the surface.
+///
+/// Nothing else writes [`Camera::aspect`], so without this a camera keeps
+/// whatever it was constructed with (1.0 for [`Camera::default()`]) and the view
+/// is stretched by the window's shape. Cameras rendering to a texture are left
+/// alone: their aspect is the author's to choose — the terminal renderer, for
+/// one, deliberately squashes it to compensate for cell shape.
+pub(crate) fn sync_camera_aspect(cameras: Query<&mut Camera>, context: Res<RenderContext>) {
+    let width = context.surface_config.width;
+    let height = context.surface_config.height;
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    let aspect = width as f32 / height as f32;
+    for mut camera in cameras.iter() {
+        if matches!(camera.render_target, RenderTarget::MainWindow) && camera.aspect != aspect {
+            camera.aspect = aspect;
+        }
     }
 }
 

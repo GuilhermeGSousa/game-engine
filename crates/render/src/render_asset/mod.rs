@@ -8,8 +8,8 @@ use app::plugins::Plugin;
 use ecs::{
     resource::{ResMut, Resource},
     system::{
+        input::{StaticSystemInput, SystemInput, SystemInputData},
         schedule::UpdateGroup,
-        system_input::{StaticSystemInput, SystemInput, SystemInputData},
     },
 };
 use essential::assets::{asset_store::AssetStore, Asset, AssetId};

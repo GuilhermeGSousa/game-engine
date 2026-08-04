@@ -4,7 +4,7 @@ use app::{
     App,
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
 };
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     command::CommandQueue,
     component::Component,
@@ -17,7 +17,7 @@ use glam::{Quat, Vec3};
 use render::{
     components::{
         camera::{Camera, RenderTarget},
-        light::{Light, LightType, SpotLight},
+        light::{Light, LightType},
     },
     plugin::RenderPlugin,
 };
@@ -78,11 +78,12 @@ fn spawn_scene(mut cmd: CommandQueue, rtt: Res<EditorRttHandle>) {
 
     cmd.spawn((
         Light {
-            color: LinearRgba::new(1.0, 0.95, 0.85, 1.0),
+            color: Color::rgba(1.0, 0.95, 0.85, 1.0),
             intensity: 15.0,
-            light_type: LightType::Spot(SpotLight {
+            light_type: LightType::Spot {
                 cone_angle: 60.0_f32.to_radians(),
-            }),
+            },
+            shadowmaps_enabled: false,
         },
         light_transform,
     ));

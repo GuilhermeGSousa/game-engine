@@ -14,6 +14,7 @@ use ecs::{
     world::World,
     IntoSystemConfig,
 };
+use facet::Facet;
 use log::info;
 use runner::AppExit;
 
@@ -147,6 +148,11 @@ impl App {
     /// Inserts a resource into the world (replacing any existing one of the same type).
     pub fn insert_resource<R: Resource>(&mut self, value: R) -> &mut Self {
         self.world.insert_resource(value);
+        self
+    }
+
+    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
+        self.world.register_reflection::<T>();
         self
     }
 

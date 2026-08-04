@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use color::LinearRgba;
+use color::{Color, LinearRgba};
 use essential::assets::{handle::AssetHandle, Asset};
 use glam::Vec3;
 use render_macros::AsBindGroup;
@@ -150,7 +150,7 @@ impl StandardMaterial {
         material
     }
 
-    pub fn with_base_color_factor(mut self, factor: LinearRgba) -> Self {
+    pub fn with_base_color_factor(mut self, factor: Color) -> Self {
         self.set_base_color_factor(factor);
         self
     }
@@ -227,12 +227,12 @@ impl StandardMaterial {
 
     /// Multiplied with the base color texture (or used directly when no
     /// texture is set).  Linear RGBA; defaults to white.
-    pub fn set_base_color_factor(&mut self, factor: LinearRgba) {
-        self.uniform.base_color_factor = factor;
+    pub fn set_base_color_factor(&mut self, factor: Color) {
+        self.uniform.base_color_factor = factor.to_linear();
     }
 
-    pub fn base_color_factor(&self) -> LinearRgba {
-        self.uniform.base_color_factor
+    pub fn base_color_factor(&self) -> Color {
+        Color::from(self.uniform.base_color_factor)
     }
 
     /// Multiplied with the blue channel of the metallic-roughness texture.
@@ -406,8 +406,15 @@ impl Default for MaterialUniform {
 ///
 /// | `@group(0)` | always the material's own bind group                             |
 /// | `@group(1)` | camera uniform (present when `needs_camera()` is `true`)         |
-/// | `@group(2)` | lighting uniform (present when `needs_lighting()` is `true`)     |
+/// | `@group(2)` | lighting uniform *and* both shadow-map arrays (present when `needs_lighting()` is `true`) |
 /// | `@group(3)` | skeleton/bone uniform (present when `needs_skeleton()` is `true`)|
+///
+/// Lighting and shadow sampling share one bind group rather than being split
+/// across several — wgpu only guarantees 4 bind groups (`max_bind_groups`),
+/// and splitting them would push a material needing lighting+skeleton+shadows
+/// past that limit. A material that only wants the lights uniform (and
+/// ignores the shadow bindings) can still enable `needs_lighting()` alone and
+/// simply not declare the shadow bindings in its own WGSL.
 ///
 /// The flags are *independent* — each can be toggled on or off without implying
 /// the others.  However, skipping an intermediate group creates a gap in the
@@ -428,10 +435,13 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
         true
     }
 
-    /// Whether this material's shaders use the built-in lighting uniform at
-    /// `@group(2)`.
+    /// Whether this material's shaders use the built-in lighting uniform and
+    /// shadow-map arrays at `@group(2)`.
     ///
-    /// Defaults to `false`.  Enable for Phong / PBR materials.
+    /// Defaults to `false`.  Enable for Phong / PBR materials. A material can
+    /// read just the lights uniform and ignore the shadow-map bindings if it
+    /// doesn't want shadows — this flag controls the whole group's presence
+    /// in the pipeline layout, not each binding independently.
     fn needs_lighting() -> bool
     where
         Self: Sized,

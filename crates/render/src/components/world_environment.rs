@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::{Color, LinearRgba};
 use ecs::resource::Resource;
 use encase::ShaderType;
 
@@ -9,8 +9,10 @@ pub struct WorldEnvironment {
 }
 
 impl WorldEnvironment {
-    pub fn new(ambient_color: LinearRgba) -> Self {
-        Self { ambient_color }
+    pub fn new(ambient_color: Color) -> Self {
+        Self {
+            ambient_color: ambient_color.to_linear(),
+        }
     }
 
     pub fn ambient_color(&self) -> &LinearRgba {

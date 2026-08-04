@@ -10,9 +10,14 @@ This one is pretty straight forward, to be able to have a simple character movin
 
 ### Better debug tools
 
-The debug gizmos seriously needs to be fleshed out. As it stands it is buggy and incomplete:
-- Add more shapes
-- Figure out how to handle their lifetimes
+The debug gizmos have been reworked into an immediate-mode API modelled on
+Bevy's `Gizmos`:
+- ~~Add more shapes~~ — `DebugGizmos` now draws lines, rays, linestrips,
+  crosses, circles, spheres, rects, cuboids, local axes, and arrows.
+- ~~Figure out how to handle their lifetimes~~ — drawing is immediate mode:
+  request a `DebugGizmos` system parameter and re-issue draw calls each frame.
+  Shapes buffered during a frame are uploaded and rendered once, then cleared,
+  so nothing is retained between frames.
 
 ## Implementation
 -------------------------------

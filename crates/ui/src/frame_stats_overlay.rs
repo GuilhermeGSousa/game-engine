@@ -1,5 +1,5 @@
 use app::plugins::Plugin;
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     command::CommandQueue,
     component::Component,
@@ -50,7 +50,7 @@ fn spawn_overlay(mut cmd: CommandQueue) {
             margin: UIRect::all(8.0),
             ..Default::default()
         },
-        UIMaterial::flat(LinearRgba::new(0.0, 0.0, 0.0, 0.6)),
+        UIMaterial::flat(Color::rgba(0.0, 0.0, 0.0, 0.6)),
     ))
     .add_child((
         UINode {

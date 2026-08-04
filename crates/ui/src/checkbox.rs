@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     component::Component,
     entity::Entity,
@@ -21,17 +21,17 @@ use crate::{interaction::UIClick, material::UIMaterial};
 pub struct UICheckbox {
     pub checked: bool,
     /// Colour when `checked == true`.
-    pub checked_color: LinearRgba,
+    pub checked_color: Color,
     /// Colour when `checked == false`.
-    pub unchecked_color: LinearRgba,
+    pub unchecked_color: Color,
 }
 
 impl UICheckbox {
     pub fn new(checked: bool) -> Self {
         Self {
             checked,
-            checked_color: LinearRgba::new(0.20, 0.50, 0.90, 1.0),
-            unchecked_color: LinearRgba::new(0.12, 0.12, 0.12, 1.0),
+            checked_color: Color::rgba(0.20, 0.50, 0.90, 1.0),
+            unchecked_color: Color::rgba(0.12, 0.12, 0.12, 1.0),
         }
     }
 }
@@ -71,6 +71,7 @@ pub(crate) fn sync_checkbox_material(checkboxes: Query<(&UICheckbox, &mut UIMate
             checkbox.checked_color
         } else {
             checkbox.unchecked_color
-        };
+        }
+        .to_linear();
     }
 }

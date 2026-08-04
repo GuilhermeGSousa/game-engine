@@ -4,6 +4,8 @@ use std::{
 };
 
 pub mod bundle;
+pub mod reflection;
+pub(crate) mod registry;
 
 pub use ecs_macros::Component;
 
@@ -58,7 +60,6 @@ pub trait Component: Send + Sync + 'static {
     }
 }
 
-// TODO: Implement add lifecycle
 #[allow(dead_code)]
 pub(crate) struct ComponentLifecycleCallbacks {
     pub(crate) on_add: Option<ComponentLifecycleCallback>,

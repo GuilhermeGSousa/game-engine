@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::marker::PhantomData;
 
 use derive_more::Deref;
 use ecs::{
@@ -7,7 +7,7 @@ use ecs::{
     resource::{Res, ResMut, Resource},
     Changed, Query,
 };
-use encase::UniformBuffer;
+use encase::{ShaderSize, UniformBuffer};
 use glam::{Mat4, Vec3};
 use wgpu::{
     util::DeviceExt, BindGroupDescriptor, Operations, RenderPassDepthStencilAttachment,
@@ -16,12 +16,12 @@ use wgpu::{
 
 use crate::{
     components::{
-        light::{push_render_light_to_gpu, LightType, RenderLight},
+        light::{push_render_light_to_gpu, LightType, RenderLight, RenderLights},
         mesh::RenderMeshInstance,
         skeleton::{RenderSkeletonComponent, SkinUniforms},
     },
     device::RenderDevice,
-    layouts::{PointShadowLayout, SpotDirectionalShadowLayout},
+    layouts::LightingLayout,
     queue::RenderQueue,
     render_asset::{render_mesh::RenderMesh, RenderAssets},
     shadow_pipeline::ShadowPipeline,
@@ -118,7 +118,6 @@ impl Component for RenderShadowCasterSlot {
 // grow/shrink-with-hysteresis — is identical between them, so that's all
 // implemented once against this trait instead of twice.
 pub(crate) trait ShadowMapKind: 'static {
-    type Layout: Deref<Target = wgpu::BindGroupLayout>;
     const VIEWS_PER_CASTER: u32;
     const ARRAY_VIEW_DIMENSION: wgpu::TextureViewDimension;
     const LABEL: &'static str;
@@ -127,7 +126,6 @@ pub(crate) trait ShadowMapKind: 'static {
 pub(crate) struct SpotDirectionalShadowKind;
 
 impl ShadowMapKind for SpotDirectionalShadowKind {
-    type Layout = SpotDirectionalShadowLayout;
     const VIEWS_PER_CASTER: u32 = 1;
     const ARRAY_VIEW_DIMENSION: wgpu::TextureViewDimension = wgpu::TextureViewDimension::D2Array;
     const LABEL: &'static str = "spot_directional_shadow_maps";
@@ -136,22 +134,24 @@ impl ShadowMapKind for SpotDirectionalShadowKind {
 pub(crate) struct PointShadowKind;
 
 impl ShadowMapKind for PointShadowKind {
-    type Layout = PointShadowLayout;
     const VIEWS_PER_CASTER: u32 = 6;
     const ARRAY_VIEW_DIMENSION: wgpu::TextureViewDimension = wgpu::TextureViewDimension::CubeArray;
     const LABEL: &'static str = "point_shadow_maps";
 }
 
-// Slot-allocated shadow-map depth-texture array — see `ShadowMapKind` for
-// what varies between `RenderSpotDirectionalShadowMaps` (`@group(4)`) and
-// `RenderPointShadowMaps` (`@group(5)`). Slots are allocated on demand and
-// kept packed via swap-remove, same as `RenderLights::slots`
-// (components/light.rs). `capacity` (the actual GPU texture's per-caster
-// view count) tracks real demand: it grows immediately when `slots` outgrows
-// it, but only shrinks after `SHADOW_MAP_SHRINK_DELAY_FRAMES` consecutive
-// frames of lower usage — see `reconcile_capacity`.
+// Slot-allocated shadow-map depth texture — see `ShadowMapKind` for what
+// varies between `RenderSpotDirectionalShadowMaps` and
+// `RenderPointShadowMaps`. Slots are allocated on demand and kept packed via
+// swap-remove, same as `RenderLights::slots` (components/light.rs).
+// `capacity` (the actual GPU texture's per-caster view count) tracks real
+// demand: it grows immediately when `slots` outgrows it, but only shrinks
+// after `SHADOW_MAP_SHRINK_DELAY_FRAMES` consecutive frames of lower usage
+// — see `reconcile_capacity`.
+//
+// Doesn't own a bind group itself — both pools are sampled together via
+// `RenderLighting`'s combined `@group(2)` bind group, which is rebuilt
+// whenever `reconcile_capacity` reports an actual resize.
 pub(crate) struct ShadowMapPool<K: ShadowMapKind> {
-    pub(crate) bind_group: wgpu::BindGroup,
     pub(crate) texture: wgpu::Texture,
     // One view per underlying texture layer: a single caster view for
     // `SpotDirectionalShadowKind`, or one cube-face view for `PointShadowKind`.
@@ -171,11 +171,10 @@ impl<K: ShadowMapKind> Resource for ShadowMapPool<K> {
 }
 
 impl<K: ShadowMapKind> ShadowMapPool<K> {
-    pub(crate) fn new(device: &wgpu::Device, layout: &K::Layout) -> Self {
-        let (texture, views, bind_group) = Self::build_gpu_resources(device, layout, 1);
+    pub(crate) fn new(device: &wgpu::Device) -> Self {
+        let (texture, views) = Self::build_gpu_resources(device, 1);
 
         Self {
-            bind_group,
             texture,
             views,
             slots: Vec::new(),
@@ -187,9 +186,8 @@ impl<K: ShadowMapKind> ShadowMapPool<K> {
 
     fn build_gpu_resources(
         device: &wgpu::Device,
-        layout: &K::Layout,
         capacity: u32,
-    ) -> (wgpu::Texture, Vec<wgpu::TextureView>, wgpu::BindGroup) {
+    ) -> (wgpu::Texture, Vec<wgpu::TextureView>) {
         let view_count = capacity * K::VIEWS_PER_CASTER;
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -207,13 +205,6 @@ impl<K: ShadowMapKind> ShadowMapPool<K> {
             view_formats: &[],
         });
 
-        // Sampled as a whole in the main lighting pass.
-        let array_view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some(K::LABEL),
-            dimension: Some(K::ARRAY_VIEW_DIMENSION),
-            ..Default::default()
-        });
-
         // One single-layer view per underlying texture layer, to target as
         // a depth attachment when rendering into it.
         let views = (0..view_count)
@@ -228,30 +219,18 @@ impl<K: ShadowMapKind> ShadowMapPool<K> {
             })
             .collect();
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        (texture, views)
+    }
+
+    // Sampled as a whole by `RenderLighting`'s combined bind group. Texture
+    // views aren't separate GPU allocations, so building a fresh one here on
+    // demand (rather than caching it) is cheap.
+    pub(crate) fn array_view(&self) -> wgpu::TextureView {
+        self.texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some(K::LABEL),
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            compare: Some(wgpu::CompareFunction::LessEqual),
+            dimension: Some(K::ARRAY_VIEW_DIMENSION),
             ..Default::default()
-        });
-
-        let bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some(K::LABEL),
-            layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&array_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-            ],
-        });
-
-        (texture, views, bind_group)
+        })
     }
 
     // `None` once all `MAX_SHADOW_CASTERS` casters are in use.
@@ -271,18 +250,26 @@ impl<K: ShadowMapKind> ShadowMapPool<K> {
 
     // Grows immediately to fit `slots`; shrinks only after
     // `SHADOW_MAP_SHRINK_DELAY_FRAMES` consecutive frames of lower usage.
-    pub(crate) fn reconcile_capacity(&mut self, device: &wgpu::Device, layout: &K::Layout) {
+    // Returns whether it actually resized this call, so callers can tell
+    // whether anything referencing the old texture/views (namely
+    // `RenderLighting`'s bind group) needs rebuilding too.
+    pub(crate) fn reconcile_capacity(&mut self, device: &wgpu::Device) -> bool {
         let needed = (self.slots.len() as u32).max(1);
 
         if needed > self.capacity {
-            self.resize_to(device, layout, needed);
+            self.resize_to(device, needed);
+            true
         } else if needed < self.capacity {
             self.frames_below_capacity += 1;
             if self.frames_below_capacity >= SHADOW_MAP_SHRINK_DELAY_FRAMES {
-                self.resize_to(device, layout, needed);
+                self.resize_to(device, needed);
+                true
+            } else {
+                false
             }
         } else {
             self.frames_below_capacity = 0;
+            false
         }
     }
 
@@ -290,11 +277,10 @@ impl<K: ShadowMapKind> ShadowMapPool<K> {
         self.views.get(index)
     }
 
-    fn resize_to(&mut self, device: &wgpu::Device, layout: &K::Layout, capacity: u32) {
-        let (texture, views, bind_group) = Self::build_gpu_resources(device, layout, capacity);
+    fn resize_to(&mut self, device: &wgpu::Device, capacity: u32) {
+        let (texture, views) = Self::build_gpu_resources(device, capacity);
         self.texture = texture;
         self.views = views;
-        self.bind_group = bind_group;
         self.capacity = capacity;
         self.frames_below_capacity = 0;
     }
@@ -303,20 +289,181 @@ impl<K: ShadowMapKind> ShadowMapPool<K> {
 pub(crate) type RenderSpotDirectionalShadowMaps = ShadowMapPool<SpotDirectionalShadowKind>;
 pub(crate) type RenderPointShadowMaps = ShadowMapPool<PointShadowKind>;
 
+// Shared array of shadow view-proj matrices for *spot/directional* casters
+// only, indexed by `RenderLight::shadow_layer` — read at `@group(2)
+// @binding(5)` by the main lighting shader to project a fragment's world
+// position into light-clip-space for shadow sampling.
+//
+// Deliberately separate from `RenderShadowCasterViewProj` below, which the
+// shadow *depth* pass uses instead: that's a dedicated single-matrix buffer
+// per light, chosen specifically so the depth pass never has to pass an
+// index anywhere. This one exists only because the main pass already knows
+// `shadow_layer` for the light it's iterating, so plain WGSL array indexing
+// (the same pattern already used for `lights.lights[i]`) is all that's
+// needed here — no per-light buffer, no indexing mechanism to invent.
+#[derive(Resource)]
+pub(crate) struct RenderShadowViewProjs {
+    buffer: wgpu::Buffer,
+}
+
+impl RenderShadowViewProjs {
+    pub(crate) fn new(device: &wgpu::Device) -> Self {
+        let mut bytes = UniformBuffer::new(Vec::new());
+        bytes
+            .write(&[Mat4::IDENTITY; MAX_SHADOW_CASTERS as usize])
+            .unwrap();
+
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("shadow_view_projs"),
+            contents: &bytes.into_inner(),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        Self { buffer }
+    }
+
+    pub(crate) fn write(&self, queue: &wgpu::Queue, slot: u32, view_proj: Mat4) {
+        let offset = Mat4::SHADER_SIZE.get() * slot as u64;
+        let mut bytes = UniformBuffer::new(Vec::new());
+        bytes.write(&view_proj).unwrap();
+        queue.write_buffer(&self.buffer, offset, &bytes.into_inner());
+    }
+}
+
+// The combined `@group(2)` bind group consumed by any material with
+// `needs_lighting() == true` — the lights uniform, both shadow-map arrays,
+// and the spot/directional shadow view-proj array, merged into one group
+// (see `LightingLayout`'s doc comment for why). Rebuilt whenever either
+// shadow pool actually resizes (see `resize_shadow_maps`) — the lights and
+// shadow-view-proj buffers never resize, so they never force a rebuild on
+// their own.
+#[derive(Resource)]
+pub(crate) struct RenderLighting {
+    pub(crate) bind_group: wgpu::BindGroup,
+}
+
+impl RenderLighting {
+    pub(crate) fn new(
+        device: &wgpu::Device,
+        layout: &LightingLayout,
+        lights: &RenderLights,
+        spot_directional_shadow_maps: &RenderSpotDirectionalShadowMaps,
+        point_shadow_maps: &RenderPointShadowMaps,
+        shadow_view_projs: &RenderShadowViewProjs,
+    ) -> Self {
+        Self {
+            bind_group: Self::build_bind_group(
+                device,
+                layout,
+                lights,
+                spot_directional_shadow_maps,
+                point_shadow_maps,
+                shadow_view_projs,
+            ),
+        }
+    }
+
+    pub(crate) fn rebuild(
+        &mut self,
+        device: &wgpu::Device,
+        layout: &LightingLayout,
+        lights: &RenderLights,
+        spot_directional_shadow_maps: &RenderSpotDirectionalShadowMaps,
+        point_shadow_maps: &RenderPointShadowMaps,
+        shadow_view_projs: &RenderShadowViewProjs,
+    ) {
+        self.bind_group = Self::build_bind_group(
+            device,
+            layout,
+            lights,
+            spot_directional_shadow_maps,
+            point_shadow_maps,
+            shadow_view_projs,
+        );
+    }
+
+    fn build_bind_group(
+        device: &wgpu::Device,
+        layout: &LightingLayout,
+        lights: &RenderLights,
+        spot_directional_shadow_maps: &RenderSpotDirectionalShadowMaps,
+        point_shadow_maps: &RenderPointShadowMaps,
+        shadow_view_projs: &RenderShadowViewProjs,
+    ) -> wgpu::BindGroup {
+        let spot_directional_view = spot_directional_shadow_maps.array_view();
+        let point_view = point_shadow_maps.array_view();
+
+        // Both pools use identical comparison-sampler settings, so one
+        // shared sampler covers both shadow bindings.
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("lighting_shadow_sampler"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            ..Default::default()
+        });
+
+        device.create_bind_group(&BindGroupDescriptor {
+            label: Some("lighting_bind_group"),
+            layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: lights.buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&spot_directional_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&point_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: shadow_view_projs.buffer.as_entire_binding(),
+                },
+            ],
+        })
+    }
+}
+
 // Reconciles both shadow-map pools' GPU texture capacity to actual demand
-// once per frame. Runs after commands from `RenderLight::on_add`/
-// `RenderShadowCasterSlot::on_remove` have flushed, so if several casters are
-// added or removed in the same tick, this only resizes once for the lot —
-// not once per entity.
+// once per frame, and rebuilds `RenderLighting`'s combined bind group if
+// either pool actually resized. Runs after commands from
+// `RenderLight::on_add`/`RenderShadowCasterSlot::on_remove` have flushed, so
+// if several casters are added or removed in the same tick, this only
+// resizes once for the lot — not once per entity.
 pub(crate) fn resize_shadow_maps(
     mut spot_directional_shadow_maps: ResMut<RenderSpotDirectionalShadowMaps>,
     mut point_shadow_maps: ResMut<RenderPointShadowMaps>,
+    mut lighting: ResMut<RenderLighting>,
     device: Res<RenderDevice>,
-    spot_directional_shadow_layout: Res<SpotDirectionalShadowLayout>,
-    point_shadow_layout: Res<PointShadowLayout>,
+    lighting_layout: Res<LightingLayout>,
+    lights: Res<RenderLights>,
+    shadow_view_projs: Res<RenderShadowViewProjs>,
 ) {
-    spot_directional_shadow_maps.reconcile_capacity(&device, &spot_directional_shadow_layout);
-    point_shadow_maps.reconcile_capacity(&device, &point_shadow_layout);
+    let spot_directional_resized = spot_directional_shadow_maps.reconcile_capacity(&device);
+    let point_resized = point_shadow_maps.reconcile_capacity(&device);
+
+    if spot_directional_resized || point_resized {
+        lighting.rebuild(
+            &device,
+            &lighting_layout,
+            &lights,
+            &spot_directional_shadow_maps,
+            &point_shadow_maps,
+            &shadow_view_projs,
+        );
+    }
 }
 
 const DIRECTIONAL_SHADOW_DISTANCE: f32 = 50.0;
@@ -377,10 +524,22 @@ impl RenderShadowCasterViewProj {
 
 pub(crate) fn update_shadow_view_proj(
     lights: Query<(&RenderLight, &RenderShadowCasterViewProj), Changed<RenderLight>>,
+    shadow_view_projs: Res<RenderShadowViewProjs>,
     queue: Res<RenderQueue>,
 ) {
     for (light, view_proj) in lights.iter() {
-        view_proj.write(&queue, shadow_view_proj(light));
+        let matrix = shadow_view_proj(light);
+        view_proj.write(&queue, matrix);
+
+        // `shadow_layer` for a point light indexes into the *point* shadow
+        // pool, not the spot/directional one this array covers — writing it
+        // here regardless would clobber an unrelated spot/directional
+        // light's entry sharing that same slot number.
+        if light.light_type != LightType::Point.index() {
+            if let Ok(slot) = u32::try_from(light.shadow_layer) {
+                shadow_view_projs.write(&queue, slot, matrix);
+            }
+        }
     }
 }
 

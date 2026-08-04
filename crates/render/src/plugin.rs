@@ -6,16 +6,14 @@ use crate::{
         mesh::{mesh_added, mesh_changed},
         render_entity::RenderEntity,
         shadows::{
-            resize_shadow_maps, RenderPointShadowMaps, RenderShadowCasterSlot,
-            RenderSpotDirectionalShadowMaps,
+            resize_shadow_maps, update_shadow_view_proj, RenderLighting, RenderPointShadowMaps,
+            RenderShadowCasterSlot, RenderShadowViewProjs, RenderSpotDirectionalShadowMaps,
         },
         skeleton::{skeleton_added, update_skeletons, RenderSkeletonComponent, SkinUniforms},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
-    layouts::{
-        CameraLayout, LightLayout, PointShadowLayout, SkeletonLayout, SpotDirectionalShadowLayout,
-    },
+    layouts::{CameraLayout, LightingLayout, SkeletonLayout},
     material_plugin::clear_cameras,
     queue::RenderQueue,
     render_asset::{
@@ -167,6 +165,10 @@ impl Plugin for RenderPlugin {
             .add_system(UpdateGroup::Render, update_changed_lights)
             .add_system(
                 UpdateGroup::Render,
+                update_shadow_view_proj.after(update_changed_lights),
+            )
+            .add_system(
+                UpdateGroup::Render,
                 resize_shadow_maps.after(update_changed_lights),
             )
             .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
@@ -241,22 +243,27 @@ impl Plugin for RenderPlugin {
 
         let camera_layouts = CameraLayout::new(&device);
 
-        let light_layout = LightLayout::new(&device);
-
         let skeleton_layout = SkeletonLayout::new(&device);
 
-        let spot_directional_shadow_layout = SpotDirectionalShadowLayout::new(&device);
-        let point_shadow_layout = PointShadowLayout::new(&device);
+        let lighting_layout = LightingLayout::new(&device);
 
         app.register_component_lifecycle::<RenderEntity>();
         app.register_component_lifecycle::<RenderSkeletonComponent>();
         app.register_component_lifecycle::<RenderLight>();
         app.register_component_lifecycle::<RenderShadowCasterSlot>();
 
-        let render_lights = RenderLights::new(&device, &light_layout);
-        let render_spot_directional_shadow_maps =
-            RenderSpotDirectionalShadowMaps::new(&device, &spot_directional_shadow_layout);
-        let render_point_shadow_maps = RenderPointShadowMaps::new(&device, &point_shadow_layout);
+        let render_lights = RenderLights::new(&device);
+        let render_spot_directional_shadow_maps = RenderSpotDirectionalShadowMaps::new(&device);
+        let render_point_shadow_maps = RenderPointShadowMaps::new(&device);
+        let render_shadow_view_projs = RenderShadowViewProjs::new(&device);
+        let render_lighting = RenderLighting::new(
+            &device,
+            &lighting_layout,
+            &render_lights,
+            &render_spot_directional_shadow_maps,
+            &render_point_shadow_maps,
+            &render_shadow_view_projs,
+        );
         let skin_uniforms = SkinUniforms::new(&device, &skeleton_layout, &queue);
 
         app.insert_resource(DummyRenderTexture::new(&device))
@@ -271,13 +278,13 @@ impl Plugin for RenderPlugin {
             .insert_resource(RenderQueue { queue })
             .insert_resource(RenderWindow::new())
             .insert_resource(camera_layouts)
-            .insert_resource(light_layout)
             .insert_resource(skeleton_layout)
-            .insert_resource(spot_directional_shadow_layout)
-            .insert_resource(point_shadow_layout)
+            .insert_resource(lighting_layout)
             .insert_resource(render_lights)
             .insert_resource(render_spot_directional_shadow_maps)
             .insert_resource(render_point_shadow_maps)
+            .insert_resource(render_shadow_view_projs)
+            .insert_resource(render_lighting)
             .insert_resource(skin_uniforms)
             .insert_resource(WorldEnvironment::new(Color::rgba(0.1, 0.1, 0.1, 0.1)));
     }

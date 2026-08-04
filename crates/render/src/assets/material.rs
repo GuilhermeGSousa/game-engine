@@ -109,7 +109,6 @@ pub trait AsBindGroup {
     fragment_shader = include_str!("../shaders/shader.wgsl"),
     lighting = true,
     skeleton = true,
-    shadows = true,
 )]
 pub struct StandardMaterial {
     #[texture(0)]
@@ -407,8 +406,15 @@ impl Default for MaterialUniform {
 ///
 /// | `@group(0)` | always the material's own bind group                             |
 /// | `@group(1)` | camera uniform (present when `needs_camera()` is `true`)         |
-/// | `@group(2)` | lighting uniform (present when `needs_lighting()` is `true`)     |
+/// | `@group(2)` | lighting uniform *and* both shadow-map arrays (present when `needs_lighting()` is `true`) |
 /// | `@group(3)` | skeleton/bone uniform (present when `needs_skeleton()` is `true`)|
+///
+/// Lighting and shadow sampling share one bind group rather than being split
+/// across several — wgpu only guarantees 4 bind groups (`max_bind_groups`),
+/// and splitting them would push a material needing lighting+skeleton+shadows
+/// past that limit. A material that only wants the lights uniform (and
+/// ignores the shadow bindings) can still enable `needs_lighting()` alone and
+/// simply not declare the shadow bindings in its own WGSL.
 ///
 /// The flags are *independent* — each can be toggled on or off without implying
 /// the others.  However, skipping an intermediate group creates a gap in the
@@ -429,10 +435,13 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
         true
     }
 
-    /// Whether this material's shaders use the built-in lighting uniform at
-    /// `@group(2)`.
+    /// Whether this material's shaders use the built-in lighting uniform and
+    /// shadow-map arrays at `@group(2)`.
     ///
-    /// Defaults to `false`.  Enable for Phong / PBR materials.
+    /// Defaults to `false`.  Enable for Phong / PBR materials. A material can
+    /// read just the lights uniform and ignore the shadow-map bindings if it
+    /// doesn't want shadows — this flag controls the whole group's presence
+    /// in the pipeline layout, not each binding independently.
     fn needs_lighting() -> bool
     where
         Self: Sized,
@@ -445,17 +454,6 @@ pub trait Material: AsBindGroup + Asset + Send + Sync + 'static {
     ///
     /// Defaults to `false`.  Enable only for skinned-mesh materials.
     fn needs_skeleton() -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    /// Whether this material reas the built-in shadow maps (texture array and sampler) at
-    /// @group(4) @binging(0 - 1)
-    ///
-    /// Defaults to `false`
-    fn needs_shadows() -> bool
     where
         Self: Sized,
     {

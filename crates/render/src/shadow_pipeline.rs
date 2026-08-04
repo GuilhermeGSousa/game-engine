@@ -89,7 +89,11 @@ impl Plugin for ShadowPipelinePlugin {
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: StencilState::default(),
-                bias: DepthBiasState::default(),
+                bias: DepthBiasState {
+                    constant: 0,
+                    slope_scale: 1.0,
+                    clamp: 100.0,
+                },
             }),
             multisample: MultisampleState {
                 count: 1,

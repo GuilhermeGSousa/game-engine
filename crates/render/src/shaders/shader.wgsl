@@ -1,5 +1,6 @@
 const MAX_LIGHT_COUNT: i32 = 128;
 const MAX_BONE_COUNT: i32 = 128;
+const MAX_SHADOW_CASTERS: i32 = 128;
 
 const HAS_BASE_COLOR_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
@@ -46,6 +47,13 @@ struct Lights {
 
 struct Skeleton {
     bones: array<mat4x4<f32>, MAX_BONE_COUNT>,
+};
+
+// Spot/directional shadow view-proj matrices, indexed by `Light::shadow_layer`.
+// Point lights aren't covered here (see `shadow_visibility`) — their
+// `shadow_layer` indexes a different pool that this array doesn't track.
+struct ShadowViewProjs {
+    matrices: array<mat4x4<f32>, MAX_SHADOW_CASTERS>,
 };
 
 struct CameraUniform {
@@ -142,7 +150,11 @@ fn vs_main(
         let up = vec3<f32>(0.0, 1.0, 0.0);
         let right = vec3<f32>(1.0, 0.0, 0.0);
         let n = model.normal;
-        let t = select(normalize(cross(up, n)), normalize(cross(right, n)), abs(dot(n, up)) < 0.999);
+        // select(f, t, cond) returns `t` when `cond` is true. `n` near `up` is
+        // exactly when cross(up, n) degenerates to zero, so that branch must
+        // use `right` instead — a plain "up-facing ground plane" normal hits
+        // this every time.
+        let t = select(normalize(cross(right, n)), normalize(cross(up, n)), abs(dot(n, up)) < 0.999);
         out.world_tangent = normalize(normal_matrix * t);
         // normal_matrix is a pure rotation; M*(a×b) = (M*a)×(M*b) for orthogonal M.
         out.world_bitangent = normalize(cross(world_normal, out.world_tangent));
@@ -180,20 +192,23 @@ var<uniform> camera: CameraUniform;
 @group(2) @binding(0)
 var<uniform> lights: Lights;
 
-@group(3) @binding(0)
-var<uniform> bones: Skeleton;
+@group(2) @binding(1)
+var t_shadow_spot_directional: texture_depth_2d_array;
 
-@group(4) @binding(0)
-var t_shadow_spot_directional: texture_2d_array<f32>;
-
-@group(4) @binding(1)
+@group(2) @binding(2)
 var sampler_shadow_spot_directional: sampler_comparison;
 
-@group(5) @binding(0)
-var t_shadow_point: texture_2d_array<f32>;
+@group(2) @binding(3)
+var t_shadow_point: texture_depth_cube_array;
 
-@group(5) @binding(1)
+@group(2) @binding(4)
 var sampler_shadow_point: sampler_comparison;
+
+@group(2) @binding(5)
+var<uniform> shadow_view_projs: ShadowViewProjs;
+
+@group(3) @binding(0)
+var<uniform> bones: Skeleton;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -254,7 +269,15 @@ fn pbr_fs(in: VertexOutput) -> vec4<f32> {
             attenuation *= smoothstep(light.cos_cone_angle, cone_edge_softness, angle_cos);
         }
 
-        let radiance = light.color.rgb * light.intensity * attenuation;
+        // Point-light shadow sampling isn't implemented yet (see
+        // render_shadow_maps in shadows.rs) — only spot/directional casters
+        // get a real shadow factor here.
+        var shadow = 1.0;
+        if light_type != POINT_LIGHT {
+            shadow = shadow_visibility(light.shadow_layer, in.world_position);
+        }
+
+        let radiance = light.color.rgb * light.intensity * attenuation * shadow;
 
         let NdotL = max(dot(mapped_normal, light_dir), 0.0);
         let halfway_dir = normalize(light_dir + view_dir);
@@ -271,7 +294,6 @@ fn pbr_fs(in: VertexOutput) -> vec4<f32> {
         let kd = (vec3<f32>(1.0) - F) * (1.0 - metallic);
 
         total_light += (kd * diffuse_color / PI + specular) * radiance * NdotL;
-        // total_light += diffuse_color * attenuation;
     }
 
     let ambient = AMBIENT_INTENSITY * base_color.rgb * occlusion;
@@ -279,6 +301,46 @@ fn pbr_fs(in: VertexOutput) -> vec4<f32> {
 
     // Tone map to LDR; the sRGB surface format applies gamma encoding.
     return vec4<f32>(aces_tonemap(color), base_color.a);
+}
+
+// Visibility factor (0 = fully shadowed, 1 = fully lit) for a spot/directional
+// caster. `shadow_layer < 0` means the light doesn't cast shadows at all.
+fn shadow_visibility(shadow_layer: i32, world_position: vec3<f32>) -> f32 {
+    if shadow_layer < 0 {
+        return 1.0;
+    }
+
+    let light_clip = shadow_view_projs.matrices[shadow_layer] * vec4<f32>(world_position, 1.0);
+    if light_clip.w <= 0.0 {
+        return 1.0;
+    }
+
+    let light_ndc = light_clip.xyz / light_clip.w;
+
+    // wgpu's NDC depth range is already [0, 1] (see the `_rh` — not `_rh_gl`
+    // — projections in shadows.rs), so only x/y need remapping from clip
+    // space [-1, 1] to texture space [0, 1]; y is flipped since NDC +y is up
+    // but texture +v is down.
+    let shadow_uv = light_ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
+
+    let outside = shadow_uv.x < 0.0 || shadow_uv.x > 1.0
+        || shadow_uv.y < 0.0 || shadow_uv.y > 1.0
+        || light_ndc.z > 1.0;
+    if outside {
+        return 1.0; // Outside the light's shadow frustum: treat as unshadowed.
+    }
+
+    // Hardware PCF: the comparison sampler returns a bilinear-filtered
+    // fraction of samples passing `depth_ref <= stored_depth`, giving
+    // softened edges for one tap. A wider multi-tap kernel would soften
+    // further but isn't implemented yet.
+    return textureSampleCompare(
+        t_shadow_spot_directional,
+        sampler_shadow_spot_directional,
+        shadow_uv,
+        shadow_layer,
+        light_ndc.z,
+    );
 }
 
 // Trowbridge-Reitz GGX normal distribution

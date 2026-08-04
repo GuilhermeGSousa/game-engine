@@ -652,6 +652,7 @@ impl GLTFLoader {
 pub struct GLTFSpawnerComponent {
     pub handle: AssetHandle<GLTFScene>,
     pub generate_physics_shapes: bool,
+    pub lights_cast_shadows: bool,
 }
 
 impl GLTFSpawnerComponent {
@@ -659,11 +660,17 @@ impl GLTFSpawnerComponent {
         Self {
             handle,
             generate_physics_shapes: false,
+            lights_cast_shadows: false,
         }
     }
 
     pub fn with_physics_shapes(mut self) -> Self {
         self.generate_physics_shapes = true;
+        self
+    }
+
+    pub fn with_shadows(mut self) -> Self {
+        self.lights_cast_shadows = true;
         self
     }
 }
@@ -876,7 +883,7 @@ pub(crate) fn spawn_gltf_components(
                             color: gltf_light.color,
                             intensity: gltf_light.intensity,
                             light_type,
-                            shadowmaps_enabled: false, // TODO: Let the user set this
+                            shadowmaps_enabled: component.lights_cast_shadows,
                         },
                         node_entities[node_index],
                     );

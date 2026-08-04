@@ -14,16 +14,14 @@ use crate::{
     assets::material::ShaderRef,
     components::{
         camera::RenderCamera,
-        light::RenderLights,
         material::{MaterialComponent, RenderMaterialComponent},
         mesh::RenderMeshInstance,
         render_entity::RenderEntity,
+        shadows::RenderLighting,
         skeleton::{RenderSkeletonComponent, SkinUniforms},
     },
     device::RenderDevice,
-    layouts::{
-        CameraLayout, LightLayout, PointShadowLayout, SkeletonLayout, SpotDirectionalShadowLayout,
-    },
+    layouts::{CameraLayout, LightingLayout, SkeletonLayout},
     render_asset::{
         render_mesh::RenderMesh,
         render_texture::{DummyRenderTexture, RenderTexture},
@@ -56,16 +54,15 @@ use crate::{
 //
 // # Shader bind-group convention
 //
-// | Group | Contents                         | Condition                      |
-// |-------|----------------------------------|--------------------------------|
-// | 0     | Material's own bindings          | always                         |
-// | 1     | Camera uniform                   | `M::needs_camera()` → true     |
-// | 2     | Lighting uniform                 | `M::needs_lighting()` → true   |
-// | 3     | Skeleton (bone) uniforms         | `M::needs_skeleton()` → true   |
-// | 4     | Spot/directional shadow maps     | `M::needs_shadows()` → true    |
-// | 5     | Point-light shadow maps          | `M::needs_shadows()` → true    |
+// | Group | Contents                              | Condition                      |
+// |-------|----------------------------------------|--------------------------------|
+// | 0     | Material's own bindings                | always                         |
+// | 1     | Camera uniform                         | `M::needs_camera()` → true     |
+// | 2     | Lighting uniform + both shadow-map arrays | `M::needs_lighting()` → true |
+// | 3     | Skeleton (bone) uniforms               | `M::needs_skeleton()` → true   |
 //
-// Your WGSL only needs to declare the groups that your material actually uses.
+// Your WGSL only needs to declare the groups (and, within group 2, the
+// specific bindings) that your material actually uses.
 
 // ─── Default (built-in) shader source ────────────────────────────────────────
 
@@ -224,7 +221,7 @@ pub(crate) fn material_renderpass<M: Material>(
     render_meshes: Res<RenderAssets<RenderMesh>>,
     render_materials: Res<RenderAssets<RenderMaterial<M>>>,
     render_window: Res<RenderWindow>,
-    render_lights: Res<RenderLights>,
+    render_lighting: Res<RenderLighting>,
     skins: Res<SkinUniforms>,
 ) {
     let encoder = device.command_encoder();
@@ -279,7 +276,7 @@ pub(crate) fn material_renderpass<M: Material>(
             render_pass.set_bind_group(1, &render_camera.camera_bind_group, &[]);
         }
         if M::needs_lighting() {
-            render_pass.set_bind_group(2, &render_lights.bind_group, &[]);
+            render_pass.set_bind_group(2, &render_lighting.bind_group, &[]);
         }
 
         for (mesh_instance, skeleton, render_mat_comp) in render_mesh_query.iter() {
@@ -401,10 +398,10 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         }
 
         if M::needs_lighting() {
-            let light_layout = app
-                .get_resource::<LightLayout>()
-                .expect("LightLayout not found");
-            all_layouts.push(light_layout);
+            let lighting_layout = app
+                .get_resource::<LightingLayout>()
+                .expect("LightingLayout not found");
+            all_layouts.push(lighting_layout);
         }
 
         if M::needs_skeleton() {
@@ -412,18 +409,6 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
                 .get_resource::<SkeletonLayout>()
                 .expect("SkeletonLayout not found");
             all_layouts.push(skeleton_layout);
-        }
-
-        if M::needs_shadows() {
-            let spot_directional_shadow_layout = app
-                .get_resource::<SpotDirectionalShadowLayout>()
-                .expect("SpotDirectionalShadowLayout not found");
-            all_layouts.push(spot_directional_shadow_layout);
-
-            let point_shadow_layout = app
-                .get_resource::<PointShadowLayout>()
-                .expect("PointShadowLayout not found");
-            all_layouts.push(point_shadow_layout);
         }
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

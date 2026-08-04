@@ -12,7 +12,7 @@ use ecs::{
 use encase::{ShaderSize, ShaderType, UniformBuffer};
 use essential::transform::GlobalTransform;
 use glam::Vec3;
-use wgpu::{util::DeviceExt, BindGroupDescriptor, Buffer};
+use wgpu::{util::DeviceExt, Buffer};
 
 use crate::{
     components::{
@@ -23,7 +23,6 @@ use crate::{
         },
     },
     device::RenderDevice,
-    layouts::LightLayout,
     queue::RenderQueue,
     shadow_pipeline::ShadowPipeline,
 };
@@ -279,13 +278,12 @@ impl Component for RenderLight {
 
 #[derive(Resource)]
 pub(crate) struct RenderLights {
-    pub(crate) bind_group: wgpu::BindGroup,
     pub(crate) buffer: Buffer,
     pub(crate) slots: Vec<Entity>,
 }
 
 impl RenderLights {
-    pub(crate) fn new(device: &wgpu::Device, layout: &LightLayout) -> Self {
+    pub(crate) fn new(device: &wgpu::Device) -> Self {
         let lights = LightsUniform {
             lights: [RenderLight::zeroed(); MAX_LIGHTS],
             light_count: 0,
@@ -300,17 +298,7 @@ impl RenderLights {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let lights_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("lights_bind_group"),
-            layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: lights_buffer.as_entire_binding(),
-            }],
-        });
-
         Self {
-            bind_group: lights_bind_group,
             buffer: lights_buffer,
             slots: Vec::new(),
         }

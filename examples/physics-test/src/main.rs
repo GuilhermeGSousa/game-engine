@@ -7,11 +7,10 @@
 //!
 //! Run it with `cargo run -p physics-test` (requires a display/GPU).
 
-use std::f32::consts::FRAC_PI_4;
-
 use color::Color;
 use game_engine::{
     app::App,
+    director::VirtualCamera,
     ecs::{
         command::CommandQueue, component::Component, query::Query, resource::Res,
         system::schedule::UpdateGroup,
@@ -58,7 +57,7 @@ fn main() {
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // Camera: pulled back and up, pitched slightly down to frame the floor.
     cmd.spawn((
-        Camera::perspective(FRAC_PI_4, 16.0 / 9.0),
+        VirtualCamera::default(),
         Transform::from_translation_rotation(
             Vec3::new(0.0, 5.0, 14.0),
             Quat::from_rotation_x(-0.25),

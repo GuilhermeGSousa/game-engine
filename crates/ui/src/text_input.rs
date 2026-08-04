@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     component::Component,
     entity::Entity,
@@ -145,9 +145,10 @@ pub(crate) fn update_text_inputs(
 
         // Highlight border when focused.
         material.border_color = if is_focused {
-            LinearRgba::new(0.40, 0.65, 1.00, 1.0)
+            Color::rgba(0.40, 0.65, 1.00, 1.0)
         } else {
-            LinearRgba::new(0.30, 0.30, 0.30, 1.0)
-        };
+            Color::rgba(0.30, 0.30, 0.30, 1.0)
+        }
+        .to_linear();
     }
 }

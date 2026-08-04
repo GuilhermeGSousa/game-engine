@@ -7,11 +7,10 @@
 //!
 //! Run it with `cargo run -p physics-test` (requires a display/GPU).
 
-use std::f32::consts::FRAC_PI_4;
-
-use color::LinearRgba;
+use color::Color;
 use game_engine::{
     app::App,
+    director::VirtualCamera,
     ecs::{
         command::CommandQueue, component::Component, query::Query, resource::Res,
         system::schedule::UpdateGroup,
@@ -43,7 +42,7 @@ const SPHERE_RADIUS: f32 = 1.0;
 
 /// Tags a ball with the color of its material so click-raycasts can report it.
 #[derive(Component)]
-struct BallColor(LinearRgba);
+struct BallColor(Color);
 
 fn main() {
     env_logger::init();
@@ -58,7 +57,7 @@ fn main() {
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // Camera: pulled back and up, pitched slightly down to frame the floor.
     cmd.spawn((
-        Camera::perspective(FRAC_PI_4, 16.0 / 9.0),
+        VirtualCamera::default(),
         Transform::from_translation_rotation(
             Vec3::new(0.0, 5.0, 14.0),
             Quat::from_rotation_x(-0.25),
@@ -68,9 +67,10 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // Light above the scene.
     cmd.spawn((
         Light {
-            color: LinearRgba::new(1.0, 1.0, 1.0, 1.0),
+            color: Color::rgba(1.0, 1.0, 1.0, 1.0),
             intensity: 100.0,
             light_type: LightType::Point,
+            shadowmaps_enabled: false,
         },
         Transform::from_translation_rotation(Vec3::new(0.0, 8.0, 4.0), Quat::IDENTITY),
     ));
@@ -81,8 +81,7 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
 
     let floor_mesh = asset_server.add(make_plane(40.0, 40.0));
     let floor_material = asset_server.add(
-        StandardMaterial::new(None, None)
-            .with_base_color_factor(LinearRgba::new(0.4, 0.4, 0.45, 1.0)),
+        StandardMaterial::new(None, None).with_base_color_factor(Color::rgba(0.4, 0.4, 0.45, 1.0)),
     );
     cmd.spawn((
         // Collider::cuboid(20.0, 0.5, 20.0),
@@ -98,8 +97,7 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // stop on their own, so without walls the collision impulses would send
     // them drifting off the floor.
     let wall_material = asset_server.add(
-        StandardMaterial::new(None, None)
-            .with_base_color_factor(LinearRgba::new(0.3, 0.3, 0.35, 1.0)),
+        StandardMaterial::new(None, None).with_base_color_factor(Color::rgba(0.3, 0.3, 0.35, 1.0)),
     );
     for (pos, half) in [
         (Vec3::new(0.0, 0.75, -8.5), Vec3::new(9.0, 1.25, 0.5)),
@@ -128,19 +126,19 @@ fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // and collide.
     let sphere_mesh = asset_server.add(make_uv_sphere(SPHERE_RADIUS, 16, 32));
     let colors = [
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
-        LinearRgba::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
+        Color::random_color(),
     ];
 
     for (i, color) in colors.into_iter().enumerate() {

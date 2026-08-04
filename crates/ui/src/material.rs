@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::{Color, LinearRgba};
 use ecs::component::Component;
 use essential::assets::Asset;
 use render::{AsBindGroup, assets::vertex::VertexBufferLayout};
@@ -16,10 +16,12 @@ use crate::vertex::UIVertex;
 /// # Example
 /// ```rust,ignore
 /// UIMaterial {
-///     color: LinearRgba::new(0.15, 0.15, 0.15, 1.0),
-///     border_color: LinearRgba::new(0.4, 0.4, 0.4, 1.0),
 ///     border_width: 1.0,
-///     ..UIMaterial::flat(LinearRgba::new(0.15, 0.15, 0.15, 1.0))
+///     ..UIMaterial::with_border(
+///         Color::rgba(0.15, 0.15, 0.15, 1.0),
+///         Color::rgba(0.4, 0.4, 0.4, 1.0),
+///         1.0,
+///     )
 /// }
 /// ```
 #[derive(Component, Asset, AsBindGroup)]
@@ -54,9 +56,9 @@ pub struct UIMaterial {
 
 impl UIMaterial {
     /// A plain filled rectangle with no border.
-    pub fn flat(color: LinearRgba) -> Self {
+    pub fn flat(color: Color) -> Self {
         Self {
-            color,
+            color: color.to_linear(),
             border_color: LinearRgba::TRANSPARENT,
             border_width: 0.0,
             border_params: [0.0; 4],
@@ -64,10 +66,10 @@ impl UIMaterial {
     }
 
     /// A filled rectangle with a solid-colour border.
-    pub fn with_border(color: LinearRgba, border_color: LinearRgba, border_width: f32) -> Self {
+    pub fn with_border(color: Color, border_color: Color, border_width: f32) -> Self {
         Self {
-            color,
-            border_color,
+            color: color.to_linear(),
+            border_color: border_color.to_linear(),
             border_width,
             border_params: [border_width, 0.0, 0.0, 0.0],
         }
@@ -76,6 +78,6 @@ impl UIMaterial {
 
 impl Default for UIMaterial {
     fn default() -> Self {
-        Self::flat(LinearRgba::WHITE)
+        Self::flat(Color::WHITE)
     }
 }

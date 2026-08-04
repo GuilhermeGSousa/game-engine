@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use game_engine::{
     animation::{
         blackboard::AnimationBlackboard,
@@ -78,9 +78,10 @@ pub(crate) fn spawn_character(mut cmd: CommandQueue, asset_server: Res<AssetServ
     ))
     .add_child((
         Light {
-            color: LinearRgba::WHITE,
+            color: Color::WHITE,
             intensity: 100.0,
             light_type: LightType::Point,
+            shadowmaps_enabled: false,
         },
         Transform::from_translation(Vec3::Y * 10.0),
     ));

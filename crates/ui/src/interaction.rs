@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use derive_more::{Deref, DerefMut};
 use ecs::events::event_writer::EventWriter;
 use ecs::{
@@ -43,21 +43,21 @@ pub struct UIDisabled;
 /// ```rust,ignore
 /// (
 ///     UINode::default(),
-///     UIMaterial::flat(LinearRgba::new(0.2, 0.2, 0.2, 1.0)),
+///     UIMaterial::flat(Color::rgba(0.2, 0.2, 0.2, 1.0)),
 ///     UIInteractionStyle {
-///         normal:   LinearRgba::new(0.20, 0.20, 0.20, 1.0),
-///         hovered:  LinearRgba::new(0.28, 0.28, 0.28, 1.0),
-///         pressed:  LinearRgba::new(0.14, 0.14, 0.14, 1.0),
-///         disabled: LinearRgba::new(0.10, 0.10, 0.10, 0.5),
+///         normal:   Color::rgba(0.20, 0.20, 0.20, 1.0),
+///         hovered:  Color::rgba(0.28, 0.28, 0.28, 1.0),
+///         pressed:  Color::rgba(0.14, 0.14, 0.14, 1.0),
+///         disabled: Color::rgba(0.10, 0.10, 0.10, 0.5),
 ///     },
 /// )
 /// ```
 #[derive(Component, Clone)]
 pub struct UIInteractionStyle {
-    pub normal: LinearRgba,
-    pub hovered: LinearRgba,
-    pub pressed: LinearRgba,
-    pub disabled: LinearRgba,
+    pub normal: Color,
+    pub hovered: Color,
+    pub pressed: Color,
+    pub disabled: Color,
 }
 
 /// Fired the frame a UI node is clicked with the left mouse button.
@@ -139,6 +139,6 @@ pub(crate) fn apply_interaction_styles(
         } else {
             style.normal
         };
-        material.color = color;
+        material.color = color.to_linear();
     }
 }

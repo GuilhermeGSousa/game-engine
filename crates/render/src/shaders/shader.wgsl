@@ -1,5 +1,6 @@
 const MAX_LIGHT_COUNT: i32 = 128;
 const MAX_BONE_COUNT: i32 = 128;
+const MAX_SHADOW_CASTERS: i32 = 128;
 
 const HAS_BASE_COLOR_TEXTURE = 1u << 0u;
 const HAS_NORMAL_TEXTURE = 1u << 1u;
@@ -17,17 +18,6 @@ const AMBIENT_INTENSITY = 0.03;
 // Roughness below this produces a near-singular specular lobe.
 const MIN_ROUGHNESS = 0.045;
 
-// Must match MaterialUniform in material.rs (64 bytes, 16-byte aligned).
-// Layout:
-//  0..16  base_color_factor  vec4<f32>
-// 16..28  emissive_factor    vec3<f32>
-// 28..32  metallic_factor    f32
-// 32..36  roughness_factor   f32
-// 36..40  occlusion_strength f32
-// 40..44  flags              u32
-// 44..48  alpha_cutoff       f32
-// 48..56  uv_scale           vec2<f32>
-// 56..64  _padding           vec2<u32>
 struct MaterialUniform {
     base_color_factor: vec4<f32>,
     emissive_factor: vec3<f32>,
@@ -47,6 +37,7 @@ struct Light {
     direction: vec3<f32>,
     light_type: u32,
     cos_cone_angle: f32,
+    shadow_layer: i32,
 };
 
 struct Lights {
@@ -55,7 +46,15 @@ struct Lights {
 };
 
 struct Skeleton {
-    bones: array<mat4x4<f32>, MAX_BONE_COUNT>};
+    bones: array<mat4x4<f32>, MAX_BONE_COUNT>,
+};
+
+// Spot/directional shadow view-proj matrices, indexed by `Light::shadow_layer`.
+// Point lights aren't covered here (see `shadow_visibility`) — their
+// `shadow_layer` indexes a different pool that this array doesn't track.
+struct ShadowViewProjs {
+    matrices: array<mat4x4<f32>, MAX_SHADOW_CASTERS>,
+};
 
 struct CameraUniform {
     view_pos: vec3<f32>,
@@ -101,18 +100,18 @@ fn vs_main(
         instance.model_matrix_3,
     );
 
-    // Normalizing each column strips non-uniform scale, leaving the pure rotation.
-    // A pure rotation matrix is its own inverse-transpose, making this correct for normals.
-    let normal_matrix = mat3x3<f32>(
-        normalize(instance.model_matrix_0.xyz),
-        normalize(instance.model_matrix_1.xyz),
-        normalize(instance.model_matrix_2.xyz),
-    );
-
     let world_position = model_matrix * vec4<f32>(model.position, 1.0);
 
     var out: VertexOutput;
     out.tex_coords = model.tex_coords;
+
+    // Normalizing each column strips non-uniform scale, leaving the pure rotation.
+    // A pure rotation matrix is its own inverse-transpose, making this correct for normals.
+    var normal_matrix = mat3x3<f32>(
+        normalize(instance.model_matrix_0.xyz),
+        normalize(instance.model_matrix_1.xyz),
+        normalize(instance.model_matrix_2.xyz),
+    );
 
     let total_weight = model.bone_weights.x + model.bone_weights.y + model.bone_weights.z + model.bone_weights.w;
     if total_weight > 0 {
@@ -123,6 +122,15 @@ fn vs_main(
         let skinned_pos = pose_transform * world_position;
         out.clip_position = camera.view_proj * skinned_pos;
         out.world_position = skinned_pos.xyz;
+
+        // Skinned meshes carry their world transform in the bone palette, not
+        // the instance matrix (which is identity for them), so normals must
+        // be rotated by the same blended pose used for position above.
+        normal_matrix = mat3x3<f32>(
+            normalize(pose_transform[0].xyz),
+            normalize(pose_transform[1].xyz),
+            normalize(pose_transform[2].xyz),
+        );
     } else {
         out.clip_position = camera.view_proj * world_position;
         out.world_position = world_position.xyz;
@@ -142,7 +150,11 @@ fn vs_main(
         let up = vec3<f32>(0.0, 1.0, 0.0);
         let right = vec3<f32>(1.0, 0.0, 0.0);
         let n = model.normal;
-        let t = select(normalize(cross(up, n)), normalize(cross(right, n)), abs(dot(n, up)) < 0.999);
+        // select(f, t, cond) returns `t` when `cond` is true. `n` near `up` is
+        // exactly when cross(up, n) degenerates to zero, so that branch must
+        // use `right` instead — a plain "up-facing ground plane" normal hits
+        // this every time.
+        let t = select(normalize(cross(right, n)), normalize(cross(up, n)), abs(dot(n, up)) < 0.999);
         out.world_tangent = normalize(normal_matrix * t);
         // normal_matrix is a pure rotation; M*(a×b) = (M*a)×(M*b) for orthogonal M.
         out.world_bitangent = normalize(cross(world_normal, out.world_tangent));
@@ -179,6 +191,21 @@ var<uniform> camera: CameraUniform;
 
 @group(2) @binding(0)
 var<uniform> lights: Lights;
+
+@group(2) @binding(1)
+var t_shadow_spot_directional: texture_depth_2d_array;
+
+@group(2) @binding(2)
+var sampler_shadow_spot_directional: sampler_comparison;
+
+@group(2) @binding(3)
+var t_shadow_point: texture_depth_cube_array;
+
+@group(2) @binding(4)
+var sampler_shadow_point: sampler_comparison;
+
+@group(2) @binding(5)
+var<uniform> shadow_view_projs: ShadowViewProjs;
 
 @group(3) @binding(0)
 var<uniform> bones: Skeleton;
@@ -242,7 +269,15 @@ fn pbr_fs(in: VertexOutput) -> vec4<f32> {
             attenuation *= smoothstep(light.cos_cone_angle, cone_edge_softness, angle_cos);
         }
 
-        let radiance = light.color.rgb * light.intensity * attenuation;
+        // Point-light shadow sampling isn't implemented yet (see
+        // render_shadow_maps in shadows.rs) — only spot/directional casters
+        // get a real shadow factor here.
+        var shadow = 1.0;
+        if light_type != POINT_LIGHT {
+            shadow = shadow_visibility(light.shadow_layer, in.world_position);
+        }
+
+        let radiance = light.color.rgb * light.intensity * attenuation * shadow;
 
         let NdotL = max(dot(mapped_normal, light_dir), 0.0);
         let halfway_dir = normalize(light_dir + view_dir);
@@ -259,7 +294,6 @@ fn pbr_fs(in: VertexOutput) -> vec4<f32> {
         let kd = (vec3<f32>(1.0) - F) * (1.0 - metallic);
 
         total_light += (kd * diffuse_color / PI + specular) * radiance * NdotL;
-        // total_light += diffuse_color * attenuation;
     }
 
     let ambient = AMBIENT_INTENSITY * base_color.rgb * occlusion;
@@ -267,6 +301,46 @@ fn pbr_fs(in: VertexOutput) -> vec4<f32> {
 
     // Tone map to LDR; the sRGB surface format applies gamma encoding.
     return vec4<f32>(aces_tonemap(color), base_color.a);
+}
+
+// Visibility factor (0 = fully shadowed, 1 = fully lit) for a spot/directional
+// caster. `shadow_layer < 0` means the light doesn't cast shadows at all.
+fn shadow_visibility(shadow_layer: i32, world_position: vec3<f32>) -> f32 {
+    if shadow_layer < 0 {
+        return 1.0;
+    }
+
+    let light_clip = shadow_view_projs.matrices[shadow_layer] * vec4<f32>(world_position, 1.0);
+    if light_clip.w <= 0.0 {
+        return 1.0;
+    }
+
+    let light_ndc = light_clip.xyz / light_clip.w;
+
+    // wgpu's NDC depth range is already [0, 1] (see the `_rh` — not `_rh_gl`
+    // — projections in shadows.rs), so only x/y need remapping from clip
+    // space [-1, 1] to texture space [0, 1]; y is flipped since NDC +y is up
+    // but texture +v is down.
+    let shadow_uv = light_ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
+
+    let outside = shadow_uv.x < 0.0 || shadow_uv.x > 1.0
+        || shadow_uv.y < 0.0 || shadow_uv.y > 1.0
+        || light_ndc.z > 1.0;
+    if outside {
+        return 1.0; // Outside the light's shadow frustum: treat as unshadowed.
+    }
+
+    // Hardware PCF: the comparison sampler returns a bilinear-filtered
+    // fraction of samples passing `depth_ref <= stored_depth`, giving
+    // softened edges for one tap. A wider multi-tap kernel would soften
+    // further but isn't implemented yet.
+    return textureSampleCompare(
+        t_shadow_spot_directional,
+        sampler_shadow_spot_directional,
+        shadow_uv,
+        shadow_layer,
+        light_ndc.z,
+    );
 }
 
 // Trowbridge-Reitz GGX normal distribution

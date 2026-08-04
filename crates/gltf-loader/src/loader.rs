@@ -11,7 +11,7 @@ use animation::{
 };
 use anyhow::{Context, bail};
 use async_trait::async_trait;
-use color::LinearRgba;
+use color::Color;
 use ecs::{
     command::CommandQueue, component::Component, entity::Entity, query::Query, resource::Res,
 };
@@ -37,7 +37,7 @@ use render::{
     },
     components::{
         camera::Camera,
-        light::{Light, LightType, SpotLight},
+        light::{Light, LightType},
     },
 };
 use serde_json::Value;
@@ -140,7 +140,7 @@ pub(crate) enum GLTFLightType {
 }
 
 pub(crate) struct GLTFLight {
-    pub(crate) color: LinearRgba,
+    pub(crate) color: Color,
     pub(crate) intensity: f32,
     pub(crate) light_type: GLTFLightType,
 }
@@ -246,7 +246,7 @@ impl AssetLoader for GLTFLoader {
                     .map(|info| texture_handle(info.texture(), false)),
             );
 
-            material.set_base_color_factor(LinearRgba::from(pbr.base_color_factor()));
+            material.set_base_color_factor(Color::from(pbr.base_color_factor()));
             material.set_metallic_factor(pbr.metallic_factor());
             material.set_roughness_factor(pbr.roughness_factor());
             material.set_emissive_factor(Vec3::from_array(gltf_material.emissive_factor()));
@@ -450,7 +450,7 @@ impl AssetLoader for GLTFLoader {
             .flatten()
             .map(|light| {
                 let [r, g, b] = light.color();
-                let color = LinearRgba::new(r, g, b, 1.0);
+                let color = Color::rgba(r, g, b, 1.0);
                 let light_type: GLTFLightType = match light.kind() {
                     gltf::khr_lights_punctual::Kind::Directional => GLTFLightType::Directional,
                     gltf::khr_lights_punctual::Kind::Point => GLTFLightType::Point,
@@ -652,6 +652,7 @@ impl GLTFLoader {
 pub struct GLTFSpawnerComponent {
     pub handle: AssetHandle<GLTFScene>,
     pub generate_physics_shapes: bool,
+    pub lights_cast_shadows: bool,
 }
 
 impl GLTFSpawnerComponent {
@@ -659,11 +660,17 @@ impl GLTFSpawnerComponent {
         Self {
             handle,
             generate_physics_shapes: false,
+            lights_cast_shadows: false,
         }
     }
 
     pub fn with_physics_shapes(mut self) -> Self {
         self.generate_physics_shapes = true;
+        self
+    }
+
+    pub fn with_shadows(mut self) -> Self {
+        self.lights_cast_shadows = true;
         self
     }
 }
@@ -866,9 +873,9 @@ pub(crate) fn spawn_gltf_components(
                 {
                     let light_type = match &gltf_light.light_type {
                         GLTFLightType::Point => LightType::Point,
-                        GLTFLightType::Spot { cone_angle } => LightType::Spot(SpotLight {
+                        GLTFLightType::Spot { cone_angle } => LightType::Spot {
                             cone_angle: *cone_angle,
-                        }),
+                        },
                         GLTFLightType::Directional => LightType::Directional,
                     };
                     cmd.insert(
@@ -876,6 +883,7 @@ pub(crate) fn spawn_gltf_components(
                             color: gltf_light.color,
                             intensity: gltf_light.intensity,
                             light_type,
+                            shadowmaps_enabled: component.lights_cast_shadows,
                         },
                         node_entities[node_index],
                     );

@@ -1,5 +1,5 @@
 use game_engine::{
-    color::LinearRgba,
+    color::Color,
     ecs::{CommandQueue, Component, Query, With},
     physics::ground::{GroundProbe, GroundState},
     ui::{
@@ -20,10 +20,10 @@ pub(crate) struct GroundedPanel;
 #[derive(Component)]
 pub(crate) struct GroundedText;
 
-fn panel_color(is_grounded: bool) -> LinearRgba {
+fn panel_color(is_grounded: bool) -> Color {
     match is_grounded {
-        true => LinearRgba::new(0.0, 0.35, 0.1, 0.6),
-        false => LinearRgba::new(0.45, 0.06, 0.06, 0.6),
+        true => Color::rgba(0.0, 0.35, 0.1, 0.6),
+        false => Color::rgba(0.45, 0.06, 0.06, 0.6),
     }
 }
 
@@ -93,6 +93,6 @@ pub(crate) fn update_grounded_overlay(
     }
 
     for mut material in panels.iter() {
-        material.color = panel_color(is_grounded);
+        material.color = panel_color(is_grounded).to_linear();
     }
 }

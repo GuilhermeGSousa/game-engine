@@ -1,4 +1,4 @@
-use color::LinearRgba;
+use color::Color;
 use ecs::resource::Resource;
 use glam::Vec3;
 
@@ -34,8 +34,8 @@ impl GizmoStorage {
         &mut self,
         start: Vec3,
         end: Vec3,
-        start_color: LinearRgba,
-        end_color: LinearRgba,
+        start_color: Color,
+        end_color: Color,
     ) {
         if !self.enabled {
             return;

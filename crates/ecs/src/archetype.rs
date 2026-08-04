@@ -3,7 +3,7 @@ use any_vec::any_value::AnyValueWrapper;
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
-    table::{MutableCellAccessor, Table, TableRow, TableRowIndex},
+    table::{Column, MutableCellAccessor, Table, TableRow, TableRowIndex},
 };
 
 pub struct Archetype {
@@ -52,8 +52,22 @@ impl Archetype {
         self.data_table.has_column(component_id)
     }
 
-    pub fn contains_all(&self, component_ids: Vec<ComponentId>) -> bool {
+    pub fn contains_all(&self, component_ids: &[ComponentId]) -> bool {
         component_ids.iter().all(|id| self.contains(*id))
+    }
+
+    /// Returns a shared reference to the [`Column`] storing component `id`, if present.
+    ///
+    /// Used by the query iterator to resolve a component's storage **once per
+    /// archetype** and then index it by row, instead of hashing the component id
+    /// for every entity visited.
+    pub(crate) fn get_column(&self, id: ComponentId) -> Option<&Column> {
+        self.data_table.get_column(id)
+    }
+
+    /// Returns an exclusive reference to the [`Column`] storing component `id`, if present.
+    pub(crate) fn get_column_mut(&mut self, id: ComponentId) -> Option<&mut Column> {
+        self.data_table.get_column_mut(id)
     }
 
     pub fn len(&self) -> usize {

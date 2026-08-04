@@ -123,6 +123,7 @@ impl CommandQueueState {
     }
 
     pub fn execute_commands(&mut self, world: &mut World) {
+        profiling::scope!("commands::apply");
         for command in self.queue.drain(..) {
             command.execute(world);
         }

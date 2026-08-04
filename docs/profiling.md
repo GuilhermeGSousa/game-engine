@@ -93,6 +93,21 @@ What you should see:
   `compute-N` threads. `fixed_update_step` zones tick at ~30 Hz.
 - `apply_deferred` zones at sync points — long gaps right before them mean
   the scheduler is stalled waiting on one straggler system.
+- **ECS internals** (children of a `system` zone), to split query/structural
+  cost from the system body:
+  - `query::fetch_state` — per-run query setup (cached archetype matching +
+    matched-index copy). The queried data type is attached as zone text.
+    `query::match_archetypes` nests inside it and only appears on frames where
+    new archetypes were created (steady state is a cheap early-return).
+    `query::scan` is the ad-hoc, uncached `Query::new` path.
+  - `commands::apply` — flushing a `CommandQueue` (deferred spawns/inserts/…),
+    nested under the owning system's apply phase.
+  - `world::spawn` / `world::despawn` / `world::insert_component` /
+    `world::remove_component` — individual structural changes, i.e. archetype
+    migration and table row moves. These are per-operation, so a bulk load that
+    spawns thousands of entities emits thousands of zones in one frame — expect
+    a dense band there and judge cost from the aggregated time in *Find Zone*
+    rather than from individual zones.
 - wgpu-core's own zones (device/queue internals) appear automatically: wgpu
   is instrumented with the same `profiling` crate, and enabling our backend
   feature lights it up via feature unification.

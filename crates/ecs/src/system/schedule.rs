@@ -1,6 +1,7 @@
-use std::{any::TypeId, fmt};
+use std::{any::TypeId, collections::HashMap, fmt};
 
 use crate::{
+    define_label,
     system::{
         access::SystemAccess,
         config::{IntoSystemConfig, SystemConfig},
@@ -233,127 +234,48 @@ pub struct CompiledScheduleData {
     pub system_access: Vec<SystemAccess>,
 }
 
-/// Identifies which phase of the per-frame update loop a system belongs to.
-///
-/// Systems within the same group run in insertion order.  Groups themselves run
-/// in this fixed order each frame (driven by [`App::update`](crate::App::update)):
-///
-/// 1. **Startup** — runs once when [`App::finish_plugin_build`](crate::App::finish_plugin_build) is called.
-/// 2. **FixedUpdate** — runs zero or more times per frame to catch up with a fixed time step.
-/// 3. **LateFixedUpdate** — runs once after each FixedUpdate pass.
-/// 4. **Update** — the main per-frame update phase.
-/// 5. **LateUpdate** — cleanup/reaction phase (e.g. event flushing, transform propagation).
-/// 6. **Render** — submits draw calls to the GPU.
-/// 7. **LateRender** — post-render work (e.g. UI overlay).
-///
-/// TODO: This will live here until we abstract update groups away from schedules
-#[derive(Hash, PartialEq, Eq)]
-pub enum UpdateGroup {
-    /// One-shot startup systems, run before the first frame.
-    Startup,
-    /// Main per-frame update.
-    Update,
-    /// Fixed-timestep physics/logic update.
-    FixedUpdate,
-    /// Runs after `Update` (e.g. transform propagation, event flushing).
-    LateUpdate,
-    /// Runs after each `FixedUpdate` pass.
-    LateFixedUpdate,
-    /// GPU render submission.
-    Render,
-    /// Post-render overlay (e.g. UI).
-    LateRender,
-}
+define_label!(ScheduleLabel);
 
 #[derive(Resource, Default, Debug)]
 pub struct Schedules {
-    startup_schedule: Schedule,
-    update_schedule: Schedule,
-    fixed_update_schedule: Schedule,
-    late_update_schedule: Schedule,
-    late_fixed_update_schedule: Schedule,
-    render_schedule: Schedule,
-    late_render_schedule: Schedule,
+    schedules: HashMap<Box<dyn ScheduleLabel>, Schedule>,
 }
 
 impl Schedules {
-    /// Registers a system in the given [`UpdateGroup`].
+    /// Registers a system in the schedule identified by `update_group`.
     pub fn add_system<M>(
         &mut self,
-        update_group: UpdateGroup,
+        update_group: impl ScheduleLabel,
         system: impl IntoSystemConfig<M> + 'static,
     ) {
-        match update_group {
-            UpdateGroup::Startup => self.startup_schedule.add_system(system),
-            UpdateGroup::Update => self.update_schedule.add_system(system),
-            UpdateGroup::FixedUpdate => self.fixed_update_schedule.add_system(system),
-            UpdateGroup::LateUpdate => self.late_update_schedule.add_system(system),
-            UpdateGroup::LateFixedUpdate => self.late_fixed_update_schedule.add_system(system),
-            UpdateGroup::Render => self.render_schedule.add_system(system),
-            UpdateGroup::LateRender => self.late_render_schedule.add_system(system),
-        };
+        self.schedules
+            .entry(update_group.dyn_clone())
+            .or_default()
+            .add_system(system);
     }
 
     pub fn compile<T: SystemExecutor + 'static>(self) -> CompiledSchedules {
         CompiledSchedules {
-            startup_schedule: self.startup_schedule.compile::<T>(),
-            update_schedule: self.update_schedule.compile::<T>(),
-            fixed_update_schedule: self.fixed_update_schedule.compile::<T>(),
-            late_update_schedule: self.late_update_schedule.compile::<T>(),
-            late_fixed_update_schedule: self.late_fixed_update_schedule.compile::<T>(),
-            render_schedule: self.render_schedule.compile::<T>(),
-            late_render_schedule: self.late_render_schedule.compile::<T>(),
+            compiled_schedules: self
+                .schedules
+                .into_iter()
+                .map(|(k, v)| (k, v.compile::<T>()))
+                .collect(),
         }
     }
 }
-#[derive(Resource, Debug)]
+#[derive(Resource, Debug, Default)]
 pub struct CompiledSchedules {
-    startup_schedule: CompiledSchedule,
-    update_schedule: CompiledSchedule,
-    fixed_update_schedule: CompiledSchedule,
-    late_update_schedule: CompiledSchedule,
-    late_fixed_update_schedule: CompiledSchedule,
-    render_schedule: CompiledSchedule,
-    late_render_schedule: CompiledSchedule,
+    compiled_schedules: HashMap<Box<dyn ScheduleLabel>, CompiledSchedule>,
 }
 
 impl CompiledSchedules {
-    pub fn startup(&mut self, world: &mut World) {
-        profiling::scope!("schedule::startup");
-        self.startup_schedule.run(world);
+    pub fn get(&self, label: impl ScheduleLabel) -> Option<&CompiledSchedule> {
+        self.compiled_schedules.get(&label.dyn_clone())
     }
 
-    pub fn update(&mut self, world: &mut World) {
-        {
-            profiling::scope!("schedule::update");
-            self.update_schedule.run(world);
-        }
-        {
-            profiling::scope!("schedule::late_update");
-            self.late_update_schedule.run(world);
-        }
-    }
-
-    pub fn fixed_update(&mut self, world: &mut World) {
-        {
-            profiling::scope!("schedule::fixed_update");
-            self.fixed_update_schedule.run(world);
-        }
-        {
-            profiling::scope!("schedule::late_fixed_update");
-            self.late_fixed_update_schedule.run(world);
-        }
-    }
-
-    pub fn render(&mut self, world: &mut World) {
-        {
-            profiling::scope!("schedule::render");
-            self.render_schedule.run(world);
-        }
-        {
-            profiling::scope!("schedule::late_render");
-            self.late_render_schedule.run(world);
-        }
+    pub fn get_mut(&mut self, label: impl ScheduleLabel) -> Option<&mut CompiledSchedule> {
+        self.compiled_schedules.get_mut(&label.dyn_clone())
     }
 }
 

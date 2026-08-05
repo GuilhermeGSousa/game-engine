@@ -1,5 +1,8 @@
-use app::plugins::Plugin;
-use ecs::{system::schedule::UpdateGroup, IntoSystemConfig};
+use app::{
+    plugins::Plugin,
+    schedule_groups::{LateRender, LateUpdate, Update},
+};
+use ecs::IntoSystemConfig;
 use render::{device::RenderDevice, systems::render::finish_render};
 
 use crate::{
@@ -16,12 +19,9 @@ pub struct TerminalRendererPlugin;
 impl Plugin for TerminalRendererPlugin {
     fn build(&self, app: &mut app::App) {
         app.set_runner(terminal_runner);
-        app.add_system(UpdateGroup::Update, poll_terminal_input);
-        app.add_system(
-            UpdateGroup::LateRender,
-            readback_terminal_frame.after(finish_render),
-        );
-        app.add_system(UpdateGroup::LateUpdate, handle_terminal_resize);
+        app.add_system(Update, poll_terminal_input);
+        app.add_system(LateRender, readback_terminal_frame.after(finish_render));
+        app.add_system(LateUpdate, handle_terminal_resize);
 
         app.register_event::<TerminalResizeEvent>();
 

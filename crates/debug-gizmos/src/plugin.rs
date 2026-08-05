@@ -1,5 +1,4 @@
-use app::Plugin;
-use ecs::system::schedule::UpdateGroup;
+use app::{Plugin, schedule_groups::Render};
 use render::{device::RenderDevice, layouts::CameraLayout, resources::RenderContext};
 
 use crate::{pipeline::GizmoPipeline, render::render_gizmos, storage::GizmoStorage};
@@ -17,7 +16,7 @@ pub struct DebugGizmosPlugin;
 impl Plugin for DebugGizmosPlugin {
     fn build(&self, app: &mut app::App) {
         app.insert_resource(GizmoStorage::default());
-        app.add_system(UpdateGroup::Render, render_gizmos);
+        app.add_system(Render, render_gizmos);
     }
 
     fn finish(&self, app: &mut app::App) {

@@ -1,11 +1,13 @@
-use app::plugins::Plugin;
+use app::{
+    plugins::Plugin,
+    schedule_groups::{Startup, Update},
+};
 use color::Color;
 use ecs::{
     command::CommandQueue,
     component::Component,
     query::{Query, query_filter::With},
     resource::{Res, ResMut, Resource},
-    system::schedule::UpdateGroup,
 };
 use essential::time::{FrameStats, Time};
 
@@ -36,8 +38,8 @@ pub struct FrameStatsOverlayPlugin;
 impl Plugin for FrameStatsOverlayPlugin {
     fn build(&self, app: &mut app::App) {
         app.insert_resource(OverlayRefreshTimer(0.0));
-        app.add_system(UpdateGroup::Startup, spawn_overlay);
-        app.add_system(UpdateGroup::Update, update_overlay_text);
+        app.add_system(Startup, spawn_overlay);
+        app.add_system(Update, update_overlay_text);
     }
 }
 

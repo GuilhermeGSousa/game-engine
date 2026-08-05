@@ -3,6 +3,7 @@ use std::f32::consts::PI;
 use app::{
     App,
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
+    schedule_groups::{Startup, Update},
 };
 use color::Color;
 use ecs::{
@@ -10,7 +11,6 @@ use ecs::{
     component::Component,
     query::{Query, query_filter::With},
     resource::Res,
-    system::schedule::UpdateGroup,
 };
 use essential::{time::Time, transform::Transform};
 use glam::{Quat, Vec3};
@@ -45,8 +45,8 @@ fn main() {
         .register_plugin(TransformPlugin)
         .register_plugin(UIPlugin)
         .register_plugin(EditorPlugin)
-        .add_system(UpdateGroup::Startup, spawn_scene)
-        .add_system(UpdateGroup::Update, navigate_camera);
+        .add_system(Startup, spawn_scene)
+        .add_system(Update, navigate_camera);
 
     app.run();
 }

@@ -1,12 +1,15 @@
 use std::marker::PhantomData;
 
-use app::plugins::Plugin;
+use app::{
+    plugins::Plugin,
+    schedule_groups::{LateUpdate, Render},
+};
 use ecs::{
     command::CommandQueue,
     entity::Entity,
     query::{query_filter::Added, Query},
     resource::{Res, ResMut, Resource},
-    system::{input::SystemInputData, schedule::UpdateGroup},
+    system::input::SystemInputData,
 };
 use mesh::mesh::MeshComponent;
 
@@ -371,8 +374,8 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         // in RenderMaterialComponent<M>.  Transform updates, however, are handled by the
         // shared mesh_changed system already registered by RenderPlugin, which iterates
         // over all entities with RenderEntity regardless of material type.
-        app.add_system(UpdateGroup::LateUpdate, material_added::<M>)
-            .add_system(UpdateGroup::Render, material_renderpass::<M>);
+        app.add_system(LateUpdate, material_added::<M>)
+            .add_system(Render, material_renderpass::<M>);
     }
 
     fn finish(&self, app: &mut app::App) {

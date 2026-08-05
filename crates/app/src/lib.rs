@@ -10,7 +10,7 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::schedule::{CompiledSchedules, Schedules, UpdateGroup},
+    system::schedule::{CompiledSchedules, ScheduleLabel, Schedules},
     world::World,
     IntoSystemConfig,
 };
@@ -25,10 +25,17 @@ use essential::{
     time::Time,
 };
 
-use crate::{plugins::PluginsState, runner::run_once};
+use crate::{
+    plugins::PluginsState,
+    runner::run_once,
+    schedule_groups::{
+        FixedUpdate, LateFixedUpdate, LateRender, LateUpdate, Render, Startup, Update,
+    },
+};
 
 pub mod plugins;
 pub mod runner;
+pub mod schedule_groups;
 pub mod subapp;
 
 // Re-export the most commonly needed types so users don't have to know the module layout.
@@ -98,7 +105,7 @@ impl App {
         asset_server.register_asset::<A>(&asset_store);
 
         self.add_system(
-            UpdateGroup::Update,
+            Update,
             |mut asset_store: ResMut<AssetStore<A>>,
              asset_server: ResMut<AssetServer>,
              events: EventWriter<AssetLifetimeEvent>| {
@@ -122,10 +129,10 @@ impl App {
         self
     }
 
-    /// Registers a system in the given [`UpdateGroup`].
+    /// Registers a system in the schedule identified by `update_group`.
     pub fn add_system<M>(
         &mut self,
-        update_group: UpdateGroup,
+        update_group: impl ScheduleLabel,
         system: impl IntoSystemConfig<M> + 'static,
     ) -> &mut Self {
         self.get_resource_mut::<Schedules>()
@@ -142,7 +149,7 @@ impl App {
         let event_channel = EventChannel::<T>::new();
 
         self.insert_resource(event_channel);
-        self.add_system(UpdateGroup::LateUpdate, update_event_channel::<T>);
+        self.add_system(LateUpdate, update_event_channel::<T>);
         self
     }
 
@@ -197,7 +204,16 @@ impl App {
 
         while self.accumulated_fixed_time >= Time::fixed_delta_time() {
             profiling::scope!("fixed_update_step");
-            schedules.fixed_update(&mut self.world);
+            if let Some(schedule) = schedules.get_mut(FixedUpdate) {
+                profiling::scope!("schedule::fixed_update");
+                schedule.run(&mut self.world)
+            }
+
+            if let Some(schedule) = schedules.get_mut(LateFixedUpdate) {
+                profiling::scope!("schedule::late_fixed_update");
+                schedule.run(&mut self.world)
+            }
+
             self.accumulated_fixed_time -= Time::fixed_delta_time();
         }
 
@@ -206,8 +222,25 @@ impl App {
             time.set_fixed_overstep(fixed_overstep);
         }
 
-        schedules.update(&mut self.world);
-        schedules.render(&mut self.world);
+        if let Some(schedule) = schedules.get_mut(Update) {
+            profiling::scope!("schedule::update");
+            schedule.run(&mut self.world)
+        }
+
+        if let Some(schedule) = schedules.get_mut(LateUpdate) {
+            profiling::scope!("schedule::late_update");
+            schedule.run(&mut self.world)
+        }
+
+        if let Some(schedule) = schedules.get_mut(Render) {
+            profiling::scope!("schedule::render");
+            schedule.run(&mut self.world)
+        }
+
+        if let Some(schedule) = schedules.get_mut(LateRender) {
+            profiling::scope!("schedule::late_render");
+            schedule.run(&mut self.world)
+        }
 
         self.world.insert_resource(schedules);
 
@@ -268,7 +301,9 @@ impl App {
             .remove_resource::<CompiledSchedules>()
             .expect("Compiled schedules not found!");
 
-        schedules.startup(&mut self.world);
+        if let Some(schedule) = schedules.get_mut(Startup) {
+            schedule.run(&mut self.world);
+        }
 
         self.insert_resource(schedules);
     }

@@ -1,7 +1,9 @@
 use game_engine::{
     DefaultPlugins,
-    app::App,
-    ecs::system::schedule::UpdateGroup::{self, Startup},
+    app::{
+        App,
+        schedule_groups::{Startup, Update},
+    },
     ui::frame_stats_overlay::FrameStatsOverlayPlugin,
 };
 
@@ -38,13 +40,13 @@ fn main() {
 
     app.register_reflection::<PlayerSpawner>();
 
-    app.add_system(UpdateGroup::Update, spawn_character)
+    app.add_system(Update, spawn_character)
         .add_system(Startup, spawn_scene)
         .add_system(Startup, spawn_grounded_overlay)
-        .add_system(UpdateGroup::Update, setup_character_animations)
-        .add_system(UpdateGroup::Update, update_movement)
-        .add_system(UpdateGroup::Update, face_camera_direction)
-        .add_system(UpdateGroup::Update, update_grounded_overlay);
+        .add_system(Update, setup_character_animations)
+        .add_system(Update, update_movement)
+        .add_system(Update, face_camera_direction)
+        .add_system(Update, update_grounded_overlay);
 
     app.run();
 }

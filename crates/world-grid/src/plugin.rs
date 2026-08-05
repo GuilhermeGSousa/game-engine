@@ -1,4 +1,4 @@
-use app::Plugin;
+use app::{schedule_groups::LateUpdate, Plugin};
 use render::MaterialPlugin;
 
 use crate::{
@@ -12,9 +12,6 @@ impl Plugin for WorldGridPlugin {
     fn build(&self, app: &mut app::App) {
         app.register_plugin(MaterialPlugin::<WorldGridMaterial>::new());
         app.register_component_lifecycle::<WorldGrid>();
-        app.add_system(
-            ecs::system::schedule::UpdateGroup::LateUpdate,
-            on_world_grid_changed,
-        );
+        app.add_system(LateUpdate, on_world_grid_changed);
     }
 }

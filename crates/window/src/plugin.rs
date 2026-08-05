@@ -1,13 +1,11 @@
-use ecs::{
-    resource::{ResMut, Resource},
-    system::schedule::UpdateGroup,
-};
+use ecs::resource::{ResMut, Resource};
 use std::sync::Arc;
 
 use crate::{input::Input, winit_events::WindowEvent, ApplicationWindowHandler};
 use app::{
     plugins::{Plugin, PluginsState},
     runner::AppExit,
+    schedule_groups::Render,
     App,
 };
 
@@ -129,7 +127,7 @@ impl Plugin for WindowPlugin {
         app.insert_resource(Window::new(window));
         app.insert_resource(WindowEventLoopProxy(event_loop.create_proxy()));
 
-        app.add_system(UpdateGroup::Render, update_input);
+        app.add_system(Render, update_input);
         app.set_runner(|app| winit_runner(app, event_loop));
     }
 }

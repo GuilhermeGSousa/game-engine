@@ -4,13 +4,10 @@ pub mod render_window;
 
 use std::collections::HashMap;
 
-use app::plugins::Plugin;
+use app::{plugins::Plugin, schedule_groups::Render};
 use ecs::{
     resource::{ResMut, Resource},
-    system::{
-        input::{StaticSystemInput, SystemInput, SystemInputData},
-        schedule::UpdateGroup,
-    },
+    system::input::{StaticSystemInput, SystemInput, SystemInputData},
 };
 use essential::assets::{asset_store::AssetStore, Asset, AssetId};
 
@@ -95,6 +92,6 @@ impl<A: RenderAsset> Default for RenderAssetPlugin<A> {
 impl<A: RenderAsset + 'static> Plugin for RenderAssetPlugin<A> {
     fn build(&self, app: &mut app::App) {
         app.insert_resource(RenderAssets::<A>::new());
-        app.add_system(UpdateGroup::Render, prepare_render_asset::<A>);
+        app.add_system(Render, prepare_render_asset::<A>);
     }
 }

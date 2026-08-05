@@ -32,8 +32,10 @@ pub mod director;
 pub mod main_camera;
 pub mod virtual_camera;
 
-use app::{App, Plugin};
-use ecs::system::schedule::UpdateGroup;
+use app::{
+    App, Plugin,
+    schedule_groups::{Startup, Update},
+};
 
 pub use director::CameraDirector;
 pub use main_camera::MainCamera;
@@ -55,8 +57,8 @@ impl Plugin for CameraDirectorPlugin {
         // Must precede any VirtualCamera spawn, or it never joins the stack.
         app.register_component_lifecycle::<VirtualCamera>();
 
-        app.add_system(UpdateGroup::Startup, main_camera::spawn_main_camera);
+        app.add_system(Startup, main_camera::spawn_main_camera);
 
-        app.add_system(UpdateGroup::Update, director::drive_main_camera);
+        app.add_system(Update, director::drive_main_camera);
     }
 }

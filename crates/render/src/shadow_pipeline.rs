@@ -1,5 +1,8 @@
-use app::Plugin;
-use ecs::{system::schedule::UpdateGroup, Resource};
+use app::{
+    schedule_groups::{LateUpdate, Render},
+    Plugin,
+};
+use ecs::Resource;
 use essential::transform::GlobalTransformRaw;
 use mesh::Vertex;
 use wgpu::{
@@ -26,8 +29,8 @@ pub struct ShadowPipelinePlugin;
 
 impl Plugin for ShadowPipelinePlugin {
     fn build(&self, app: &mut app::App) {
-        app.add_system(UpdateGroup::LateUpdate, update_shadow_view_proj);
-        app.add_system(UpdateGroup::Render, render_shadow_maps);
+        app.add_system(LateUpdate, update_shadow_view_proj);
+        app.add_system(Render, render_shadow_maps);
     }
 
     fn finish(&self, app: &mut app::App) {

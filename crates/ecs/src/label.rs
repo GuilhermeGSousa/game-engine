@@ -37,7 +37,7 @@ macro_rules! define_label {
     ) => {
         $(#[$label_attr])*
         pub trait $label_trait_name:
-            Send + Sync + $crate::label::DynHash + $crate::label::DynEq
+            Send + Sync + std::fmt::Debug + $crate::label::DynHash + $crate::label::DynEq
         {
             fn dyn_clone(&self) -> Box<dyn $label_trait_name>;
         }

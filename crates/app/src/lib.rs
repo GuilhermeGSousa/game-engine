@@ -29,6 +29,7 @@ use crate::{plugins::PluginsState, runner::run_once};
 
 pub mod plugins;
 pub mod runner;
+pub mod subapp;
 
 // Re-export the most commonly needed types so users don't have to know the module layout.
 pub use plugins::Plugin;

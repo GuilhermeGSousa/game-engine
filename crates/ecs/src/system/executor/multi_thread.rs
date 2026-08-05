@@ -71,7 +71,7 @@ impl SystemExecutor for MultiThreadedExecutor {
                     let queue = &queue;
                     scope.spawn(async move {
                         {
-                            profiling::scope!("system", sys.name());
+                            profiling::scope!(sys.name());
                             unsafe {
                                 sys.run_unsafe(world_cell);
                             }

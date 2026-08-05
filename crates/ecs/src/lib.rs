@@ -17,6 +17,7 @@ pub mod common;
 pub mod component;
 pub mod entity;
 pub mod events;
+pub mod label;
 pub mod query;
 pub mod resource;
 pub mod system;

@@ -101,12 +101,11 @@ What you should see:
   on the `asset-load-N` threads rather than as named zones — use Tracy's
   sampling or samply for detail there.
 
-Known limitation: `profiling::scope!` requires a compile-time literal for the
-zone *name*, so per-system zones are all named `system` with the actual system
-type name attached as zone **text**. Use Tracy's *Find Zone* / zone text
-filtering to group by system. (A later improvement can use
-`tracy_client::span_alloc` for runtime-named zones so the statistics view
-ranks systems directly.)
+Per-system zones are runtime-named after the system itself (via
+`profiling::scope!(sys.name())`, which goes through `tracy_client::span_alloc`
+under the hood), so they show up individually — searchable and rankable by
+name — in Tracy's *Statistics* / *Find Zone* views, rather than bucketed under
+one static `system` zone.
 
 Tracy also has its own sampling mode (call stacks on top of zones) — enable
 "Sampling" in the Tracy server when capturing to combine both views.

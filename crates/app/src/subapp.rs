@@ -9,7 +9,6 @@ use facet::Facet;
 pub struct SubApps {
     main: SubApp,
     render: SubApp,
-    accumulated_fixed_time: f32,
 }
 
 impl SubApps {
@@ -32,17 +31,17 @@ impl SubApps {
     pub fn update(&mut self) {
         let time = self
             .main
-            .get_resource::<Time>()
+            .get_resource_mut::<Time>()
             .expect("Time resource not found");
 
-        self.accumulated_fixed_time += time.delta().as_secs_f32();
+        time.accumulate_fixed_time();
 
         let mut schedules = self
             .main
             .remove_resource::<CompiledSchedules>()
             .expect("Compiled schedules not found!");
 
-        while self.accumulated_fixed_time >= Time::fixed_delta_time() {
+        while time.expend_fixed_time() {
             profiling::scope!("fixed_update_step");
             if let Some(schedule) = schedules.get_mut(FixedUpdate) {
                 profiling::scope!("schedule::fixed_update");
@@ -53,13 +52,6 @@ impl SubApps {
                 profiling::scope!("schedule::late_fixed_update");
                 schedule.run(&mut self.world)
             }
-
-            self.accumulated_fixed_time -= Time::fixed_delta_time();
-        }
-
-        let fixed_overstep = self.accumulated_fixed_time;
-        if let Some(time) = self.get_resource_mut::<Time>() {
-            time.set_fixed_overstep(fixed_overstep);
         }
 
         if let Some(schedule) = schedules.get_mut(Update) {

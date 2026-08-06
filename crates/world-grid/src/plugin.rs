@@ -11,7 +11,7 @@ pub struct WorldGridPlugin;
 impl Plugin for WorldGridPlugin {
     fn build(&self, app: &mut app::App) {
         app.register_plugin(MaterialPlugin::<WorldGridMaterial>::new());
-        app.register_component_lifecycle::<WorldGrid>();
+        app.register_component_lifetimes::<WorldGrid>();
         app.add_system(LateUpdate, on_world_grid_changed);
     }
 }

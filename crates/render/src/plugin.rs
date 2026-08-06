@@ -244,10 +244,10 @@ impl Plugin for RenderPlugin {
 
         let lighting_layout = LightingLayout::new(&device);
 
-        app.register_component_lifecycle::<RenderEntity>();
-        app.register_component_lifecycle::<RenderSkeletonComponent>();
-        app.register_component_lifecycle::<RenderLight>();
-        app.register_component_lifecycle::<RenderShadowCasterSlot>();
+        app.register_component_lifetimes::<RenderEntity>();
+        app.register_component_lifetimes::<RenderSkeletonComponent>();
+        app.register_component_lifetimes::<RenderLight>();
+        app.register_component_lifetimes::<RenderShadowCasterSlot>();
 
         let render_lights = RenderLights::new(&device);
         let render_spot_directional_shadow_maps = RenderSpotDirectionalShadowMaps::new(&device);

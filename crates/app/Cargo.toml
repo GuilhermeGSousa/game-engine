@@ -19,6 +19,7 @@ uuid = { version = "1.18.1", features = ["v4", "js"] }
 cfg-if = "1"
 log = "0.4.27"
 facet = "0.46"
+derive_more = { version = "2", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"

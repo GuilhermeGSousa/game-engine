@@ -99,7 +99,7 @@ pub struct TransformPlugin;
 
 impl Plugin for TransformPlugin {
     fn build(&self, app: &mut App) {
-        app.register_component_lifecycle::<Transform>();
+        app.register_component_lifetimes::<Transform>();
         app.add_system(LateUpdate, update_simple_entities)
             .add_system(LateUpdate, propagate_global_transforms);
     }

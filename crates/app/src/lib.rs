@@ -11,7 +11,6 @@ use ecs::{
     },
     resource::{ResMut, Resource},
     system::schedule::{CompiledSchedules, ScheduleLabel, Schedules},
-    world::World,
     IntoSystemConfig,
 };
 use facet::Facet;
@@ -31,8 +30,10 @@ use crate::{
     schedule_groups::{
         FixedUpdate, LateFixedUpdate, LateRender, LateUpdate, Render, Startup, Update,
     },
+    subapp::{SubApp, SubApps},
 };
 
+pub mod extractor;
 pub mod plugins;
 pub mod runner;
 pub mod schedule_groups;
@@ -63,20 +64,16 @@ impl Plugin for HokeyPokeyPlugin {
 /// ```
 pub struct App {
     runner: runner::RunnerFn,
-    world: World,
-    accumulated_fixed_time: f32,
+    subapps: SubApps,
     plugins: Vec<Box<dyn Plugin>>,
     plugin_state: PluginsState,
 }
 
 impl App {
     pub fn new() -> App {
-        let mut world = World::new();
-        world.init_resource::<Schedules>();
         Self {
             runner: Box::new(runner::run_once),
-            world,
-            accumulated_fixed_time: 0.0,
+            subapps: SubApps::default(),
             plugins: Vec::new(),
             plugin_state: PluginsState::Building,
         }
@@ -113,7 +110,7 @@ impl App {
             },
         );
 
-        self.world.insert_resource(asset_store);
+        self.main_mut().insert_resource(asset_store);
         self
     }
 
@@ -153,27 +150,29 @@ impl App {
         self
     }
 
-    /// Inserts a resource into the world (replacing any existing one of the same type).
+    /// Inserts a resource into the main world (replacing any existing one of the same type).
     pub fn insert_resource<R: Resource>(&mut self, value: R) -> &mut Self {
-        self.world.insert_resource(value);
+        self.main_mut().insert_resource(value);
         self
     }
 
+    // Registers reflection for a component that implements the Facet trait
+    // Allows the user to spawn that component through json (see [`CommandQueue`])
     pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
-        self.world.register_reflection::<T>();
+        self.main_mut().register_reflection::<T>();
         self
     }
 
     pub fn remove_resource<R: Resource>(&mut self) -> Option<R> {
-        self.world.remove_resource()
+        self.main_mut().remove_resource()
     }
 
     pub fn get_resource<R: Resource>(&self) -> Option<&R> {
-        self.world.get_resource()
+        self.main().get_resource()
     }
 
     pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
-        self.world.get_resource_mut()
+        self.main_mut().get_resource_mut()
     }
 
     pub fn with_resource<R: Resource, F, T: Resource>(&mut self, f: F)
@@ -192,71 +191,22 @@ impl App {
     pub fn update(&mut self) {
         profiling::scope!("App::update");
 
-        let time = self
-            .get_resource::<Time>()
-            .expect("Time resource not found");
-
-        self.accumulated_fixed_time += time.delta().as_secs_f32();
-
-        let mut schedules = self
-            .remove_resource::<CompiledSchedules>()
-            .expect("Compiled schedules not found!");
-
-        while self.accumulated_fixed_time >= Time::fixed_delta_time() {
-            profiling::scope!("fixed_update_step");
-            if let Some(schedule) = schedules.get_mut(FixedUpdate) {
-                profiling::scope!("schedule::fixed_update");
-                schedule.run(&mut self.world)
-            }
-
-            if let Some(schedule) = schedules.get_mut(LateFixedUpdate) {
-                profiling::scope!("schedule::late_fixed_update");
-                schedule.run(&mut self.world)
-            }
-
-            self.accumulated_fixed_time -= Time::fixed_delta_time();
-        }
-
-        let fixed_overstep = self.accumulated_fixed_time;
-        if let Some(time) = self.get_resource_mut::<Time>() {
-            time.set_fixed_overstep(fixed_overstep);
-        }
-
-        if let Some(schedule) = schedules.get_mut(Update) {
-            profiling::scope!("schedule::update");
-            schedule.run(&mut self.world)
-        }
-
-        if let Some(schedule) = schedules.get_mut(LateUpdate) {
-            profiling::scope!("schedule::late_update");
-            schedule.run(&mut self.world)
-        }
-
-        if let Some(schedule) = schedules.get_mut(Render) {
-            profiling::scope!("schedule::render");
-            schedule.run(&mut self.world)
-        }
-
-        if let Some(schedule) = schedules.get_mut(LateRender) {
-            profiling::scope!("schedule::late_render");
-            schedule.run(&mut self.world)
-        }
-
-        self.world.insert_resource(schedules);
-
-        {
-            profiling::scope!("world_tick");
-            self.world.tick();
-        }
-
         // The frame ends here: present_window has already run (LateRender),
         // and this also marks frames for the headless runner.
         profiling::finish_frame!();
     }
 
+    pub fn main(&self) -> &SubApp {
+        self.subapps.main()
+    }
+
+    pub fn main_mut(&mut self) -> &mut SubApp {
+        self.subapps.main_mut()
+    }
+
     /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`.
-    pub fn register_component_lifecycle<T: Component>(&mut self) -> &mut Self {
-        self.world.register_component_lifetimes::<T>();
+    pub fn register_component_lifetimes<T: Component>(&mut self) -> &mut Self {
+        self.main_mut().register_component_lifetimes::<T>();
         self
     }
 

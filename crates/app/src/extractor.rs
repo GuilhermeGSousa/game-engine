@@ -6,6 +6,8 @@ use ecs::{
     Resource, World,
 };
 
+use crate::schedule_groups::Extract;
+
 #[derive(Deref, Default, Resource)]
 pub(crate) struct ScratchMainWorld(pub(crate) World);
 
@@ -28,19 +30,22 @@ pub(crate) fn extract(main: &mut World, other: &mut World) {
     other.insert_resource(MainWorld::new(moved_main));
 
     // Do some extracting
+    other.run_schedule(Extract);
 
     let moved_main = other.remove_resource::<MainWorld>().unwrap();
     let scratch_world = mem::replace(main, moved_main.0);
     main.insert_resource(ScratchMainWorld(scratch_world));
 }
 
+/// Access data from the MainWorld
+/// The MainWorld only exists during the [`Extract`] schedule
 #[derive(Deref, DerefMut)]
-pub struct Extract<'world, 'state, T: SystemInput>(SystemInputData<'world, 'state, T>);
+pub struct Extracted<'world, 'state, T: SystemInput>(SystemInputData<'world, 'state, T>);
 
-impl<T: SystemInput> SystemInput for Extract<'_, '_, T> {
+impl<T: SystemInput> SystemInput for Extracted<'_, '_, T> {
     type State = T::State;
 
-    type Data<'world, 'state> = Extract<'world, 'state, T>;
+    type Data<'world, 'state> = Extracted<'world, 'state, T>;
 
     fn init_state() -> Self::State {
         T::init_state()
@@ -55,7 +60,7 @@ impl<T: SystemInput> SystemInput for Extract<'_, '_, T> {
             .get_resource::<MainWorld>()
             .expect("MainWorld not found — `Extract` is only valid in the `Extract` update group");
 
-        Extract(T::get_data(state, main_world.as_unsafe_world_cell()))
+        Extracted(T::get_data(state, main_world.as_unsafe_world_cell()))
     }
 
     fn fill_access(access: &mut ecs::system::access::SystemAccess) {

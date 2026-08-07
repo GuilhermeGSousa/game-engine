@@ -19,5 +19,6 @@ define_schedule_label!(Update);
 define_schedule_label!(FixedUpdate);
 define_schedule_label!(LateUpdate);
 define_schedule_label!(LateFixedUpdate);
+define_schedule_label!(Extract);
 define_schedule_label!(Render);
 define_schedule_label!(LateRender);

@@ -25,7 +25,7 @@ impl PhysicsPipeline {
     pub fn step(&mut self, state: &mut PhysicsState) {
         state
             .backend_mut()
-            .step(&mut self.stepper, Time::fixed_delta_time());
+            .step(&mut self.stepper, Time::fixed_delta_time().as_secs_f32());
     }
 }
 

@@ -1,24 +1,24 @@
 use std::{any::TypeId, collections::HashMap, fmt};
 
 use crate::{
-    define_label,
+    Resource, System, define_label,
+    intern::Interned,
     system::{
+        BoxedSystem,
         access::SystemAccess,
         config::{IntoSystemConfig, SystemConfig},
         executor::SystemExecutor,
         graph::{SystemDependencyGraph, SystemNode},
         sync_point::SyncPoint,
-        BoxedSystem,
     },
     world::World,
-    Resource, System,
 };
 use derive_more::{Deref, From};
 use petgraph::{
+    Direction,
     algo::toposort,
     dot::{Config, Dot},
     graph::NodeIndex,
-    Direction,
 };
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Deref, From)]
@@ -236,9 +236,11 @@ pub struct CompiledScheduleData {
 
 define_label!(ScheduleLabel);
 
+pub type InternedScheduleLabel = Interned<dyn ScheduleLabel>;
+
 #[derive(Resource, Default, Debug)]
 pub struct Schedules {
-    schedules: HashMap<Box<dyn ScheduleLabel>, Schedule>,
+    schedules: HashMap<InternedScheduleLabel, Schedule>,
 }
 
 impl Schedules {
@@ -249,7 +251,7 @@ impl Schedules {
         system: impl IntoSystemConfig<M> + 'static,
     ) {
         self.schedules
-            .entry(update_group.dyn_clone())
+            .entry(update_group.intern())
             .or_default()
             .add_system(system);
     }
@@ -266,16 +268,24 @@ impl Schedules {
 }
 #[derive(Resource, Debug, Default)]
 pub struct CompiledSchedules {
-    compiled_schedules: HashMap<Box<dyn ScheduleLabel>, CompiledSchedule>,
+    compiled_schedules: HashMap<InternedScheduleLabel, CompiledSchedule>,
 }
 
 impl CompiledSchedules {
     pub fn get(&self, label: impl ScheduleLabel) -> Option<&CompiledSchedule> {
-        self.compiled_schedules.get(&label.dyn_clone())
+        self.compiled_schedules.get(&label.intern())
     }
 
     pub fn get_mut(&mut self, label: impl ScheduleLabel) -> Option<&mut CompiledSchedule> {
-        self.compiled_schedules.get_mut(&label.dyn_clone())
+        self.compiled_schedules.get_mut(&label.intern())
+    }
+
+    pub fn remove(&mut self, label: impl ScheduleLabel) -> Option<CompiledSchedule> {
+        self.compiled_schedules.remove(&label.intern())
+    }
+
+    pub(crate) fn insert(&mut self, label: impl ScheduleLabel, schedule: CompiledSchedule) {
+        self.compiled_schedules.insert(label.intern(), schedule);
     }
 }
 
@@ -372,9 +382,11 @@ mod tests {
         // dep is registered first → NodeIndex(0); main second → NodeIndex(1).
         // The explicit ordering edge must run dep before main: 0 → 1.
         assert_eq!(schedule.graph.edge_count(), 1);
-        assert!(schedule
-            .graph
-            .contains_edge(NodeIndex::new(0), NodeIndex::new(1)));
+        assert!(
+            schedule
+                .graph
+                .contains_edge(NodeIndex::new(0), NodeIndex::new(1))
+        );
     }
 
     #[test]
@@ -401,9 +413,11 @@ mod tests {
         // main is registered second → NodeIndex(1).
         // The explicit ordering edge must run main before dep: 1 → 0.
         assert_eq!(schedule.graph.edge_count(), 1);
-        assert!(schedule
-            .graph
-            .contains_edge(NodeIndex::new(1), NodeIndex::new(0)));
+        assert!(
+            schedule
+                .graph
+                .contains_edge(NodeIndex::new(1), NodeIndex::new(0))
+        );
     }
 
     #[test]
@@ -422,12 +436,16 @@ mod tests {
 
         assert_eq!(schedule.graph.node_count(), 3);
         assert_eq!(schedule.graph.edge_count(), 2);
-        assert!(schedule
-            .graph
-            .contains_edge(NodeIndex::new(0), NodeIndex::new(2))); // a → b
-        assert!(schedule
-            .graph
-            .contains_edge(NodeIndex::new(2), NodeIndex::new(1))); // b → c
+        assert!(
+            schedule
+                .graph
+                .contains_edge(NodeIndex::new(0), NodeIndex::new(2))
+        ); // a → b
+        assert!(
+            schedule
+                .graph
+                .contains_edge(NodeIndex::new(2), NodeIndex::new(1))
+        ); // b → c
     }
 
     #[test]
@@ -444,11 +462,59 @@ mod tests {
 
         assert_eq!(schedule.graph.node_count(), 3);
         assert_eq!(schedule.graph.edge_count(), 2);
-        assert!(schedule
-            .graph
-            .contains_edge(NodeIndex::new(0), NodeIndex::new(1)));
-        assert!(schedule
-            .graph
-            .contains_edge(NodeIndex::new(1), NodeIndex::new(2)));
+        assert!(
+            schedule
+                .graph
+                .contains_edge(NodeIndex::new(0), NodeIndex::new(1))
+        );
+        assert!(
+            schedule
+                .graph
+                .contains_edge(NodeIndex::new(1), NodeIndex::new(2))
+        );
+    }
+
+    // ── World::run_schedule reentrancy ──────────────────────────────────────
+
+    #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+    struct Outer;
+    impl ScheduleLabel for Outer {
+        fn dyn_clone(&self) -> Box<dyn ScheduleLabel> {
+            Box::new(self.clone())
+        }
+    }
+
+    #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+    struct Inner;
+    impl ScheduleLabel for Inner {
+        fn dyn_clone(&self) -> Box<dyn ScheduleLabel> {
+            Box::new(self.clone())
+        }
+    }
+
+    #[derive(crate::Resource, Default)]
+    struct Counter(u32);
+
+    #[test]
+    fn run_schedule_supports_a_schedule_calling_run_schedule_from_within_itself() {
+        use crate::resource::ResMut;
+
+        let mut world = World::new();
+        world.insert_resource(Counter::default());
+
+        let mut schedules = Schedules::default();
+        schedules.add_system(Inner, |mut counter: ResMut<Counter>| counter.0 += 1);
+        schedules.add_system(Outer, |world: &mut World| world.run_schedule(Inner));
+
+        world.insert_resource(schedules.compile::<SingleThreadedExecutor>());
+
+        // Outer's system calls world.run_schedule(Inner) while Outer's own entry is
+        // still removed from CompiledSchedules — Inner must still be reachable.
+        world.run_schedule(Outer);
+        assert_eq!(world.get_resource::<Counter>().unwrap().0, 1);
+
+        // Both schedules must have been put back after running, not dropped.
+        world.run_schedule(Outer);
+        assert_eq!(world.get_resource::<Counter>().unwrap().0, 2);
     }
 }

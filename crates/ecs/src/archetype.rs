@@ -65,9 +65,11 @@ impl Archetype {
     }
 
     pub(crate) unsafe fn get_component_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
-        self.data_table
-            .get_column(ComponentId::of::<T>())?
-            .get_unsafe(row)
+        unsafe {
+            self.data_table
+                .get_column(ComponentId::of::<T>())?
+                .get_unsafe(row)
+        }
     }
 
     pub fn was_entity_added(
@@ -93,7 +95,7 @@ impl Archetype {
         row: TableRowIndex,
     ) -> Option<MutableCellAccessor<'_, T>> {
         let column = self.data_table.get_column_mut(ComponentId::of::<T>())?;
-        column.get_unsafe_mut(row)
+        unsafe { column.get_unsafe_mut(row) }
     }
 
     pub fn entities(&self) -> &[Entity] {

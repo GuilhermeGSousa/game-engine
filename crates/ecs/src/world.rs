@@ -5,13 +5,14 @@ use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
+use crate::component::Tick;
 use crate::component::bundle::ComponentBundle;
 use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
-use crate::component::Tick;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
 use crate::resource::ResourceStorage;
+use crate::system::schedule::{CompiledSchedules, ScheduleLabel};
 use crate::table::MutableCellAccessor;
 use crate::{
     archetype::Archetype,
@@ -480,6 +481,23 @@ impl World {
 
     pub(crate) fn get_reflection(&self, name: &str) -> Option<&ComponentReflection> {
         self.component_registry.get_reflection(name)
+    }
+
+    pub fn run_schedule(&mut self, label: impl ScheduleLabel) {
+        let label = label.intern();
+
+        let Some(schedules) = self.get_resource_mut::<CompiledSchedules>() else {
+            return;
+        };
+        let Some(mut schedule) = schedules.remove(label) else {
+            return;
+        };
+
+        schedule.run(self);
+
+        if let Some(schedules) = self.get_resource_mut::<CompiledSchedules>() {
+            schedules.insert(label, schedule);
+        }
     }
 }
 

@@ -1,9 +1,10 @@
 use ecs::{
-    system::schedule::{CompiledSchedules, Schedules},
+    system::schedule::{InternedScheduleLabel, ScheduleLabel, Schedules},
     Component, Resource, World,
 };
-use essential::time::Time;
 use facet::Facet;
+
+use crate::{extractor::extract, schedule_groups::Startup};
 
 #[derive(Default)]
 pub struct SubApps {
@@ -28,70 +29,33 @@ impl SubApps {
         &mut self.render
     }
 
+    pub fn startup(&mut self) {
+        self.main.world.run_schedule(Startup);
+        self.render.world.run_schedule(Startup);
+    }
+
     pub fn update(&mut self) {
-        let time = self
-            .main
-            .get_resource_mut::<Time>()
-            .expect("Time resource not found");
+        self.main.update();
 
-        time.accumulate_fixed_time();
+        extract(&mut self.main.world, &mut self.render.world);
 
-        let mut schedules = self
-            .main
-            .remove_resource::<CompiledSchedules>()
-            .expect("Compiled schedules not found!");
-
-        while time.expend_fixed_time() {
-            profiling::scope!("fixed_update_step");
-            if let Some(schedule) = schedules.get_mut(FixedUpdate) {
-                profiling::scope!("schedule::fixed_update");
-                schedule.run(&mut self.world)
-            }
-
-            if let Some(schedule) = schedules.get_mut(LateFixedUpdate) {
-                profiling::scope!("schedule::late_fixed_update");
-                schedule.run(&mut self.world)
-            }
-        }
-
-        if let Some(schedule) = schedules.get_mut(Update) {
-            profiling::scope!("schedule::update");
-            schedule.run(&mut self.world)
-        }
-
-        if let Some(schedule) = schedules.get_mut(LateUpdate) {
-            profiling::scope!("schedule::late_update");
-            schedule.run(&mut self.world)
-        }
-
-        if let Some(schedule) = schedules.get_mut(Render) {
-            profiling::scope!("schedule::render");
-            schedule.run(&mut self.world)
-        }
-
-        if let Some(schedule) = schedules.get_mut(LateRender) {
-            profiling::scope!("schedule::late_render");
-            schedule.run(&mut self.world)
-        }
-
-        self.world.insert_resource(schedules);
-
-        {
-            profiling::scope!("world_tick");
-            self.world.tick();
-        }
+        self.render.update();
     }
 }
 
 pub struct SubApp {
     world: World,
+    update_schedule: Option<InternedScheduleLabel>,
 }
 
 impl Default for SubApp {
     fn default() -> Self {
         let mut world = World::new();
         world.init_resource::<Schedules>();
-        Self { world }
+        Self {
+            world,
+            update_schedule: None,
+        }
     }
 }
 
@@ -120,5 +84,15 @@ impl SubApp {
     pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
         self.world.register_reflection::<T>();
         self
+    }
+
+    pub fn update(&mut self) {
+        if let Some(label) = self.update_schedule {
+            self.world.run_schedule(label);
+        }
+    }
+
+    pub fn set_update_schedule(&mut self, label: impl ScheduleLabel) {
+        self.update_schedule = Some(label.intern())
     }
 }

@@ -18,6 +18,7 @@ pub use world_grid;
 
 use animation::plugin::AnimationPlugin;
 use app::{
+    main_schedule::MainSchedulePlugin,
     plugins::{AssetManagerPlugin, TimePlugin, TransformPlugin},
     App, Plugin,
 };
@@ -48,7 +49,8 @@ impl DefaultPlugins {
 
 impl Plugin for DefaultPlugins {
     fn build(&self, app: &mut App) {
-        app.register_plugin(AssetManagerPlugin)
+        app.register_plugin(MainSchedulePlugin)
+            .register_plugin(AssetManagerPlugin)
             .register_plugin(TimePlugin);
 
         if !self.headless {

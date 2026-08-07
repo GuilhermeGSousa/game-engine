@@ -13,6 +13,7 @@ macro_rules! define_schedule_label {
     };
 }
 
+define_schedule_label!(Main);
 define_schedule_label!(Startup);
 define_schedule_label!(Update);
 define_schedule_label!(FixedUpdate);

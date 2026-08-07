@@ -10,30 +10,26 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::schedule::{CompiledSchedules, ScheduleLabel, Schedules},
+    system::schedule::{ScheduleLabel, Schedules},
     IntoSystemConfig,
 };
 use facet::Facet;
 use log::info;
 use runner::AppExit;
 
-use essential::{
-    assets::{
-        asset_server::AssetServer, asset_store::AssetStore, handle::AssetLifetimeEvent, Asset,
-    },
-    time::Time,
+use essential::assets::{
+    asset_server::AssetServer, asset_store::AssetStore, handle::AssetLifetimeEvent, Asset,
 };
 
 use crate::{
     plugins::PluginsState,
     runner::run_once,
-    schedule_groups::{
-        FixedUpdate, LateFixedUpdate, LateRender, LateUpdate, Render, Startup, Update,
-    },
+    schedule_groups::{LateUpdate, Update},
     subapp::{SubApp, SubApps},
 };
 
 pub mod extractor;
+pub mod main_schedule;
 pub mod plugins;
 pub mod runner;
 pub mod schedule_groups;
@@ -191,6 +187,8 @@ impl App {
     pub fn update(&mut self) {
         profiling::scope!("App::update");
 
+        self.subapps.update();
+
         // The frame ends here: present_window has already run (LateRender),
         // and this also marks frames for the headless runner.
         profiling::finish_frame!();
@@ -247,15 +245,7 @@ impl App {
 
         self.compile_schedules();
 
-        let mut schedules = self
-            .remove_resource::<CompiledSchedules>()
-            .expect("Compiled schedules not found!");
-
-        if let Some(schedule) = schedules.get_mut(Startup) {
-            schedule.run(&mut self.world);
-        }
-
-        self.insert_resource(schedules);
+        self.subapps.startup();
     }
 
     fn compile_schedules(&mut self) {

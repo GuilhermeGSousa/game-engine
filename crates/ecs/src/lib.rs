@@ -17,12 +17,14 @@ pub mod common;
 pub mod component;
 pub mod entity;
 pub mod events;
+pub mod intern;
 pub mod label;
 pub mod query;
 pub mod resource;
 pub mod system;
 pub mod table;
 pub mod utilities;
+pub mod utils;
 pub mod world;
 
 // Commonly-used re-exports so downstream crates don't need to know the module layout.

@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use any_vec::{any_value::AnyValueWrapper, AnyVec};
+use any_vec::{AnyVec, any_value::AnyValueWrapper};
 
 use crate::{
     component::{Component, ComponentId, Tick},
@@ -48,20 +48,22 @@ impl Column {
     }
 
     pub(crate) unsafe fn get_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
-        self.data.get_unchecked(*row).downcast_ref()
+        unsafe { self.data.get_unchecked(*row).downcast_ref() }
     }
 
     pub(crate) unsafe fn get_unsafe_mut<T: 'static>(
         &mut self,
         row: TableRowIndex,
     ) -> Option<MutableCellAccessor<'_, T>> {
-        self.data
-            .get_unchecked_mut(*row)
-            .downcast_mut()
-            .map(|data| MutableCellAccessor {
-                data,
-                changed_tick: &mut self.changed_ticks[*row],
-            })
+        unsafe {
+            self.data
+                .get_unchecked_mut(*row)
+                .downcast_mut()
+                .map(|data| MutableCellAccessor {
+                    data,
+                    changed_tick: &mut self.changed_ticks[*row],
+                })
+        }
     }
 
     pub fn set_changed(&mut self, row: TableRowIndex, current_tick: u32) {

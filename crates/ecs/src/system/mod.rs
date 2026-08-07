@@ -75,7 +75,7 @@ impl System for BoxedSystem {
     }
 
     unsafe fn run_unsafe(&mut self, world: UnsafeWorldCell) {
-        (**self).run_unsafe(world);
+        unsafe { (**self).run_unsafe(world) };
     }
 
     fn access(&self) -> SystemAccess {

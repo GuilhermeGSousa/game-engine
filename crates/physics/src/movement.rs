@@ -38,7 +38,8 @@ pub(crate) fn apply_character_movement(
     for (mut character_movement, body_id) in bodies.iter() {
         let current_velocity = physics.linear_velocity(*body_id);
 
-        let mut updated_velocity = character_movement.update_velocity(Time::fixed_delta_time());
+        let mut updated_velocity =
+            character_movement.update_velocity(Time::fixed_delta_time().as_secs_f32());
 
         updated_velocity.y = current_velocity.y;
         physics.set_linear_velocity(*body_id, updated_velocity);

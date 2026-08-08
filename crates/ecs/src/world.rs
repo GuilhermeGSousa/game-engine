@@ -154,6 +154,10 @@ impl World {
         self.insert_component_internal(component, entity, true);
     }
 
+    pub fn entity_is_valid(&self, entity: Entity) -> bool {
+        self.entity_store.find_location(entity).is_some()
+    }
+
     /// Removes a component of type `T` from an entity, migrating it to the appropriate archetype.
     ///
     /// If the entity does not have a component of type `T`, a warning is logged and the call

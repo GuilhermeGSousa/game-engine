@@ -4,12 +4,13 @@ use ecs::{
 };
 use facet::Facet;
 
-use crate::{extractor::extract, schedule_groups::Startup};
+use crate::{extractor::ExtractFn, schedule_groups::Startup};
 
 #[derive(Default)]
 pub struct SubApps {
     main: SubApp,
     render: SubApp,
+    extract_fn: Option<ExtractFn>,
 }
 
 impl SubApps {
@@ -37,9 +38,16 @@ impl SubApps {
     pub fn update(&mut self) {
         self.main.update();
 
-        extract(&mut self.main.world, &mut self.render.world);
+        if let Some(mut extract_fn) = self.extract_fn.take() {
+            extract_fn(&mut self.main.world, &mut self.render.world);
+            self.extract_fn = Some(extract_fn);
+        }
 
         self.render.update();
+    }
+
+    pub fn set_extract_fn(&mut self, extract_fn: impl FnMut(&mut World, &mut World) + 'static) {
+        self.extract_fn = Some(Box::new(extract_fn));
     }
 }
 

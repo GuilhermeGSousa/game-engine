@@ -22,6 +22,8 @@ pub trait SystemInput {
     fn fill_access(access: &mut SystemAccess);
 }
 
+pub trait ReadOnlySystemInput: SystemInput {}
+
 #[allow(unused_variables, unused_mut)]
 #[typle(Tuple for 0..=12)]
 impl<T> SystemInput for T

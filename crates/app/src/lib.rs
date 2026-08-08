@@ -10,8 +10,8 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::schedule::{ScheduleLabel, Schedules},
-    IntoSystemConfig,
+    system::schedule::{CompiledSchedules, ScheduleLabel, Schedules},
+    IntoSystemConfig, World,
 };
 use facet::Facet;
 use log::info;
@@ -41,6 +41,17 @@ pub use plugins::Plugin;
 pub(crate) struct HokeyPokeyPlugin;
 impl Plugin for HokeyPokeyPlugin {
     fn build(&self, _: &mut App) {}
+}
+
+fn compile(schedules: Schedules) -> CompiledSchedules {
+    #[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
+    {
+        schedules.compile::<MultiThreadedExecutor>()
+    }
+    #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
+    {
+        schedules.compile::<SingleThreadedExecutor>()
+    }
 }
 
 /// The top-level container for the game engine.
@@ -130,6 +141,23 @@ impl App {
     ) -> &mut Self {
         self.get_resource_mut::<Schedules>()
             .expect("Schedules resource not found!")
+            .add_system(update_group, system);
+
+        self
+    }
+
+    /// Registers a system in the schedule identified by `update_group`, on the
+    /// render subapp rather than the main one (e.g. systems meant to run in
+    /// the [`Extract`](schedule_groups::Extract) schedule).
+    pub fn add_render_system<M>(
+        &mut self,
+        update_group: impl ScheduleLabel,
+        system: impl IntoSystemConfig<M> + 'static,
+    ) -> &mut Self {
+        self.subapps
+            .render_mut()
+            .get_resource_mut::<Schedules>()
+            .expect("Schedules resource not found on render subapp!")
             .add_system(update_group, system);
 
         self
@@ -244,6 +272,7 @@ impl App {
         self.plugin_state = PluginsState::Finished;
 
         self.compile_schedules();
+        self.compile_render_schedules();
 
         self.subapps.startup();
     }
@@ -253,12 +282,23 @@ impl App {
             .remove_resource::<Schedules>()
             .expect("Schedules resource not found!");
 
-        #[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
-        let compiled_schedules = schedules.compile::<MultiThreadedExecutor>();
-        #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
-        let compiled_schedules = schedules.compile::<SingleThreadedExecutor>();
+        self.insert_resource(compile(schedules));
+    }
 
-        self.insert_resource(compiled_schedules);
+    fn compile_render_schedules(&mut self) {
+        let schedules = self
+            .subapps
+            .render_mut()
+            .remove_resource::<Schedules>()
+            .expect("Schedules resource not found on render subapp!");
+
+        self.subapps
+            .render_mut()
+            .insert_resource(compile(schedules));
+    }
+
+    pub fn set_extract_fn(&mut self, extract_fn: impl FnMut(&mut World, &mut World) + 'static) {
+        self.subapps.set_extract_fn(extract_fn);
     }
 }
 

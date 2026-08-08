@@ -1,10 +1,10 @@
 use crate::{
     assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture},
     components::{
-        camera::{camera_added, camera_changed, sync_camera_aspect},
+        camera::{extract_cameras, sync_camera_aspect},
         light::{light_added, light_changed, update_changed_lights, RenderLight, RenderLights},
         mesh::{mesh_added, mesh_changed},
-        render_entity::RenderEntity,
+        render_entity::{extract, RenderEntity},
         shadows::{
             resize_shadow_maps, update_shadow_view_proj, RenderLighting, RenderPointShadowMaps,
             RenderShadowCasterSlot, RenderShadowViewProjs, RenderSpotDirectionalShadowMaps,
@@ -30,7 +30,7 @@ use crate::{
 };
 use app::{
     plugins::Plugin,
-    schedule_groups::{LateRender, LateUpdate, Render, Update},
+    schedule_groups::{Extract, LateRender, LateUpdate, Render, Update},
 };
 use color::Color;
 use ecs::{resource::Resource, IntoSystemConfig};
@@ -148,10 +148,10 @@ impl Plugin for RenderPlugin {
             .register_asset::<Texture>()
             .register_asset::<Skeleton>();
 
-        // Before camera_changed, which bakes aspect into the projection matrix.
+        app.set_extract_fn(extract);
+        app.add_render_system(Extract, extract_cameras);
+
         app.add_system(LateUpdate, sync_camera_aspect)
-            .add_system(LateUpdate, camera_added)
-            .add_system(LateUpdate, camera_changed)
             .add_system(LateUpdate, mesh_added)
             .add_system(LateUpdate, mesh_changed)
             .add_system(LateUpdate, light_added)

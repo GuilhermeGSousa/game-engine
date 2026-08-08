@@ -9,7 +9,10 @@ use crate::{
     component::{Component, ComponentId},
     entity::Entity,
     query::{change_detection::Mut, query_filter::QueryFilter},
-    system::{access::SystemAccess, input::SystemInput},
+    system::{
+        access::SystemAccess,
+        input::{ReadOnlySystemInput, SystemInput},
+    },
     world::UnsafeWorldCell,
 };
 
@@ -52,6 +55,8 @@ pub trait QueryData {
     /// Registers component access with the scheduler's access tracker.
     fn fill_access(access: &mut SystemAccess);
 }
+
+pub trait ReadOnlyQueryData: QueryData {}
 
 impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     /// Constructs a new query by scanning the world's archetypes for matches.
@@ -172,6 +177,13 @@ where
     }
 }
 
+impl<T, F> ReadOnlySystemInput for Query<'_, T, F>
+where
+    T: ReadOnlyQueryData,
+    F: QueryFilter,
+{
+}
+
 impl<T> QueryData for &T
 where
     T: Component,
@@ -179,9 +191,7 @@ where
     type Item<'w> = &'w T;
 
     fn component_ids() -> Vec<ComponentId> {
-        {
-            vec![TypeId::of::<T>()]
-        }
+        vec![TypeId::of::<T>()]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
@@ -197,6 +207,8 @@ where
     }
 }
 
+impl<T: Component> ReadOnlyQueryData for &T {}
+
 impl<T> QueryData for &mut T
 where
     T: Component,
@@ -204,9 +216,7 @@ where
     type Item<'w> = Mut<'w, T>;
 
     fn component_ids() -> Vec<ComponentId> {
-        {
-            vec![TypeId::of::<T>()]
-        }
+        vec![TypeId::of::<T>()]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
@@ -244,6 +254,8 @@ impl QueryData for Entity {
     fn fill_access(_access: &mut SystemAccess) {}
 }
 
+impl ReadOnlyQueryData for Entity {}
+
 impl<T> QueryData for Option<&T>
 where
     T: Component,
@@ -266,6 +278,8 @@ where
         access.read_component::<T>();
     }
 }
+
+impl<T> ReadOnlyQueryData for Option<&T> where T: Component {}
 
 impl<T> QueryData for Option<&mut T>
 where
@@ -328,4 +342,14 @@ where
             <T<{ i }>>::fill_access(access);
         }
     }
+}
+
+#[allow(unused_mut)]
+#[allow(unused_variables)]
+#[typle(Tuple for 0..=12)]
+impl<T> ReadOnlyQueryData for T
+where
+    T: Tuple,
+    T<_>: ReadOnlyQueryData,
+{
 }

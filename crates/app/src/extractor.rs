@@ -2,11 +2,13 @@ use std::mem;
 
 use derive_more::{Deref, DerefMut};
 use ecs::{
-    system::input::{SystemInput, SystemInputData},
+    system::input::{ReadOnlySystemInput, SystemInput, SystemInputData},
     Resource, World,
 };
 
 use crate::schedule_groups::Extract;
+
+pub type ExtractFn = Box<dyn FnMut(&mut World, &mut World)>;
 
 #[derive(Deref, Default, Resource)]
 pub(crate) struct ScratchMainWorld(pub(crate) World);
@@ -20,19 +22,20 @@ impl MainWorld {
     }
 }
 
-pub(crate) fn extract(main: &mut World, other: &mut World) {
+/// Moves `main` into `render` as the [`MainWorld`] resource, runs the
+/// [`Extract`] schedule, then swaps it back out.
+pub fn extract(main: &mut World, render: &mut World) {
     let scratch = main
         .remove_resource::<ScratchMainWorld>()
         .unwrap_or_default();
 
     let moved_main = mem::replace(main, scratch.0);
 
-    other.insert_resource(MainWorld::new(moved_main));
+    render.insert_resource(MainWorld::new(moved_main));
 
-    // Do some extracting
-    other.run_schedule(Extract);
+    render.run_schedule(Extract);
 
-    let moved_main = other.remove_resource::<MainWorld>().unwrap();
+    let moved_main = render.remove_resource::<MainWorld>().unwrap();
     let scratch_world = mem::replace(main, moved_main.0);
     main.insert_resource(ScratchMainWorld(scratch_world));
 }
@@ -40,9 +43,9 @@ pub(crate) fn extract(main: &mut World, other: &mut World) {
 /// Access data from the MainWorld
 /// The MainWorld only exists during the [`Extract`] schedule
 #[derive(Deref, DerefMut)]
-pub struct Extracted<'world, 'state, T: SystemInput>(SystemInputData<'world, 'state, T>);
+pub struct Extracted<'world, 'state, T: ReadOnlySystemInput>(SystemInputData<'world, 'state, T>);
 
-impl<T: SystemInput> SystemInput for Extracted<'_, '_, T> {
+impl<T: ReadOnlySystemInput> SystemInput for Extracted<'_, '_, T> {
     type State = T::State;
 
     type Data<'world, 'state> = Extracted<'world, 'state, T>;

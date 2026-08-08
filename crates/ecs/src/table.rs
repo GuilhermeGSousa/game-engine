@@ -140,11 +140,7 @@ impl Table {
     }
 
     pub fn get_row_count(&self) -> usize {
-        self.columns
-            .values()
-            .next()
-            .map(|column| column.len())
-            .unwrap_or(0)
+        self.entities.len()
     }
 
     pub fn has_column(&self, type_id: ComponentId) -> bool {

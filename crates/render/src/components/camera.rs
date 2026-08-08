@@ -1,3 +1,4 @@
+use app::extractor::Extracted;
 use color::{Color, LinearRgba};
 use encase::{ShaderType, UniformBuffer};
 use essential::{
@@ -5,13 +6,7 @@ use essential::{
     transform::GlobalTransform,
 };
 
-use ecs::{
-    command::CommandQueue,
-    component::Component,
-    entity::Entity,
-    query::{query_filter::Added, Query},
-    resource::Res,
-};
+use ecs::{command::CommandQueue, component::Component, query::Query, resource::Res};
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
@@ -144,17 +139,31 @@ impl RenderCamera {
     }
 }
 
-pub(crate) fn camera_added(
-    cameras: Query<(Entity, &Camera, &GlobalTransform, Option<&RenderEntity>), Added<(Camera,)>>,
+pub(crate) fn extract_cameras(
+    cameras: Extracted<Query<(&Camera, &GlobalTransform, &RenderEntity)>>,
+    render_cameras: Query<&mut RenderCamera>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,
     camera_layouts: Res<CameraLayout>,
-    texture_assets: Res<AssetStore<Texture>>,
+    texture_assets: Extracted<Res<AssetStore<Texture>>>,
+    queue: Res<RenderQueue>,
 ) {
-    for (entity, camera, transform, render_entity) in cameras.iter() {
+    for (camera, transform, render_entity) in cameras.iter() {
+        let render_entity = **render_entity;
+
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(camera, transform);
+
+        if let Some(mut render_camera) = render_cameras.get_entity(render_entity) {
+            render_camera.camera_uniform = camera_uniform;
+
+            let mut buffer = UniformBuffer::new(Vec::new());
+            buffer.write(&render_camera.camera_uniform).unwrap();
+            queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
+
+            continue;
+        }
 
         let mut buffer = UniformBuffer::new(Vec::new());
         buffer.write(&camera_uniform).unwrap();
@@ -211,15 +220,7 @@ pub(crate) fn camera_added(
             render_target,
         };
 
-        match render_entity {
-            None => {
-                let new_render_entity = cmd.spawn(render_cam).entity();
-                cmd.insert(RenderEntity::new(new_render_entity), entity);
-            }
-            Some(render_entity) => {
-                cmd.insert(render_cam, **render_entity);
-            }
-        }
+        cmd.insert(render_cam, render_entity);
     }
 }
 
@@ -267,13 +268,6 @@ pub fn create_rtt(
     }
 }
 
-/// Keeps window cameras' projection matching the surface.
-///
-/// Nothing else writes [`Camera::aspect`], so without this a camera keeps
-/// whatever it was constructed with (1.0 for [`Camera::default()`]) and the view
-/// is stretched by the window's shape. Cameras rendering to a texture are left
-/// alone: their aspect is the author's to choose — the terminal renderer, for
-/// one, deliberately squashes it to compensate for cell shape.
 pub(crate) fn sync_camera_aspect(cameras: Query<&mut Camera>, context: Res<RenderContext>) {
     let width = context.surface_config.width;
     let height = context.surface_config.height;
@@ -285,25 +279,6 @@ pub(crate) fn sync_camera_aspect(cameras: Query<&mut Camera>, context: Res<Rende
     for mut camera in cameras.iter() {
         if matches!(camera.render_target, RenderTarget::MainWindow) && camera.aspect != aspect {
             camera.aspect = aspect;
-        }
-    }
-}
-
-pub(crate) fn camera_changed(
-    cameras: Query<(&Camera, &GlobalTransform, &RenderEntity)>,
-    render_cameras: Query<(&mut RenderCamera,)>,
-    queue: Res<RenderQueue>,
-) {
-    for (camera, transform, render_entity) in cameras.iter() {
-        if let Some((mut render_camera,)) = render_cameras.get_entity(**render_entity) {
-            render_camera
-                .camera_uniform
-                .update_view_proj(camera, transform);
-
-            let mut buffer = UniformBuffer::new(Vec::new());
-            buffer.write(&render_camera.camera_uniform).unwrap();
-
-            queue.write_buffer(&render_camera.camera_buffer, 0, &buffer.into_inner());
         }
     }
 }

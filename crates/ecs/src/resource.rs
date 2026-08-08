@@ -96,6 +96,8 @@ where
     }
 }
 
+impl<T> crate::system::input::ReadOnlySystemInput for Res<'_, T> where T: Resource {}
+
 impl<T> Deref for Res<'_, T>
 where
     T: Resource,

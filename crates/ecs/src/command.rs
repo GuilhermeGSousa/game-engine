@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use log::warn;
 
 use crate::{
-    component::{bundle::ComponentBundle, Component},
-    entity::{entity_store::EntityStore, Entity},
+    component::{Component, bundle::ComponentBundle},
+    entity::{Entity, entity_store::EntityStore},
     resource::Resource,
     system::input::SystemInput,
     world::World,

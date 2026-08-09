@@ -1,6 +1,6 @@
 use app::{
     plugins::Plugin,
-    schedule_groups::{LateUpdate, Render},
+    schedule_groups::{Extract, LateUpdate, Render},
 };
 use glyphon::{Cache, FontSystem, SwashCache, Viewport};
 use render::{
@@ -15,13 +15,13 @@ use crate::{
     interaction::{HoveredNode, UIClick, apply_interaction_styles, update_ui_interaction},
     material::UIMaterial,
     node::{
-        UIViewportPipeline, compute_ui_nodes, extract_added_ui_materials, extract_added_ui_nodes,
+        UIViewportPipeline, compute_ui_nodes, extract_ui_materials, extract_ui_nodes,
         extract_viewport_nodes, sync_border_size,
     },
     render::{prepare_text_renderer, ui_renderpass, update_text_viewport},
     slider::{UISliderChanged, setup_slider_visuals, sync_slider_fill, update_slider_drag},
     text::{
-        extract_added_text_nodes,
+        extract_text_nodes,
         resources::{
             TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
         },
@@ -72,26 +72,30 @@ impl Plugin for UIPlugin {
         app.add_system(LateUpdate, apply_interaction_styles);
 
         // ── Render ──────────────────────────────────────────────────────────────
-        app.add_system(Render, extract_added_ui_nodes)
-            .add_system(Render, extract_added_ui_materials)
-            .add_system(Render, extract_added_text_nodes)
+        app.render_mut()
+            .add_system(Extract, extract_ui_nodes)
+            .add_system(Extract, extract_ui_materials)
+            .add_system(Extract, extract_text_nodes)
+            .add_system(Extract, extract_viewport_nodes)
             .add_system(Render, update_text_viewport)
             .add_system(Render, prepare_text_renderer)
             // Viewport nodes: create fresh bind groups before ui_renderpass.
-            .add_system(Render, extract_viewport_nodes)
             .add_system(Render, ui_renderpass);
     }
 
     fn finish(&self, app: &mut app::App) {
         let device = app
+            .render()
             .get_resource::<RenderDevice>()
             .expect("RenderDevice resource not found");
 
         let context = app
+            .render()
             .get_resource::<RenderContext>()
             .expect("RenderContext resource not found");
 
         let queue = app
+            .render()
             .get_resource::<RenderQueue>()
             .expect("RenderQueue resource not found");
 
@@ -179,12 +183,13 @@ impl Plugin for UIPlugin {
             cache: None,
         });
 
-        app.insert_resource(UIViewportPipeline {
+        app.render_mut().insert_resource(UIViewportPipeline {
             pipeline: viewport_pipeline,
             bind_group_layout: viewport_bgl,
         });
 
-        app.insert_resource(TextRenderer(text_renderer))
+        app.render_mut()
+            .insert_resource(TextRenderer(text_renderer))
             .insert_resource(TextCache(cache))
             .insert_resource(TextSwashCache(swash_cache))
             .insert_resource(TextViewport(viewport))

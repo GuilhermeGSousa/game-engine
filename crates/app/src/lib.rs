@@ -230,6 +230,14 @@ impl App {
         self.subapps.main_mut()
     }
 
+    pub fn render(&self) -> &SubApp {
+        self.subapps.render()
+    }
+
+    pub fn render_mut(&mut self) -> &mut SubApp {
+        self.subapps.render_mut()
+    }
+
     /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`.
     pub fn register_component_lifetimes<T: Component>(&mut self) -> &mut Self {
         self.main_mut().register_component_lifetimes::<T>();

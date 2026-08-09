@@ -282,9 +282,11 @@ fn suppressed_insert_does_not_fire_callbacks() {
 
     let entity = world.spawn((Quiet, Value(1)));
 
-    assert!(world
-        .get_component_for_entity::<Companion>(entity)
-        .is_some());
+    assert!(
+        world
+            .get_component_for_entity::<Companion>(entity)
+            .is_some()
+    );
     let log = world.get_resource::<CompanionLog>().unwrap();
     assert_eq!(
         log.adds, 0,

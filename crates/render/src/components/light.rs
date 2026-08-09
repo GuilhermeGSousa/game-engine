@@ -1,10 +1,11 @@
+use app::extractor::Extracted;
 use color::{Color, LinearRgba};
 use derive_more::Deref;
 use ecs::{
     command::CommandQueue,
     component::Component,
     entity::Entity,
-    query::{query_filter::Added, Query},
+    query::Query,
     resource::{Res, Resource},
     Changed,
 };
@@ -351,60 +352,43 @@ pub(crate) fn update_changed_lights(
     }
 }
 
-pub(crate) fn light_added(
-    lights: Query<(Entity, &Light, &GlobalTransform, Option<&RenderEntity>), Added<Light>>,
+pub(crate) fn extract_lights(
+    lights: Extracted<Query<(&Light, &GlobalTransform, &RenderEntity)>>,
+    render_lights: Query<&mut RenderLight>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, light, light_transform, render_entity) in lights.iter() {
-        let local_z = light_transform.rotation() * Vec3::Z;
+    for (light, transform, render_entity) in lights.iter() {
+        let render_entity = **render_entity;
+        let local_z = transform.rotation() * Vec3::Z;
+        let cos_cone_angle = match &light.light_type {
+            LightType::Spot { cone_angle } => f32::cos(*cone_angle),
+            _ => 0.0,
+        };
+
+        if let Some(mut render_light) = render_lights.get_entity(render_entity) {
+            render_light.direction = -local_z;
+            render_light.color = light.color.to_linear();
+            render_light.translation = transform.translation();
+            render_light.intensity = light.intensity;
+            render_light.light_type = light.light_type.index();
+            render_light.cos_cone_angle = cos_cone_angle;
+            continue;
+        }
 
         let render_light = RenderLight {
-            translation: light_transform.translation(),
+            translation: transform.translation(),
             color: light.color.to_linear(),
             intensity: light.intensity,
             direction: -local_z,
             light_type: light.light_type.index(),
-            cos_cone_angle: match &light.light_type {
-                LightType::Spot { cone_angle } => f32::cos(*cone_angle),
-                _ => 0.0,
-            },
+            cos_cone_angle,
             shadow_layer: if light.shadowmaps_enabled {
                 SHADOW_LAYER_REQUESTED
             } else {
                 -1
             },
         };
-        match render_entity {
-            None => {
-                let new_render_entity = cmd.spawn(render_light).entity();
-                cmd.insert(RenderEntity::new(new_render_entity), entity);
-            }
-            Some(render_entity) => {
-                cmd.insert(render_light, **render_entity);
-            }
-        }
-    }
-}
 
-pub(crate) fn light_changed(
-    lights: Query<
-        (&Light, &GlobalTransform, &RenderEntity),
-        ecs::Or<(Changed<Light>, Changed<GlobalTransform>)>,
-    >,
-    render_lights: Query<&mut RenderLight>,
-) {
-    for (light, transform, render_entity) in lights.iter() {
-        if let Some(mut render_light) = render_lights.get_entity(**render_entity) {
-            let local_z = transform.rotation() * Vec3::Z;
-            render_light.direction = -local_z;
-            render_light.color = light.color.to_linear();
-            render_light.translation = transform.translation();
-            render_light.intensity = light.intensity;
-            render_light.light_type = light.light_type.index();
-            render_light.cos_cone_angle = match &light.light_type {
-                LightType::Spot { cone_angle } => f32::cos(*cone_angle),
-                _ => 0.0,
-            };
-        }
+        cmd.insert(render_light, render_entity);
     }
 }

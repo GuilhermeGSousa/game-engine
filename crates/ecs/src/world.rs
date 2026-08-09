@@ -126,10 +126,10 @@ impl World {
 
                 let archetype = &mut self.archetypes[location.archetype_index as usize];
 
-                if let Some(swapped_entity) = archetype.entities().last() {
-                    if *swapped_entity != entity {
-                        self.entity_store.set_location(*swapped_entity, location);
-                    }
+                if let Some(swapped_entity) = archetype.entities().last()
+                    && *swapped_entity != entity
+                {
+                    self.entity_store.set_location(*swapped_entity, location);
                 }
 
                 archetype.remove_swap(location.row);
@@ -619,10 +619,10 @@ impl<'w> UnsafeWorldCell<'w> {
 
     pub(crate) fn trigger_on_add_component(&self, entity: Entity, id: &ComponentId) {
         let world = self.world();
-        if let Some(lifetimes) = world.component_lifetimes.get(id) {
-            if let Some(add) = lifetimes.on_add {
-                add(self.into_restricted(), ComponentLifecycleContext { entity });
-            }
+        if let Some(lifetimes) = world.component_lifetimes.get(id)
+            && let Some(add) = lifetimes.on_add
+        {
+            add(self.into_restricted(), ComponentLifecycleContext { entity });
         }
     }
 
@@ -635,10 +635,10 @@ impl<'w> UnsafeWorldCell<'w> {
     pub(crate) fn trigger_on_remove_component(&self, entity: Entity, id: &ComponentId) {
         let world = self.world();
 
-        if let Some(lifetimes) = world.component_lifetimes.get(id) {
-            if let Some(remove) = lifetimes.on_remove {
-                remove(self.into_restricted(), ComponentLifecycleContext { entity });
-            }
+        if let Some(lifetimes) = world.component_lifetimes.get(id)
+            && let Some(remove) = lifetimes.on_remove
+        {
+            remove(self.into_restricted(), ComponentLifecycleContext { entity });
         }
     }
 }

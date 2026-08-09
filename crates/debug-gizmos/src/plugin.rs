@@ -21,16 +21,19 @@ impl Plugin for DebugGizmosPlugin {
 
     fn finish(&self, app: &mut app::App) {
         let surface_format = app
+            .render()
             .get_resource::<RenderContext>()
             .expect("RenderContext not found; register RenderPlugin before DebugGizmosPlugin")
             .surface_config
             .format;
 
         let camera_layout = app
+            .render()
             .get_resource::<CameraLayout>()
             .expect("CameraLayout not found; register RenderPlugin before DebugGizmosPlugin");
 
         let device = app
+            .render()
             .get_resource::<RenderDevice>()
             .expect("RenderDevice not found; register RenderPlugin before DebugGizmosPlugin");
 

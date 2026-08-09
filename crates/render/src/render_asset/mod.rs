@@ -4,9 +4,9 @@ pub mod render_window;
 
 use std::collections::HashMap;
 
-use app::{plugins::Plugin, schedule_groups::Render};
+use app::{extractor::Extracted, plugins::Plugin, schedule_groups::Extract};
 use ecs::{
-    resource::{ResMut, Resource},
+    resource::{Res, ResMut, Resource},
     system::input::{StaticSystemInput, SystemInput, SystemInputData},
 };
 use essential::assets::{asset_store::AssetStore, Asset, AssetId};
@@ -27,7 +27,7 @@ pub trait RenderAsset: Send + Sync + Sized + 'static {
 
 pub(crate) fn prepare_render_asset<A: RenderAsset>(
     mut params: StaticSystemInput<<A as RenderAsset>::PreparationParams>,
-    asset_store: ResMut<AssetStore<A::SourceAsset>>,
+    asset_store: Extracted<Res<AssetStore<A::SourceAsset>>>,
     mut render_assets: ResMut<RenderAssets<A>>,
 ) {
     for (asset_id, asset) in asset_store.into_iter() {
@@ -91,7 +91,7 @@ impl<A: RenderAsset> Default for RenderAssetPlugin<A> {
 
 impl<A: RenderAsset + 'static> Plugin for RenderAssetPlugin<A> {
     fn build(&self, app: &mut app::App) {
-        app.insert_resource(RenderAssets::<A>::new());
-        app.add_system(Render, prepare_render_asset::<A>);
+        app.render_mut().insert_resource(RenderAssets::<A>::new());
+        app.add_render_system(Extract, prepare_render_asset::<A>);
     }
 }

@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use app::extractor::Extracted;
 use ecs::{
     events::event_reader::EventReader,
     query::{change_detection::DetectChanges, Query},
@@ -25,24 +26,38 @@ pub(crate) fn request_window_resize(
     }
 }
 
+pub(crate) fn extract_window(
+    window: Extracted<Res<Window>>,
+    mut render_window: ResMut<RenderWindow>,
+) {
+    // if !window.has_changed() {
+    //     return;
+    // }
+
+    render_window.set_size(window.size());
+}
+
 pub(crate) fn update_render_window(
-    window: Res<Window>,
     mut render_window: ResMut<RenderWindow>,
     mut context: ResMut<RenderContext>,
     device: Res<RenderDevice>,
-    render_cameras: Query<(&mut RenderCamera,)>,
+    render_cameras: Query<&mut RenderCamera>,
 ) {
+    if !render_window.has_changed() {
+        return;
+    }
+
     let Some(surface) = context.surface.clone() else {
         return;
     };
 
-    if window.has_changed() {
-        let size = window.size();
+    let size = render_window.size();
+    if size != (context.surface_config.width, context.surface_config.height) {
         context.surface_config.width = size.0;
         context.surface_config.height = size.1;
         surface.configure(&device, &context.surface_config);
 
-        for (mut render_camera,) in render_cameras.iter() {
+        for mut render_camera in render_cameras.iter() {
             if render_camera.render_target.is_some() {
                 continue; // RTT camera: fixed resolution, depth stays in sync with RTT
             }

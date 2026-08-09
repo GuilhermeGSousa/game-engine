@@ -2,7 +2,7 @@ use ecs::World;
 use essential::time::Time;
 
 use crate::{
-    schedule_groups::{FixedUpdate, LateFixedUpdate, LateRender, LateUpdate, Main, Render, Update},
+    schedule_groups::{FixedUpdate, LateFixedUpdate, LateUpdate, Main, Update},
     Plugin,
 };
 
@@ -40,16 +40,6 @@ fn run_main(world: &mut World) {
     {
         profiling::scope!("schedule::late_update");
         world.run_schedule(LateUpdate);
-    }
-
-    {
-        profiling::scope!("schedule::render");
-        world.run_schedule(Render);
-    }
-
-    {
-        profiling::scope!("schedule::late_render");
-        world.run_schedule(LateRender);
     }
 
     {

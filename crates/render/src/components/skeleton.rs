@@ -4,11 +4,11 @@ use crate::{
     assets::skeleton::Skeleton, components::render_entity::RenderEntity, device::RenderDevice,
     layouts::SkeletonLayout, queue::RenderQueue,
 };
+use app::extractor::Extracted;
 use ecs::{
     command::CommandQueue,
     component::{Component, ComponentLifecycleCallback},
-    entity::Entity,
-    query::{query_filter::Added, Query},
+    query::Query,
     resource::{Res, ResMut, Resource},
 };
 use encase::UniformBuffer;
@@ -136,68 +136,58 @@ impl SkinUniforms {
     }
 }
 
-pub(crate) fn skeleton_added(
-    skeletons: Query<(Entity, Option<&RenderEntity>), Added<(SkeletonComponent,)>>,
+/// Extracts every `SkeletonComponent` into its GPU-side bone palette,
+/// upserting like the other extract systems: allocates a `SkinUniforms` slot
+/// only the first time a render mirror is seen (recorded via
+/// `RenderSkeletonComponent`, inserted through `CommandQueue`), then writes
+/// the current bone matrices to that slot every frame unconditionally —
+/// bones are separate main-world entities, so their `GlobalTransform` needs
+/// the same unconditional read as the other extract systems' transforms.
+pub(crate) fn extract_skeletons(
+    skeletons: Extracted<Query<(&SkeletonComponent, &RenderEntity)>>,
+    bone_transforms: Extracted<Query<&GlobalTransform>>,
+    render_skeletons: Query<&RenderSkeletonComponent>,
+    skeleton_assets: Extracted<Res<AssetStore<Skeleton>>>,
     skeleton_layout: Res<SkeletonLayout>,
     mut skins: ResMut<SkinUniforms>,
     mut cmd: CommandQueue,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
-    for (entity, render_entity) in skeletons.iter() {
-        let offset = skins.alloc_slot(&device, &skeleton_layout, &queue) * SKIN_STRIDE;
-        let render_skeleton_component = RenderSkeletonComponent { offset };
-
-        match render_entity {
-            Some(render_entity) => {
-                cmd.insert(render_skeleton_component, **render_entity);
-            }
-            None => {
-                let new_render_entity = cmd.spawn(render_skeleton_component).entity();
-                cmd.insert(RenderEntity::new(new_render_entity), entity);
-            }
-        }
-    }
-}
-
-pub(crate) fn update_skeletons(
-    skeletons: Query<(&SkeletonComponent, &RenderEntity)>,
-    render_skeletons: Query<&RenderSkeletonComponent>,
-    transforms: Query<&GlobalTransform>,
-    skeleton_assets: Res<AssetStore<Skeleton>>,
-    skins: Res<SkinUniforms>,
-    queue: Res<RenderQueue>,
-) {
     for (skeleton, render_entity) in skeletons.iter() {
-        let render_skeleton = render_skeletons.get_entity(**render_entity);
+        let render_entity = **render_entity;
 
-        match (skeleton_assets.get(skeleton.skeleton()), render_skeleton) {
-            (Some(skeleton_asset), Some(render_skeleton)) => {
-                let mut bone_transforms = [Mat4::IDENTITY; MAX_SKELETON_BONES];
-
-                for (bone_index, (inverse_bindpose, bone_entity)) in skeleton_asset
-                    .inverse_bindposes
-                    .iter()
-                    .zip(skeleton.bones())
-                    .enumerate()
-                {
-                    let transform = match transforms.get_entity(*bone_entity) {
-                        Some(bone_transform) => bone_transform.matrix() * *inverse_bindpose,
-                        None => Mat4::IDENTITY,
-                    };
-
-                    bone_transforms[bone_index] = transform;
-                }
-
-                let mut buffer = UniformBuffer::new(Vec::new());
-                buffer.write(&bone_transforms).unwrap();
-                queue.write_buffer(
-                    &skins.buffer,
-                    render_skeleton.offset as u64,
-                    &buffer.into_inner(),
-                );
+        let offset = match render_skeletons.get_entity(render_entity) {
+            Some(render_skeleton) => render_skeleton.offset,
+            None => {
+                let offset = skins.alloc_slot(&device, &skeleton_layout, &queue) * SKIN_STRIDE;
+                cmd.insert(RenderSkeletonComponent { offset }, render_entity);
+                offset
             }
-            _ => continue,
         };
+
+        let Some(skeleton_asset) = skeleton_assets.get(skeleton.skeleton()) else {
+            continue;
+        };
+
+        let mut bone_matrices = [Mat4::IDENTITY; MAX_SKELETON_BONES];
+
+        for (bone_index, (inverse_bindpose, bone_entity)) in skeleton_asset
+            .inverse_bindposes
+            .iter()
+            .zip(skeleton.bones())
+            .enumerate()
+        {
+            let transform = match bone_transforms.get_entity(*bone_entity) {
+                Some(bone_transform) => bone_transform.matrix() * *inverse_bindpose,
+                None => Mat4::IDENTITY,
+            };
+
+            bone_matrices[bone_index] = transform;
+        }
+
+        let mut buffer = UniformBuffer::new(Vec::new());
+        buffer.write(&bone_matrices).unwrap();
+        queue.write_buffer(&skins.buffer, offset as u64, &buffer.into_inner());
     }
 }

@@ -38,6 +38,7 @@ use render::{
     components::{
         camera::Camera,
         light::{Light, LightType},
+        render_entity::SyncWithRenderWorld,
     },
 };
 use serde_json::Value;
@@ -793,6 +794,7 @@ pub(crate) fn spawn_gltf_components(
                             node_entities[node_index],
                         );
 
+                        cmd.insert(SyncWithRenderWorld, node_entities[node_index]);
                         cmd.insert(
                             MaterialComponent {
                                 handle: asset.materials[*material_index].clone(),
@@ -819,6 +821,8 @@ pub(crate) fn spawn_gltf_components(
                             },
                             child,
                         );
+
+                        cmd.insert(SyncWithRenderWorld, child);
 
                         if component.generate_physics_shapes {
                             cmd.insert(MeshCollider, child);
@@ -887,6 +891,7 @@ pub(crate) fn spawn_gltf_components(
                         },
                         node_entities[node_index],
                     );
+                    cmd.insert(SyncWithRenderWorld, node_entities[node_index]);
                 }
 
                 for extra_component in &gltf_node.extra_components {

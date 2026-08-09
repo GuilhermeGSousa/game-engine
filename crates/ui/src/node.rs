@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use app::extractor::Extracted;
 use ecs::{
     command::CommandQueue,
     component::Component,
@@ -7,10 +8,7 @@ use ecs::{
         Entity,
         hierarchy::{ChildOf, Children},
     },
-    query::{
-        Query,
-        query_filter::{Changed, Without},
-    },
+    query::{Query, query_filter::Without},
     resource::{Res, Resource},
 };
 use essential::assets::handle::AssetHandle;
@@ -18,8 +16,10 @@ use glam::Vec2;
 use log::warn;
 use render::{
     assets::{material::AsBindGroup, texture::Texture},
-    components::camera::{Camera, RenderCamera, RenderTarget},
-    components::render_entity::RenderEntity,
+    components::{
+        camera::{Camera, RenderCamera, RenderTarget},
+        render_entity::{RenderEntity, SyncWithRenderWorld},
+    },
     device::RenderDevice,
     render_asset::{
         RenderAssets,
@@ -226,6 +226,7 @@ pub(crate) fn compute_ui_nodes(
             },
             entity,
         );
+        cmd.insert(SyncWithRenderWorld, entity);
 
         if let Some(children) = children {
             write_absolute_positions(
@@ -304,6 +305,7 @@ fn write_absolute_positions(
             },
             *child_entity,
         );
+        cmd.insert(SyncWithRenderWorld, *child_entity);
 
         let Some((_, _, Some(grand_children))) = ui_nodes.get_entity(*child_entity) else {
             continue;
@@ -320,13 +322,11 @@ fn write_absolute_positions(
     }
 }
 
-pub(crate) fn extract_added_ui_nodes(
-    computed_nodes: Query<
-        (Entity, &UIComputedNode, Option<&RenderEntity>),
-        Changed<UIComputedNode>,
-    >,
+pub(crate) fn extract_ui_nodes(
+    computed_nodes: Extracted<Query<(&UIComputedNode, &RenderEntity)>>,
+    render_ui_nodes: Query<&mut RenderUINode>,
     device: Res<RenderDevice>,
-    window: Res<Window>,
+    window: Extracted<Res<Window>>,
     mut cmd: CommandQueue,
 ) {
     let win_w = window.width() as f32;
@@ -342,7 +342,7 @@ pub(crate) fn extract_added_ui_nodes(
         ]
     };
 
-    for (computed_node_entity, computed_node, render_entity) in computed_nodes.iter() {
+    for (computed_node, render_entity) in computed_nodes.iter() {
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("UI Index Buffer"),
             contents: bytemuck::cast_slice(&QUAD_INDICES),
@@ -388,14 +388,10 @@ pub(crate) fn extract_added_ui_nodes(
             z_index: computed_node.z_index,
         };
 
-        match render_entity {
-            Some(render_entity) => {
-                cmd.insert(render_ui_node, **render_entity);
-            }
-            None => {
-                let render_entity = cmd.spawn(render_ui_node).entity();
-                cmd.insert(RenderEntity::new(render_entity), computed_node_entity);
-            }
+        if let Some(mut node) = render_ui_nodes.get_entity(**render_entity) {
+            **node = render_ui_node;
+        } else {
+            cmd.insert(render_ui_node, **render_entity);
         }
     }
 }
@@ -445,14 +441,14 @@ pub struct UIViewportPipeline {
 /// [`sync_camera_render_textures`] replaces `color_target` on resize, and the
 /// next frame's bind group references the new allocation.
 pub(crate) fn extract_viewport_nodes(
-    viewports: Query<(Entity, &UIViewport, Option<&RenderEntity>)>,
-    cameras: Query<(&Camera, &RenderEntity)>,
-    render_cameras: Query<(&RenderCamera,)>,
+    viewports: Extracted<Query<(&UIViewport, &RenderEntity)>>,
+    cameras: Extracted<Query<(&Camera, &RenderEntity)>>,
+    render_cameras: Query<&RenderCamera>,
     pipeline: Res<UIViewportPipeline>,
     device: Res<RenderDevice>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, viewport, render_entity) in viewports.iter() {
+    for (viewport, render_entity) in viewports.iter() {
         // Find the render camera whose handle ID matches this viewport's texture.
         // The bind group is created inside the find_map closure while the
         // render_cameras borrow is live; wgpu::BindGroup does not borrow from
@@ -464,7 +460,7 @@ pub(crate) fn extract_viewport_nodes(
             if h.id() != viewport.texture.id() {
                 return None;
             }
-            let (rc,) = render_cameras.get_entity(**re)?;
+            let rc = render_cameras.get_entity(**re)?;
             let ct = rc.render_target.as_ref()?;
             Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("UIViewport BindGroup"),
@@ -484,14 +480,7 @@ pub(crate) fn extract_viewport_nodes(
             continue;
         };
 
-        let rv = RenderUIViewport { bind_group };
-        match render_entity {
-            Some(re) => cmd.insert(rv, **re),
-            None => {
-                let new_re = cmd.spawn(rv).entity();
-                cmd.insert(RenderEntity::new(new_re), entity);
-            }
-        }
+        cmd.insert(RenderUIViewport { bind_group }, **render_entity);
     }
 }
 
@@ -501,15 +490,15 @@ pub(crate) fn extract_viewport_nodes(
 /// macro-generated method that is used to verify bind-group layout compatibility
 /// — so the layout used here is always consistent with the one used to build the
 /// UI render pipeline.
-pub(crate) fn extract_added_ui_materials(
-    computed_nodes: Query<(Entity, &UIMaterial, Option<&RenderEntity>), Changed<UIMaterial>>,
+pub(crate) fn extract_ui_materials(
+    computed_nodes: Extracted<Query<(&UIMaterial, &RenderEntity)>>,
     device: Res<RenderDevice>,
     render_textures: Res<RenderAssets<RenderTexture>>,
     dummy_texture: Res<DummyRenderTexture>,
     ui_pipeline: Res<render::MaterialPipeline<UIMaterial>>,
     mut cmd: CommandQueue,
 ) {
-    for (computed_node_entity, node_material, render_entity) in computed_nodes.iter() {
+    for (node_material, render_entity) in computed_nodes.iter() {
         let Ok(material_bind_group) = node_material.create_bind_group(
             &device,
             &render_textures,
@@ -519,18 +508,11 @@ pub(crate) fn extract_added_ui_materials(
             continue;
         };
 
-        let render_ui_material = RenderUIMaterial {
-            material_bind_group,
-        };
-
-        match render_entity {
-            Some(render_entity) => {
-                cmd.insert(render_ui_material, **render_entity);
-            }
-            None => {
-                let render_entity = cmd.spawn(render_ui_material).entity();
-                cmd.insert(RenderEntity::new(render_entity), computed_node_entity);
-            }
-        }
+        cmd.insert(
+            RenderUIMaterial {
+                material_bind_group,
+            },
+            **render_entity,
+        );
     }
 }

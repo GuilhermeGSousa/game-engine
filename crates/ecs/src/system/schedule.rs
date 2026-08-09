@@ -112,10 +112,10 @@ impl Schedule {
 
         // Implicit edges from access-pattern conflicts.
         for node_index in &self.system_ids {
-            if let Some(other_system) = self.graph.node_weight(**node_index) {
-                if !SystemAccess::are_disjoint(&access, other_system.access()) {
-                    self.graph.add_edge(**node_index, *node_idx, ());
-                }
+            if let Some(other_system) = self.graph.node_weight(**node_index)
+                && !SystemAccess::are_disjoint(&access, other_system.access())
+            {
+                self.graph.add_edge(**node_index, *node_idx, ());
             }
         }
 

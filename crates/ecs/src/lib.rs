@@ -33,11 +33,11 @@ pub use component::Component;
 pub use entity::Entity;
 pub use events::Event;
 pub use query::{
-    query_filter::{Added, Changed, Or, With, Without},
     Query,
+    query_filter::{Added, Changed, Or, With, Without},
 };
 pub use resource::{Res, ResMut, Resource};
-pub use system::{schedule::Schedule, IntoSystem, IntoSystemConfig, System, SystemConfig};
+pub use system::{IntoSystem, IntoSystemConfig, System, SystemConfig, schedule::Schedule};
 pub use world::World;
 
 #[cfg(test)]
@@ -46,10 +46,10 @@ mod tests {
         command::CommandQueue,
         component::Component,
         entity::Entity,
-        events::{event_channel::EventChannel, Event},
+        events::{Event, event_channel::EventChannel},
         query::{
-            query_filter::{Added, Changed, Or, With},
             Query,
+            query_filter::{Added, Changed, Or, With},
         },
         resource::{Res, ResMut, Resource},
         system::{executor::single_thread::SingleThreadedExecutor, schedule::Schedule},

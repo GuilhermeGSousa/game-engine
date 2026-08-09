@@ -1,5 +1,5 @@
 use crate::{
-    events::{event_channel::EventChannel, Event},
+    events::{Event, event_channel::EventChannel},
     resource::ResMut,
     system::input::SystemInput,
     world::UnsafeWorldCell,

@@ -1,6 +1,6 @@
 use crate::{
-    system::{executor::SystemExecutor, schedule::CompiledScheduleData},
     World,
+    system::{executor::SystemExecutor, schedule::CompiledScheduleData},
 };
 
 pub struct SingleThreadedExecutor {}
@@ -25,9 +25,9 @@ impl SystemExecutor for SingleThreadedExecutor {
 mod tests {
     use super::*;
     use crate::{
+        Schedule,
         resource::{Res, Resource},
         system::{config::IntoSystemConfig, executor::single_thread::SingleThreadedExecutor},
-        Schedule,
     };
     use std::sync::{Arc, Mutex};
 

@@ -1,4 +1,4 @@
-use crate::{system::access::SystemAccess, System};
+use crate::{System, system::access::SystemAccess};
 
 pub(crate) struct SyncPoint;
 

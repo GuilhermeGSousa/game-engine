@@ -1,6 +1,6 @@
 use ecs::{
     system::schedule::{InternedScheduleLabel, ScheduleLabel, Schedules},
-    Component, Resource, World,
+    Component, IntoSystemConfig, Resource, World,
 };
 use facet::Facet;
 
@@ -94,13 +94,25 @@ impl SubApp {
         self
     }
 
+    pub fn add_system<M>(
+        &mut self,
+        update_group: impl ScheduleLabel,
+        system: impl IntoSystemConfig<M> + 'static,
+    ) -> &mut Self {
+        self.get_resource_mut::<Schedules>()
+            .expect("Schedules resource not found!")
+            .add_system(update_group, system);
+        self
+    }
+
     pub fn update(&mut self) {
         if let Some(label) = self.update_schedule {
             self.world.run_schedule(label);
         }
     }
 
-    pub fn set_update_schedule(&mut self, label: impl ScheduleLabel) {
-        self.update_schedule = Some(label.intern())
+    pub fn set_update_schedule(&mut self, label: impl ScheduleLabel) -> &mut Self {
+        self.update_schedule = Some(label.intern());
+        self
     }
 }

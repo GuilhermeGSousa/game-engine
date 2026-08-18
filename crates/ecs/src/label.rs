@@ -24,7 +24,7 @@ where
     T: DynEq + Hash,
 {
     fn dyn_hash(&self, mut hasher: &mut dyn std::hash::Hasher) {
-        T::hash(&self, &mut hasher);
+        T::hash(self, &mut hasher);
         self.type_id().hash(&mut hasher);
     }
 }

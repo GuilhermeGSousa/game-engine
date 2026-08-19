@@ -3,7 +3,7 @@ use any_vec::any_value::AnyValueWrapper;
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
-    table::{MutableCellAccessor, Table, TableRow, TableRowIndex},
+    table::{MutableCellAccessor, Table, TableRowIndex},
 };
 
 pub struct Archetype {
@@ -19,22 +19,26 @@ impl Archetype {
         }
     }
 
-    pub fn add_component<T: Component>(
+    pub fn add_component<T: Component>(&mut self, value: T, current_tick: u32) {
+        if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
+            column.push(AnyValueWrapper::<T>::new(value), current_tick);
+        }
+    }
+
+    /// Overwrites the `T` already stored at `row`, dropping the previous value.
+    pub fn replace_component<T: Component>(
         &mut self,
-        raw_value: AnyValueWrapper<T>,
+        value: T,
         current_tick: u32,
+        row: TableRowIndex,
     ) {
         if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
-            column.push(raw_value, current_tick);
+            column.replace(value, current_tick, row);
         }
     }
 
     pub fn add_entity(&mut self, entity: Entity) {
         self.data_table.add_entity(entity);
-    }
-
-    pub fn insert_entity(&mut self, entity: Entity, row: TableRowIndex) {
-        self.data_table.insert_entity(row, entity);
     }
 
     pub fn contains(&self, component_id: ComponentId) -> bool {
@@ -91,15 +95,30 @@ impl Archetype {
         self.data_table.entities()
     }
 
-    pub fn remove_swap(&mut self, row: TableRowIndex) -> TableRow {
-        self.data_table.remove_swap(row)
+    /// An empty table shaped like this archetype's, ready to be extended into a new archetype.
+    pub(crate) fn clone_empty_table(&self) -> Table {
+        self.data_table.clone_empty()
+    }
+
+    /// Moves the row at `row` into `dst`, returning the entity that occupied it.
+    ///
+    /// See [`Table::move_row_to`] for how `replaced` and missing columns are handled.
+    pub(crate) fn move_row_to(
+        &mut self,
+        row: TableRowIndex,
+        dst: &mut Archetype,
+        replaced: &[ComponentId],
+    ) -> Entity {
+        self.data_table
+            .move_row_to(row, &mut dst.data_table, replaced)
+    }
+
+    /// Swap-removes the row at `row`, dropping every component in it.
+    pub(crate) fn drop_row(&mut self, row: TableRowIndex) {
+        self.data_table.drop_row(row);
     }
 
     pub fn component_ids(&self) -> &[ComponentId] {
         &self.component_ids
-    }
-
-    pub fn add_row(&mut self, row: TableRow) {
-        self.data_table.add_row(row);
     }
 }

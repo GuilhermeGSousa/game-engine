@@ -42,6 +42,9 @@ pub use world::World;
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicIsize, Ordering};
+
     use crate::{
         command::CommandQueue,
         component::Component,
@@ -101,6 +104,175 @@ mod tests {
 
     fn spawn(mut cmd: CommandQueue) {
         cmd.spawn((Position { x: 0.0, y: 0.0 }, Health));
+    }
+
+    /// Counts live instances so migrations can be checked for leaks and double-drops.
+    static TRACKED_LIVE: AtomicIsize = AtomicIsize::new(0);
+
+    #[derive(Component)]
+    struct Tracked(u32);
+
+    impl Tracked {
+        fn new(value: u32) -> Self {
+            TRACKED_LIVE.fetch_add(1, Ordering::SeqCst);
+            Tracked(value)
+        }
+    }
+
+    impl Drop for Tracked {
+        fn drop(&mut self) {
+            TRACKED_LIVE.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+
+    /// Runs `body` with the live-instance counter zeroed, and asserts it balances afterwards.
+    ///
+    /// The counter is process-global, so these tests must not run concurrently with each
+    /// other; they are serialised by taking a mutex.
+    fn assert_no_leaked_components(body: impl FnOnce()) {
+        static SERIALISE: Mutex<()> = Mutex::new(());
+        let _guard = SERIALISE.lock().unwrap_or_else(|err| err.into_inner());
+
+        TRACKED_LIVE.store(0, Ordering::SeqCst);
+        body();
+        assert_eq!(
+            TRACKED_LIVE.load(Ordering::SeqCst),
+            0,
+            "every Tracked component should have been dropped exactly once"
+        );
+    }
+
+    #[test]
+    fn despawn_drops_components() {
+        assert_no_leaked_components(|| {
+            let mut world = World::new();
+
+            let entity = world.spawn((Tracked::new(1), Position { x: 1.0, y: 2.0 }));
+            world.spawn((Tracked::new(2), Position { x: 3.0, y: 4.0 }));
+
+            assert_eq!(TRACKED_LIVE.load(Ordering::SeqCst), 2);
+
+            world.despawn(entity);
+            assert_eq!(TRACKED_LIVE.load(Ordering::SeqCst), 1);
+
+            drop(world);
+        });
+    }
+
+    #[test]
+    fn migration_moves_components_without_dropping_them() {
+        assert_no_leaked_components(|| {
+            let mut world = World::new();
+
+            let entity = world.spawn(Tracked::new(7));
+
+            // Migrates the row to a new archetype: `Tracked` is carried over, not re-created.
+            world.insert(Position { x: 1.0, y: 2.0 }, entity);
+            assert_eq!(
+                TRACKED_LIVE.load(Ordering::SeqCst),
+                1,
+                "the carried-over component must not be dropped by the migration"
+            );
+            assert_eq!(
+                world.get_component_for_entity::<Tracked>(entity).unwrap().0,
+                7,
+                "the carried-over value must survive the migration intact"
+            );
+
+            drop(world);
+        });
+    }
+
+    #[test]
+    fn replacing_a_component_drops_the_old_value() {
+        assert_no_leaked_components(|| {
+            let mut world = World::new();
+
+            let entity = world.spawn(Tracked::new(1));
+            world.insert(Tracked::new(2), entity);
+
+            assert_eq!(
+                TRACKED_LIVE.load(Ordering::SeqCst),
+                1,
+                "replacing a component should drop the value it displaced"
+            );
+            assert_eq!(
+                world.get_component_for_entity::<Tracked>(entity).unwrap().0,
+                2
+            );
+
+            drop(world);
+        });
+    }
+
+    #[test]
+    fn removing_a_component_drops_it() {
+        assert_no_leaked_components(|| {
+            let mut world = World::new();
+
+            let entity = world.spawn((Tracked::new(1), Position { x: 1.0, y: 2.0 }));
+            world.remove_component::<Tracked>(entity);
+
+            assert_eq!(TRACKED_LIVE.load(Ordering::SeqCst), 0);
+            assert!(world.get_component_for_entity::<Tracked>(entity).is_none());
+            assert_eq!(
+                world.get_component_for_entity::<Position>(entity).unwrap().x,
+                1.0,
+                "the surviving component must be carried over by the migration"
+            );
+
+            drop(world);
+        });
+    }
+
+    #[test]
+    fn bundle_insert_replacing_and_adding_drops_only_the_displaced_value() {
+        assert_no_leaked_components(|| {
+            let mut world = World::new();
+
+            let entity = world.spawn(Tracked::new(1));
+
+            // `Tracked` is replaced while `Position` is added, so the row both migrates and
+            // has one of its carried components deliberately left behind.
+            world.insert((Tracked::new(2), Position { x: 5.0, y: 6.0 }), entity);
+
+            assert_eq!(TRACKED_LIVE.load(Ordering::SeqCst), 1);
+            assert_eq!(
+                world.get_component_for_entity::<Tracked>(entity).unwrap().0,
+                2
+            );
+            assert_eq!(
+                world.get_component_for_entity::<Position>(entity).unwrap().x,
+                5.0
+            );
+
+            drop(world);
+        });
+    }
+
+    #[test]
+    fn migrating_a_non_final_row_keeps_other_entities_intact() {
+        let mut world = World::new();
+
+        let entities: Vec<Entity> = (0..4)
+            .map(|i| {
+                world.spawn(Position {
+                    x: i as f32,
+                    y: 0.0,
+                })
+            })
+            .collect();
+
+        // The middle row migrates out, so the archetype's last row is swapped into its slot.
+        world.insert(Health, entities[1]);
+
+        for (index, entity) in entities.iter().enumerate() {
+            assert_eq!(
+                world.get_component_for_entity::<Position>(*entity).unwrap().x,
+                index as f32,
+                "entity {index} should still resolve to its own row after the swap"
+            );
+        }
     }
 
     #[test]

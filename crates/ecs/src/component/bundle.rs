@@ -1,36 +1,38 @@
 use crate::{
     archetype::Archetype,
-    component::{Component, ComponentId, Tick},
+    component::{Component, ComponentId},
     entity::Entity,
-    table::{Table, TableRow, TableRowIndex},
+    table::{Table, TableRowIndex},
 };
-use any_vec::any_value::AnyValueWrapper;
 use std::any::TypeId;
 
 use typle::typle;
 
 /// A destination a [`ComponentBundle`] can write its components onto, one component at a time.
 ///
-/// A bundle never knows in advance whether it's landing on a freshly-pushed archetype row, an
-/// existing archetype row, or an in-flight [`TableRow`] being merged into another archetype —
-/// this is the seam that lets bundle writing stay agnostic to all three.
+/// A bundle never knows in advance whether it's landing on a freshly-pushed archetype row or
+/// overwriting components already present on an existing one — this is the seam that lets
+/// bundle writing stay agnostic to both.
 #[doc(hidden)]
 pub trait ComponentSink {
-    fn write<T: Component>(&mut self, value: AnyValueWrapper<T>, current_tick: u32);
-}
-
-impl ComponentSink for TableRow {
-    fn write<T: Component>(&mut self, value: AnyValueWrapper<T>, current_tick: u32) {
-        self.insert(value, Tick::new(current_tick));
-    }
+    fn write<T: Component>(&mut self, value: T, current_tick: u32);
 }
 
 /// Writes onto a freshly-pushed row at the end of an archetype's columns.
 struct AppendRow<'a>(&'a mut Archetype);
 
 impl ComponentSink for AppendRow<'_> {
-    fn write<T: Component>(&mut self, value: AnyValueWrapper<T>, current_tick: u32) {
+    fn write<T: Component>(&mut self, value: T, current_tick: u32) {
         self.0.add_component(value, current_tick);
+    }
+}
+
+/// Overwrites components already present on an existing archetype row.
+struct OverwriteRow<'a>(&'a mut Archetype, TableRowIndex);
+
+impl ComponentSink for OverwriteRow<'_> {
+    fn write<T: Component>(&mut self, value: T, current_tick: u32) {
+        self.0.replace_component(value, current_tick, self.1);
     }
 }
 
@@ -57,6 +59,28 @@ pub(crate) fn add_row_to_archetype<T: ComponentBundle>(
     table_row
 }
 
+/// Appends `bundle`'s components to the row a migration just moved into `archetype`.
+///
+/// The entity and its carried-over components are already in place; this fills in the
+/// columns the migration deliberately left one value short.
+pub(crate) fn append_components<T: ComponentBundle>(
+    bundle: T,
+    archetype: &mut Archetype,
+    current_tick: u32,
+) {
+    bundle.write_into(&mut AppendRow(archetype), current_tick);
+}
+
+/// Overwrites `row`'s copies of `bundle`'s components in place.
+pub(crate) fn overwrite_components<T: ComponentBundle>(
+    bundle: T,
+    archetype: &mut Archetype,
+    row: TableRowIndex,
+    current_tick: u32,
+) {
+    bundle.write_into(&mut OverwriteRow(archetype, row), current_tick);
+}
+
 impl<T> ComponentBundle for T
 where
     T: Component,
@@ -72,7 +96,7 @@ where
     }
 
     fn write_into<S: ComponentSink>(self, sink: &mut S, current_tick: u32) {
-        sink.write(AnyValueWrapper::<T>::new(self), current_tick);
+        sink.write(self, current_tick);
     }
 }
 

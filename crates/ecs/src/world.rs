@@ -20,7 +20,7 @@ use crate::{
     entity::{Entity, EntityLocation, EntityType},
     resource::Resource,
     system::input::SystemInput,
-    table::{Table, TableRowIndex},
+    table::TableRowIndex,
     utilities::TypeIdMap,
 };
 
@@ -131,7 +131,7 @@ impl World {
                     self.entity_store.set_location(*swapped_entity, location);
                 }
 
-                archetype.remove_swap(location.row);
+                archetype.drop_row(location.row);
                 self.entity_store.free(entity);
             }
             None => panic!("Entity {:?} should exist in the world", entity),
@@ -171,62 +171,74 @@ impl World {
         entity: Entity,
         trigger_events: bool,
     ) {
-        match self.entity_store.find_location(entity) {
-            Some(location) => {
-                let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
+        let Some(location) = self.entity_store.find_location(entity) else {
+            panic!("Entity should exist in the world");
+        };
 
-                let inserted_ids = T::get_component_ids();
-                let mut component_ids = previous_archetype.component_ids().to_vec();
-                for id in &inserted_ids {
-                    if !component_ids.contains(id) {
-                        component_ids.push(*id);
-                    }
-                }
+        let source_index = location.archetype_index as usize;
+        let inserted_ids = T::get_component_ids();
 
-                let entity_type = generate_type_id(&component_ids);
-
-                // Update the location of the entity being swapped
-                // It will take the location of the entity being removed
-                if let Some(swapped_entity) = previous_archetype.entities().last() {
-                    self.entity_store.set_location(*swapped_entity, location);
-                }
-
-                // Remove row from previous archetype
-                let mut removed_row = previous_archetype.remove_swap(location.row);
-
-                // Add new components to the removed row, replacing any that already existed
-                component.write_into(&mut removed_row, self.current_tick);
-
-                // Add row to new archetype
-                let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
-                    Occupied(occupied_entry) => {
-                        let new_archetype_index = *occupied_entry.get();
-                        let new_archetype = &mut self.archetypes[*occupied_entry.get()];
-                        new_archetype.add_row(removed_row);
-                        new_archetype_index
-                    }
-                    Vacant(vacant_entry) => {
-                        let new_archetype_index = self.archetypes.len();
-                        let archetype = Archetype::new(Table::from_row(removed_row), component_ids);
-                        self.archetypes.push(archetype);
-                        vacant_entry.insert(new_archetype_index);
-                        new_archetype_index
-                    }
-                };
-
-                let location = EntityLocation {
-                    archetype_index: archetype_index as u32,
-                    row: TableRowIndex::new(self.archetypes[archetype_index].len() - 1),
-                };
-                // Store in entity store
-                self.entity_store.set_location(entity, location);
-
-                if trigger_events {
-                    self.as_unsafe_world_cell_mut()
-                        .trigger_on_add(entity, &inserted_ids);
-                }
+        let mut component_ids = self.archetypes[source_index].component_ids().to_vec();
+        for id in &inserted_ids {
+            if !component_ids.contains(id) {
+                component_ids.push(*id);
             }
-            None => panic!("Entity should exist in the world"),
+        }
+
+        let entity_type = generate_type_id(&component_ids);
+
+        let destination_index = match self.archetype_index.entry(entity_type) {
+            Occupied(occupied_entry) => *occupied_entry.get(),
+            Vacant(vacant_entry) => {
+                let new_index = self.archetypes.len();
+                vacant_entry.insert(new_index);
+
+                let mut table = self.archetypes[source_index].clone_empty_table();
+                table.merge(T::generate_empty_table());
+                self.archetypes.push(Archetype::new(table, component_ids));
+
+                new_index
+            }
+        };
+
+        if destination_index == source_index {
+            // The entity already has every component in the bundle, so its archetype does not
+            // change. Overwrite the values in place instead of migrating the row out and back.
+            bundle::overwrite_components(
+                component,
+                &mut self.archetypes[source_index],
+                location.row,
+                self.current_tick,
+            );
+        } else {
+            // The source archetype's last row is about to be swapped into the hole this
+            // migration leaves behind, so that entity's recorded location must follow it.
+            if let Some(swapped_entity) = self.archetypes[source_index].entities().last()
+                && *swapped_entity != entity
+            {
+                self.entity_store.set_location(*swapped_entity, location);
+            }
+
+            let [source, destination] = self
+                .archetypes
+                .get_disjoint_mut([source_index, destination_index])
+                .expect("source and destination archetypes are distinct");
+
+            // The inserted components are left out of the move: their old values (if any) are
+            // dropped, and `append_components` writes the new ones onto the same row.
+            source.move_row_to(location.row, destination, &inserted_ids);
+            bundle::append_components(component, destination, self.current_tick);
+
+            let new_location = EntityLocation {
+                archetype_index: destination_index as u32,
+                row: TableRowIndex::new(destination.len() - 1),
+            };
+            self.entity_store.set_location(entity, new_location);
+        }
+
+        if trigger_events {
+            self.as_unsafe_world_cell_mut()
+                .trigger_on_add(entity, &inserted_ids);
         }
     }
 
@@ -235,67 +247,63 @@ impl World {
         entity: Entity,
         trigger_events: bool,
     ) {
-        match self.entity_store.find_location(entity) {
-            Some(location) => {
-                let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
+        let Some(location) = self.entity_store.find_location(entity) else {
+            panic!("Entity should exist in the world");
+        };
 
-                let removed_id = TypeId::of::<T>();
+        let source_index = location.archetype_index as usize;
+        let removed_id = TypeId::of::<T>();
 
-                let mut component_ids = previous_archetype.component_ids().to_vec();
-                if let Some(removed_index) = component_ids.iter().position(|id| *id == removed_id) {
-                    component_ids.swap_remove(removed_index);
-                } else {
-                    warn!("Entity does not have the component being removed.");
-                    return;
-                }
+        let mut component_ids = self.archetypes[source_index].component_ids().to_vec();
+        let Some(removed_index) = component_ids.iter().position(|id| *id == removed_id) else {
+            warn!("Entity does not have the component being removed.");
+            return;
+        };
+        component_ids.swap_remove(removed_index);
 
-                // Update the location of the entity being swapped: it will
-                // take the location of the entity being removed. This must
-                // stay below the missing-component early return — a no-op
-                // removal must not touch other entities' locations.
-                if let Some(swapped_entity) = previous_archetype.entities().last() {
-                    self.entity_store.set_location(*swapped_entity, location);
-                }
+        let entity_type = generate_type_id(&component_ids);
 
-                let entity_type = generate_type_id(&component_ids);
+        let destination_index = match self.archetype_index.entry(entity_type) {
+            Occupied(occupied_entry) => *occupied_entry.get(),
+            Vacant(vacant_entry) => {
+                let new_index = self.archetypes.len();
+                vacant_entry.insert(new_index);
 
-                // Remove row from previous archetype
-                let mut removed_row = previous_archetype.remove_swap(location.row);
+                let mut table = self.archetypes[source_index].clone_empty_table();
+                table.remove_column(removed_id);
+                self.archetypes.push(Archetype::new(table, component_ids));
 
-                // Remove component from the removed row
-                removed_row.remove::<T>();
-
-                let location = match self.archetype_index.entry(entity_type.clone()) {
-                    Occupied(occupied_entry) => {
-                        let new_archetype_index = *occupied_entry.get();
-                        let new_archetype = &mut self.archetypes[*occupied_entry.get()];
-                        new_archetype.add_row(removed_row);
-                        EntityLocation {
-                            archetype_index: new_archetype_index as u32,
-                            row: TableRowIndex::new(self.archetypes[new_archetype_index].len() - 1),
-                        }
-                    }
-                    Vacant(vacant_entry) => {
-                        let new_archetype_index = self.archetypes.len();
-                        let archetype = Archetype::new(Table::from_row(removed_row), component_ids);
-                        self.archetypes.push(archetype);
-                        vacant_entry.insert(new_archetype_index);
-                        EntityLocation {
-                            archetype_index: new_archetype_index as u32,
-                            row: TableRowIndex::new(0),
-                        }
-                    }
-                };
-
-                // Store in entity store
-                self.entity_store.set_location(entity, location);
-
-                if trigger_events {
-                    let cell = self.as_unsafe_world_cell_mut();
-                    cell.trigger_on_remove_component(entity, &removed_id);
-                }
+                new_index
             }
-            None => panic!("Entity should exist in the world"),
+        };
+
+        // The source archetype's last row is about to be swapped into the hole this migration
+        // leaves behind, so that entity's recorded location must follow it. This must stay
+        // below the missing-component early return — a no-op removal must not touch other
+        // entities' locations.
+        if let Some(swapped_entity) = self.archetypes[source_index].entities().last()
+            && *swapped_entity != entity
+        {
+            self.entity_store.set_location(*swapped_entity, location);
+        }
+
+        let [source, destination] = self
+            .archetypes
+            .get_disjoint_mut([source_index, destination_index])
+            .expect("source and destination archetypes are distinct");
+
+        // `destination` has no column for `T`, so the move drops the removed component.
+        source.move_row_to(location.row, destination, &[]);
+
+        let new_location = EntityLocation {
+            archetype_index: destination_index as u32,
+            row: TableRowIndex::new(destination.len() - 1),
+        };
+        self.entity_store.set_location(entity, new_location);
+
+        if trigger_events {
+            let cell = self.as_unsafe_world_cell_mut();
+            cell.trigger_on_remove_component(entity, &removed_id);
         }
     }
 

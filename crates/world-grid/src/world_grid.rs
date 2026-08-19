@@ -77,21 +77,21 @@ fn world_grid_on_add(
         )
     };
 
-    world.insert_component(
+    world.insert(
         MeshComponent {
             handle: mesh_handle,
         },
         context.entity,
         true,
     );
-    world.insert_component(
+    world.insert(
         MaterialComponent::<WorldGridMaterial> {
             handle: material_handle,
         },
         context.entity,
         true,
     );
-    world.insert_component(Transform::default(), context.entity, true);
+    world.insert(Transform::default(), context.entity, true);
 }
 
 pub(crate) fn on_world_grid_changed(

@@ -219,14 +219,16 @@ pub(crate) fn compute_ui_nodes(
         let size = Vec2::new(layout.size.width, layout.size.height);
 
         cmd.insert(
-            UIComputedNode {
-                location: abs_pos,
-                size,
-                z_index: 0,
-            },
+            (
+                UIComputedNode {
+                    location: abs_pos,
+                    size,
+                    z_index: 0,
+                },
+                SyncWithRenderWorld,
+            ),
             entity,
         );
-        cmd.insert(SyncWithRenderWorld, entity);
 
         if let Some(children) = children {
             write_absolute_positions(
@@ -298,14 +300,16 @@ fn write_absolute_positions(
         let size = Vec2::new(layout.size.width, layout.size.height);
 
         cmd.insert(
-            UIComputedNode {
-                location: abs_pos,
-                size,
-                z_index: z,
-            },
+            (
+                UIComputedNode {
+                    location: abs_pos,
+                    size,
+                    z_index: z,
+                },
+                SyncWithRenderWorld,
+            ),
             *child_entity,
         );
-        cmd.insert(SyncWithRenderWorld, *child_entity);
 
         let Some((_, _, Some(grand_children))) = ui_nodes.get_entity(*child_entity) else {
             continue;

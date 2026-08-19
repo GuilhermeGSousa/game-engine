@@ -177,7 +177,7 @@ impl Component for RenderLight {
                 return;
             };
 
-            world.insert_component(slot, context.entity, false);
+            world.insert(slot, context.entity, false);
 
             let casts_shadows = world
                 .get_component_for_entity::<RenderLight>(context.entity)
@@ -200,7 +200,7 @@ impl Component for RenderLight {
 
                 match shadow_slot {
                     Some(shadow_slot) => {
-                        world.insert_component(
+                        world.insert(
                             RenderShadowCasterSlot(shadow_slot),
                             context.entity,
                             false,
@@ -219,7 +219,7 @@ impl Component for RenderLight {
                                 device,
                                 &shadow_pipeline.bind_group_layout,
                             );
-                            world.insert_component(view_proj, context.entity, false);
+                            world.insert(view_proj, context.entity, false);
                         }
                     }
                     // Shadow-caster pool exhausted; fall back to unshadowed.

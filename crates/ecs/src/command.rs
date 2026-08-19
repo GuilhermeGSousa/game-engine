@@ -36,7 +36,7 @@ impl<'a> EntityCommandQueue<'a> {
         self
     }
 
-    pub fn insert<T: Component>(&mut self, component: T) {
+    pub fn insert<T: ComponentBundle + 'static>(&mut self, component: T) {
         self.command_queue.insert(component, self.entity);
     }
 
@@ -76,7 +76,7 @@ impl<'w, 's> CommandQueue<'w, 's> {
         self.queue_state.add_command(DespawnCommand::new(entity));
     }
 
-    pub fn insert<T: Component>(&mut self, component: T, entity: Entity) {
+    pub fn insert<T: ComponentBundle + 'static>(&mut self, component: T, entity: Entity) {
         self.queue_state
             .add_command(InsertCommand::new(component, entity));
     }
@@ -196,20 +196,20 @@ impl Command for DespawnCommand {
     }
 }
 
-pub(crate) struct InsertCommand<T: Component> {
+pub(crate) struct InsertCommand<T: ComponentBundle> {
     component: T,
     entity: Entity,
 }
 
-impl<T: Component> InsertCommand<T> {
+impl<T: ComponentBundle> InsertCommand<T> {
     pub fn new(component: T, entity: Entity) -> Self {
         InsertCommand { component, entity }
     }
 }
 
-impl<T: Component> Command for InsertCommand<T> {
+impl<T: ComponentBundle> Command for InsertCommand<T> {
     fn execute(self: Box<Self>, world: &mut World) {
-        world.insert_component(self.component, self.entity);
+        world.insert(self.component, self.entity);
     }
 }
 

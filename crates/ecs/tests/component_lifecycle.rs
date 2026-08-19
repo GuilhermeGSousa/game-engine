@@ -121,7 +121,7 @@ impl Component for Body {
 
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
-            world.insert_component(Companion, context.entity, true);
+            world.insert(Companion, context.entity, true);
         })
     }
 
@@ -142,7 +142,7 @@ impl Component for Quiet {
 
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
-            world.insert_component(Companion, context.entity, false);
+            world.insert(Companion, context.entity, false);
         })
     }
 }
@@ -204,13 +204,13 @@ fn spawn_fires_on_add_with_bundle_fully_inserted() {
 }
 
 #[test]
-fn insert_component_fires_on_add() {
+fn insert_fires_on_add() {
     let mut world = World::new();
     world.register_component_lifetimes::<Tracked>();
     world.insert_resource(TrackLog::default());
 
     let entity = world.spawn((Value(1),));
-    world.insert_component(Tracked, entity);
+    world.insert(Tracked, entity);
 
     let log = world.get_resource::<TrackLog>().unwrap();
     assert_eq!(log.added, vec![(entity, true)]);

@@ -91,11 +91,16 @@ impl Table {
     pub(crate) fn from_row(mut removed_row: TableRow) -> Self {
         let mut columns = HashMap::new();
 
-        removed_row.data.drain().for_each(|(key, value)| {
+        removed_row.data.drain().for_each(|(key, mut value)| {
+            // A bundle insert may have replaced an already-present component, leaving the
+            // newest value pushed after a stale one; keep only the newest, mirroring `add_row`.
+            let mut data = value.component_data.clone_empty();
+            data.push(value.component_data.pop().unwrap());
+
             columns.insert(
                 key,
                 Column {
-                    data: value.component_data,
+                    data,
                     added_ticks: vec![value.added_tick],
                     changed_ticks: vec![value.changed_tick],
                 },

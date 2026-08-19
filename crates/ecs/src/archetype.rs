@@ -29,17 +29,6 @@ impl Archetype {
         }
     }
 
-    pub fn insert_component<T: Component>(
-        &mut self,
-        raw_value: AnyValueWrapper<T>,
-        current_tick: u32,
-        row: TableRowIndex,
-    ) {
-        if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
-            column.insert(raw_value, current_tick, row);
-        }
-    }
-
     pub fn add_entity(&mut self, entity: Entity) {
         self.data_table.add_entity(entity);
     }

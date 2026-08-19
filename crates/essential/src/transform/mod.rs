@@ -28,7 +28,7 @@ impl Component for Transform {
                     .compute_matrix(),
             );
 
-            world.insert_component(global_transform, context.entity, false);
+            world.insert(global_transform, context.entity, false);
         })
     }
 

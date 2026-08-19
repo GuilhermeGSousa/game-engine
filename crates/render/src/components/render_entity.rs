@@ -47,7 +47,7 @@ fn spawn_new_render_entities(main: &mut World, render: &mut World) {
 
     for main_entity in unlinked {
         let render_entity = render.spawn(MainEntity::new(main_entity));
-        main.insert_component(RenderEntity::new(render_entity), main_entity);
+        main.insert(RenderEntity::new(render_entity), main_entity);
     }
 }
 

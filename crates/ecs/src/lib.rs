@@ -185,12 +185,12 @@ mod tests {
     }
 
     #[test]
-    fn insert_component_on_new_archetype() {
+    fn insert_on_new_archetype() {
         let mut world = World::new();
 
         let entity = world.spawn(Health);
 
-        world.insert_component(Position { x: 10.0, y: 11.0 }, entity);
+        world.insert(Position { x: 10.0, y: 11.0 }, entity);
 
         let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
 
@@ -205,13 +205,13 @@ mod tests {
     }
 
     #[test]
-    fn insert_component_on_existing_archetype() {
+    fn insert_on_existing_archetype() {
         let mut world = World::new();
 
         let entity = world.spawn(Health);
         world.spawn((Health, Position { x: 10.0, y: 11.0 }));
 
-        world.insert_component(Position { x: 10.0, y: 11.0 }, entity);
+        world.insert(Position { x: 10.0, y: 11.0 }, entity);
 
         let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
 
@@ -231,8 +231,8 @@ mod tests {
 
         let entity = world.spawn(Health);
 
-        world.insert_component(Position { x: 0.0, y: 0.0 }, entity);
-        world.insert_component(Position { x: 10.0, y: 11.0 }, entity);
+        world.insert(Position { x: 0.0, y: 0.0 }, entity);
+        world.insert(Position { x: 10.0, y: 11.0 }, entity);
 
         let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
 
@@ -240,6 +240,28 @@ mod tests {
         for (pos, _) in query.iter() {
             assert_eq!(pos.x, 10.0);
             assert_eq!(pos.y, 11.0);
+            count += 1;
+        }
+
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn insert_bundle_replaces_existing_and_adds_new_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn(Health);
+
+        // Bundle re-inserts `Health` (already present) alongside a brand new `Position`,
+        // landing on an archetype that has never been created before.
+        world.insert((Health, Position { x: 3.0, y: 4.0 }), entity);
+
+        let query = Query::<(&Position, &Health)>::new(world.as_unsafe_world_cell_mut());
+
+        let mut count = 0;
+        for (pos, _) in query.iter() {
+            assert_eq!(pos.x, 3.0);
+            assert_eq!(pos.y, 4.0);
             count += 1;
         }
 
@@ -445,7 +467,7 @@ mod tests {
         assert_eq!(q.iter().count(), 1);
 
         // Insert a second component on the same entity (moves it to a new archetype).
-        world.insert_component(Position { x: 1.0, y: 2.0 }, entity);
+        world.insert(Position { x: 1.0, y: 2.0 }, entity);
 
         // Health was still added this tick — filter must still match.
         let q = Query::<Entity, Added<Health>>::new(world.as_unsafe_world_cell_mut());
@@ -474,7 +496,7 @@ mod tests {
         world.tick();
 
         // Insert a second component — entity migrates to a new archetype.
-        world.insert_component(Position { x: 1.0, y: 2.0 }, entity);
+        world.insert(Position { x: 1.0, y: 2.0 }, entity);
 
         // Health's added_tick must still be tick 1, not the new tick 2.
         assert!(!world.was_component_added(entity, ComponentId::of::<Health>()));

@@ -459,7 +459,7 @@ mod tests {
 
         // Priority is fixed at insertion, so changing it means re-adding.
         fixture.remove_vcam(low);
-        fixture.world.insert_component(VirtualCamera::new(20), low);
+        fixture.world.insert(VirtualCamera::new(20), low);
 
         assert_eq!(fixture.step(), Vec3::X);
         assert_eq!(fixture.stacked_cameras(), vec![high, low]);

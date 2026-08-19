@@ -1,4 +1,3 @@
-use any_vec::any_value::AnyValueWrapper;
 use anymap3::AnyMap;
 use facet::Facet;
 use log::warn;
@@ -6,7 +5,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::component::Tick;
-use crate::component::bundle::ComponentBundle;
+use crate::component::bundle::{self, ComponentBundle};
 use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
 use crate::entity::entity_store::EntityStore;
@@ -92,7 +91,7 @@ impl World {
 
         let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
 
-        let table_row = bundle.add_row_to_archetype(archetype, entity, self.current_tick);
+        let table_row = bundle::add_row_to_archetype(bundle, archetype, entity, self.current_tick);
 
         let new_location = EntityLocation {
             archetype_index: *archetype_index as u32,
@@ -147,11 +146,11 @@ impl World {
         &mut self.archetypes
     }
 
-    /// Adds a component to an existing entity, migrating it to the appropriate archetype.
+    /// Adds components to an existing entity, migrating it to the appropriate archetype.
     ///
     /// If the entity already has a component of type `T`, the existing value is replaced.
-    pub fn insert_component<T: Component>(&mut self, component: T, entity: Entity) {
-        self.insert_component_internal(component, entity, true);
+    pub fn insert<T: ComponentBundle>(&mut self, bundle: T, entity: Entity) {
+        self.insert_internal(bundle, entity, true);
     }
 
     pub fn entity_is_valid(&self, entity: Entity) -> bool {
@@ -166,7 +165,7 @@ impl World {
         self.remove_component_internal::<T>(entity, true);
     }
 
-    fn insert_component_internal<T: Component>(
+    fn insert_internal<T: ComponentBundle>(
         &mut self,
         component: T,
         entity: Entity,
@@ -176,9 +175,13 @@ impl World {
             Some(location) => {
                 let previous_archetype = &mut self.archetypes[location.archetype_index as usize];
 
-                let inserted_id = TypeId::of::<T>();
+                let inserted_ids = T::get_component_ids();
                 let mut component_ids = previous_archetype.component_ids().to_vec();
-                component_ids.push(inserted_id);
+                for id in &inserted_ids {
+                    if !component_ids.contains(id) {
+                        component_ids.push(*id);
+                    }
+                }
 
                 let entity_type = generate_type_id(&component_ids);
 
@@ -191,11 +194,8 @@ impl World {
                 // Remove row from previous archetype
                 let mut removed_row = previous_archetype.remove_swap(location.row);
 
-                // Add new component to the removed row
-                removed_row.insert(
-                    AnyValueWrapper::<T>::new(component),
-                    Tick::new(self.current_tick),
-                );
+                // Add new components to the removed row, replacing any that already existed
+                component.write_into(&mut removed_row, self.current_tick);
 
                 // Add row to new archetype
                 let archetype_index = match self.archetype_index.entry(entity_type.clone()) {
@@ -223,7 +223,7 @@ impl World {
 
                 if trigger_events {
                     self.as_unsafe_world_cell_mut()
-                        .trigger_on_add_component(entity, &inserted_id);
+                        .trigger_on_add(entity, &inserted_ids);
                 }
             }
             None => panic!("Entity should exist in the world"),
@@ -463,14 +463,14 @@ impl World {
     /// updates (or creates) the [`Children`](crate::entity::hierarchy::Children) component on
     /// `parent`.
     pub fn add_child(&mut self, parent: Entity, child: Entity) {
-        self.insert_component(ChildOf::new(parent), child);
+        self.insert(ChildOf::new(parent), child);
 
         match self.get_component_accessor_for_entity_mut::<Children>(parent) {
             Some(table_cell) => {
                 table_cell.data.add_child(child);
             }
             None => {
-                self.insert_component(Children::from_children(vec![child]), parent);
+                self.insert(Children::from_children(vec![child]), parent);
             }
         }
     }
@@ -658,16 +658,11 @@ impl<'w> RestrictedWorld<'w> {
         self.world_cell.world_mut().despawn(entity);
     }
 
-    pub fn insert_component<T: Component>(
-        &mut self,
-        component: T,
-        entity: Entity,
-        trigger_events: bool,
-    ) {
+    pub fn insert<T: Component>(&mut self, component: T, entity: Entity, trigger_events: bool) {
         // TODO: Use commands instead
         self.world_cell
             .world_mut()
-            .insert_component_internal(component, entity, trigger_events);
+            .insert_internal(component, entity, trigger_events);
     }
 
     pub fn remove_component<T: Component>(&mut self, entity: Entity, trigger_events: bool) {

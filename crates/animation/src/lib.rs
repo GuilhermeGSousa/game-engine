@@ -61,6 +61,7 @@ mod tests {
         clips.insert(handle.id(), unit_duration_clip());
         let graphs = AssetStore::<AnimationGraph>::new();
         let blackboard = AnimationBlackboard::default();
+
         let context = AnimationGraphContext {
             animation_clips: &clips,
             animation_graphs: &graphs,

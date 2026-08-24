@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::component::Tick;
-use crate::component::bundle::{self, ComponentBundle};
+use crate::component::bundle::{self, ComponentBundle, MergeRow, PushRow, ReplaceRow};
 use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
 use crate::entity::entity_store::EntityStore;
@@ -91,11 +91,13 @@ impl World {
 
         let archetype: &mut Archetype = &mut self.archetypes[*archetype_index];
 
-        let table_row = bundle::add_row_to_archetype(bundle, archetype, entity, self.current_tick);
+        let row = TableRowIndex::new(archetype.len());
+        archetype.add_entity(entity);
+        bundle.write_into(&mut PushRow(archetype), self.current_tick);
 
         let new_location = EntityLocation {
             archetype_index: *archetype_index as u32,
-            row: table_row,
+            row,
         };
 
         self.entity_store.set_location(entity, new_location);
@@ -167,7 +169,7 @@ impl World {
 
     fn insert_internal<T: ComponentBundle>(
         &mut self,
-        component: T,
+        components: T,
         entity: Entity,
         trigger_events: bool,
     ) {
@@ -202,17 +204,9 @@ impl World {
         };
 
         if destination_index == source_index {
-            // The entity already has every component in the bundle, so its archetype does not
-            // change. Overwrite the values in place instead of migrating the row out and back.
-            bundle::overwrite_components(
-                component,
-                &mut self.archetypes[source_index],
-                location.row,
-                self.current_tick,
-            );
+            let archetype = &mut self.archetypes[source_index];
+            components.write_into(&mut ReplaceRow(archetype, location.row), self.current_tick);
         } else {
-            // The source archetype's last row is about to be swapped into the hole this
-            // migration leaves behind, so that entity's recorded location must follow it.
             if let Some(swapped_entity) = self.archetypes[source_index].entities().last()
                 && *swapped_entity != entity
             {
@@ -224,14 +218,12 @@ impl World {
                 .get_disjoint_mut([source_index, destination_index])
                 .expect("source and destination archetypes are distinct");
 
-            // The inserted components are left out of the move: their old values (if any) are
-            // dropped, and `append_components` writes the new ones onto the same row.
-            source.move_row_to(location.row, destination, &inserted_ids);
-            bundle::append_components(component, destination, self.current_tick);
-
+            source.move_row_to(location.row, destination);
+            let new_row = TableRowIndex::new(destination.len() - 1);
+            components.write_into(&mut MergeRow(destination, new_row), self.current_tick);
             let new_location = EntityLocation {
                 archetype_index: destination_index as u32,
-                row: TableRowIndex::new(destination.len() - 1),
+                row: new_row,
             };
             self.entity_store.set_location(entity, new_location);
         }
@@ -293,7 +285,7 @@ impl World {
             .expect("source and destination archetypes are distinct");
 
         // `destination` has no column for `T`, so the move drops the removed component.
-        source.move_row_to(location.row, destination, &[]);
+        source.move_row_to(location.row, destination);
 
         let new_location = EntityLocation {
             archetype_index: destination_index as u32,

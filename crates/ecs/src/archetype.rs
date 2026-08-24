@@ -1,5 +1,3 @@
-use any_vec::any_value::AnyValueWrapper;
-
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
@@ -19,21 +17,29 @@ impl Archetype {
         }
     }
 
-    pub fn add_component<T: Component>(&mut self, value: T, current_tick: u32) {
+    /// Whether `T`'s column already holds a value at `row`.
+    pub fn has_value_at<T: Component>(&self, row: TableRowIndex) -> bool {
+        self.data_table
+            .get_column(ComponentId::of::<T>())
+            .is_some_and(|column| *row < column.len())
+    }
+
+    /// Appends `value` to the end of `T`'s column.
+    pub fn push_component<T: Component>(&mut self, value: T, current_tick: u32) {
         if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
-            column.push(AnyValueWrapper::<T>::new(value), current_tick);
+            column.push(value, current_tick);
         }
     }
 
-    /// Overwrites the `T` already stored at `row`, dropping the previous value.
-    pub fn replace_component<T: Component>(
+    /// Overwrites the `T` already stored at `row`.
+    pub fn insert_component<T: Component>(
         &mut self,
         value: T,
         current_tick: u32,
         row: TableRowIndex,
     ) {
         if let Some(column) = self.data_table.get_column_mut(ComponentId::of::<T>()) {
-            column.replace(value, current_tick, row);
+            column.insert(value, current_tick, row);
         }
     }
 
@@ -102,15 +108,9 @@ impl Archetype {
 
     /// Moves the row at `row` into `dst`, returning the entity that occupied it.
     ///
-    /// See [`Table::move_row_to`] for how `replaced` and missing columns are handled.
-    pub(crate) fn move_row_to(
-        &mut self,
-        row: TableRowIndex,
-        dst: &mut Archetype,
-        replaced: &[ComponentId],
-    ) -> Entity {
-        self.data_table
-            .move_row_to(row, &mut dst.data_table, replaced)
+    /// See [`Table::move_row_to`] for how missing columns are handled.
+    pub(crate) fn move_row_to(&mut self, row: TableRowIndex, dst: &mut Archetype) -> Entity {
+        self.data_table.move_row_to(row, &mut dst.data_table)
     }
 
     /// Swap-removes the row at `row`, dropping every component in it.

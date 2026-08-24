@@ -4,7 +4,6 @@ use game_engine::{
         App,
         schedule_groups::{Startup, Update},
     },
-    ecs::{IntoSystem, system::access::SystemAccess},
     ui::frame_stats_overlay::FrameStatsOverlayPlugin,
 };
 

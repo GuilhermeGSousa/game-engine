@@ -34,16 +34,13 @@ impl Column {
         }
     }
 
-    pub fn push<T>(&mut self, raw_value: AnyValueWrapper<T>, tick: u32) {
-        self.data.push(raw_value);
+    pub fn push<T: Component>(&mut self, value: T, tick: u32) {
+        self.data.push(AnyValueWrapper::new(value));
         self.added_ticks.push(Tick::new(tick));
         self.changed_ticks.push(Tick::new(0));
     }
 
-    /// Overwrites the value at `row`, dropping the one already there.
-    ///
-    /// Both ticks are refreshed: re-inserting a component counts as adding it.
-    pub fn replace<T: Component>(&mut self, value: T, tick: u32, row: TableRowIndex) {
+    pub fn insert<T: Component>(&mut self, value: T, tick: u32, row: TableRowIndex) {
         if let Some(mut element) = self.data.get_mut(*row)
             && let Some(slot) = element.downcast_mut::<T>()
         {
@@ -146,19 +143,13 @@ impl Table {
 
     /// Moves the row at `row` out of `self` and appends it to `dst`, returning its entity.
     ///
-    /// A component is dropped rather than moved when `dst` has no column for it (that is how
-    /// component removal happens) or when its id is in `replaced` — the caller is then
-    /// responsible for writing the replacement value onto `dst`.
-    pub(crate) fn move_row_to(
-        &mut self,
-        row: TableRowIndex,
-        dst: &mut Table,
-        replaced: &[ComponentId],
-    ) -> Entity {
+    /// A component is dropped rather than moved when `dst` has no column for it — that is how
+    /// component removal happens.
+    pub(crate) fn move_row_to(&mut self, row: TableRowIndex, dst: &mut Table) -> Entity {
         for (id, column) in self.columns.iter_mut() {
             match dst.columns.get_mut(id) {
-                Some(dst_column) if !replaced.contains(id) => column.move_row_to(row, dst_column),
-                _ => column.drop_row(row),
+                Some(dst_column) => column.move_row_to(row, dst_column),
+                None => column.drop_row(row),
             }
         }
 

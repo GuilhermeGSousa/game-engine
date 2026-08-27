@@ -63,7 +63,7 @@ pub trait ReadOnlyQueryData: QueryData {}
 
 impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
     /// Constructs a new query by scanning the world's archetypes for matches.
-    pub fn new(world: UnsafeWorldCell<'world>) -> Self {
+    pub fn new(world: UnsafeWorldCell<'world>, state:&'state mut T::State) -> Self {
         let matched_indices: Vec<usize> = world
             .world()
             .archetypes()
@@ -80,6 +80,7 @@ impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
 
         Self {
             world,
+            state,
             matched_indices,
             _marker_data: PhantomData,
             _marker_filter: PhantomData,
@@ -160,8 +161,8 @@ where
 
 impl<T, F> SystemInput for Query<'_, '_, T, F>
 where
-    T: QueryData,
-    F: QueryFilter,
+    T: QueryData + 'static,
+    F: QueryFilter + 'static,
 {
     type State = <T as WorldQuery>::State;
     type Data<'world, 'state> = Query<'world, 'state, T, F>;
@@ -171,10 +172,10 @@ where
     }
 
     fn get_data<'world, 'state>(
-        _state: &'state mut Self::State,
+        state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        Query::new(world)
+        Query::new(world, state)
     }
 
     fn fill_access(access: &mut crate::system::access::SystemAccess) {
@@ -184,8 +185,8 @@ where
 
 impl<T, F> ReadOnlySystemInput for Query<'_, '_, T, F>
 where
-    T: ReadOnlyQueryData,
-    F: QueryFilter,
+    T: ReadOnlyQueryData + 'static,
+    F: QueryFilter + 'static,
 {
 }
 

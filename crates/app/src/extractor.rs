@@ -45,13 +45,13 @@ pub fn extract(main: &mut World, render: &mut World) {
 #[derive(Deref, DerefMut)]
 pub struct Extracted<'world, 'state, T: ReadOnlySystemInput>(SystemInputData<'world, 'state, T>);
 
-impl<T: ReadOnlySystemInput> SystemInput for Extracted<'_, '_, T> {
+impl<T: ReadOnlySystemInput + 'static> SystemInput for Extracted<'_, '_, T> {
     type State = T::State;
 
     type Data<'world, 'state> = Extracted<'world, 'state, T>;
 
-    fn init_state() -> Self::State {
-        T::init_state()
+    fn init_state(world: &mut World) -> Self::State {
+        T::init_state(world)
     }
 
     fn get_data<'world, 'state>(

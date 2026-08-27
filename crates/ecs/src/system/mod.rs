@@ -109,10 +109,6 @@ where
     pub fn initialize(&mut self, world: &mut World) {
         self.system_state = Some(Input::init_state(world))
     }
-
-    pub fn is_initialized(&self) -> bool {
-        self.system_state.is_some()
-    }
 }
 
 #[allow(unused_variables, unused_mut)]

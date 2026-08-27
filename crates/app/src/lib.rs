@@ -279,8 +279,8 @@ impl App {
 
         self.plugin_state = PluginsState::Finished;
 
-        self.compile_schedules(self.main_mut().world_mut());
-        self.compile_render_schedules(self.render_mut().world_mut());
+        // self.compile_schedules(self.main_mut().world_mut());
+        // self.compile_render_schedules(self.render_mut().world_mut());
 
         self.subapps.startup();
     }

@@ -4,15 +4,12 @@ use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
-use crate::Query;
 use crate::component::Tick;
 use crate::component::bundle::{ComponentBundle, MergeRow, PushRow, ReplaceRow};
 use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
-use crate::query::QueryData;
-use crate::query::query_filter::QueryFilter;
 use crate::resource::ResourceStorage;
 use crate::system::schedule::{CompiledSchedules, ScheduleLabel};
 use crate::table::MutableCellAccessor;
@@ -168,11 +165,6 @@ impl World {
     /// is a no-op.
     pub fn remove_component<T: Component>(&mut self, entity: Entity) {
         self.remove_component_internal::<T>(entity, true);
-    }
-
-    pub fn query<D: QueryData, F: QueryFilter>(&mut self) -> Query<D, F>
-    {
-        Query::<D, F>::new(self.as_unsafe_world_cell_mut(), &mut D::init_state(self))
     }
 
     fn insert_internal<T: ComponentBundle>(

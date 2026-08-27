@@ -139,7 +139,7 @@ impl Schedule {
         node_idx
     }
 
-    pub fn compile<T: SystemExecutor + 'static>(self) -> CompiledSchedule {
+    pub fn compile<T: SystemExecutor + 'static>(mut self, world: &mut World) -> CompiledSchedule {
         let dependency_count: Vec<usize> = self
             .system_ids
             .iter()
@@ -172,6 +172,10 @@ impl Schedule {
             .into_iter()
             .map(|node_index| *self.graph.node_weight(node_index).unwrap().index())
             .collect::<Vec<_>>();
+
+        self.systems
+            .iter_mut()
+            .for_each(|system| system.initialize(world));
 
         let compiled_data = CompiledScheduleData {
             systems: self.systems,
@@ -256,12 +260,12 @@ impl Schedules {
             .add_system(system);
     }
 
-    pub fn compile<T: SystemExecutor + 'static>(self) -> CompiledSchedules {
+    pub fn compile<T: SystemExecutor + 'static>(self, world: &mut World) -> CompiledSchedules {
         CompiledSchedules {
             compiled_schedules: self
                 .schedules
                 .into_iter()
-                .map(|(k, v)| (k, v.compile::<T>()))
+                .map(|(label, schedule)| (label, schedule.compile::<T>(world)))
                 .collect(),
         }
     }
@@ -348,9 +352,10 @@ mod tests {
             .add_system(|| print!("First"))
             .add_system(|| print!("First"));
 
+        let mut world = World::new();
         schedule
-            .compile::<SingleThreadedExecutor>()
-            .run(&mut World::new());
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
     }
 
     // ── Graph structure tests ─────────────────────────────────────────────────
@@ -505,8 +510,8 @@ mod tests {
         let mut schedules = Schedules::default();
         schedules.add_system(Inner, |mut counter: ResMut<Counter>| counter.0 += 1);
         schedules.add_system(Outer, |world: &mut World| world.run_schedule(Inner));
-
-        world.insert_resource(schedules.compile::<SingleThreadedExecutor>());
+        let compiled_schedules = schedules.compile::<SingleThreadedExecutor>(&mut world);
+        world.insert_resource(compiled_schedules);
 
         // Outer's system calls world.run_schedule(Inner) while Outer's own entry is
         // still removed from CompiledSchedules — Inner must still be reachable.

@@ -7,10 +7,10 @@ use crate::{
 use typle::typle;
 
 pub trait SystemInput {
-    type State: Send + Sync + 'static;
+    type State: Send + Sync + Sized;
     type Data<'world, 'state>;
 
-    fn init_state() -> Self::State;
+    fn init_state(world: &mut World) -> Self::State;
 
     fn get_data<'world, 'state>(
         state: &'state mut Self::State,
@@ -34,8 +34,8 @@ where
     type State = typle_for!(i in .. => T<{i}>::State);
     type Data<'world, 'state> = typle_for!(i in .. => T<{i}>::Data<'world, 'state>);
 
-    fn init_state() -> Self::State {
-        typle_for!(i in .. => <T<{i}>>::init_state())
+    fn init_state(world: &mut World) -> Self::State {
+        typle_for!(i in .. => <T<{i}>>::init_state(world))
     }
 
     fn get_data<'world, 'state>(
@@ -78,8 +78,8 @@ impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, 's,
     type State = P::State;
     type Data<'world, 'state> = StaticSystemInput<'world, 'state, P>;
 
-    fn init_state() -> Self::State {
-        P::init_state()
+    fn init_state(world: &mut World) -> Self::State {
+        P::init_state(world)
     }
 
     fn get_data<'world, 'state>(

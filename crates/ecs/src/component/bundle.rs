@@ -1,7 +1,6 @@
 use crate::{
     archetype::Archetype,
     component::{Component, ComponentId},
-    entity::Entity,
     table::{Table, TableRowIndex},
 };
 use std::any::TypeId;

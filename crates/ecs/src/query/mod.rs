@@ -4,11 +4,13 @@ use typle::typle;
 
 pub mod change_detection;
 pub mod query_filter;
+pub mod world_query;
 
 use crate::{
+    World,
     component::{Component, ComponentId},
     entity::Entity,
-    query::{change_detection::Mut, query_filter::QueryFilter},
+    query::{change_detection::Mut, query_filter::QueryFilter, world_query::WorldQuery},
     system::{
         access::SystemAccess,
         input::{ReadOnlySystemInput, SystemInput},
@@ -31,8 +33,9 @@ use crate::{
 ///     }
 /// }
 /// ```
-pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
+pub struct Query<'world, 'state, T: QueryData, F: QueryFilter = ()> {
     world: UnsafeWorldCell<'world>,
+    state: &'state T::State,
     matched_indices: Vec<usize>,
     _marker_data: PhantomData<T>,
     _marker_filter: PhantomData<F>,
@@ -42,7 +45,7 @@ pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
 ///
 /// Implementations are provided for `&T`, `&mut T`, `Entity`, `Option<&T>`,
 /// `Option<&mut T>`, and tuples of up to 12 elements.
-pub trait QueryData {
+pub trait QueryData: WorldQuery {
     /// The item type produced for each matched entity.
     type Item<'a>;
 
@@ -58,7 +61,7 @@ pub trait QueryData {
 
 pub trait ReadOnlyQueryData: QueryData {}
 
-impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
+impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
     /// Constructs a new query by scanning the world's archetypes for matches.
     pub fn new(world: UnsafeWorldCell<'world>) -> Self {
         let matched_indices: Vec<usize> = world
@@ -155,15 +158,17 @@ where
     }
 }
 
-impl<T, F> SystemInput for Query<'_, T, F>
+impl<T, F> SystemInput for Query<'_, '_, T, F>
 where
     T: QueryData,
     F: QueryFilter,
 {
-    type State = ();
-    type Data<'world, 'state> = Query<'world, T, F>;
+    type State = <T as WorldQuery>::State;
+    type Data<'world, 'state> = Query<'world, 'state, T, F>;
 
-    fn init_state() -> Self::State {}
+    fn init_state(world: &mut World) -> Self::State {
+        T::init_state(world)
+    }
 
     fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
@@ -177,7 +182,7 @@ where
     }
 }
 
-impl<T, F> ReadOnlySystemInput for Query<'_, T, F>
+impl<T, F> ReadOnlySystemInput for Query<'_, '_, T, F>
 where
     T: ReadOnlyQueryData,
     F: QueryFilter,

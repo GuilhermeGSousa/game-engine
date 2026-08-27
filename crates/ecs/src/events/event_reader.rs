@@ -1,6 +1,7 @@
 use std::slice::Iter;
 
 use crate::{
+    World,
     events::{Event, event_channel::EventChannel},
     resource::Res,
     system::input::SystemInput,
@@ -43,7 +44,7 @@ where
     type State = ();
     type Data<'world, 'state> = EventReader<'world, T>;
 
-    fn init_state() -> Self::State {}
+    fn init_state(_world: &mut World) -> Self::State {}
 
     fn get_data<'world, 'state>(
         _state: &'state mut Self::State,

@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::component::Tick;
-use crate::component::bundle::{self, ComponentBundle, MergeRow, PushRow, ReplaceRow};
+use crate::component::bundle::{ComponentBundle, MergeRow, PushRow, ReplaceRow};
 use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
 use crate::entity::entity_store::EntityStore;
@@ -545,7 +545,7 @@ impl SystemInput for &World {
     type State = ();
     type Data<'world, 'state> = &'world World;
 
-    fn init_state() -> Self::State {}
+    fn init_state(_world: &mut World) -> Self::State {}
 
     fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
@@ -563,7 +563,7 @@ impl SystemInput for &mut World {
     type State = ();
     type Data<'world, 'state> = &'world mut World;
 
-    fn init_state() -> Self::State {}
+    fn init_state(_world: &mut World) -> Self::State {}
 
     fn get_data<'world, 'state>(
         _state: &'state mut Self::State,

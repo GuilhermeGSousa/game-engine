@@ -1,13 +1,16 @@
 use std::marker::PhantomData;
 
-use crate::{component::bundle::ComponentBundle, entity::Entity, world::UnsafeWorldCell};
+use crate::{
+    Component, component::bundle::ComponentBundle, entity::Entity, query::world_query::WorldQuery,
+    world::UnsafeWorldCell,
+};
 use typle::typle;
 
 /// Restricts which entities a [`Query`](super::Query) visits.
 ///
 /// Multiple filters can be combined in a tuple: `(With<A>, Without<B>)` matches
 /// entities that have `A` but not `B`.  [`Or`] can be used for disjunctions.
-pub trait QueryFilter {
+pub trait QueryFilter: WorldQuery {
     fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
         Self::filter_and(world, entity)
     }
@@ -49,13 +52,22 @@ where
 }
 
 /// Matches entities where the given components were **added** this tick.
-pub struct Added<T: ComponentBundle> {
+pub struct Added<T: Component> {
     _marker: PhantomData<T>,
+}
+
+impl<T> WorldQuery for Added<T>
+where
+    T: Component,
+{
+    type State = ();
+
+    fn init_state(_world: &mut crate::World) -> Self::State {}
 }
 
 impl<T> QueryFilter for Added<T>
 where
-    T: ComponentBundle,
+    T: Component,
 {
     fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
         for component_id in T::get_component_ids() {
@@ -68,13 +80,22 @@ where
 }
 
 /// Matches entities where the given components were **mutated** this tick.
-pub struct Changed<T: ComponentBundle> {
+pub struct Changed<T: Component> {
     _marker: PhantomData<T>,
+}
+
+impl<T> WorldQuery for Changed<T>
+where
+    T: Component,
+{
+    type State = ();
+
+    fn init_state(_world: &mut crate::World) -> Self::State {}
 }
 
 impl<T> QueryFilter for Changed<T>
 where
-    T: ComponentBundle,
+    T: Component,
 {
     fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
         for component_id in T::get_component_ids() {
@@ -87,13 +108,22 @@ where
 }
 
 /// Matches entities that **have** all of the given components, without fetching them.
-pub struct With<T: ComponentBundle> {
+pub struct With<T: Component> {
     _marker: PhantomData<T>,
+}
+
+impl<T> WorldQuery for With<T>
+where
+    T: Component,
+{
+    type State = ();
+
+    fn init_state(_world: &mut crate::World) -> Self::State {}
 }
 
 impl<T> QueryFilter for With<T>
 where
-    T: ComponentBundle,
+    T: Component,
 {
     fn filter<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> bool {
         let world = world.world();
@@ -117,6 +147,17 @@ pub struct Not<T: QueryFilter> {
     _marker: PhantomData<T>,
 }
 
+impl<T> WorldQuery for Not<T>
+where
+    T: QueryFilter,
+{
+    type State = T::State;
+
+    fn init_state(world: &mut crate::World) -> Self::State {
+        T::init_state(world)
+    }
+}
+
 impl<T> QueryFilter for Not<T>
 where
     T: QueryFilter,
@@ -138,6 +179,17 @@ pub type Without<T> = Not<With<T>>;
 /// ```
 pub struct Or<T: QueryFilter> {
     _marker: PhantomData<T>,
+}
+
+impl<T> WorldQuery for Or<T>
+where
+    T: QueryFilter,
+{
+    type State = T::State;
+
+    fn init_state(world: &mut crate::World) -> Self::State {
+        T::init_state(world)
+    }
 }
 
 impl<T> QueryFilter for Or<T>

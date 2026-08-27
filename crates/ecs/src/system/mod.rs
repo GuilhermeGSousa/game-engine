@@ -35,6 +35,8 @@ pub trait System: Send + Sync + 'static {
         TypeId::of::<Self>()
     }
 
+    fn initialize(&mut self, world: &mut World);
+
     /// Describes which components and resources this system reads or writes.
     fn access(&self) -> SystemAccess;
 
@@ -81,12 +83,16 @@ impl System for BoxedSystem {
     fn access(&self) -> SystemAccess {
         (**self).access()
     }
+
+    fn initialize(&mut self, world: &mut World) {
+        (**self).initialize(world);
+    }
 }
 
 /// Wraps a plain function (or closure) and its cached input state into a [`System`].
 pub(crate) struct FunctionSystem<F, Input: SystemInput> {
     pub func: F,
-    system_state: Input::State,
+    system_state: Option<Input::State>,
 }
 
 impl<F, Input> FunctionSystem<F, Input>
@@ -96,8 +102,16 @@ where
     pub fn new(func: F) -> Self {
         Self {
             func,
-            system_state: Input::init_state(),
+            system_state: None,
         }
+    }
+
+    pub fn initialize(&mut self, world: &mut World) {
+        self.system_state = Some(Input::init_state(world))
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.system_state.is_some()
     }
 }
 
@@ -115,16 +129,30 @@ where
         std::any::type_name::<F>()
     }
 
+    fn initialize(&mut self, world: &mut World) {
+        for typle_index!(i) in 0..T::LEN {
+            self.initialize(world);
+        }
+    }
+
     fn apply(&mut self, world: &mut World) {
         for typle_index!(i) in 0..T::LEN {
-            <T<{ i }>>::apply(&mut self.system_state[[i]], world);
+            let state = self
+                .system_state
+                .as_mut()
+                .expect("Attempted to run uninitialized system.");
+            <T<{ i }>>::apply(&mut state[[i]], world);
         }
     }
 
     unsafe fn run_unsafe(&mut self, world: UnsafeWorldCell) {
-        (self.func)(
-            typle_args!(i in .. =>  <T<{i}>>::get_data(&mut self.system_state[[i]], world) ),
-        );
+        let state = self
+            .system_state
+            .as_mut()
+            .expect("Attempted to run uninitialized system.");
+        (self.func)(typle_args!(i in .. =>  {
+            <T<{i}>>::get_data(&mut state[[i]], world)
+        }));
     }
 
     fn access(&self) -> SystemAccess {

@@ -139,7 +139,7 @@ impl SystemInput for CommandQueue<'_, '_> {
     type State = CommandQueueState;
     type Data<'world, 'state> = CommandQueue<'world, 'state>;
 
-    fn init_state() -> Self::State {
+    fn init_state(_world: &mut World) -> Self::State {
         CommandQueueState::new()
     }
 

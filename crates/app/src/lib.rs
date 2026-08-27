@@ -43,14 +43,14 @@ impl Plugin for HokeyPokeyPlugin {
     fn build(&self, _: &mut App) {}
 }
 
-fn compile(schedules: Schedules) -> CompiledSchedules {
+fn compile(schedules: Schedules, world: &mut World) -> CompiledSchedules {
     #[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
     {
-        schedules.compile::<MultiThreadedExecutor>()
+        schedules.compile::<MultiThreadedExecutor>(world)
     }
     #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
     {
-        schedules.compile::<SingleThreadedExecutor>()
+        schedules.compile::<SingleThreadedExecutor>(world)
     }
 }
 
@@ -279,21 +279,21 @@ impl App {
 
         self.plugin_state = PluginsState::Finished;
 
-        self.compile_schedules();
-        self.compile_render_schedules();
+        self.compile_schedules(self.main_mut().world_mut());
+        self.compile_render_schedules(self.render_mut().world_mut());
 
         self.subapps.startup();
     }
 
-    fn compile_schedules(&mut self) {
+    fn compile_schedules(&mut self, world: &mut World) {
         let schedules = self
             .remove_resource::<Schedules>()
             .expect("Schedules resource not found!");
 
-        self.insert_resource(compile(schedules));
+        self.insert_resource(compile(schedules, world));
     }
 
-    fn compile_render_schedules(&mut self) {
+    fn compile_render_schedules(&mut self, world: &mut World) {
         let schedules = self
             .subapps
             .render_mut()
@@ -302,7 +302,7 @@ impl App {
 
         self.subapps
             .render_mut()
-            .insert_resource(compile(schedules));
+            .insert_resource(compile(schedules, world));
     }
 
     pub fn set_extract_fn(&mut self, extract_fn: impl FnMut(&mut World, &mut World) + 'static) {

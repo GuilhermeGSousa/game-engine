@@ -115,4 +115,12 @@ impl SubApp {
         self.update_schedule = Some(label.intern());
         self
     }
+
+    pub fn world(&self) -> &World {
+        &self.world
+    }
+
+    pub fn world_mut(&mut self) -> &mut World {
+        &mut self.world
+    }
 }

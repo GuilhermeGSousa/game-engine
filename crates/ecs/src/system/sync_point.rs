@@ -7,6 +7,8 @@ impl System for SyncPoint {
         "SyncPoint"
     }
 
+    fn initialize(&mut self, _world: &mut crate::World) {}
+
     fn access(&self) -> SystemAccess {
         let mut access = SystemAccess::default();
         access.write_world();

@@ -35,10 +35,8 @@ use crate::{
 /// ```
 pub struct Query<'world, 'state, T: QueryData, F: QueryFilter = ()> {
     world: UnsafeWorldCell<'world>,
-    state: &'state T::State,
+    state: &'state QueryState<T, F>,
     matched_indices: Vec<usize>,
-    _marker_data: PhantomData<T>,
-    _marker_filter: PhantomData<F>,
 }
 
 /// Describes what data a [`Query`] fetches from each matching entity.
@@ -63,7 +61,7 @@ pub trait ReadOnlyQueryData: QueryData {}
 
 impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
     /// Constructs a new query by scanning the world's archetypes for matches.
-    pub fn new(world: UnsafeWorldCell<'world>, state:&'state mut T::State) -> Self {
+    pub fn new(world: UnsafeWorldCell<'world>, state:&'state mut QueryState<T, F>) -> Self {
         let matched_indices: Vec<usize> = world
             .world()
             .archetypes()
@@ -82,8 +80,6 @@ impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
             world,
             state,
             matched_indices,
-            _marker_data: PhantomData,
-            _marker_filter: PhantomData,
         }
     }
 
@@ -111,6 +107,23 @@ impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
     /// Returns `true` if `entity` matches this query.
     pub fn contains_entity(&self, entity: Entity) -> bool {
         self.get_entity(entity).is_some()
+    }
+}
+
+pub struct QueryState<T: QueryData, F: QueryFilter = ()>
+{
+    data_state: T::State,
+    filter_state: F::State,
+}
+
+impl<T: QueryData, F: QueryFilter> QueryState<T, F> {
+    
+    pub(crate) fn new(world: &mut World) -> Self
+    {
+        Self {
+            data_state: T::init_state(world),
+            filter_state: F::init_state(world)
+        }
     }
 }
 
@@ -164,11 +177,11 @@ where
     T: QueryData + 'static,
     F: QueryFilter + 'static,
 {
-    type State = <T as WorldQuery>::State;
+    type State = QueryState<T, F>;
     type Data<'world, 'state> = Query<'world, 'state, T, F>;
 
     fn init_state(world: &mut World) -> Self::State {
-        T::init_state(world)
+        QueryState::<T, F>::new(world)
     }
 
     fn get_data<'world, 'state>(

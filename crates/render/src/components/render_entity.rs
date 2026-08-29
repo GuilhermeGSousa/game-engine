@@ -38,6 +38,9 @@ fn sync_render_entities(main: &mut World, render: &mut World) {
 }
 
 fn spawn_new_render_entities(main: &mut World, render: &mut World) {
+
+    let foo = render.query::<Entity, (With<SyncWithRenderWorld>, Without<RenderEntity>)>();
+
     let unlinked: Vec<Entity> =
         Query::<Entity, (With<SyncWithRenderWorld>, Without<RenderEntity>)>::new(
             main.as_unsafe_world_cell(),

@@ -10,6 +10,8 @@ use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
+use crate::query::query_filter::QueryFilter;
+use crate::query::{QueryData, QueryState};
 use crate::resource::ResourceStorage;
 use crate::system::schedule::{CompiledSchedules, ScheduleLabel};
 use crate::table::MutableCellAccessor;
@@ -146,6 +148,11 @@ impl World {
 
     pub fn get_archetypes_mut(&mut self) -> &mut Vec<Archetype> {
         &mut self.archetypes
+    }
+
+    pub fn query<T: QueryData, F: QueryFilter>(&mut self) -> QueryState<T, F>
+    {
+        QueryState::<T, F>::new(self)
     }
 
     /// Adds components to an existing entity, migrating it to the appropriate archetype.

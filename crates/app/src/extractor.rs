@@ -43,7 +43,7 @@ pub fn extract(main: &mut World, render: &mut World) {
 /// Access data from the MainWorld
 /// The MainWorld only exists during the [`Extract`] schedule
 #[derive(Deref, DerefMut)]
-pub struct Extracted<'world, 'state, T: ReadOnlySystemInput>(SystemInputData<'world, 'state, T>);
+pub struct Extracted<'world, 'state, T: ReadOnlySystemInput + 'static>(SystemInputData<'world, 'state, T>);
 
 impl<T: ReadOnlySystemInput + 'static> SystemInput for Extracted<'_, '_, T> {
     type State = T::State;

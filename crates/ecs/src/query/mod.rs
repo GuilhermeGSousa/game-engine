@@ -1,16 +1,20 @@
 use std::{any::TypeId, marker::PhantomData};
 
+use fixedbitset::Ones;
 use typle::typle;
 
 pub mod change_detection;
-pub mod query_filter;
+pub mod filter;
+pub mod state;
 pub mod world_query;
 
 use crate::{
     World,
     component::{Component, ComponentId},
     entity::Entity,
-    query::{change_detection::Mut, query_filter::QueryFilter, world_query::WorldQuery},
+    query::{
+        change_detection::Mut, filter::QueryFilter, state::QueryState, world_query::WorldQuery,
+    },
     system::{
         access::SystemAccess,
         input::{ReadOnlySystemInput, SystemInput},
@@ -36,7 +40,6 @@ use crate::{
 pub struct Query<'world, 'state, T: QueryData, F: QueryFilter = ()> {
     world: UnsafeWorldCell<'world>,
     state: &'state QueryState<T, F>,
-    matched_indices: Vec<usize>,
 }
 
 /// Describes what data a [`Query`] fetches from each matching entity.
@@ -61,33 +64,17 @@ pub trait ReadOnlyQueryData: QueryData {}
 
 impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
     /// Constructs a new query by scanning the world's archetypes for matches.
-    pub fn new(world: UnsafeWorldCell<'world>, state:&'state mut QueryState<T, F>) -> Self {
-        let matched_indices: Vec<usize> = world
-            .world()
-            .archetypes()
-            .iter()
-            .enumerate()
-            .filter_map(|(index, archetype)| {
-                if archetype.contains_all(T::component_ids()) {
-                    Some(index)
-                } else {
-                    None
-                }
-            })
-            .collect();
+    pub fn new(world: UnsafeWorldCell<'world>, state: &'state mut QueryState<T, F>) -> Self {
+        state.update_archetypes(world);
 
-        Self {
-            world,
-            state,
-            matched_indices,
-        }
+        Self { world, state }
     }
 
     /// Returns an iterator over all matching entities.
-    pub fn iter<'s>(&'s self) -> QueryIter<'world, 's, T, F> {
+    pub fn iter(&self) -> QueryIter<'world, 'state, T, F> {
         QueryIter {
             world: self.world,
-            matched_archetypes: self.matched_indices.iter(),
+            matched_archetypes: self.state.matched_archetypes(),
             current_entities: &[],
             current_row: 0,
             current_len: 0,
@@ -110,26 +97,9 @@ impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
     }
 }
 
-pub struct QueryState<T: QueryData, F: QueryFilter = ()>
-{
-    data_state: T::State,
-    filter_state: F::State,
-}
-
-impl<T: QueryData, F: QueryFilter> QueryState<T, F> {
-    
-    pub(crate) fn new(world: &mut World) -> Self
-    {
-        Self {
-            data_state: T::init_state(world),
-            filter_state: F::init_state(world)
-        }
-    }
-}
-
-pub struct QueryIter<'world, 'a, T, F> {
+pub struct QueryIter<'world, 'state, T, F> {
     world: UnsafeWorldCell<'world>,
-    matched_archetypes: core::slice::Iter<'a, usize>,
+    matched_archetypes: Ones<'state>,
     current_entities: &'world [Entity],
     current_row: usize,
     current_len: usize,
@@ -150,7 +120,7 @@ where
             if self.current_row == self.current_len {
                 let archetype_index = self.matched_archetypes.next()?;
 
-                let archetype = &archetypes[*archetype_index];
+                let archetype = &archetypes[archetype_index];
 
                 self.current_row = 0;
                 self.current_len = archetype.len();

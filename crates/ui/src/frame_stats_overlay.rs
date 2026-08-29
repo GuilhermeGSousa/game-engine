@@ -6,7 +6,7 @@ use color::Color;
 use ecs::{
     command::CommandQueue,
     component::Component,
-    query::{Query, query_filter::With},
+    query::{Query, filter::With},
     resource::{Res, ResMut, Resource},
 };
 use essential::time::{FrameStats, Time};

@@ -310,11 +310,12 @@ mod tests {
 
             let mut schedule = Schedule::new();
             schedule.add_system(drive_main_camera);
+            let schedule = schedule.compile::<SingleThreadedExecutor>(&mut world);
 
             Self {
                 world,
                 main_camera,
-                schedule: schedule.compile::<SingleThreadedExecutor>(),
+                schedule,
             }
         }
 

@@ -9,7 +9,7 @@ use color::Color;
 use ecs::{
     command::CommandQueue,
     component::Component,
-    query::{Query, query_filter::With},
+    query::{Query, filter::With},
     resource::Res,
 };
 use essential::{time::Time, transform::Transform};

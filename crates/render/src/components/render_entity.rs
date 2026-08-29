@@ -1,6 +1,6 @@
 use app::extractor::extract as extract_main_world;
 use derive_more::Deref;
-use ecs::{component::Component, Entity, Query, With, Without, World};
+use ecs::{component::Component, Entity, With, Without, World};
 
 /// Marks a main-world entity as needing a mirror entity in the render world.
 #[derive(Component)]
@@ -38,25 +38,20 @@ fn sync_render_entities(main: &mut World, render: &mut World) {
 }
 
 fn spawn_new_render_entities(main: &mut World, render: &mut World) {
-
-    let foo = render.query::<Entity, (With<SyncWithRenderWorld>, Without<RenderEntity>)>();
-
-    let unlinked: Vec<Entity> =
-        Query::<Entity, (With<SyncWithRenderWorld>, Without<RenderEntity>)>::new(
-            main.as_unsafe_world_cell(),
-        )
-        .iter()
-        .collect();
-
-    for main_entity in unlinked {
+    for main_entity in main
+        .query::<Entity, (With<SyncWithRenderWorld>, Without<RenderEntity>)>()
+        .iter(main)
+        .collect::<Vec<_>>()
+    {
         let render_entity = render.spawn(MainEntity::new(main_entity));
         main.insert(RenderEntity::new(render_entity), main_entity);
     }
 }
 
 fn despawn_stale_render_entities(main: &mut World, render: &mut World) {
-    let stale: Vec<Entity> = Query::<(Entity, &MainEntity)>::new(render.as_unsafe_world_cell())
-        .iter()
+    let stale: Vec<Entity> = render
+        .query::<(Entity, &MainEntity), ()>()
+        .iter(render)
         .filter_map(|(render_entity, main_entity)| {
             (!main.entity_is_valid(**main_entity)).then_some(render_entity)
         })

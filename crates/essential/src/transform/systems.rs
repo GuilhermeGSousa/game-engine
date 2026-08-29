@@ -4,7 +4,7 @@ use ecs::{
         Entity,
     },
     query::{
-        query_filter::{Changed, Without},
+        filter::{Changed, Without},
         Query,
     },
 };

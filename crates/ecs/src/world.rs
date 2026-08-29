@@ -10,8 +10,9 @@ use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
-use crate::query::query_filter::QueryFilter;
-use crate::query::{QueryData, QueryState};
+use crate::query::QueryData;
+use crate::query::filter::QueryFilter;
+use crate::query::state::QueryState;
 use crate::resource::ResourceStorage;
 use crate::system::schedule::{CompiledSchedules, ScheduleLabel};
 use crate::table::MutableCellAccessor;
@@ -82,11 +83,12 @@ impl World {
         let type_ids = T::get_component_ids();
         let entity_type = generate_type_id(&type_ids);
 
+        let archetype_id = self.archetypes().len().into();
         let archetype_index = self
             .archetype_index
             .entry(entity_type.clone())
             .or_insert_with(|| {
-                let archetype = Archetype::new(T::generate_empty_table(), type_ids);
+                let archetype = Archetype::new(T::generate_empty_table(), type_ids, archetype_id);
                 self.archetypes.push(archetype);
                 self.archetypes.len() - 1
             });
@@ -142,7 +144,7 @@ impl World {
         }
     }
 
-    pub fn archetypes(&self) -> &Vec<Archetype> {
+    pub fn archetypes(&self) -> &[Archetype] {
         &self.archetypes
     }
 
@@ -150,8 +152,7 @@ impl World {
         &mut self.archetypes
     }
 
-    pub fn query<T: QueryData, F: QueryFilter>(&mut self) -> QueryState<T, F>
-    {
+    pub fn query<T: QueryData, F: QueryFilter>(&mut self) -> QueryState<T, F> {
         QueryState::<T, F>::new(self)
     }
 
@@ -204,7 +205,11 @@ impl World {
 
                 let mut table = self.archetypes[source_index].clone_empty_table();
                 table.merge(T::generate_empty_table());
-                self.archetypes.push(Archetype::new(table, component_ids));
+                self.archetypes.push(Archetype::new(
+                    table,
+                    component_ids,
+                    self.archetypes().len().into(),
+                ));
 
                 new_index
             }
@@ -270,7 +275,11 @@ impl World {
 
                 let mut table = self.archetypes[source_index].clone_empty_table();
                 table.remove_column(removed_id);
-                self.archetypes.push(Archetype::new(table, component_ids));
+                self.archetypes.push(Archetype::new(
+                    table,
+                    component_ids,
+                    self.archetypes().len().into(),
+                ));
 
                 new_index
             }
@@ -647,6 +656,10 @@ impl<'w> UnsafeWorldCell<'w> {
         {
             remove(self.into_restricted(), ComponentLifecycleContext { entity });
         }
+    }
+
+    pub(crate) fn archetypes(&self) -> &[Archetype] {
+        self.world().archetypes()
     }
 }
 

@@ -81,7 +81,7 @@ mod tests {
     fn register_bodies(world: &mut World) {
         let mut schedule = Schedule::new();
         schedule.add_system(register_colliders);
-        schedule.compile::<SingleThreadedExecutor>().run(world);
+        schedule.compile::<SingleThreadedExecutor>(world).run(world);
     }
 
     /// Jolt reports poses with no scale of its own, so stepping and
@@ -112,7 +112,7 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(step_simulation);
         schedule.add_system(interpolate_body_transforms);
-        let mut schedule = schedule.compile::<SingleThreadedExecutor>();
+        let mut schedule = schedule.compile::<SingleThreadedExecutor>(&mut world);
 
         for _ in 0..3 {
             schedule.run(&mut world);

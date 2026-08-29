@@ -215,7 +215,7 @@ impl<'w> SystemInput for DebugGizmos<'w> {
     type State = ();
     type Data<'world, 'state> = DebugGizmos<'world>;
 
-    fn init_state() -> Self::State {}
+    fn init_state(_world: &mut ecs::World) -> Self::State {}
 
     fn get_data<'world, 'state>(
         _state: &'state mut Self::State,

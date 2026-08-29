@@ -8,7 +8,7 @@ use ecs::{
         Entity,
         hierarchy::{ChildOf, Children},
     },
-    query::{Query, query_filter::Without},
+    query::{Query, filter::Without},
     resource::{Res, Resource},
 };
 use essential::assets::handle::AssetHandle;

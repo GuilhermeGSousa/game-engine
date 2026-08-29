@@ -10,7 +10,7 @@ use game_engine::{
         command::CommandQueue,
         component::Component,
         entity::Entity,
-        query::{query_filter::Without, Query},
+        query::{filter::Without, Query},
         resource::Res,
     },
     essential::{

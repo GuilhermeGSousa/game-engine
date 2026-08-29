@@ -105,10 +105,6 @@ where
             system_state: None,
         }
     }
-
-    pub fn initialize(&mut self, world: &mut World) {
-        self.system_state = Some(Input::init_state(world))
-    }
 }
 
 #[allow(unused_variables, unused_mut)]
@@ -126,9 +122,7 @@ where
     }
 
     fn initialize(&mut self, world: &mut World) {
-        for typle_index!(i) in 0..T::LEN {
-            self.initialize(world);
-        }
+        self.system_state = Some(T::init_state(world));
     }
 
     fn apply(&mut self, world: &mut World) {

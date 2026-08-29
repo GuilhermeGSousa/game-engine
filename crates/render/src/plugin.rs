@@ -30,7 +30,7 @@ use crate::{
 };
 use app::{
     plugins::Plugin,
-    schedule_groups::{Extract, LateRender, LateUpdate, Render, RenderMain, Update},
+    schedule_groups::{Extract, LateRender, Render, RenderMain, Update},
 };
 use color::Color;
 use ecs::{resource::Resource, IntoSystemConfig, World};

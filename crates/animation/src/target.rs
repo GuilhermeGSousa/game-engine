@@ -1,5 +1,5 @@
 use ecs::{
-    query::{Query, query_filter::Changed},
+    query::{Query, filter::Changed},
     resource::Res,
 };
 use essential::{assets::asset_store::AssetStore, time::Time, transform::Transform};

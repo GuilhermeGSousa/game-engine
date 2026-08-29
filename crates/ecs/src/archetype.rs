@@ -1,3 +1,5 @@
+use derive_more::{Deref, From};
+
 use crate::{
     component::{Component, ComponentId},
     entity::Entity,
@@ -7,13 +9,15 @@ use crate::{
 pub struct Archetype {
     data_table: Table,
     component_ids: Vec<ComponentId>,
+    id: ArchetypeId,
 }
 
 impl Archetype {
-    pub fn new(data_table: Table, component_ids: Vec<ComponentId>) -> Archetype {
+    pub fn new(data_table: Table, component_ids: Vec<ComponentId>, id: ArchetypeId) -> Archetype {
         Archetype {
             data_table,
             component_ids,
+            id,
         }
     }
 
@@ -51,12 +55,12 @@ impl Archetype {
         self.data_table.has_column(component_id)
     }
 
-    pub fn contains_all(&self, component_ids: Vec<ComponentId>) -> bool {
-        component_ids.iter().all(|id| self.contains(*id))
-    }
-
     pub fn len(&self) -> usize {
         self.data_table.get_row_count()
+    }
+
+    pub fn id(&self) -> ArchetypeId {
+        self.id
     }
 
     pub fn is_empty(&self) -> bool {
@@ -122,3 +126,6 @@ impl Archetype {
         &self.component_ids
     }
 }
+
+#[derive(Clone, Copy, Deref, From)]
+pub struct ArchetypeId(usize);

@@ -9,6 +9,7 @@ use essential::{
 use ecs::{command::CommandQueue, component::Component, query::Query, resource::Res};
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
+use window::plugin::Window;
 
 use crate::{
     assets::texture::Texture, components::render_entity::RenderEntity, device::RenderDevice,
@@ -268,9 +269,13 @@ pub fn create_rtt(
     }
 }
 
-pub(crate) fn sync_camera_aspect(cameras: Query<&mut Camera>, context: Res<RenderContext>) {
-    let width = context.surface_config.width;
-    let height = context.surface_config.height;
+/// Keeps every main-window [`Camera`]'s aspect ratio matched to the window size.
+///
+/// Runs in the main world, where [`Camera`] lives. The window is the
+/// authoritative size source; the render world's surface is reconfigured
+/// downstream of it, so there's no need to reach across worlds for it.
+pub(crate) fn sync_camera_aspect(cameras: Query<&mut Camera>, window: Res<Window>) {
+    let (width, height) = window.size();
     if width == 0 || height == 0 {
         return;
     }

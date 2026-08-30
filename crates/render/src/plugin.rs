@@ -30,7 +30,7 @@ use crate::{
 };
 use app::{
     plugins::Plugin,
-    schedule_groups::{Extract, LateRender, Render, RenderMain, Update},
+    schedule_groups::{Extract, LateRender, LateUpdate, Render, RenderMain, Update},
 };
 use color::Color;
 use ecs::{resource::Resource, IntoSystemConfig, World};
@@ -175,11 +175,9 @@ impl Plugin for RenderPlugin {
             .add_render_system(Extract, extract_lights)
             .add_render_system(Extract, extract_skeletons);
 
-        // TODO: Migrate to render app
-        // app.add_system(LateUpdate, sync_camera_aspect);
-
         if is_windowed {
             app.add_system(Update, update_window::request_window_resize)
+                .add_system(LateUpdate, sync_camera_aspect)
                 .add_render_system(Extract, update_window::extract_window)
                 .add_render_system(Render, update_window::update_render_window);
         }

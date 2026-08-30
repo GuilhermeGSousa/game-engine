@@ -107,7 +107,7 @@ where
     }
 }
 
-#[allow(unused_variables, unused_mut)]
+#[allow(unused_variables, unused_mut, clippy::unit_arg)]
 #[typle(Tuple for 0..=12)]
 impl<F, T> System for FunctionSystem<F, T>
 where

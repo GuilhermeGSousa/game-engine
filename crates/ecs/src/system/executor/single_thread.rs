@@ -70,7 +70,9 @@ mod tests {
 
         print!("{schedule:?}");
 
-        schedule.compile::<SingleThreadedExecutor>(&mut world).run(&mut world);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2]);
     }
@@ -94,7 +96,9 @@ mod tests {
         // then push_1 (main → NodeIndex 1).  Insertion order would run
         // push_2 first — only the toposort fix produces the correct [1, 2] result.
         schedule.add_system(push_1.before(push_2));
-        schedule.compile::<SingleThreadedExecutor>(&mut world).run(&mut world);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2]);
     }
@@ -118,7 +122,9 @@ mod tests {
         let mut schedule = Schedule::new();
         // push_3.after(push_2.after(push_1)):  1 → 2 → 3
         schedule.add_system(push_3.after(push_2.after(push_1)));
-        schedule.compile::<SingleThreadedExecutor>(&mut world).run(&mut world);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2, 3]);
     }

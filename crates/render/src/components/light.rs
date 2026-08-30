@@ -200,11 +200,7 @@ impl Component for RenderLight {
 
                 match shadow_slot {
                     Some(shadow_slot) => {
-                        world.insert(
-                            RenderShadowCasterSlot(shadow_slot),
-                            context.entity,
-                            false,
-                        );
+                        world.insert(RenderShadowCasterSlot(shadow_slot), context.entity, false);
                         if let Some(render_light) =
                             world.get_component_for_entity_mut::<RenderLight>(context.entity)
                         {

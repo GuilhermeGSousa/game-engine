@@ -166,7 +166,9 @@ mod tests {
 
         println!("{:?}", schedule);
 
-        schedule.compile::<MultiThreadedExecutor>(&mut world).run(&mut world);
+        schedule
+            .compile::<MultiThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(world.get_resource::<Counter>().unwrap().0, 1);
     }

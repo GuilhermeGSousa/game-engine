@@ -8,7 +8,9 @@ use ecs::{
 
 use crate::schedule_groups::Extract;
 
-pub type ExtractFn = Box<dyn FnMut(&mut World, &mut World)>;
+// `Send` so a `SubApp` carrying its extract closure can be moved to a render
+// thread (see `render::render_thread`). `extract` itself is a plain `fn`.
+pub type ExtractFn = Box<dyn FnMut(&mut World, &mut World) + Send>;
 
 #[derive(Deref, Default, Resource)]
 pub(crate) struct ScratchMainWorld(pub(crate) World);

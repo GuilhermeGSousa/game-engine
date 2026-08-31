@@ -163,7 +163,7 @@ impl AssetServer {
         let id = match self.data.path_to_id.write().unwrap().entry(path.clone()) {
             std::collections::hash_map::Entry::Occupied(occupied_entry) => *occupied_entry.get(),
             std::collections::hash_map::Entry::Vacant(vacant_entry) => {
-                *vacant_entry.insert(AssetId::from_path(&path.to_path().to_string_lossy()))
+                *vacant_entry.insert(AssetId::from_path(&path.address()))
             }
         };
 

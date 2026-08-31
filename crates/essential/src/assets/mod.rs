@@ -44,6 +44,23 @@ impl<'a> AssetPath<'a> {
         &self.normalized_path
     }
 
+    /// Recovers the logical asset address this path was constructed from,
+    /// i.e. the string as a human would write it in `assets.toml` or a
+    /// `load()` call (e.g. `"models/character.gltf#scene"`), by stripping
+    /// the `"res/"` prefix `AssetPath::new` adds during normalization.
+    ///
+    /// This is what `AssetId::from_path` must be given so that a runtime
+    /// `load()` call and cook-time ID computation (which both derive an
+    /// `AssetId` from the same manifest-relative address string, with no
+    /// `"res/"` prefix) agree on the same `AssetId` for the same asset.
+    pub fn address(&self) -> String {
+        let normalized = self.normalized_path.to_string_lossy();
+        normalized
+            .strip_prefix("res/")
+            .unwrap_or(&normalized)
+            .to_owned()
+    }
+
     pub fn into_owned(self) -> AssetPath<'static> {
         AssetPath {
             normalized_path: Cow::Owned(self.normalized_path.into_owned()),

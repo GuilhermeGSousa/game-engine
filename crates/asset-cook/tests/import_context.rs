@@ -38,18 +38,18 @@ fn emit_records_sub_asset_with_serialized_bytes_and_references() {
 
     ctx.emit("material/0", &thing).expect("emit should succeed for a serializable value");
 
-    let (sub_assets, _dependencies) = ctx.into_parts();
-    assert_eq!(sub_assets.len(), 1);
+    let out = ctx.into_parts();
+    assert_eq!(out.sub_assets.len(), 1, "emit should record exactly one sub-asset");
 
-    let entry = &sub_assets[0];
-    assert_eq!(entry.name, "material/0");
-    assert_eq!(entry.asset_id, AssetId::from_path("models/character.gltf#material/0"));
-    assert_eq!(entry.type_name, "FakeThing");
-    assert_eq!(entry.references, vec![referenced_id]);
+    let entry = &out.sub_assets[0];
+    assert_eq!(entry.name, "material/0", "emitted sub-asset keeps the name passed to emit");
+    assert_eq!(entry.asset_id, AssetId::from_path("models/character.gltf#material/0"), "asset_id computed from source path and name");
+    assert_eq!(entry.type_name, "FakeThing", "emitted sub-asset carries the CookedAsset TYPE_NAME");
+    assert_eq!(entry.references, vec![referenced_id], "references extracted from CookedAsset::referenced_sub_assets");
 
     let round_tripped: FakeCookedThing =
         bincode::deserialize(&entry.bytes).expect("emitted bytes must deserialize back");
-    assert_eq!(round_tripped.referenced, referenced_id);
+    assert_eq!(round_tripped.referenced, referenced_id, "bincode round-trip preserves data");
 }
 
 #[test]
@@ -57,8 +57,8 @@ fn track_dependency_records_path_and_hash() {
     let mut ctx = ImportContext::new(std::path::PathBuf::from("models/character.gltf"));
     ctx.track_dependency(std::path::PathBuf::from("assets/models/character.bin"), 12345);
 
-    let (_sub_assets, dependencies) = ctx.into_parts();
-    assert_eq!(dependencies.len(), 1);
-    assert_eq!(dependencies[0].path, std::path::PathBuf::from("assets/models/character.bin"));
-    assert_eq!(dependencies[0].content_hash, 12345);
+    let out = ctx.into_parts();
+    assert_eq!(out.dependencies.len(), 1, "track_dependency should record exactly one dependency");
+    assert_eq!(out.dependencies[0].path, std::path::PathBuf::from("assets/models/character.bin"), "dependency path matches tracked value");
+    assert_eq!(out.dependencies[0].content_hash, 12345, "dependency content_hash matches tracked value");
 }

@@ -27,6 +27,12 @@ pub enum ImportError {
     SerializationFailed { sub_asset_name: String, message: String },
 }
 
+#[derive(Debug, Clone)]
+pub struct ImportOutputs {
+    pub sub_assets: Vec<EmittedSubAsset>,
+    pub dependencies: Vec<DependencyEntry>,
+}
+
 pub struct ImportContext {
     relative_source: PathBuf,
     sub_assets: Vec<EmittedSubAsset>,
@@ -68,7 +74,7 @@ impl ImportContext {
         self.dependencies.push(DependencyEntry { path, content_hash });
     }
 
-    pub fn into_parts(self) -> (Vec<EmittedSubAsset>, Vec<DependencyEntry>) {
-        (self.sub_assets, self.dependencies)
+    pub fn into_parts(self) -> ImportOutputs {
+        ImportOutputs { sub_assets: self.sub_assets, dependencies: self.dependencies }
     }
 }

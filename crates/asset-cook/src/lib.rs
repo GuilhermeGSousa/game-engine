@@ -1,6 +1,6 @@
 mod import_context;
 
-pub use import_context::{DependencyEntry, EmittedSubAsset, ImportContext, ImportError};
+pub use import_context::{DependencyEntry, EmittedSubAsset, ImportContext, ImportError, ImportOutputs};
 
 use std::path::{Path, PathBuf};
 

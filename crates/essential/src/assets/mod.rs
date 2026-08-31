@@ -5,6 +5,7 @@ use std::{
 };
 
 use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 
 pub use essential_macros::Asset;
 
@@ -75,12 +76,30 @@ impl<'a> From<&'a str> for AssetPath<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AssetId(Uuid);
+
+/// Fixed namespace for deriving AssetIds from asset paths, so the same
+/// path string always hashes to the same UUID (v5) regardless of process
+/// or machine. Generated once via `uuid::Uuid::new_v4()` and hard-coded —
+/// it must never change once assets have been cooked with it.
+const ASSET_PATH_NAMESPACE: Uuid = Uuid::from_bytes([
+    0x6d, 0x1a, 0x9a, 0x3e, 0x2f, 0x0b, 0x4a, 0x77,
+    0x8e, 0x92, 0x1a, 0x64, 0xaf, 0x03, 0x5c, 0x11,
+]);
 
 impl AssetId {
     pub fn new() -> Self {
         AssetId(Uuid::new_v4())
+    }
+
+    /// Deterministically derives a stable AssetId from a full asset address
+    /// string (e.g. "models/character.gltf#texture/albedo"). The same
+    /// string always produces the same ID, with no shared state required —
+    /// this is what lets the cook tool and the runtime independently agree
+    /// on an asset's identity and cooked-file location.
+    pub fn from_path(path: &str) -> Self {
+        AssetId(Uuid::new_v5(&ASSET_PATH_NAMESPACE, path.as_bytes()))
     }
 }
 

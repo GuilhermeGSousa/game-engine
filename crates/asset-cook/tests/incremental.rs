@@ -34,50 +34,52 @@ impl Importer for CountingImporter {
     }
 }
 
-fn setup() -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
-    let temp_dir = std::env::temp_dir().join(format!("asset-cook-incremental-{}", std::process::id()));
+struct Fixture {
+    manifest_path: std::path::PathBuf,
+    source_root: std::path::PathBuf,
+    output_root: std::path::PathBuf,
+}
+
+fn setup(name: &str) -> Fixture {
+    let temp_dir = std::env::temp_dir()
+        .join(format!("asset-cook-incremental-{}-{}", std::process::id(), name));
+    let _ = std::fs::remove_dir_all(&temp_dir);
     let source_root = temp_dir.join("assets");
     let output_root = temp_dir.join("res");
     std::fs::create_dir_all(&source_root).unwrap();
     std::fs::write(source_root.join("thing.fake"), b"source v1").unwrap();
     std::fs::write(source_root.join("thing.dep"), b"dep v1").unwrap();
-
     let manifest_path = temp_dir.join("assets.toml");
     std::fs::write(&manifest_path, "[[assets]]\npath = \"thing.fake\"\n").unwrap();
-
-    (manifest_path, source_root, output_root)
+    Fixture { manifest_path, source_root, output_root }
 }
 
 #[test]
 fn second_cook_skips_unchanged_source_and_dependency() {
-    let (manifest_path, source_root, output_root) = setup();
+    let fx = setup("skips_unchanged");
     let importers: Vec<Box<dyn Importer>> = vec![Box::new(CountingImporter { import_count: AtomicUsize::new(0) })];
-    let options = CookOptions { manifest_path, source_root: source_root.clone(), output_root };
+    let options = CookOptions { manifest_path: fx.manifest_path, source_root: fx.source_root.clone(), output_root: fx.output_root };
 
     let first = run_cook(&importers, &options);
     assert_eq!(first.errors.len(), 0, "first cook must succeed: {:?}", first.errors);
-    assert_eq!(first.cooked.len(), 1);
+    assert_eq!(first.cooked.len(), 1, "first cook must cook the one manifest entry");
 
     let second = run_cook(&importers, &options);
-    assert_eq!(second.errors.len(), 0);
+    assert_eq!(second.errors.len(), 0, "second cook must have no errors");
     assert_eq!(second.cooked.len(), 0, "nothing changed, so nothing should be re-cooked");
-    assert_eq!(second.skipped.len(), 1);
-
-    std::fs::remove_dir_all(source_root.parent().unwrap()).ok();
+    assert_eq!(second.skipped.len(), 1, "unchanged source must be skipped");
 }
 
 #[test]
 fn changing_a_tracked_dependency_forces_reimport() {
-    let (manifest_path, source_root, output_root) = setup();
+    let fx = setup("dep_change_forces_reimport");
     let importers: Vec<Box<dyn Importer>> = vec![Box::new(CountingImporter { import_count: AtomicUsize::new(0) })];
-    let options = CookOptions { manifest_path, source_root: source_root.clone(), output_root };
+    let options = CookOptions { manifest_path: fx.manifest_path, source_root: fx.source_root.clone(), output_root: fx.output_root };
 
     run_cook(&importers, &options);
-    std::fs::write(source_root.join("thing.dep"), b"dep v2 - changed").unwrap();
+    std::fs::write(fx.source_root.join("thing.dep"), b"dep v2 - changed").unwrap();
     let second = run_cook(&importers, &options);
 
     assert_eq!(second.cooked.len(), 1, "a changed dependency must force the source to re-import");
-    assert_eq!(second.skipped.len(), 0);
-
-    std::fs::remove_dir_all(source_root.parent().unwrap()).ok();
+    assert_eq!(second.skipped.len(), 0, "no sources should be skipped when dependency changed");
 }

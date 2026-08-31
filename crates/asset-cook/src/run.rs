@@ -66,9 +66,18 @@ pub fn run_cook(importers: &[Box<dyn Importer>], options: &CookOptions) -> CookR
 
         match cook_source(importer.as_ref(), &source_path, &relative_source, &options.output_root) {
             Ok(index) => {
-                std::fs::create_dir_all(index_path.parent().unwrap()).ok();
-                if let Ok(bytes) = bincode::serialize(&index) {
-                    let _ = std::fs::write(&index_path, bytes);
+                if let Err(err) = std::fs::create_dir_all(index_path.parent().unwrap()) {
+                    eprintln!("warning: failed to create incremental index dir for {}: {err}", relative_source.display());
+                }
+                match bincode::serialize(&index) {
+                    Ok(bytes) => {
+                        if let Err(err) = std::fs::write(&index_path, bytes) {
+                            eprintln!("warning: failed to persist incremental index for {}: {err}", relative_source.display());
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("warning: failed to serialize incremental index for {}: {err}", relative_source.display());
+                    }
                 }
                 report.cooked.push(source_path);
             }

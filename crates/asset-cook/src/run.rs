@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-    cook_source, cooked_file_path_for_id, hash_file_contents, AssetManifest, CookOptions, ImportError,
-    Importer, SourceIndex,
+    cook_source, cooked_file_path_for_id, hash_file_contents, AssetManifest, CookOptions,
+    ImportError, Importer, SourceIndex,
 };
 
 #[derive(Debug, Default)]
@@ -49,8 +49,14 @@ pub fn run_cook(importers: &[Box<dyn Importer>], options: &CookOptions) -> CookR
         let relative_source = PathBuf::from(&entry.path);
         let source_path = options.source_root.join(&relative_source);
 
-        let extension = source_path.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
-        let Some(importer) = importers.iter().find(|i| i.supported_extensions().contains(&extension)) else {
+        let extension = source_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or_default();
+        let Some(importer) = importers
+            .iter()
+            .find(|i| i.supported_extensions().contains(&extension))
+        else {
             report.errors.push(ImportError::MalformedSource {
                 source_path: source_path.clone(),
                 message: format!("no importer registered for extension '{extension}'"),
@@ -69,19 +75,33 @@ pub fn run_cook(importers: &[Box<dyn Importer>], options: &CookOptions) -> CookR
             }
         }
 
-        match cook_source(importer.as_ref(), &source_path, &relative_source, &options.output_root) {
+        match cook_source(
+            importer.as_ref(),
+            &source_path,
+            &relative_source,
+            &options.output_root,
+        ) {
             Ok(index) => {
                 if let Err(err) = std::fs::create_dir_all(index_path.parent().unwrap()) {
-                    eprintln!("warning: failed to create incremental index dir for {}: {err}", relative_source.display());
+                    eprintln!(
+                        "warning: failed to create incremental index dir for {}: {err}",
+                        relative_source.display()
+                    );
                 }
                 match bincode::serialize(&index) {
                     Ok(bytes) => {
                         if let Err(err) = std::fs::write(&index_path, bytes) {
-                            eprintln!("warning: failed to persist incremental index for {}: {err}", relative_source.display());
+                            eprintln!(
+                                "warning: failed to persist incremental index for {}: {err}",
+                                relative_source.display()
+                            );
                         }
                     }
                     Err(err) => {
-                        eprintln!("warning: failed to serialize incremental index for {}: {err}", relative_source.display());
+                        eprintln!(
+                            "warning: failed to serialize incremental index for {}: {err}",
+                            relative_source.display()
+                        );
                     }
                 }
 
@@ -92,8 +112,11 @@ pub fn run_cook(importers: &[Box<dyn Importer>], options: &CookOptions) -> CookR
                         name: entry.name.clone(),
                         asset_id: entry.asset_id,
                         type_name: Box::leak(entry.type_name.clone().into_boxed_str()),
-                        bytes: std::fs::read(cooked_file_path_for_id(&options.output_root, entry.asset_id))
-                            .unwrap_or_default(),
+                        bytes: std::fs::read(cooked_file_path_for_id(
+                            &options.output_root,
+                            entry.asset_id,
+                        ))
+                        .unwrap_or_default(),
                         references: entry.references.clone(),
                     })
                     .collect();

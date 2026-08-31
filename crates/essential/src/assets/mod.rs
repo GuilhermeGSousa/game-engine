@@ -4,8 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use uuid::Uuid;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub use essential_macros::Asset;
 
@@ -101,8 +101,7 @@ pub struct AssetId(Uuid);
 /// or machine. Generated once via `uuid::Uuid::new_v4()` and hard-coded —
 /// it must never change once assets have been cooked with it.
 const ASSET_PATH_NAMESPACE: Uuid = Uuid::from_bytes([
-    0x6d, 0x1a, 0x9a, 0x3e, 0x2f, 0x0b, 0x4a, 0x77,
-    0x8e, 0x92, 0x1a, 0x64, 0xaf, 0x03, 0x5c, 0x11,
+    0x6d, 0x1a, 0x9a, 0x3e, 0x2f, 0x0b, 0x4a, 0x77, 0x8e, 0x92, 0x1a, 0x64, 0xaf, 0x03, 0x5c, 0x11,
 ]);
 
 impl AssetId {

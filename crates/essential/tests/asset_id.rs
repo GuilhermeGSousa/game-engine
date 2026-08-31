@@ -8,7 +8,10 @@ use essential::assets::AssetId;
 fn from_path_is_deterministic() {
     let a = AssetId::from_path("models/character.gltf#texture/albedo");
     let b = AssetId::from_path("models/character.gltf#texture/albedo");
-    assert_eq!(a, b, "the same path string must hash to the same AssetId every time");
+    assert_eq!(
+        a, b,
+        "the same path string must hash to the same AssetId every time"
+    );
 }
 
 #[test]

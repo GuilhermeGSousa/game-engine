@@ -31,7 +31,9 @@ pub struct CookOptions {
 /// reference (which only ever carries an AssetId, never a path) resolve to
 /// its cooked bytes with no lookup.
 pub fn cooked_file_path_for_id(output_root: &Path, id: AssetId) -> PathBuf {
-    output_root.join(".cooked").join(format!("{}.bin", id.simple_hex()))
+    output_root
+        .join(".cooked")
+        .join(format!("{}.bin", id.simple_hex()))
 }
 
 pub fn hash_file_contents(path: &Path) -> Result<u64, ImportError> {

@@ -2,7 +2,9 @@
 //! sub-assets, cook_source writes each to its flat, AssetId-keyed location.
 use std::path::Path;
 
-use asset_cook::{cook_source, cooked_file_path_for_id, CookedAsset, ImportContext, ImportError, Importer};
+use asset_cook::{
+    cook_source, cooked_file_path_for_id, CookedAsset, ImportContext, ImportError, Importer,
+};
 use essential::assets::AssetId;
 use serde::{Deserialize, Serialize};
 
@@ -42,17 +44,31 @@ fn cook_source_writes_one_flat_file_per_sub_asset() {
     let index = cook_source(&FakeImporter, &source_path, relative_source, &output_root)
         .expect("cooking a valid fake source should succeed");
 
-    assert_eq!(index.sub_assets.len(), 2, "both emitted sub-assets must appear in the index");
+    assert_eq!(
+        index.sub_assets.len(),
+        2,
+        "both emitted sub-assets must appear in the index"
+    );
 
     let expected_id = AssetId::from_path("models/character.fake#thing/0");
     assert_eq!(index.sub_assets[0].asset_id, expected_id);
 
     let cooked_path = cooked_file_path_for_id(&output_root, expected_id);
-    assert!(cooked_path.exists(), "cooked file must exist at the deterministic ID-keyed path");
+    assert!(
+        cooked_path.exists(),
+        "cooked file must exist at the deterministic ID-keyed path"
+    );
 
     let stem = cooked_path.file_stem().unwrap().to_str().unwrap();
-    assert_eq!(stem.len(), 32, "cooked filename stem must be the 32-char hyphenless UUID hex");
-    assert!(stem.chars().all(|c| c.is_ascii_hexdigit()), "cooked filename stem must be pure hex: {stem}");
+    assert_eq!(
+        stem.len(),
+        32,
+        "cooked filename stem must be the 32-char hyphenless UUID hex"
+    );
+    assert!(
+        stem.chars().all(|c| c.is_ascii_hexdigit()),
+        "cooked filename stem must be pure hex: {stem}"
+    );
 
     let bytes = std::fs::read(&cooked_path).unwrap();
     let decoded: FakeCookedThing = bincode::deserialize(&bytes).unwrap();

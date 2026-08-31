@@ -29,7 +29,13 @@ impl Importer for DanglingRefImporter {
     }
     fn import(&self, _source_path: &Path, ctx: &mut ImportContext) -> Result<(), ImportError> {
         let dangling = AssetId::from_path("models/does_not_exist.fake#thing/0");
-        ctx.emit("thing/0", &RefThing { references: vec![dangling] }).unwrap();
+        ctx.emit(
+            "thing/0",
+            &RefThing {
+                references: vec![dangling],
+            },
+        )
+        .unwrap();
         Ok(())
     }
 }
@@ -41,7 +47,8 @@ impl Importer for AlwaysErrorsImporter {
         &["fake"]
     }
     fn import(&self, _source_path: &Path, ctx: &mut ImportContext) -> Result<(), ImportError> {
-        ctx.emit("thing/0", &RefThing { references: vec![] }).unwrap();
+        ctx.emit("thing/0", &RefThing { references: vec![] })
+            .unwrap();
         Ok(())
     }
     fn validate(&self, _sub_assets: &[EmittedSubAsset]) -> Vec<ValidationIssue> {
@@ -61,7 +68,10 @@ struct Fixture {
 }
 
 fn write_fixture(name: &str) -> Fixture {
-    let temp_dir = std::env::temp_dir().join(format!("asset-cook-validation-{name}-{}", std::process::id()));
+    let temp_dir = std::env::temp_dir().join(format!(
+        "asset-cook-validation-{name}-{}",
+        std::process::id()
+    ));
     let _ = std::fs::remove_dir_all(&temp_dir);
     let source_root = temp_dir.join("assets");
     let output_root = temp_dir.join("res");
@@ -69,18 +79,29 @@ fn write_fixture(name: &str) -> Fixture {
     std::fs::write(source_root.join("thing.fake"), b"source").unwrap();
     let manifest_path = temp_dir.join("assets.toml");
     std::fs::write(&manifest_path, "[[assets]]\npath = \"thing.fake\"\n").unwrap();
-    Fixture { manifest_path, source_root, output_root }
+    Fixture {
+        manifest_path,
+        source_root,
+        output_root,
+    }
 }
 
 #[test]
 fn dangling_reference_fails_the_cook_run() {
     let fx = write_fixture("dangling");
     let importers: Vec<Box<dyn Importer>> = vec![Box::new(DanglingRefImporter)];
-    let options = CookOptions { manifest_path: fx.manifest_path, source_root: fx.source_root.clone(), output_root: fx.output_root };
+    let options = CookOptions {
+        manifest_path: fx.manifest_path,
+        source_root: fx.source_root.clone(),
+        output_root: fx.output_root,
+    };
 
     let report = run_cook(&importers, &options);
     assert!(
-        report.errors.iter().any(|e| matches!(e, ImportError::MissingRequiredData { .. })),
+        report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ImportError::MissingRequiredData { .. })),
         "expected a MissingRequiredData error, got: {:?}",
         report.errors
     );
@@ -92,11 +113,18 @@ fn dangling_reference_fails_the_cook_run() {
 fn validate_error_severity_fails_the_cook_run() {
     let fx = write_fixture("validate-error");
     let importers: Vec<Box<dyn Importer>> = vec![Box::new(AlwaysErrorsImporter)];
-    let options = CookOptions { manifest_path: fx.manifest_path, source_root: fx.source_root.clone(), output_root: fx.output_root };
+    let options = CookOptions {
+        manifest_path: fx.manifest_path,
+        source_root: fx.source_root.clone(),
+        output_root: fx.output_root,
+    };
 
     let report = run_cook(&importers, &options);
     assert!(
-        report.errors.iter().any(|e| matches!(e, ImportError::MissingRequiredData { .. })),
+        report
+            .errors
+            .iter()
+            .any(|e| matches!(e, ImportError::MissingRequiredData { .. })),
         "expected a MissingRequiredData error, got: {:?}",
         report.errors
     );

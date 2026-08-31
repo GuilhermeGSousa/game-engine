@@ -21,10 +21,22 @@ pub struct EmittedSubAsset {
 
 #[derive(Debug, Clone)]
 pub enum ImportError {
-    SourceUnreadable { source_path: PathBuf, message: String },
-    MalformedSource { source_path: PathBuf, message: String },
-    MissingRequiredData { source_path: PathBuf, message: String },
-    SerializationFailed { sub_asset_name: String, message: String },
+    SourceUnreadable {
+        source_path: PathBuf,
+        message: String,
+    },
+    MalformedSource {
+        source_path: PathBuf,
+        message: String,
+    },
+    MissingRequiredData {
+        source_path: PathBuf,
+        message: String,
+    },
+    SerializationFailed {
+        sub_asset_name: String,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +53,11 @@ pub struct ImportContext {
 
 impl ImportContext {
     pub fn new(relative_source: PathBuf) -> Self {
-        Self { relative_source, sub_assets: Vec::new(), dependencies: Vec::new() }
+        Self {
+            relative_source,
+            sub_assets: Vec::new(),
+            dependencies: Vec::new(),
+        }
     }
 
     /// Computes the stable AssetId a sub-asset name resolves to *within this
@@ -71,10 +87,14 @@ impl ImportContext {
     }
 
     pub fn track_dependency(&mut self, path: PathBuf, content_hash: u64) {
-        self.dependencies.push(DependencyEntry { path, content_hash });
+        self.dependencies
+            .push(DependencyEntry { path, content_hash });
     }
 
     pub fn into_parts(self) -> ImportOutputs {
-        ImportOutputs { sub_assets: self.sub_assets, dependencies: self.dependencies }
+        ImportOutputs {
+            sub_assets: self.sub_assets,
+            dependencies: self.dependencies,
+        }
     }
 }

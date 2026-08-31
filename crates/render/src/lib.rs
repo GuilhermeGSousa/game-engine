@@ -5,6 +5,7 @@ extern crate self as render;
 pub mod assets;
 pub mod components;
 pub mod device;
+pub mod importers;
 pub mod layouts;
 pub mod loaders;
 pub mod material_plugin;

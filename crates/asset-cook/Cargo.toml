@@ -8,6 +8,7 @@ essential = { path = "../essential" }
 serde = { version = "1", features = ["derive"] }
 bincode = "1.3"
 anyhow = "1.0.97"
+toml = "0.8"
 
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }

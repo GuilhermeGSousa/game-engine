@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use crate::{cook_source, hash_file_contents, AssetManifest, CookOptions, ImportError, Importer, SourceIndex};
+use crate::{
+    cook_source, cooked_file_path_for_id, hash_file_contents, AssetManifest, CookOptions, ImportError,
+    Importer, SourceIndex,
+};
 
 #[derive(Debug, Default)]
 pub struct CookReport {
@@ -29,6 +32,7 @@ fn source_is_unchanged(existing: &SourceIndex, source_path: &std::path::Path) ->
 
 pub fn run_cook(importers: &[Box<dyn Importer>], options: &CookOptions) -> CookReport {
     let mut report = CookReport::default();
+    let mut all_indices: Vec<SourceIndex> = Vec::new();
 
     let manifest = match AssetManifest::load(&options.manifest_path) {
         Ok(manifest) => manifest,
@@ -59,6 +63,7 @@ pub fn run_cook(importers: &[Box<dyn Importer>], options: &CookOptions) -> CookR
             if let Ok(existing_index) = bincode::deserialize::<SourceIndex>(&existing_bytes) {
                 if source_is_unchanged(&existing_index, &source_path) {
                     report.skipped.push(source_path);
+                    all_indices.push(existing_index);
                     continue;
                 }
             }
@@ -79,9 +84,61 @@ pub fn run_cook(importers: &[Box<dyn Importer>], options: &CookOptions) -> CookR
                         eprintln!("warning: failed to serialize incremental index for {}: {err}", relative_source.display());
                     }
                 }
+
+                let emitted: Vec<crate::EmittedSubAsset> = index
+                    .sub_assets
+                    .iter()
+                    .map(|entry| crate::EmittedSubAsset {
+                        name: entry.name.clone(),
+                        asset_id: entry.asset_id,
+                        type_name: Box::leak(entry.type_name.clone().into_boxed_str()),
+                        bytes: std::fs::read(cooked_file_path_for_id(&options.output_root, entry.asset_id))
+                            .unwrap_or_default(),
+                        references: entry.references.clone(),
+                    })
+                    .collect();
+
+                for issue in importer.validate(&emitted) {
+                    if issue.severity == crate::ValidationSeverity::Error {
+                        report.errors.push(ImportError::MissingRequiredData {
+                            source_path: issue.source_path.clone(),
+                            message: issue.message.clone(),
+                        });
+                    } else {
+                        log::warn!(
+                            "validation warning for '{}' ({:?}): {}",
+                            issue.source_path.display(),
+                            issue.sub_asset_name,
+                            issue.message
+                        );
+                    }
+                }
+
                 report.cooked.push(source_path);
+                all_indices.push(index);
             }
             Err(err) => report.errors.push(err),
+        }
+    }
+
+    let produced: std::collections::HashSet<essential::assets::AssetId> = all_indices
+        .iter()
+        .flat_map(|index| index.sub_assets.iter().map(|s| s.asset_id))
+        .collect();
+
+    for index in &all_indices {
+        for sub_asset in &index.sub_assets {
+            for reference in &sub_asset.references {
+                if !produced.contains(reference) {
+                    report.errors.push(ImportError::MissingRequiredData {
+                        source_path: index.source_path.clone(),
+                        message: format!(
+                            "'{}' references AssetId {:?}, which was never produced",
+                            sub_asset.name, reference
+                        ),
+                    });
+                }
+            }
         }
     }
 

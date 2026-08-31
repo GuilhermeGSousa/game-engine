@@ -1,5 +1,7 @@
-use app::plugins::Plugin;
-use ecs::system::schedule::UpdateGroup;
+use app::{
+    plugins::Plugin,
+    schedule_groups::{Extract, LateUpdate, Render},
+};
 use glyphon::{Cache, FontSystem, SwashCache, Viewport};
 use render::{
     assets::vertex::VertexBufferLayout, device::RenderDevice, material_plugin::MaterialPlugin,
@@ -13,13 +15,13 @@ use crate::{
     interaction::{HoveredNode, UIClick, apply_interaction_styles, update_ui_interaction},
     material::UIMaterial,
     node::{
-        UIViewportPipeline, compute_ui_nodes, extract_added_ui_materials, extract_added_ui_nodes,
+        UIViewportPipeline, compute_ui_nodes, extract_ui_materials, extract_ui_nodes,
         extract_viewport_nodes, sync_border_size,
     },
     render::{prepare_text_renderer, ui_renderpass, update_text_viewport},
     slider::{UISliderChanged, setup_slider_visuals, sync_slider_fill, update_slider_drag},
     text::{
-        extract_added_text_nodes,
+        extract_text_nodes,
         resources::{
             TextAtlas, TextCache, TextFontSystem, TextRenderer, TextSwashCache, TextViewport,
         },
@@ -46,50 +48,54 @@ impl Plugin for UIPlugin {
 
         // ── LateUpdate ──────────────────────────────────────────────────────────
         // 1. Spawn fill children for new sliders (commands flush immediately after).
-        app.add_system(UpdateGroup::LateUpdate, setup_slider_visuals);
+        app.add_system(LateUpdate, setup_slider_visuals);
         // 2. Update fill widths from slider values (before layout so Taffy sees
         //    the correct widths this frame).
-        app.add_system(UpdateGroup::LateUpdate, sync_slider_fill);
+        app.add_system(LateUpdate, sync_slider_fill);
         // 3. Taffy layout pass — computes UIComputedNode for all nodes.
-        app.add_system(UpdateGroup::LateUpdate, compute_ui_nodes);
+        app.add_system(LateUpdate, compute_ui_nodes);
         // 4. Sync engine-managed border_params uniform from user-facing border_width.
-        app.add_system(UpdateGroup::LateUpdate, sync_border_size);
+        app.add_system(LateUpdate, sync_border_size);
         // 5. Slider drag — reads UIComputedNode set in step 3.
-        app.add_system(UpdateGroup::LateUpdate, update_slider_drag);
+        app.add_system(LateUpdate, update_slider_drag);
         // 6. Hit test — fires UIClick events.
-        app.add_system(UpdateGroup::LateUpdate, update_ui_interaction);
+        app.add_system(LateUpdate, update_ui_interaction);
         // 7. Focus — reads HoveredNode, updates FocusedWidget.
-        app.add_system(UpdateGroup::LateUpdate, update_focus);
+        app.add_system(LateUpdate, update_focus);
         // 8. Checkbox toggle — reads UIClick.
-        app.add_system(UpdateGroup::LateUpdate, toggle_checkboxes);
+        app.add_system(LateUpdate, toggle_checkboxes);
         // 9. Sync checkbox material colour from checked state.
-        app.add_system(UpdateGroup::LateUpdate, sync_checkbox_material);
+        app.add_system(LateUpdate, sync_checkbox_material);
         // 10. Text input — reads FocusedWidget + typed chars, updates TextComponent.
-        app.add_system(UpdateGroup::LateUpdate, update_text_inputs);
+        app.add_system(LateUpdate, update_text_inputs);
         // 11. Hover/press colours via UIInteractionStyle.
-        app.add_system(UpdateGroup::LateUpdate, apply_interaction_styles);
+        app.add_system(LateUpdate, apply_interaction_styles);
 
         // ── Render ──────────────────────────────────────────────────────────────
-        app.add_system(UpdateGroup::Render, extract_added_ui_nodes)
-            .add_system(UpdateGroup::Render, extract_added_ui_materials)
-            .add_system(UpdateGroup::Render, extract_added_text_nodes)
-            .add_system(UpdateGroup::Render, update_text_viewport)
-            .add_system(UpdateGroup::Render, prepare_text_renderer)
+        app.render_mut()
+            .add_system(Extract, extract_ui_nodes)
+            .add_system(Extract, extract_ui_materials)
+            .add_system(Extract, extract_text_nodes)
+            .add_system(Extract, extract_viewport_nodes)
+            .add_system(Render, update_text_viewport)
+            .add_system(Render, prepare_text_renderer)
             // Viewport nodes: create fresh bind groups before ui_renderpass.
-            .add_system(UpdateGroup::Render, extract_viewport_nodes)
-            .add_system(UpdateGroup::Render, ui_renderpass);
+            .add_system(Render, ui_renderpass);
     }
 
     fn finish(&self, app: &mut app::App) {
         let device = app
+            .render()
             .get_resource::<RenderDevice>()
             .expect("RenderDevice resource not found");
 
         let context = app
+            .render()
             .get_resource::<RenderContext>()
             .expect("RenderContext resource not found");
 
         let queue = app
+            .render()
             .get_resource::<RenderQueue>()
             .expect("RenderQueue resource not found");
 
@@ -177,12 +183,13 @@ impl Plugin for UIPlugin {
             cache: None,
         });
 
-        app.insert_resource(UIViewportPipeline {
+        app.render_mut().insert_resource(UIViewportPipeline {
             pipeline: viewport_pipeline,
             bind_group_layout: viewport_bgl,
         });
 
-        app.insert_resource(TextRenderer(text_renderer))
+        app.render_mut()
+            .insert_resource(TextRenderer(text_renderer))
             .insert_resource(TextCache(cache))
             .insert_resource(TextSwashCache(swash_cache))
             .insert_resource(TextViewport(viewport))

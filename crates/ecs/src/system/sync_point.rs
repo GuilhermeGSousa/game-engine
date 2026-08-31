@@ -1,4 +1,4 @@
-use crate::{system::access::SystemAccess, System};
+use crate::{System, system::access::SystemAccess};
 
 pub(crate) struct SyncPoint;
 
@@ -6,6 +6,8 @@ impl System for SyncPoint {
     fn name(&self) -> &'static str {
         "SyncPoint"
     }
+
+    fn initialize(&mut self, _world: &mut crate::World) {}
 
     fn access(&self) -> SystemAccess {
         let mut access = SystemAccess::default();

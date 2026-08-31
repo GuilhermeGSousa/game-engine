@@ -7,6 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+profiling = "1"
 app = { path = "../app" }
 color = { path = "../color" }
 essential = { path = "../essential" }

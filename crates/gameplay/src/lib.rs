@@ -1,5 +1,4 @@
-use app::Plugin;
-use ecs::system::schedule::UpdateGroup;
+use app::{Plugin, schedule_groups::Update};
 
 use crate::camera::{CameraSettings, move_camera_pivot, update_entity_follow};
 
@@ -13,7 +12,7 @@ impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut app::App) {
         app.insert_resource(CameraSettings::default());
 
-        app.add_system(UpdateGroup::Update, move_camera_pivot)
-            .add_system(UpdateGroup::Update, update_entity_follow);
+        app.add_system(Update, move_camera_pivot)
+            .add_system(Update, update_entity_follow);
     }
 }

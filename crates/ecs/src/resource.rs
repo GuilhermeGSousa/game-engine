@@ -6,7 +6,7 @@ use std::{
 pub use ecs_macros::Resource;
 
 use crate::{
-    component::Tick, query::change_detection::DetectChanges, system::input::SystemInput,
+    World, component::Tick, query::change_detection::DetectChanges, system::input::SystemInput,
     world::UnsafeWorldCell,
 };
 
@@ -82,7 +82,7 @@ where
     type State = ();
     type Data<'world, 'state> = Res<'world, T>;
 
-    fn init_state() -> Self::State {}
+    fn init_state(_world: &mut World) -> Self::State {}
 
     fn get_data<'world, 'state>(
         _state: &'state mut Self::State,
@@ -95,6 +95,8 @@ where
         access.read_resource::<T>();
     }
 }
+
+impl<T> crate::system::input::ReadOnlySystemInput for Res<'_, T> where T: Resource {}
 
 impl<T> Deref for Res<'_, T>
 where
@@ -156,7 +158,7 @@ where
     type State = ();
     type Data<'world, 'state> = ResMut<'world, T>;
 
-    fn init_state() -> Self::State {}
+    fn init_state(_world: &mut World) -> Self::State {}
 
     fn get_data<'world, 'state>(
         _state: &'state mut Self::State,

@@ -1,5 +1,5 @@
-use app::Plugin;
-use ecs::{system::schedule::UpdateGroup, Resource};
+use app::{schedule_groups::Render, Plugin};
+use ecs::{IntoSystemConfig, Resource};
 use essential::transform::GlobalTransformRaw;
 use mesh::Vertex;
 use wgpu::{
@@ -26,12 +26,13 @@ pub struct ShadowPipelinePlugin;
 
 impl Plugin for ShadowPipelinePlugin {
     fn build(&self, app: &mut app::App) {
-        app.add_system(UpdateGroup::LateUpdate, update_shadow_view_proj);
-        app.add_system(UpdateGroup::Render, render_shadow_maps);
+        app.render_mut()
+            .add_system(Render, render_shadow_maps.after(update_shadow_view_proj));
     }
 
     fn finish(&self, app: &mut app::App) {
         let device = app
+            .render()
             .get_resource::<RenderDevice>()
             .expect("RenderDevice not found; register RenderPlugin before MaterialPlugin");
 
@@ -56,6 +57,7 @@ impl Plugin for ShadowPipelinePlugin {
             });
 
         let skeleton_layout = app
+            .render()
             .get_resource::<SkeletonLayout>()
             .expect("SkeletonLayout not found: make sure the RenderPlugin is registered.");
 
@@ -104,7 +106,7 @@ impl Plugin for ShadowPipelinePlugin {
             cache: None,
         });
 
-        app.insert_resource(ShadowPipeline {
+        app.render_mut().insert_resource(ShadowPipeline {
             pipeline,
             bind_group_layout: light_view_bind_group_layout,
         });

@@ -1,5 +1,5 @@
 use ecs::{
-    query::{Query, change_detection::DetectChanges},
+    query::Query,
     resource::{Res, ResMut},
 };
 use glyphon::{Color, Resolution, TextArea, TextBounds};
@@ -7,8 +7,6 @@ use render::{
     MaterialPipeline, device::RenderDevice, queue::RenderQueue,
     render_asset::render_window::RenderWindow,
 };
-
-use window::plugin::Window;
 
 use crate::{
     material::UIMaterial,
@@ -20,20 +18,12 @@ use crate::{
 };
 
 pub(crate) fn update_text_viewport(
-    window: Res<Window>,
+    render_window: Res<RenderWindow>,
     queue: Res<RenderQueue>,
     mut text_viewport: ResMut<TextViewport>,
 ) {
-    if window.has_changed() {
-        let size = window.size();
-        text_viewport.update(
-            &queue,
-            Resolution {
-                width: size.0,
-                height: size.1,
-            },
-        );
-    }
+    let (width, height) = render_window.size();
+    text_viewport.update(&queue, Resolution { width, height });
 }
 
 /// Compute the screen-space scissor rectangle for a text node.

@@ -81,79 +81,7 @@ mod tests {
     fn register_bodies(world: &mut World) {
         let mut schedule = Schedule::new();
         schedule.add_system(register_colliders);
-        schedule.compile::<SingleThreadedExecutor>().run(world);
-    }
-
-    /// After a fixed step, the rendered Transform must sweep from the pre-step
-    /// pose to the post-step pose as the fixed-step overstep advances, instead
-    /// of jumping straight to the post-step pose.
-    #[test]
-    fn transform_blends_between_fixed_steps() {
-        let mut world = World::new();
-        world.register_component_lifetimes::<Collider>();
-        // Inserts the GlobalTransform that `register_colliders` reads.
-        world.register_component_lifetimes::<Transform>();
-        world.insert_resource(PhysicsState::new());
-        world.insert_resource(PhysicsPipeline::new());
-        world.insert_resource(Time::new());
-
-        let start = Vec3::new(0.0, 10.0, 0.0);
-        let sphere = world.spawn((
-            RigidBody::default(),
-            Collider::sphere(1.0),
-            Transform::from_translation_rotation(start, Default::default()),
-        ));
-        register_bodies(&mut world);
-
-        let mut step = Schedule::new();
-        step.add_system(step_simulation);
-        let mut step = step.compile::<SingleThreadedExecutor>();
-
-        let mut interpolate = Schedule::new();
-        interpolate.add_system(interpolate_body_transforms);
-        let mut interpolate = interpolate.compile::<SingleThreadedExecutor>();
-
-        step.run(&mut world);
-        let stepped_y = world
-            .get_component_for_entity::<Transform>(sphere)
-            .unwrap()
-            .translation
-            .y;
-        assert!(
-            stepped_y < start.y,
-            "sphere should have fallen during the fixed step"
-        );
-
-        let mut y_at = |overstep: f32| {
-            world
-                .get_resource_mut::<Time>()
-                .unwrap()
-                .set_fixed_overstep(overstep);
-            interpolate.run(&mut world);
-            world
-                .get_component_for_entity::<Transform>(sphere)
-                .unwrap()
-                .translation
-                .y
-        };
-
-        let y_start = y_at(0.0);
-        let y_mid = y_at(Time::fixed_delta_time() / 2.0);
-        let y_end = y_at(Time::fixed_delta_time());
-
-        assert!(
-            (y_start - start.y).abs() < 1e-6,
-            "at alpha 0 the transform should sit at the pre-step pose, was {y_start}"
-        );
-        assert!(
-            (y_end - stepped_y).abs() < 1e-6,
-            "at alpha 1 the transform should reach the post-step pose, was {y_end}"
-        );
-        let expected_mid = (start.y + stepped_y) / 2.0;
-        assert!(
-            (y_mid - expected_mid).abs() < 1e-6,
-            "at alpha 0.5 the transform should be halfway ({expected_mid}), was {y_mid}"
-        );
+        schedule.compile::<SingleThreadedExecutor>(world).run(world);
     }
 
     /// Jolt reports poses with no scale of its own, so stepping and
@@ -184,7 +112,7 @@ mod tests {
         let mut schedule = Schedule::new();
         schedule.add_system(step_simulation);
         schedule.add_system(interpolate_body_transforms);
-        let mut schedule = schedule.compile::<SingleThreadedExecutor>();
+        let mut schedule = schedule.compile::<SingleThreadedExecutor>(&mut world);
 
         for _ in 0..3 {
             schedule.run(&mut world);

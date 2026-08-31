@@ -1,6 +1,6 @@
 use crate::{
-    system::{executor::SystemExecutor, schedule::CompiledScheduleData},
     World,
+    system::{executor::SystemExecutor, schedule::CompiledScheduleData},
 };
 
 pub struct SingleThreadedExecutor {}
@@ -15,7 +15,7 @@ impl SystemExecutor for SingleThreadedExecutor {
 
     fn run(&mut self, compiled_data: &mut CompiledScheduleData, world: &mut World) {
         for &idx in &compiled_data.sorted_systems {
-            profiling::scope!("system", compiled_data.systems[idx].name());
+            profiling::scope!(compiled_data.systems[idx].name());
             compiled_data.systems[idx].run_and_apply(world);
         }
     }
@@ -25,9 +25,9 @@ impl SystemExecutor for SingleThreadedExecutor {
 mod tests {
     use super::*;
     use crate::{
+        Schedule,
         resource::{Res, Resource},
         system::{config::IntoSystemConfig, executor::single_thread::SingleThreadedExecutor},
-        Schedule,
     };
     use std::sync::{Arc, Mutex};
 
@@ -70,7 +70,9 @@ mod tests {
 
         print!("{schedule:?}");
 
-        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2]);
     }
@@ -94,7 +96,9 @@ mod tests {
         // then push_1 (main → NodeIndex 1).  Insertion order would run
         // push_2 first — only the toposort fix produces the correct [1, 2] result.
         schedule.add_system(push_1.before(push_2));
-        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2]);
     }
@@ -118,7 +122,9 @@ mod tests {
         let mut schedule = Schedule::new();
         // push_3.after(push_2.after(push_1)):  1 → 2 → 3
         schedule.add_system(push_3.after(push_2.after(push_1)));
-        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(*shared.lock().unwrap(), vec![1, 2, 3]);
     }

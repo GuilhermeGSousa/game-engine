@@ -10,25 +10,30 @@ use ecs::{
         Event,
     },
     resource::{ResMut, Resource},
-    system::schedule::{CompiledSchedules, Schedules, UpdateGroup},
-    world::World,
-    IntoSystemConfig,
+    system::schedule::{CompiledSchedules, ScheduleLabel, Schedules},
+    IntoSystemConfig, World,
 };
 use facet::Facet;
 use log::info;
 use runner::AppExit;
 
-use essential::{
-    assets::{
-        asset_server::AssetServer, asset_store::AssetStore, handle::AssetLifetimeEvent, Asset,
-    },
-    time::Time,
+use essential::assets::{
+    asset_server::AssetServer, asset_store::AssetStore, handle::AssetLifetimeEvent, Asset,
 };
 
-use crate::{plugins::PluginsState, runner::run_once};
+use crate::{
+    plugins::PluginsState,
+    runner::run_once,
+    schedule_groups::{LateUpdate, Update},
+    subapp::{SubApp, SubApps},
+};
 
+pub mod extractor;
+pub mod main_schedule;
 pub mod plugins;
 pub mod runner;
+pub mod schedule_groups;
+pub mod subapp;
 
 // Re-export the most commonly needed types so users don't have to know the module layout.
 pub use plugins::Plugin;
@@ -36,6 +41,17 @@ pub use plugins::Plugin;
 pub(crate) struct HokeyPokeyPlugin;
 impl Plugin for HokeyPokeyPlugin {
     fn build(&self, _: &mut App) {}
+}
+
+fn compile(schedules: Schedules, world: &mut World) -> CompiledSchedules {
+    #[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
+    {
+        schedules.compile::<MultiThreadedExecutor>(world)
+    }
+    #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
+    {
+        schedules.compile::<SingleThreadedExecutor>(world)
+    }
 }
 
 /// The top-level container for the game engine.
@@ -55,20 +71,16 @@ impl Plugin for HokeyPokeyPlugin {
 /// ```
 pub struct App {
     runner: runner::RunnerFn,
-    world: World,
-    accumulated_fixed_time: f32,
+    subapps: SubApps,
     plugins: Vec<Box<dyn Plugin>>,
     plugin_state: PluginsState,
 }
 
 impl App {
     pub fn new() -> App {
-        let mut world = World::new();
-        world.init_resource::<Schedules>();
         Self {
             runner: Box::new(runner::run_once),
-            world,
-            accumulated_fixed_time: 0.0,
+            subapps: SubApps::default(),
             plugins: Vec::new(),
             plugin_state: PluginsState::Building,
         }
@@ -97,7 +109,7 @@ impl App {
         asset_server.register_asset::<A>(&asset_store);
 
         self.add_system(
-            UpdateGroup::Update,
+            Update,
             |mut asset_store: ResMut<AssetStore<A>>,
              asset_server: ResMut<AssetServer>,
              events: EventWriter<AssetLifetimeEvent>| {
@@ -105,7 +117,7 @@ impl App {
             },
         );
 
-        self.world.insert_resource(asset_store);
+        self.main_mut().insert_resource(asset_store);
         self
     }
 
@@ -121,14 +133,31 @@ impl App {
         self
     }
 
-    /// Registers a system in the given [`UpdateGroup`].
+    /// Registers a system in the schedule identified by `update_group`.
     pub fn add_system<M>(
         &mut self,
-        update_group: UpdateGroup,
+        update_group: impl ScheduleLabel,
         system: impl IntoSystemConfig<M> + 'static,
     ) -> &mut Self {
         self.get_resource_mut::<Schedules>()
             .expect("Schedules resource not found!")
+            .add_system(update_group, system);
+
+        self
+    }
+
+    /// Registers a system in the schedule identified by `update_group`, on the
+    /// render subapp rather than the main one (e.g. systems meant to run in
+    /// the [`Extract`](schedule_groups::Extract) schedule).
+    pub fn add_render_system<M>(
+        &mut self,
+        update_group: impl ScheduleLabel,
+        system: impl IntoSystemConfig<M> + 'static,
+    ) -> &mut Self {
+        self.subapps
+            .render_mut()
+            .get_resource_mut::<Schedules>()
+            .expect("Schedules resource not found on render subapp!")
             .add_system(update_group, system);
 
         self
@@ -141,31 +170,33 @@ impl App {
         let event_channel = EventChannel::<T>::new();
 
         self.insert_resource(event_channel);
-        self.add_system(UpdateGroup::LateUpdate, update_event_channel::<T>);
+        self.add_system(LateUpdate, update_event_channel::<T>);
         self
     }
 
-    /// Inserts a resource into the world (replacing any existing one of the same type).
+    /// Inserts a resource into the main world (replacing any existing one of the same type).
     pub fn insert_resource<R: Resource>(&mut self, value: R) -> &mut Self {
-        self.world.insert_resource(value);
+        self.main_mut().insert_resource(value);
         self
     }
 
+    // Registers reflection for a component that implements the Facet trait
+    // Allows the user to spawn that component through json (see [`CommandQueue`])
     pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
-        self.world.register_reflection::<T>();
+        self.main_mut().register_reflection::<T>();
         self
     }
 
     pub fn remove_resource<R: Resource>(&mut self) -> Option<R> {
-        self.world.remove_resource()
+        self.main_mut().remove_resource()
     }
 
     pub fn get_resource<R: Resource>(&self) -> Option<&R> {
-        self.world.get_resource()
+        self.main().get_resource()
     }
 
     pub fn get_resource_mut<R: Resource>(&mut self) -> Option<&mut R> {
-        self.world.get_resource_mut()
+        self.main_mut().get_resource_mut()
     }
 
     pub fn with_resource<R: Resource, F, T: Resource>(&mut self, f: F)
@@ -184,45 +215,32 @@ impl App {
     pub fn update(&mut self) {
         profiling::scope!("App::update");
 
-        let time = self
-            .get_resource::<Time>()
-            .expect("Time resource not found");
-
-        self.accumulated_fixed_time += time.delta().as_secs_f32();
-
-        let mut schedules = self
-            .remove_resource::<CompiledSchedules>()
-            .expect("Compiled schedules not found!");
-
-        while self.accumulated_fixed_time >= Time::fixed_delta_time() {
-            profiling::scope!("fixed_update_step");
-            schedules.fixed_update(&mut self.world);
-            self.accumulated_fixed_time -= Time::fixed_delta_time();
-        }
-
-        let fixed_overstep = self.accumulated_fixed_time;
-        if let Some(time) = self.get_resource_mut::<Time>() {
-            time.set_fixed_overstep(fixed_overstep);
-        }
-
-        schedules.update(&mut self.world);
-        schedules.render(&mut self.world);
-
-        self.world.insert_resource(schedules);
-
-        {
-            profiling::scope!("world_tick");
-            self.world.tick();
-        }
+        self.subapps.update();
 
         // The frame ends here: present_window has already run (LateRender),
         // and this also marks frames for the headless runner.
         profiling::finish_frame!();
     }
 
+    pub fn main(&self) -> &SubApp {
+        self.subapps.main()
+    }
+
+    pub fn main_mut(&mut self) -> &mut SubApp {
+        self.subapps.main_mut()
+    }
+
+    pub fn render(&self) -> &SubApp {
+        self.subapps.render()
+    }
+
+    pub fn render_mut(&mut self) -> &mut SubApp {
+        self.subapps.render_mut()
+    }
+
     /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`.
-    pub fn register_component_lifecycle<T: Component>(&mut self) -> &mut Self {
-        self.world.register_component_lifetimes::<T>();
+    pub fn register_component_lifetimes<T: Component>(&mut self) -> &mut Self {
+        self.main_mut().register_component_lifetimes::<T>();
         self
     }
 
@@ -262,14 +280,9 @@ impl App {
         self.plugin_state = PluginsState::Finished;
 
         self.compile_schedules();
+        self.compile_render_schedules();
 
-        let mut schedules = self
-            .remove_resource::<CompiledSchedules>()
-            .expect("Compiled schedules not found!");
-
-        schedules.startup(&mut self.world);
-
-        self.insert_resource(schedules);
+        self.subapps.startup();
     }
 
     fn compile_schedules(&mut self) {
@@ -277,12 +290,27 @@ impl App {
             .remove_resource::<Schedules>()
             .expect("Schedules resource not found!");
 
-        #[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
-        let compiled_schedules = schedules.compile::<MultiThreadedExecutor>();
-        #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
-        let compiled_schedules = schedules.compile::<SingleThreadedExecutor>();
-
+        let world = self.main_mut().world_mut();
+        let compiled_schedules = compile(schedules, world);
         self.insert_resource(compiled_schedules);
+    }
+
+    fn compile_render_schedules(&mut self) {
+        let schedules = self
+            .subapps
+            .render_mut()
+            .remove_resource::<Schedules>()
+            .expect("Schedules resource not found on render subapp!");
+
+        let world = self.render_mut().world_mut();
+        let compiled_schedules = compile(schedules, world);
+        self.subapps
+            .render_mut()
+            .insert_resource(compiled_schedules);
+    }
+
+    pub fn set_extract_fn(&mut self, extract_fn: impl FnMut(&mut World, &mut World) + 'static) {
+        self.subapps.set_extract_fn(extract_fn);
     }
 }
 

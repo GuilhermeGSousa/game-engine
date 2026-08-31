@@ -29,11 +29,11 @@ mod tests {
             Quat::IDENTITY,
         ));
 
-        world.insert_component(Player, e);
-        world.insert_component(
+        world.insert(Player, e);
+        world.insert(
             Transform::from_translation_rotation(Vec3::ZERO, Quat::IDENTITY),
             e,
         );
-        world.insert_component(Health, e);
+        world.insert(Health, e);
     }
 }

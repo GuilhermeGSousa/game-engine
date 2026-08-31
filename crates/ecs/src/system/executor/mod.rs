@@ -1,4 +1,4 @@
-use crate::{system::schedule::CompiledScheduleData, World};
+use crate::{World, system::schedule::CompiledScheduleData};
 
 #[cfg(all(feature = "multithreaded", not(target_arch = "wasm32")))]
 pub mod multi_thread;

@@ -3,12 +3,12 @@ use fixedbitset::FixedBitSet;
 use tasks::{compute_pool::ComputeTaskPool, task_pool::TaskPool};
 
 use crate::{
+    System, World,
     system::{
         executor::SystemExecutor,
-        schedule::{is_sync_point, CompiledScheduleData},
+        schedule::{CompiledScheduleData, is_sync_point},
     },
     utilities::SyncUnsafeCell,
-    System, World,
 };
 
 #[allow(dead_code)]
@@ -71,7 +71,7 @@ impl SystemExecutor for MultiThreadedExecutor {
                     let queue = &queue;
                     scope.spawn(async move {
                         {
-                            profiling::scope!("system", sys.name());
+                            profiling::scope!(sys.name());
                             unsafe {
                                 sys.run_unsafe(world_cell);
                             }
@@ -127,13 +127,13 @@ impl MultiThreadedExecutor {
 #[cfg(test)]
 mod tests {
     use crate::{
+        Changed, Resource, World,
         command::CommandQueue,
         component::Component,
         entity::Entity,
         query::Query,
         resource::ResMut,
         system::{executor::multi_thread::MultiThreadedExecutor, schedule::Schedule},
-        Changed, Resource, World,
     };
 
     #[derive(Component)]
@@ -166,7 +166,9 @@ mod tests {
 
         println!("{:?}", schedule);
 
-        schedule.compile::<MultiThreadedExecutor>().run(&mut world);
+        schedule
+            .compile::<MultiThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         assert_eq!(world.get_resource::<Counter>().unwrap().0, 1);
     }

@@ -1,15 +1,24 @@
 use std::{any::TypeId, marker::PhantomData};
 
+use fixedbitset::Ones;
 use typle::typle;
 
 pub mod change_detection;
-pub mod query_filter;
+pub mod filter;
+pub mod state;
+pub mod world_query;
 
 use crate::{
+    World,
     component::{Component, ComponentId},
     entity::Entity,
-    query::{change_detection::Mut, query_filter::QueryFilter},
-    system::{access::SystemAccess, input::SystemInput},
+    query::{
+        change_detection::Mut, filter::QueryFilter, state::QueryState, world_query::WorldQuery,
+    },
+    system::{
+        access::SystemAccess,
+        input::{ReadOnlySystemInput, SystemInput},
+    },
     world::UnsafeWorldCell,
 };
 
@@ -28,18 +37,16 @@ use crate::{
 ///     }
 /// }
 /// ```
-pub struct Query<'world, T: QueryData, F: QueryFilter = ()> {
+pub struct Query<'world, 'state, T: QueryData, F: QueryFilter = ()> {
     world: UnsafeWorldCell<'world>,
-    matched_indices: Vec<usize>,
-    _marker_data: PhantomData<T>,
-    _marker_filter: PhantomData<F>,
+    state: &'state QueryState<T, F>,
 }
 
 /// Describes what data a [`Query`] fetches from each matching entity.
 ///
 /// Implementations are provided for `&T`, `&mut T`, `Entity`, `Option<&T>`,
 /// `Option<&mut T>`, and tuples of up to 12 elements.
-pub trait QueryData {
+pub trait QueryData: WorldQuery {
     /// The item type produced for each matched entity.
     type Item<'a>;
 
@@ -53,36 +60,21 @@ pub trait QueryData {
     fn fill_access(access: &mut SystemAccess);
 }
 
-impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
-    /// Constructs a new query by scanning the world's archetypes for matches.
-    pub fn new(world: UnsafeWorldCell<'world>) -> Self {
-        let matched_indices: Vec<usize> = world
-            .world()
-            .archetypes()
-            .iter()
-            .enumerate()
-            .filter_map(|(index, archetype)| {
-                if archetype.contains_all(T::component_ids()) {
-                    Some(index)
-                } else {
-                    None
-                }
-            })
-            .collect();
+pub trait ReadOnlyQueryData: QueryData {}
 
-        Self {
-            world,
-            matched_indices,
-            _marker_data: PhantomData,
-            _marker_filter: PhantomData,
-        }
+impl<'world, 'state, T: QueryData, F: QueryFilter> Query<'world, 'state, T, F> {
+    /// Constructs a new query by scanning the world's archetypes for matches.
+    pub fn new(world: UnsafeWorldCell<'world>, state: &'state mut QueryState<T, F>) -> Self {
+        state.update_archetypes(world);
+
+        Self { world, state }
     }
 
     /// Returns an iterator over all matching entities.
-    pub fn iter<'s>(&'s self) -> QueryIter<'world, 's, T, F> {
+    pub fn iter(&self) -> QueryIter<'world, 'state, T, F> {
         QueryIter {
             world: self.world,
-            matched_archetypes: self.matched_indices.iter(),
+            matched_archetypes: self.state.matched_archetypes(),
             current_entities: &[],
             current_row: 0,
             current_len: 0,
@@ -105,9 +97,9 @@ impl<'world, T: QueryData, F: QueryFilter> Query<'world, T, F> {
     }
 }
 
-pub struct QueryIter<'world, 'a, T, F> {
+pub struct QueryIter<'world, 'state, T, F> {
     world: UnsafeWorldCell<'world>,
-    matched_archetypes: core::slice::Iter<'a, usize>,
+    matched_archetypes: Ones<'state>,
     current_entities: &'world [Entity],
     current_row: usize,
     current_len: usize,
@@ -128,7 +120,7 @@ where
             if self.current_row == self.current_len {
                 let archetype_index = self.matched_archetypes.next()?;
 
-                let archetype = &archetypes[*archetype_index];
+                let archetype = &archetypes[archetype_index];
 
                 self.current_row = 0;
                 self.current_len = archetype.len();
@@ -150,26 +142,35 @@ where
     }
 }
 
-impl<T, F> SystemInput for Query<'_, T, F>
+impl<T, F> SystemInput for Query<'_, '_, T, F>
 where
-    T: QueryData,
-    F: QueryFilter,
+    T: QueryData + 'static,
+    F: QueryFilter + 'static,
 {
-    type State = ();
-    type Data<'world, 'state> = Query<'world, T, F>;
+    type State = QueryState<T, F>;
+    type Data<'world, 'state> = Query<'world, 'state, T, F>;
 
-    fn init_state() -> Self::State {}
+    fn init_state(world: &mut World) -> Self::State {
+        QueryState::<T, F>::new(world)
+    }
 
     fn get_data<'world, 'state>(
-        _state: &'state mut Self::State,
+        state: &'state mut Self::State,
         world: UnsafeWorldCell<'world>,
     ) -> Self::Data<'world, 'state> {
-        Query::new(world)
+        Query::new(world, state)
     }
 
     fn fill_access(access: &mut crate::system::access::SystemAccess) {
         T::fill_access(access);
     }
+}
+
+impl<T, F> ReadOnlySystemInput for Query<'_, '_, T, F>
+where
+    T: ReadOnlyQueryData + 'static,
+    F: QueryFilter + 'static,
+{
 }
 
 impl<T> QueryData for &T
@@ -179,9 +180,7 @@ where
     type Item<'w> = &'w T;
 
     fn component_ids() -> Vec<ComponentId> {
-        {
-            vec![TypeId::of::<T>()]
-        }
+        vec![TypeId::of::<T>()]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
@@ -197,6 +196,8 @@ where
     }
 }
 
+impl<T: Component> ReadOnlyQueryData for &T {}
+
 impl<T> QueryData for &mut T
 where
     T: Component,
@@ -204,9 +205,7 @@ where
     type Item<'w> = Mut<'w, T>;
 
     fn component_ids() -> Vec<ComponentId> {
-        {
-            vec![TypeId::of::<T>()]
-        }
+        vec![TypeId::of::<T>()]
     }
 
     fn fetch<'w>(world: UnsafeWorldCell<'w>, entity: Entity) -> Option<Self::Item<'w>> {
@@ -244,6 +243,8 @@ impl QueryData for Entity {
     fn fill_access(_access: &mut SystemAccess) {}
 }
 
+impl ReadOnlyQueryData for Entity {}
+
 impl<T> QueryData for Option<&T>
 where
     T: Component,
@@ -266,6 +267,8 @@ where
         access.read_component::<T>();
     }
 }
+
+impl<T> ReadOnlyQueryData for Option<&T> where T: Component {}
 
 impl<T> QueryData for Option<&mut T>
 where
@@ -328,4 +331,14 @@ where
             <T<{ i }>>::fill_access(access);
         }
     }
+}
+
+#[allow(unused_mut)]
+#[allow(unused_variables)]
+#[typle(Tuple for 0..=12)]
+impl<T> ReadOnlyQueryData for T
+where
+    T: Tuple,
+    T<_>: ReadOnlyQueryData,
+{
 }

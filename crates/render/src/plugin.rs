@@ -1,15 +1,15 @@
 use crate::{
     assets::{mesh::Mesh, skeleton::Skeleton, texture::Texture},
     components::{
-        camera::{camera_added, camera_changed, sync_camera_aspect},
-        light::{light_added, light_changed, update_changed_lights, RenderLight, RenderLights},
-        mesh::{mesh_added, mesh_changed},
-        render_entity::RenderEntity,
+        camera::{extract_cameras, sync_camera_aspect},
+        light::{extract_lights, update_changed_lights, RenderLight, RenderLights},
+        mesh::extract_meshes,
+        render_entity::{extract, RenderEntity},
         shadows::{
             resize_shadow_maps, update_shadow_view_proj, RenderLighting, RenderPointShadowMaps,
             RenderShadowCasterSlot, RenderShadowViewProjs, RenderSpotDirectionalShadowMaps,
         },
-        skeleton::{skeleton_added, update_skeletons, RenderSkeletonComponent, SkinUniforms},
+        skeleton::{extract_skeletons, RenderSkeletonComponent, SkinUniforms},
         world_environment::WorldEnvironment,
     },
     device::RenderDevice,
@@ -28,9 +28,12 @@ use crate::{
         update_window,
     },
 };
-use app::plugins::Plugin;
+use app::{
+    plugins::Plugin,
+    schedule_groups::{Extract, LateRender, LateUpdate, Render, RenderMain, Update},
+};
 use color::Color;
-use ecs::{resource::Resource, system::schedule::UpdateGroup, IntoSystemConfig};
+use ecs::{resource::Resource, IntoSystemConfig, World};
 use std::sync::{Arc, Mutex};
 use wgpu::{Adapter, Device, Instance, Limits, MemoryHints, Queue};
 
@@ -44,6 +47,23 @@ pub struct RenderResources {
 
 #[derive(Resource)]
 struct FutureRenderResources(Arc<Mutex<Option<RenderResources>>>);
+
+fn render_main(world: &mut World) {
+    {
+        profiling::scope!("schedule::render");
+        world.run_schedule(Render);
+    }
+
+    {
+        profiling::scope!("schedule::late_render");
+        world.run_schedule(LateRender);
+    }
+
+    {
+        profiling::scope!("world_tick");
+        world.tick();
+    }
+}
 
 pub struct RenderPlugin;
 
@@ -111,6 +131,10 @@ impl RenderPlugin {
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut app::App) {
+        app.render_mut()
+            .set_update_schedule(RenderMain)
+            .add_system(RenderMain, render_main);
+
         let future_render_resources_wrapper = Arc::new(Mutex::new(None));
         app.insert_resource(FutureRenderResources(
             future_render_resources_wrapper.clone(),
@@ -145,33 +169,24 @@ impl Plugin for RenderPlugin {
             .register_asset::<Texture>()
             .register_asset::<Skeleton>();
 
-        // Before camera_changed, which bakes aspect into the projection matrix.
-        app.add_system(UpdateGroup::LateUpdate, sync_camera_aspect)
-            .add_system(UpdateGroup::LateUpdate, camera_added)
-            .add_system(UpdateGroup::LateUpdate, camera_changed)
-            .add_system(UpdateGroup::LateUpdate, mesh_added)
-            .add_system(UpdateGroup::LateUpdate, mesh_changed)
-            .add_system(UpdateGroup::LateUpdate, light_added)
-            .add_system(UpdateGroup::LateUpdate, light_changed)
-            .add_system(UpdateGroup::LateUpdate, skeleton_added);
+        app.set_extract_fn(extract);
+        app.add_render_system(Extract, extract_cameras)
+            .add_render_system(Extract, extract_meshes)
+            .add_render_system(Extract, extract_lights)
+            .add_render_system(Extract, extract_skeletons);
 
         if is_windowed {
-            app.add_system(UpdateGroup::Update, update_window::request_window_resize)
-                .add_system(UpdateGroup::Render, update_window::update_render_window);
+            app.add_system(Update, update_window::request_window_resize)
+                .add_system(LateUpdate, sync_camera_aspect)
+                .add_render_system(Extract, update_window::extract_window)
+                .add_render_system(Render, update_window::update_render_window);
         }
 
-        app.add_system(UpdateGroup::Render, clear_cameras)
-            .add_system(UpdateGroup::Render, update_skeletons)
-            .add_system(UpdateGroup::Render, update_changed_lights)
-            .add_system(
-                UpdateGroup::Render,
-                update_shadow_view_proj.after(update_changed_lights),
-            )
-            .add_system(
-                UpdateGroup::Render,
-                resize_shadow_maps.after(update_changed_lights),
-            )
-            .add_system(UpdateGroup::LateRender, present_window.after(finish_render));
+        app.add_render_system(Render, clear_cameras)
+            .add_render_system(Render, update_changed_lights)
+            .add_render_system(Render, update_shadow_view_proj.after(update_changed_lights))
+            .add_render_system(Render, resize_shadow_maps.after(update_changed_lights))
+            .add_render_system(LateRender, present_window.after(finish_render));
     }
 
     fn ready(&self, app: &app::App) -> bool {
@@ -247,10 +262,11 @@ impl Plugin for RenderPlugin {
 
         let lighting_layout = LightingLayout::new(&device);
 
-        app.register_component_lifecycle::<RenderEntity>();
-        app.register_component_lifecycle::<RenderSkeletonComponent>();
-        app.register_component_lifecycle::<RenderLight>();
-        app.register_component_lifecycle::<RenderShadowCasterSlot>();
+        app.render_mut()
+            .register_component_lifetimes::<RenderEntity>()
+            .register_component_lifetimes::<RenderSkeletonComponent>()
+            .register_component_lifetimes::<RenderLight>()
+            .register_component_lifetimes::<RenderShadowCasterSlot>();
 
         let render_lights = RenderLights::new(&device);
         let render_spot_directional_shadow_maps = RenderSpotDirectionalShadowMaps::new(&device);
@@ -266,7 +282,8 @@ impl Plugin for RenderPlugin {
         );
         let skin_uniforms = SkinUniforms::new(&device, &skeleton_layout, &queue);
 
-        app.insert_resource(DummyRenderTexture::new(&device))
+        app.render_mut()
+            .insert_resource(DummyRenderTexture::new(&device))
             .insert_resource(RenderContext {
                 surface,
                 surface_config: config,

@@ -227,7 +227,9 @@ impl PhysicsBackend for RapierBackend {
         // shim rather than failing the whole mesh over it.
         let indices: Vec<[u32; 3]> = mesh
             .indices
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|triangle| [triangle[0], triangle[1], triangle[2]])
             .collect();
 

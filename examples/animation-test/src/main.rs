@@ -1,7 +1,10 @@
 use color::Color;
 use game_engine::{
-    app::App,
-    ecs::{command::CommandQueue, system::schedule::UpdateGroup},
+    app::{
+        schedule_groups::{Startup, Update},
+        App,
+    },
+    ecs::command::CommandQueue,
     render::components::light::{Light, LightType},
     DefaultPlugins,
 };
@@ -38,18 +41,18 @@ fn main() {
     app.register_plugin(DebugGizmosPlugin);
 
     // Startup: camera + light, the animated character, and the debug overlay.
-    app.add_system(UpdateGroup::Startup, spawn_camera)
-        .add_system(UpdateGroup::Startup, spawn_character)
-        .add_system(UpdateGroup::Startup, spawn_overlay);
+    app.add_system(Startup, spawn_camera)
+        .add_system(Startup, spawn_character)
+        .add_system(Startup, spawn_overlay);
 
     // Update: fly camera, the animation state-machine setup chain, FSM input, and the
     // debug overlay / gizmos.
-    app.add_system(UpdateGroup::Update, first_person_player_fly)
-        .add_system(UpdateGroup::Update, setup_state_machine)
-        .add_system(UpdateGroup::Update, setup_animations)
-        .add_system(UpdateGroup::Update, update_movement)
-        .add_system(UpdateGroup::Update, update_overlay)
-        .add_system(UpdateGroup::Update, draw_entity_gizmos);
+    app.add_system(Update, first_person_player_fly)
+        .add_system(Update, setup_state_machine)
+        .add_system(Update, setup_animations)
+        .add_system(Update, update_movement)
+        .add_system(Update, update_overlay)
+        .add_system(Update, draw_entity_gizmos);
 
     app.run();
 }

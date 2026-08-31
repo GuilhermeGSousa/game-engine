@@ -1,14 +1,16 @@
 use std::marker::PhantomData;
 
-use app::plugins::Plugin;
+use app::{
+    extractor::Extracted,
+    plugins::Plugin,
+    schedule_groups::{Extract, Render},
+};
 use ecs::{
     command::CommandQueue,
-    entity::Entity,
-    query::{query_filter::Added, Query},
+    query::Query,
     resource::{Res, ResMut, Resource},
-    system::{input::SystemInputData, schedule::UpdateGroup},
+    system::input::SystemInputData,
 };
-use mesh::mesh::MeshComponent;
 
 use crate::{
     assets::material::ShaderRef,
@@ -135,24 +137,28 @@ impl<M: Material + 'static> RenderAsset for RenderMaterial<M> {
 
 // ─── Systems ──────────────────────────────────────────────────────────────────
 
-// Creates a render-world instance when a [`MeshComponent`] is added to an
-// entity that also carries [`MaterialComponent<M>`].
-pub(crate) fn material_added<M: Material>(
-    meshes: Query<(Entity, &MaterialComponent<M>, Option<&RenderEntity>), Added<(MeshComponent,)>>,
+// Extracts every `MaterialComponent<M>` into its `RenderMaterialComponent<M>`
+// mirror. Upserts like the other extract systems: an entity whose render
+// mirror already carries `RenderMaterialComponent<M>` is left alone (this
+// matches the old `Added`-gated behaviour — swapping a material handle after
+// the fact was never picked up either), so this only ever creates, never
+// updates.
+pub(crate) fn extract_materials<M: Material>(
+    materials: Extracted<Query<(&MaterialComponent<M>, &RenderEntity)>>,
+    render_materials: Query<&RenderMaterialComponent<M>>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, material, render_entity) in meshes.iter() {
-        let render_mat = RenderMaterialComponent::<M>::new(material.handle.id());
+    for (material, render_entity) in materials.iter() {
+        let render_entity = **render_entity;
 
-        match render_entity {
-            Some(re) => {
-                cmd.insert(render_mat, **re);
-            }
-            None => {
-                let new_re = cmd.spawn(render_mat).entity();
-                cmd.insert(RenderEntity::new(new_re), entity);
-            }
+        if render_materials.get_entity(render_entity).is_some() {
+            continue;
         }
+
+        cmd.insert(
+            RenderMaterialComponent::<M>::new(material.handle.id()),
+            render_entity,
+        );
     }
 }
 
@@ -367,19 +373,22 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
         app.register_asset::<M>();
         app.register_plugin(RenderAssetPlugin::<RenderMaterial<M>>::new());
 
-        // mesh_added<M> must be per-material so we know which material handle to store
-        // in RenderMaterialComponent<M>.  Transform updates, however, are handled by the
-        // shared mesh_changed system already registered by RenderPlugin, which iterates
-        // over all entities with RenderEntity regardless of material type.
-        app.add_system(UpdateGroup::LateUpdate, material_added::<M>)
-            .add_system(UpdateGroup::Render, material_renderpass::<M>);
+        // extract_materials<M> must be per-material so we know which material handle
+        // to store in RenderMaterialComponent<M>. Mesh transforms, however, are
+        // handled by the shared extract_meshes system already registered by
+        // RenderPlugin, which iterates over all entities with RenderEntity
+        // regardless of material type.
+        app.add_render_system(Extract, extract_materials::<M>)
+            .add_render_system(Render, material_renderpass::<M>);
     }
 
     fn finish(&self, app: &mut app::App) {
         let device = app
+            .render()
             .get_resource::<RenderDevice>()
             .expect("RenderDevice not found; register RenderPlugin before MaterialPlugin");
         let surface_format = app
+            .render()
             .get_resource::<RenderContext>()
             .expect("RenderContext not found")
             .surface_config
@@ -392,6 +401,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
 
         if M::needs_camera() {
             let camera_layout = app
+                .render()
                 .get_resource::<CameraLayout>()
                 .expect("CameraLayout not found");
             all_layouts.push(&camera_layout.camera_layout);
@@ -399,6 +409,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
 
         if M::needs_lighting() {
             let lighting_layout = app
+                .render()
                 .get_resource::<LightingLayout>()
                 .expect("LightingLayout not found");
             all_layouts.push(lighting_layout);
@@ -406,6 +417,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
 
         if M::needs_skeleton() {
             let skeleton_layout = app
+                .render()
                 .get_resource::<SkeletonLayout>()
                 .expect("SkeletonLayout not found");
             all_layouts.push(skeleton_layout);
@@ -477,6 +489,7 @@ impl<M: Material> Plugin for MaterialPlugin<M> {
             cache: None,
         });
 
-        app.insert_resource(MaterialPipeline::<M>::new(pipeline, material_layout));
+        app.render_mut()
+            .insert_resource(MaterialPipeline::<M>::new(pipeline, material_layout));
     }
 }

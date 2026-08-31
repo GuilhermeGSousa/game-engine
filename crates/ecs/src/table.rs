@@ -1,10 +1,9 @@
 use std::{
-    any::TypeId,
     collections::HashMap,
     ops::{Deref, DerefMut},
 };
 
-use any_vec::{any_value::AnyValueWrapper, AnyVec};
+use any_vec::{AnyVec, any_value::AnyValueWrapper};
 
 use crate::{
     component::{Component, ComponentId, Tick},
@@ -26,17 +25,44 @@ impl Column {
         }
     }
 
-    pub fn push<T>(&mut self, raw_value: AnyValueWrapper<T>, tick: u32) {
-        self.data.push(raw_value);
+    /// An empty column holding the same component type as `self`.
+    pub(crate) fn clone_empty(&self) -> Column {
+        Column {
+            data: self.data.clone_empty(),
+            added_ticks: Vec::new(),
+            changed_ticks: Vec::new(),
+        }
+    }
+
+    pub fn push<T: Component>(&mut self, value: T, tick: u32) {
+        self.data.push(AnyValueWrapper::new(value));
         self.added_ticks.push(Tick::new(tick));
         self.changed_ticks.push(Tick::new(0));
     }
 
-    pub fn insert<T>(&mut self, raw_value: AnyValueWrapper<T>, tick: u32, row: TableRowIndex) {
-        let index = *row;
-        self.data.insert(index, raw_value);
-        self.added_ticks.insert(index, Tick::new(tick));
-        self.changed_ticks.insert(index, Tick::new(0));
+    pub fn insert<T: Component>(&mut self, value: T, tick: u32, row: TableRowIndex) {
+        if let Some(mut element) = self.data.get_mut(*row)
+            && let Some(slot) = element.downcast_mut::<T>()
+        {
+            *slot = value;
+        }
+
+        self.added_ticks[*row].set(tick);
+        self.changed_ticks[*row].set(tick);
+    }
+
+    /// Moves the value at `row` out of `self` and appends it to `dst`, ticks included.
+    pub(crate) fn move_row_to(&mut self, row: TableRowIndex, dst: &mut Column) {
+        dst.data.push(self.data.swap_remove(*row));
+        dst.added_ticks.push(self.added_ticks.swap_remove(*row));
+        dst.changed_ticks.push(self.changed_ticks.swap_remove(*row));
+    }
+
+    /// Swap-removes the value at `row` and drops it.
+    pub(crate) fn drop_row(&mut self, row: TableRowIndex) {
+        self.data.swap_remove(*row);
+        self.added_ticks.swap_remove(*row);
+        self.changed_ticks.swap_remove(*row);
     }
 
     pub fn len(&self) -> usize {
@@ -48,28 +74,26 @@ impl Column {
     }
 
     pub(crate) unsafe fn get_unsafe<T: 'static>(&self, row: TableRowIndex) -> Option<&T> {
-        self.data.get_unchecked(*row).downcast_ref()
+        unsafe { self.data.get_unchecked(*row).downcast_ref() }
     }
 
     pub(crate) unsafe fn get_unsafe_mut<T: 'static>(
         &mut self,
         row: TableRowIndex,
     ) -> Option<MutableCellAccessor<'_, T>> {
-        self.data
-            .get_unchecked_mut(*row)
-            .downcast_mut()
-            .map(|data| MutableCellAccessor {
-                data,
-                changed_tick: &mut self.changed_ticks[*row],
-            })
+        unsafe {
+            self.data
+                .get_unchecked_mut(*row)
+                .downcast_mut()
+                .map(|data| MutableCellAccessor {
+                    data,
+                    changed_tick: &mut self.changed_ticks[*row],
+                })
+        }
     }
 
     pub fn set_changed(&mut self, row: TableRowIndex, current_tick: u32) {
         self.changed_ticks[*row].set(current_tick);
-    }
-
-    pub fn clone_empty_data(&self) -> AnyVec {
-        self.data.clone_empty()
     }
 }
 
@@ -86,23 +110,15 @@ impl Table {
         }
     }
 
-    pub(crate) fn from_row(mut removed_row: TableRow) -> Self {
-        let mut columns = HashMap::new();
-
-        removed_row.data.drain().for_each(|(key, value)| {
-            columns.insert(
-                key,
-                Column {
-                    data: value.component_data,
-                    added_ticks: vec![value.added_tick],
-                    changed_ticks: vec![value.changed_tick],
-                },
-            );
-        });
-
-        Self {
-            columns,
-            entities: vec![removed_row.entity],
+    /// An empty table with the same columns as `self`.
+    pub(crate) fn clone_empty(&self) -> Table {
+        Table {
+            columns: self
+                .columns
+                .iter()
+                .map(|(id, column)| (*id, column.clone_empty()))
+                .collect(),
+            entities: Vec::new(),
         }
     }
 
@@ -111,38 +127,48 @@ impl Table {
             .insert(ComponentId::of::<T>(), Column::new::<T>());
     }
 
+    pub(crate) fn remove_column(&mut self, component_id: ComponentId) {
+        self.columns.remove(&component_id);
+    }
+
     pub(crate) fn merge(&mut self, other: Table) {
         for (id, column) in other.columns {
             self.columns.entry(id).or_insert(column);
         }
     }
 
-    pub fn add_row(&mut self, mut row: TableRow) {
-        self.columns.iter_mut().for_each(|(key, value)| {
-            if let Some(added_col) = row.data.get_mut(key) {
-                value.data.push(added_col.component_data.pop().unwrap());
-                value.added_ticks.push(added_col.added_tick);
-                value.changed_ticks.push(added_col.changed_tick);
-            }
-        });
-
-        self.entities.push(row.entity);
-    }
-
     pub fn add_entity(&mut self, entity: Entity) {
         self.entities.push(entity);
     }
 
-    pub fn insert_entity(&mut self, row: TableRowIndex, entity: Entity) {
-        self.entities.insert(*row, entity);
+    /// Moves the row at `row` out of `self` and appends it to `dst`, returning its entity.
+    ///
+    /// A component is dropped rather than moved when `dst` has no column for it — that is how
+    /// component removal happens.
+    pub(crate) fn move_row_to(&mut self, row: TableRowIndex, dst: &mut Table) -> Entity {
+        for (id, column) in self.columns.iter_mut() {
+            match dst.columns.get_mut(id) {
+                Some(dst_column) => column.move_row_to(row, dst_column),
+                None => column.drop_row(row),
+            }
+        }
+
+        let entity = self.entities.swap_remove(*row);
+        dst.entities.push(entity);
+        entity
+    }
+
+    /// Swap-removes the row at `row`, dropping every component in it.
+    pub(crate) fn drop_row(&mut self, row: TableRowIndex) {
+        for column in self.columns.values_mut() {
+            column.drop_row(row);
+        }
+
+        self.entities.swap_remove(*row);
     }
 
     pub fn get_row_count(&self) -> usize {
-        self.columns
-            .values()
-            .next()
-            .map(|column| column.len())
-            .unwrap_or(0)
+        self.entities.len()
     }
 
     pub fn has_column(&self, type_id: ComponentId) -> bool {
@@ -186,78 +212,11 @@ impl Table {
             false
         }
     }
-
-    pub fn remove_swap(&mut self, row: TableRowIndex) -> TableRow {
-        let removed_row_data = self
-            .columns
-            .iter_mut()
-            .map(|(id, col)| {
-                let index: usize = *row;
-                let removed_added_tick = col.added_ticks.swap_remove(index);
-                let removed_changed_tick = col.changed_ticks.swap_remove(index);
-
-                let mut new_col_vec = col.clone_empty_data();
-                new_col_vec.push(col.data.swap_remove(index));
-
-                (
-                    *id,
-                    TableRowData {
-                        component_data: new_col_vec,
-                        added_tick: removed_added_tick,
-                        changed_tick: removed_changed_tick,
-                    },
-                )
-            })
-            .collect();
-
-        TableRow {
-            data: removed_row_data,
-            entity: self.entities.swap_remove(*row),
-        }
-    }
 }
 
 impl Default for Table {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-pub(crate) struct TableRowData {
-    component_data: AnyVec,
-    added_tick: Tick,
-    changed_tick: Tick,
-}
-
-impl TableRowData {
-    fn make_empty<T: Component>(tick: Tick) -> TableRowData {
-        TableRowData {
-            component_data: AnyVec::new::<T>(),
-            added_tick: tick,
-            changed_tick: tick,
-        }
-    }
-}
-
-pub struct TableRow {
-    pub(crate) data: HashMap<ComponentId, TableRowData>,
-    pub(crate) entity: Entity,
-}
-
-impl TableRow {
-    pub fn insert<T: Component>(&mut self, raw_value: AnyValueWrapper<T>, current_tick: Tick) {
-        let table_row_data = self
-            .data
-            .entry(TypeId::of::<T>())
-            .or_insert(TableRowData::make_empty::<T>(current_tick));
-
-        table_row_data.component_data.push(raw_value);
-        table_row_data.added_tick.set(*current_tick);
-        table_row_data.changed_tick.set(*current_tick);
-    }
-
-    pub fn remove<T: Component>(&mut self) {
-        self.data.remove(&TypeId::of::<T>());
     }
 }
 

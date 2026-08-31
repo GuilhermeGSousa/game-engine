@@ -1,5 +1,4 @@
-use app::plugins::Plugin;
-use ecs::system::schedule::UpdateGroup;
+use app::{plugins::Plugin, schedule_groups::LateUpdate};
 
 use crate::{
     clip::AnimationClip,
@@ -14,8 +13,8 @@ impl Plugin for AnimationPlugin {
         app.register_asset::<AnimationClip>();
         app.register_asset::<AnimationGraph>();
 
-        app.add_system(UpdateGroup::LateUpdate, animate_targets)
-            .add_system(UpdateGroup::LateUpdate, initialize_animation_players)
-            .add_system(UpdateGroup::LateUpdate, update_animation_players);
+        app.add_system(LateUpdate, animate_targets)
+            .add_system(LateUpdate, initialize_animation_players)
+            .add_system(LateUpdate, update_animation_players);
     }
 }

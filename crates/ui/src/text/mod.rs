@@ -1,8 +1,8 @@
+use app::extractor::Extracted;
 use ecs::{
     command::CommandQueue,
     component::Component,
-    entity::Entity,
-    query::{Query, query_filter::Changed},
+    query::Query,
     resource::{Res, ResMut},
 };
 use glyphon::{Attrs, Buffer, Family, Metrics, Shaping, Style, Weight};
@@ -66,13 +66,13 @@ pub struct RenderTextComponent {
     pub(crate) buffer: glyphon::Buffer,
 }
 
-pub(crate) fn extract_added_text_nodes(
-    changed_nodes: Query<(Entity, &TextComponent, Option<&RenderEntity>), Changed<TextComponent>>,
-    window: Res<Window>,
+pub(crate) fn extract_text_nodes(
+    text_nodes: Extracted<Query<(&TextComponent, &RenderEntity)>>,
+    window: Extracted<Res<Window>>,
     mut font_system: ResMut<TextFontSystem>,
     mut cmd: CommandQueue,
 ) {
-    for (entity, text_component, render_entity) in changed_nodes.iter() {
+    for (text_component, render_entity) in text_nodes.iter() {
         let mut text_buffer = Buffer::new(
             &mut font_system,
             Metrics {
@@ -112,18 +112,11 @@ pub(crate) fn extract_added_text_nodes(
         );
         text_buffer.shape_until_scroll(&mut font_system, false);
 
-        let render_text_component = RenderTextComponent {
-            buffer: text_buffer,
-        };
-
-        match render_entity {
-            Some(render_entity) => {
-                cmd.insert(render_text_component, **render_entity);
-            }
-            None => {
-                let render_entity = cmd.spawn(render_text_component).entity();
-                cmd.insert(RenderEntity::new(render_entity), entity);
-            }
-        }
+        cmd.insert(
+            RenderTextComponent {
+                buffer: text_buffer,
+            },
+            **render_entity,
+        );
     }
 }

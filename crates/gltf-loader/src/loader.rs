@@ -38,6 +38,7 @@ use render::{
     components::{
         camera::Camera,
         light::{Light, LightType},
+        render_entity::SyncWithRenderWorld,
     },
 };
 use serde_json::Value;
@@ -787,16 +788,15 @@ pub(crate) fn spawn_gltf_components(
 
                     if let Some((first_mesh, material_index)) = first_primitive {
                         cmd.insert(
-                            MeshComponent {
-                                handle: first_mesh.clone(),
-                            },
-                            node_entities[node_index],
-                        );
-
-                        cmd.insert(
-                            MaterialComponent {
-                                handle: asset.materials[*material_index].clone(),
-                            },
+                            (
+                                MeshComponent {
+                                    handle: first_mesh.clone(),
+                                },
+                                SyncWithRenderWorld,
+                                MaterialComponent {
+                                    handle: asset.materials[*material_index].clone(),
+                                },
+                            ),
                             node_entities[node_index],
                         );
 
@@ -808,15 +808,15 @@ pub(crate) fn spawn_gltf_components(
                     for (mesh, material_index) in remaining_primitives {
                         let child = cmd.spawn(Transform::default()).entity();
                         cmd.insert(
-                            MeshComponent {
-                                handle: mesh.clone(),
-                            },
-                            child,
-                        );
-                        cmd.insert(
-                            MaterialComponent {
-                                handle: asset.materials[*material_index].clone(),
-                            },
+                            (
+                                MeshComponent {
+                                    handle: mesh.clone(),
+                                },
+                                MaterialComponent {
+                                    handle: asset.materials[*material_index].clone(),
+                                },
+                                SyncWithRenderWorld,
+                            ),
                             child,
                         );
 
@@ -846,9 +846,11 @@ pub(crate) fn spawn_gltf_components(
                     for child in &extra_primitive_entities {
                         cmd.insert(skeleton_component.clone(), *child);
                     }
-                    cmd.insert(skeleton_component, node_entities[node_index]);
                     cmd.insert(
-                        AnimationPlayer::new(gltf_skeleton.bones.len()),
+                        (
+                            skeleton_component,
+                            AnimationPlayer::new(gltf_skeleton.bones.len()),
+                        ),
                         node_entities[node_index],
                     );
                     animation_players.push(node_entities[node_index]);
@@ -879,12 +881,15 @@ pub(crate) fn spawn_gltf_components(
                         GLTFLightType::Directional => LightType::Directional,
                     };
                     cmd.insert(
-                        Light {
-                            color: gltf_light.color,
-                            intensity: gltf_light.intensity,
-                            light_type,
-                            shadowmaps_enabled: component.lights_cast_shadows,
-                        },
+                        (
+                            Light {
+                                color: gltf_light.color,
+                                intensity: gltf_light.intensity,
+                                light_type,
+                                shadowmaps_enabled: component.lights_cast_shadows,
+                            },
+                            SyncWithRenderWorld,
+                        ),
                         node_entities[node_index],
                     );
                 }

@@ -30,5 +30,5 @@ pub fn physics_world() -> World {
 pub fn register_bodies(world: &mut World) {
     let mut schedule = Schedule::new();
     schedule.add_system(register_colliders);
-    schedule.compile::<SingleThreadedExecutor>().run(world);
+    schedule.compile::<SingleThreadedExecutor>(world).run(world);
 }

@@ -6,7 +6,7 @@ use ecs::{
     events::{Event, event_writer::EventWriter},
     query::{
         Query,
-        query_filter::{Added, With},
+        filter::{Added, With},
     },
     resource::{Res, Resource},
 };

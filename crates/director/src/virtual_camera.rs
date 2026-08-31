@@ -248,7 +248,9 @@ mod tests {
 
         let mut schedule = Schedule::new();
         schedule.add_system(insert_authored_camera);
-        schedule.compile::<SingleThreadedExecutor>().run(&mut world);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
 
         (world, node)
     }

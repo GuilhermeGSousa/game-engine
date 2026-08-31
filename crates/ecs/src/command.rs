@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use log::warn;
 
 use crate::{
-    component::{bundle::ComponentBundle, Component},
-    entity::{entity_store::EntityStore, Entity},
+    component::{Component, bundle::ComponentBundle},
+    entity::{Entity, entity_store::EntityStore},
     resource::Resource,
     system::input::SystemInput,
     world::World,
@@ -36,7 +36,7 @@ impl<'a> EntityCommandQueue<'a> {
         self
     }
 
-    pub fn insert<T: Component>(&mut self, component: T) {
+    pub fn insert<T: ComponentBundle + 'static>(&mut self, component: T) {
         self.command_queue.insert(component, self.entity);
     }
 
@@ -76,7 +76,7 @@ impl<'w, 's> CommandQueue<'w, 's> {
         self.queue_state.add_command(DespawnCommand::new(entity));
     }
 
-    pub fn insert<T: Component>(&mut self, component: T, entity: Entity) {
+    pub fn insert<T: ComponentBundle + 'static>(&mut self, component: T, entity: Entity) {
         self.queue_state
             .add_command(InsertCommand::new(component, entity));
     }
@@ -139,7 +139,7 @@ impl SystemInput for CommandQueue<'_, '_> {
     type State = CommandQueueState;
     type Data<'world, 'state> = CommandQueue<'world, 'state>;
 
-    fn init_state() -> Self::State {
+    fn init_state(_world: &mut World) -> Self::State {
         CommandQueueState::new()
     }
 
@@ -196,20 +196,20 @@ impl Command for DespawnCommand {
     }
 }
 
-pub(crate) struct InsertCommand<T: Component> {
+pub(crate) struct InsertCommand<T: ComponentBundle> {
     component: T,
     entity: Entity,
 }
 
-impl<T: Component> InsertCommand<T> {
+impl<T: ComponentBundle> InsertCommand<T> {
     pub fn new(component: T, entity: Entity) -> Self {
         InsertCommand { component, entity }
     }
 }
 
-impl<T: Component> Command for InsertCommand<T> {
+impl<T: ComponentBundle> Command for InsertCommand<T> {
     fn execute(self: Box<Self>, world: &mut World) {
-        world.insert_component(self.component, self.entity);
+        world.insert(self.component, self.entity);
     }
 }
 

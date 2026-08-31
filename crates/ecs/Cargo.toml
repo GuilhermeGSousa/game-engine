@@ -1,7 +1,7 @@
 [package]
 name = "ecs"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 default = ["multithreaded"]
@@ -26,3 +26,4 @@ crossbeam-channel = "0.5.0"
 facet = { version = "0.46", features = ["reflect"] }
 facet-json = "0.46"
 anyhow = "1.0.97"
+foldhash = { version = "0.2.0", default-features = false }

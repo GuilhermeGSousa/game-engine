@@ -5,6 +5,7 @@ use wgpu::{TextureView, TextureViewDescriptor};
 pub struct RenderWindow {
     view: Option<TextureView>,
     texture: Option<wgpu::SurfaceTexture>,
+    size: (u32, u32),
 }
 
 impl RenderWindow {
@@ -12,6 +13,7 @@ impl RenderWindow {
         RenderWindow {
             view: None,
             texture: None,
+            size: (0, 0),
         }
     }
 
@@ -22,6 +24,14 @@ impl RenderWindow {
 
     pub fn get_view(&self) -> Option<&TextureView> {
         self.view.as_ref()
+    }
+
+    pub(crate) fn set_size(&mut self, size: (u32, u32)) {
+        self.size = size;
+    }
+
+    pub fn size(&self) -> (u32, u32) {
+        self.size
     }
 
     pub fn present(&mut self) {

@@ -14,7 +14,7 @@ fn insertion_typed<T: Component + for<'a> Facet<'a>>(
     world: &mut World,
     entity: Entity,
 ) -> anyhow::Result<()> {
-    world.insert_component(heap.materialize::<T>()?, entity);
+    world.insert(heap.materialize::<T>()?, entity);
     Ok(())
 }
 

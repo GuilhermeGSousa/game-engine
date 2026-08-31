@@ -1,8 +1,8 @@
 use std::{
     any::TypeId,
     collections::{
-        hash_map::Entry::{Occupied, Vacant},
         HashMap,
+        hash_map::Entry::{Occupied, Vacant},
     },
 };
 
@@ -10,8 +10,8 @@ use derive_more::{Deref, DerefMut};
 use facet::Facet;
 
 use crate::{
-    component::{reflection::ComponentReflection, ComponentId},
     Component,
+    component::{ComponentId, reflection::ComponentReflection},
 };
 
 pub(crate) struct ComponentInfo {}

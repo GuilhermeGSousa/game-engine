@@ -1,14 +1,16 @@
-use app::App;
-use color::Color;
-use ecs::{
-    command::CommandQueue, query::Query, resource::Res, system::schedule::UpdateGroup, Component,
-    With,
+use app::{
+    schedule_groups::{Startup, Update},
+    App,
 };
+use color::Color;
+use ecs::{command::CommandQueue, query::Query, resource::Res, Component, With};
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
 use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
 use glam::{Quat, Vec3};
 use render::components::light::{Light, LightType};
 
+#[cfg(feature = "terminal")]
+use app::schedule_groups::LateRender;
 #[cfg(feature = "terminal")]
 use ecs::{resource::ResMut, IntoSystemConfig};
 #[cfg(feature = "terminal")]
@@ -89,11 +91,11 @@ fn main() {
     {
         app.register_plugin(DefaultPlugins::headless())
             .register_plugin(TerminalRendererPlugin)
-            .add_system(UpdateGroup::Startup, spawn_camera_terminal)
-            .add_system(UpdateGroup::Startup, spawn_scene)
-            .add_system(UpdateGroup::Update, rotate_cube)
-            .add_system(UpdateGroup::Update, move_camera);
-        app.add_system(UpdateGroup::LateRender, draw_terminal);
+            .add_system(Startup, spawn_camera_terminal)
+            .add_system(Startup, spawn_scene)
+            .add_system(Update, rotate_cube)
+            .add_system(Update, move_camera);
+        app.add_system(LateRender, draw_terminal);
     }
 
     #[cfg(not(feature = "terminal"))]
@@ -102,13 +104,13 @@ fn main() {
 
         app.register_plugin(DefaultPlugins::default())
             .register_plugin(FrameStatsOverlayPlugin)
-            .add_system(UpdateGroup::Startup, spawn_camera_windowed)
-            .add_system(UpdateGroup::Startup, spawn_scene)
-            .add_system(UpdateGroup::Update, rotate_cube)
-            .add_system(UpdateGroup::Update, shoot_sphere)
-            .add_system(UpdateGroup::Update, launch_projectiles)
-            .add_system(UpdateGroup::Update, first_person_player_fly)
-            .add_system(UpdateGroup::Update, draw_gizmos);
+            .add_system(Startup, spawn_camera_windowed)
+            .add_system(Startup, spawn_scene)
+            .add_system(Update, rotate_cube)
+            .add_system(Update, shoot_sphere)
+            .add_system(Update, launch_projectiles)
+            .add_system(Update, first_person_player_fly)
+            .add_system(Update, draw_gizmos);
         app.register_plugin(DebugGizmosPlugin);
     }
 

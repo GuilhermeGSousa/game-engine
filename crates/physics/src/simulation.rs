@@ -89,12 +89,12 @@ mod tests {
         let mut registration = Schedule::new();
         registration.add_system(register_colliders);
         registration
-            .compile::<SingleThreadedExecutor>()
+            .compile::<SingleThreadedExecutor>(&mut world)
             .run(&mut world);
 
         let mut schedule = Schedule::new();
         schedule.add_system(step_simulation);
-        let mut schedule = schedule.compile::<SingleThreadedExecutor>();
+        let mut schedule = schedule.compile::<SingleThreadedExecutor>(&mut world);
         for _ in 0..240 {
             schedule.run(&mut world);
         }
@@ -150,12 +150,12 @@ mod tests {
         let mut registration = Schedule::new();
         registration.add_system(register_colliders);
         registration
-            .compile::<SingleThreadedExecutor>()
+            .compile::<SingleThreadedExecutor>(&mut world)
             .run(&mut world);
 
         let mut schedule = Schedule::new();
         schedule.add_system(step_simulation);
-        let mut schedule = schedule.compile::<SingleThreadedExecutor>();
+        let mut schedule = schedule.compile::<SingleThreadedExecutor>(&mut world);
         for _ in 0..240 {
             schedule.run(&mut world);
         }

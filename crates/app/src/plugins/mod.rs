@@ -1,4 +1,3 @@
-use ecs::system::schedule::UpdateGroup;
 use essential::assets::asset_server::{handle_asset_load_events, AssetServer};
 use essential::assets::handle::AssetLifetimeEvent;
 use essential::time::{FrameStats, Time};
@@ -7,6 +6,7 @@ use ecs::resource::{Res, ResMut};
 use essential::transform::systems::{propagate_global_transforms, update_simple_entities};
 use essential::transform::Transform;
 
+use crate::schedule_groups::{LateUpdate, Update};
 use crate::App;
 
 /// Describes the current phase of plugin initialisation.
@@ -77,8 +77,8 @@ impl Plugin for TimePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Time::new());
         app.insert_resource(FrameStats::new());
-        app.add_system(UpdateGroup::Update, update_time);
-        app.add_system(UpdateGroup::LateUpdate, update_frame_stats);
+        app.add_system(Update, update_time);
+        app.add_system(LateUpdate, update_frame_stats);
     }
 }
 
@@ -89,7 +89,7 @@ impl Plugin for AssetManagerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(AssetServer::new());
         app.register_event::<AssetLifetimeEvent>();
-        app.add_system(UpdateGroup::LateUpdate, handle_asset_load_events);
+        app.add_system(LateUpdate, handle_asset_load_events);
     }
 }
 
@@ -99,8 +99,8 @@ pub struct TransformPlugin;
 
 impl Plugin for TransformPlugin {
     fn build(&self, app: &mut App) {
-        app.register_component_lifecycle::<Transform>();
-        app.add_system(UpdateGroup::LateUpdate, update_simple_entities)
-            .add_system(UpdateGroup::LateUpdate, propagate_global_transforms);
+        app.register_component_lifetimes::<Transform>();
+        app.add_system(LateUpdate, update_simple_entities)
+            .add_system(LateUpdate, propagate_global_transforms);
     }
 }

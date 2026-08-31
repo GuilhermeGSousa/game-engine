@@ -9,12 +9,12 @@
 
 use color::Color;
 use game_engine::{
-    app::App,
-    director::VirtualCamera,
-    ecs::{
-        command::CommandQueue, component::Component, query::Query, resource::Res,
-        system::schedule::UpdateGroup,
+    app::{
+        schedule_groups::{Startup, Update},
+        App,
     },
+    director::VirtualCamera,
+    ecs::{command::CommandQueue, component::Component, query::Query, resource::Res},
     essential::{
         assets::asset_server::AssetServer,
         transform::{GlobalTransform, Transform},
@@ -49,8 +49,8 @@ fn main() {
 
     let mut app = App::new();
     app.register_plugin(DefaultPlugins::default())
-        .add_system(UpdateGroup::Startup, spawn_scene)
-        .add_system(UpdateGroup::Update, click_ball);
+        .add_system(Startup, spawn_scene)
+        .add_system(Update, click_ball);
     app.run();
 }
 

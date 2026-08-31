@@ -13,7 +13,7 @@ use crate::{pipeline::GizmoPipeline, storage::GizmoStorage};
 /// Uploads all gizmos buffered this frame and draws them once per camera, then
 /// clears the storage so the next frame starts empty (immediate mode).
 ///
-/// Runs in [`UpdateGroup::Render`](ecs::system::schedule::UpdateGroup::Render).
+/// Runs in [`Render`](app::schedule_groups::Render).
 /// It records into the shared frame encoder after the material passes, so
 /// gizmos are drawn on top of the scene.
 pub(crate) fn render_gizmos(

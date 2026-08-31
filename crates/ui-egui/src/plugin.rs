@@ -1,5 +1,7 @@
-use app::plugins::Plugin;
-use ecs::system::schedule::UpdateGroup;
+use app::{
+    plugins::Plugin,
+    schedule_groups::{LateRender, Render, Update},
+};
 use render::{device::RenderDevice, resources::RenderContext};
 
 use crate::{
@@ -12,10 +14,10 @@ pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut app::App) {
-        app.add_system(UpdateGroup::Update, handle_window_events);
-        app.add_system(UpdateGroup::Render, begin_ui_frame);
+        app.add_system(Update, handle_window_events);
+        app.add_system(Render, begin_ui_frame);
         // TODO: Fix this
-        app.add_system(UpdateGroup::LateRender, end_ui_frame);
+        app.add_system(LateRender, end_ui_frame);
     }
 
     fn finish(&self, app: &mut app::App) {

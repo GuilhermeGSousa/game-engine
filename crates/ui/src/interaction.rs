@@ -5,7 +5,7 @@ use ecs::{
     component::Component,
     entity::Entity,
     events::Event,
-    query::{Query, query_filter::With},
+    query::{Query, filter::With},
     resource::{Res, ResMut, Resource},
 };
 use glam::Vec2;

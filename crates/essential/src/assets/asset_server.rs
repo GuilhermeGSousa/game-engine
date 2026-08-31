@@ -41,21 +41,32 @@ enum AssetLoadEvent {
 
 pub struct AssetLoadContext {
     asset_server: AssetServer,
+    asset_id: AssetId,
 }
 
 impl AssetLoadContext {
     pub fn asset_server(&self) -> &AssetServer {
         &self.asset_server
     }
+
+    pub fn asset_id(&self) -> AssetId {
+        self.asset_id
+    }
 }
 
 impl AssetLoadContext {
-    pub(crate) fn new(asset_server: AssetServer) -> Self {
-        Self { asset_server }
+    pub(crate) fn new(asset_server: AssetServer, asset_id: AssetId) -> Self {
+        Self {
+            asset_server,
+            asset_id,
+        }
     }
 }
 
 pub(crate) struct AssetInfo {
+    // std::sync::Weak, used only for handle-reuse/dedup in AssetHandleProvider
+    // (doesn't keep the asset alive) — unrelated to the AssetHandle::Weak
+    // enum variant (an unresolved AssetId reference).
     handle: Weak<StrongAssetHandle>,
 }
 
@@ -122,6 +133,26 @@ impl AssetServer {
         self.load_internal::<A>(path, usage_settings)
     }
 
+    /// Loads (or returns a handle to an already-loading/loaded asset for) the
+    /// given `AssetId` directly, with no `AssetPath` involved. Used by
+    /// callers (e.g. importers building references, or cooked-format
+    /// loaders) that only have an `AssetId` and no human-readable path.
+    ///
+    /// This is the same per-ID dedup and request-load logic `load_internal`
+    /// has always used, extracted so `load_internal` and `load_by_id` share
+    /// it: if an asset for `id` isn't already loaded or loading, a load task
+    /// is spawned via `request_load`; either way, a handle to `id` is
+    /// returned (deduped/reused via `AssetHandleProvider.asset_handles`).
+    pub fn load_by_id<A: LoadableAsset + 'static>(&self, id: AssetId) -> AssetHandle<A> {
+        if !self.data.pending_tasks.read().unwrap().contains_key(&id)
+            && !self.data.loaded_assets.read().unwrap().contains(&id)
+        {
+            self.request_load::<A>(None, id, A::default_usage_settings());
+        }
+
+        self.data.handle_provider.request_handle(id, None)
+    }
+
     fn load_internal<'a, A: LoadableAsset>(
         &self,
         path: impl Into<AssetPath<'a>>,
@@ -132,14 +163,14 @@ impl AssetServer {
         let id = match self.data.path_to_id.write().unwrap().entry(path.clone()) {
             std::collections::hash_map::Entry::Occupied(occupied_entry) => *occupied_entry.get(),
             std::collections::hash_map::Entry::Vacant(vacant_entry) => {
-                *vacant_entry.insert(AssetId::new())
+                *vacant_entry.insert(AssetId::from_path(&path.to_path().to_string_lossy()))
             }
         };
 
         if !self.data.pending_tasks.read().unwrap().contains_key(&id)
             && !self.data.loaded_assets.read().unwrap().contains(&id)
         {
-            self.request_load::<A>(path.clone(), id, usage_settings);
+            self.request_load::<A>(Some(path.clone()), id, usage_settings);
         }
 
         self.data.handle_provider.request_handle(id, Some(path))
@@ -153,9 +184,17 @@ impl AssetServer {
         }
     }
 
+    /// Spawns the async load task for `id`. `path` is the human-readable
+    /// asset path used both to actually locate/parse the file today and for
+    /// error logging; `load_by_id` callers have no path (they only have an
+    /// `AssetId`), so they pass `None` and get an empty placeholder path
+    /// here. Cooked-format loaders (added in later tasks) are expected to
+    /// resolve their file location from `AssetLoadContext::asset_id()`
+    /// instead of relying on this path, which is what makes `load_by_id`
+    /// (path-less) usable for them.
     fn request_load<A: LoadableAsset>(
         &self,
-        path: AssetPath<'static>,
+        path: Option<AssetPath<'static>>,
         id: AssetId,
         usage_settings: A::UsageSettings,
     ) {
@@ -164,6 +203,7 @@ impl AssetServer {
         let sender = self.data.asset_load_event_sender.clone();
 
         let server = self.clone();
+        let path = path.unwrap_or_else(|| AssetPath::new(""));
         // No profiling scope around the async body: a scope guard must not be
         // held across .await (tasks can migrate between worker threads).
         // Load costs show up on the named "asset-load-N" threads instead.
@@ -171,7 +211,7 @@ impl AssetServer {
             LoadTaskPool::get_or_init(|| TaskPool::with_name("asset-load")).spawn(async move {
                 let log_path = path.clone();
                 let asset = asset_loader
-                    .load(path, &mut AssetLoadContext::new(server), usage_settings)
+                    .load(path, &mut AssetLoadContext::new(server, id), usage_settings)
                     .await;
                 match asset {
                     Ok(asset) => {
@@ -274,7 +314,7 @@ impl AssetHandleProvider {
         });
 
         if let Some(strong_handle) = info.handle.upgrade() {
-            AssetHandle::new(strong_handle)
+            AssetHandle::strong(strong_handle)
         } else {
             let handle = Arc::new(StrongAssetHandle {
                 id,
@@ -284,7 +324,7 @@ impl AssetHandleProvider {
 
             info.handle = Arc::downgrade(&handle);
 
-            AssetHandle::new(handle)
+            AssetHandle::strong(handle)
         }
     }
 }

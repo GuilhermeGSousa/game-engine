@@ -1,13 +1,52 @@
+use asset_cook::CookedAsset;
+use async_trait::async_trait;
 use ecs::Component;
-use essential::assets::{handle::AssetHandle, Asset};
+use essential::assets::{
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, handle::AssetHandle, Asset,
+    AssetPath, LoadableAsset,
+};
 use glam::{Vec2, Vec3};
 
 use crate::vertex::Vertex;
 
-#[derive(Asset)]
+#[derive(Asset, serde::Serialize, serde::Deserialize)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+}
+
+impl CookedAsset for Mesh {
+    const TYPE_NAME: &'static str = "Mesh";
+}
+
+impl LoadableAsset for Mesh {
+    type UsageSettings = ();
+    fn loader() -> Box<dyn AssetLoader<Asset = Self>> {
+        Box::new(MeshLoader)
+    }
+    fn default_usage_settings() -> Self::UsageSettings {}
+}
+
+pub struct MeshLoader;
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl AssetLoader for MeshLoader {
+    type Asset = Mesh;
+
+    async fn load(
+        &self,
+        _path: AssetPath<'static>,
+        load_context: &mut AssetLoadContext,
+        _usage_settings: (),
+    ) -> anyhow::Result<Self::Asset> {
+        let cooked_path = asset_cook::cooked_file_path_for_id(
+            std::path::Path::new("res"),
+            load_context.asset_id(),
+        );
+        let bytes = std::fs::read(&cooked_path)?;
+        Ok(bincode::deserialize(&bytes)?)
+    }
 }
 
 impl Mesh {

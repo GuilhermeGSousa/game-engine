@@ -8,7 +8,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 essential = { path = "../essential" }
+asset-cook = { path = "../asset-cook" }
 bytemuck = { version = "1.22.0", features = ["derive"] }
 glam = { version = "0.30.1" }
 ecs = { path = "../ecs" }
 uuid = { version = "1.18.1", features = ["v4", "js"] }
+serde = { version = "1", features = ["derive"] }
+bincode = "1.3"
+async-trait = "0.1.50"
+anyhow = "1.0.97"

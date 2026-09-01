@@ -267,7 +267,7 @@ fn make_uv_sphere(radius: f32, rings: u32, segments: u32) -> Mesh {
 fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {
     let delta = time.delta().as_secs_f32();
     for mut transform in cubes.iter() {
-        transform.rotation = transform.rotation * Quat::from_rotation_y(delta);
+        transform.rotation *= Quat::from_rotation_y(delta);
     }
 }
 

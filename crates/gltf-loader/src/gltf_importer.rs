@@ -4,8 +4,8 @@
 //! `scene` sub-assets, cross-referenced by stable `AssetId`.
 //!
 // TODO(follow-up): skeleton, animation, camera, light, and Blender-extras component
-// data are not yet ported from the original GLTFLoader — see loader.rs for the
-// reference implementation.
+// data are not yet ported from the original runtime GLTFLoader (removed in the
+// Task 14b cutover — see git history for the reference implementation).
 
 use std::collections::BTreeSet;
 use std::path::Path;

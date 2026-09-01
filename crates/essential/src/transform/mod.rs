@@ -7,7 +7,7 @@ use crate::blend::Blendable;
 
 pub mod systems;
 
-#[derive(Clone, Blendable)]
+#[derive(Clone, Blendable, serde::Serialize, serde::Deserialize)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,

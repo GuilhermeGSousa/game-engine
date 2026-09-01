@@ -2,10 +2,15 @@ use std::path::PathBuf;
 
 use asset_cook::{run_cook, CookOptions, Importer};
 use gltf_loader::gltf_importer::GltfImporter;
+use obj_loader::obj_importer::ObjImporter;
 use render::importers::image_importer::ImageImporter;
 
 fn registered_importers() -> Vec<Box<dyn Importer>> {
-    vec![Box::new(ImageImporter), Box::new(GltfImporter)]
+    vec![
+        Box::new(ImageImporter),
+        Box::new(GltfImporter),
+        Box::new(ObjImporter),
+    ]
 }
 
 fn main() {

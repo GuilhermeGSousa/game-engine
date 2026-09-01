@@ -6,5 +6,6 @@ edition = "2021"
 [dependencies]
 asset-cook = { path = "../asset-cook" }
 gltf-loader = { path = "../gltf-loader" }
+obj-loader = { path = "../obj-loader" }
 render = { path = "../render" }
 env_logger = "0.11.6"

@@ -1,0 +1,56 @@
+//! Covers ObjImporter splitting a single .obj/.mtl pair into mesh, material,
+//! and scene sub-assets, reusing the same Scene shape as glTF.
+use std::path::Path;
+
+use asset_cook::{ImportContext, Importer};
+use obj_loader::obj_importer::ObjImporter;
+use scene::scene::Scene;
+
+#[test]
+fn import_emits_mesh_material_and_flat_scene() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/square.obj");
+    let mut ctx = ImportContext::new(std::path::PathBuf::from("square.obj"));
+
+    ObjImporter
+        .import(&fixture, &mut ctx)
+        .expect("importing the square fixture should succeed");
+    let outputs = ctx.into_parts();
+
+    let names: Vec<&str> = outputs.sub_assets.iter().map(|s| s.name.as_str()).collect();
+    assert!(
+        names.iter().any(|n| n.starts_with("mesh/")),
+        "expected a mesh sub-asset, got: {names:?}"
+    );
+    assert!(
+        names.iter().any(|n| n.starts_with("material/")),
+        "expected a material sub-asset, got: {names:?}"
+    );
+    assert!(
+        names.contains(&"scene"),
+        "expected a scene sub-asset, got: {names:?}"
+    );
+
+    assert!(
+        outputs
+            .dependencies
+            .iter()
+            .any(|d| d.path.file_name().unwrap() == "square.mtl"),
+        "the referenced .mtl file must be tracked as a dependency for incremental rebuilds"
+    );
+
+    let scene_entry = outputs
+        .sub_assets
+        .iter()
+        .find(|s| s.name == "scene")
+        .unwrap();
+    let cooked_scene: Scene = bincode::deserialize(&scene_entry.bytes).unwrap();
+    assert_eq!(
+        cooked_scene.nodes.len(),
+        1,
+        "the fixture has one mesh, so one flat scene node"
+    );
+    assert!(
+        cooked_scene.nodes[0].children.is_empty(),
+        "OBJ has no hierarchy"
+    );
+}

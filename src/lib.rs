@@ -24,7 +24,6 @@ use app::{
     App, Plugin,
 };
 use director::CameraDirectorPlugin;
-use obj_loader::plugin::OBJPlugin;
 use physics::plugin::PhysicsPlugin;
 use render::{
     assets::material::StandardMaterial, plugin::RenderPlugin,
@@ -69,7 +68,6 @@ impl Plugin for DefaultPlugins {
         app.register_plugin(PhysicsPlugin)
             .register_plugin(AnimationPlugin)
             .register_plugin(ScenePlugin)
-            .register_plugin(OBJPlugin)
             .register_plugin(WorldGridPlugin)
             .register_plugin(GameplayPlugin);
 

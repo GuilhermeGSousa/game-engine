@@ -10,6 +10,7 @@ crate-type = ["rlib"]
 bytemuck = { version = "1.22.0", features = ["derive"] }
 encase = { version = "0.11.1" }
 rand = { version = "0.10.2" }
+serde = { version = "1", features = ["derive"] }
 
 # rand seeds its RNG from OS entropy via getrandom, which has no default
 # backend on wasm32-unknown-unknown; opt in to the browser's

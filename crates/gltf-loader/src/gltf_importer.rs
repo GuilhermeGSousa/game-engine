@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use anyhow::{Context, bail};
-use asset_cook::{ImportContext, ImportError, Importer};
+use asset_cook::{ImportContext, ImportError, Importer, hash_file_contents};
 use color::Color;
 use essential::assets::handle::AssetHandle;
 use essential::transform::Transform;
@@ -54,6 +54,22 @@ impl Importer for GltfImporter {
                 source_path: source_path.to_path_buf(),
                 message: e.to_string(),
             })?;
+
+        // Track every external `.bin`/image `uri` the document pulls in, so
+        // editing one and re-running `cook` re-imports instead of shipping
+        // stale cooked output. Embedded `data:` URIs need no tracking — a
+        // change there changes the `.gltf`'s own hash.
+        let source_dir = source_path.parent().unwrap_or_else(|| Path::new(""));
+        for buffer in document.buffers() {
+            if let gltf::buffer::Source::Uri(uri) = buffer.source() {
+                track_external(ctx, source_dir, uri);
+            }
+        }
+        for image in document.images() {
+            if let gltf::image::Source::Uri { uri, .. } = image.source() {
+                track_external(ctx, source_dir, uri);
+            }
+        }
 
         // Decode every embedded/external image up front; textures are emitted
         // later, once the materials loop has recorded which (image, color
@@ -227,6 +243,43 @@ impl Importer for GltfImporter {
 
         Ok(())
     }
+}
+
+/// Resolves one glTF external resource `uri` against the source file's
+/// directory and records it as a cook dependency. `data:` URIs are embedded,
+/// not external, so they are skipped; an unreadable path is silently ignored
+/// (a genuinely missing external file surfaces from `gltf::import` itself).
+fn track_external(ctx: &mut ImportContext, source_dir: &Path, uri: &str) {
+    if uri.starts_with("data:") {
+        return;
+    }
+    let path = source_dir.join(percent_decode(uri));
+    if let Ok(hash) = hash_file_contents(&path) {
+        ctx.track_dependency(path, hash);
+    }
+}
+
+/// Minimal `%XX` percent-decoder for glTF `uri` fields, which are otherwise
+/// plain relative file paths (occasionally with escaped spaces). Bytes that
+/// are not a well-formed `%XX` escape pass through untouched.
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hi = (bytes[i + 1] as char).to_digit(16);
+            let lo = (bytes[i + 2] as char).to_digit(16);
+            if let (Some(hi), Some(lo)) = (hi, lo) {
+                out.push((hi * 16 + lo) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 fn texture_name(image_index: usize, srgb: bool) -> String {

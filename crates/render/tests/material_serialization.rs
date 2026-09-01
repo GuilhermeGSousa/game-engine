@@ -1,5 +1,6 @@
 //! Covers StandardMaterial round-tripping directly through bincode (no DTO)
 //! and reporting its texture references for cook-time validation.
+use color::Color;
 use essential::assets::{handle::AssetHandle, AssetId};
 use render::assets::material::StandardMaterial;
 use render::assets::texture::Texture;
@@ -7,7 +8,8 @@ use render::assets::texture::Texture;
 #[test]
 fn round_trips_through_bincode_with_weak_texture_handles() {
     let albedo_id = AssetId::from_path("models/character.gltf#texture/albedo");
-    let material = StandardMaterial::new(Some(AssetHandle::weak(albedo_id)), None);
+    let material = StandardMaterial::new(Some(AssetHandle::weak(albedo_id)), None)
+        .with_base_color_factor(Color::rgba(0.25, 0.5, 0.75, 1.0));
 
     let bytes =
         bincode::serialize(&material).expect("StandardMaterial should serialize via bincode");
@@ -18,6 +20,11 @@ fn round_trips_through_bincode_with_weak_texture_handles() {
         decoded.base_color_texture().map(|h| h.id()),
         Some(albedo_id),
         "the deserialized material's texture field must carry the same AssetId, as a Weak handle"
+    );
+    assert_eq!(
+        decoded.base_color_factor(),
+        material.base_color_factor(),
+        "uniform PBR parameters (base colour, factors, MaterialFlags) must survive the cooked round-trip"
     );
 }
 

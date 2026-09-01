@@ -12,8 +12,14 @@ pub struct SubAssetEntry {
     pub references: Vec<AssetId>,
 }
 
+/// Bumped whenever the on-disk shape of `SourceIndex` or any cooked payload
+/// changes incompatibly. `source_is_unchanged` treats a mismatch as "must
+/// rebuild", so a layout change can't silently keep stale cooked output.
+pub const COOK_FORMAT_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SourceIndex {
+    pub format_version: u32,
     pub source_path: PathBuf,
     pub source_hash: u64,
     pub sub_assets: Vec<SubAssetEntry>,
@@ -88,6 +94,7 @@ pub fn cook_source(
     }
 
     Ok(SourceIndex {
+        format_version: COOK_FORMAT_VERSION,
         source_path: source_path.to_path_buf(),
         source_hash,
         sub_assets: entries,

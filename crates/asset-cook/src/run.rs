@@ -18,6 +18,9 @@ fn index_path_for(output_root: &std::path::Path, relative_source: &std::path::Pa
 }
 
 fn source_is_unchanged(existing: &SourceIndex, source_path: &std::path::Path) -> bool {
+    if existing.format_version != crate::COOK_FORMAT_VERSION {
+        return false;
+    }
     let Ok(current_source_hash) = hash_file_contents(source_path) else {
         return false;
     };

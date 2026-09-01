@@ -3,7 +3,10 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use asset_cook::{run_cook, CookOptions, CookedAsset, ImportContext, ImportError, Importer};
+use asset_cook::{
+    run_cook, CookOptions, CookedAsset, DependencyEntry, ImportContext, ImportError, Importer,
+    SourceIndex,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -121,5 +124,58 @@ fn changing_a_tracked_dependency_forces_reimport() {
         second.skipped.len(),
         0,
         "no sources should be skipped when dependency changed"
+    );
+}
+
+#[test]
+fn stale_cook_format_version_forces_reimport() {
+    let fx = setup("format_version_change_forces_reimport");
+    let importers: Vec<Box<dyn Importer>> = vec![Box::new(CountingImporter {
+        import_count: AtomicUsize::new(0),
+    })];
+    let options = CookOptions {
+        manifest_path: fx.manifest_path,
+        source_root: fx.source_root.clone(),
+        output_root: fx.output_root.clone(),
+    };
+
+    // Hand-write an index that is byte-for-byte current for its source and
+    // dependency, but stamped with an unknown cook-format version.
+    let source_path = fx.source_root.join("thing.fake");
+    let dep_path = fx.source_root.join("thing.dep");
+    let stale = SourceIndex {
+        format_version: 999,
+        source_path: source_path.clone(),
+        source_hash: asset_cook::hash_file_contents(&source_path).unwrap(),
+        sub_assets: vec![],
+        dependencies: vec![DependencyEntry {
+            content_hash: asset_cook::hash_file_contents(&dep_path).unwrap(),
+            path: dep_path,
+        }],
+    };
+    let index_dir = fx.output_root.join(".index");
+    std::fs::create_dir_all(&index_dir).unwrap();
+    std::fs::write(
+        index_dir.join("thing.fake.bin"),
+        bincode::serialize(&stale).unwrap(),
+    )
+    .unwrap();
+
+    let report = run_cook(&importers, &options);
+    assert_eq!(
+        report.errors.len(),
+        0,
+        "cook must succeed: {:?}",
+        report.errors
+    );
+    assert_eq!(
+        report.cooked.len(),
+        1,
+        "an index written by an unknown COOK_FORMAT_VERSION must be rebuilt, not skipped"
+    );
+    assert_eq!(
+        report.skipped.len(),
+        0,
+        "the stale-format source must not be skipped"
     );
 }

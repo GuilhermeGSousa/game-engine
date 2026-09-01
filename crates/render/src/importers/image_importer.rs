@@ -22,6 +22,10 @@ impl Importer for ImageImporter {
         let cooked = CookedTexture {
             width,
             height,
+            // TODO(asset-import-pipeline): colour space hard-coded sRGB —
+            // standalone linear textures (normal/metallic-roughness .png)
+            // can't be cooked correctly yet; needs a per-entry hint in
+            // assets.toml or a filename convention.
             srgb: true,
             pixels: img.to_rgba8().into_raw(),
         };

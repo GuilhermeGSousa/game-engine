@@ -18,6 +18,10 @@ impl AssetLoader for TextureLoader {
         &self,
         _path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
+        // NOTE: usage_settings is deliberately ignored — the cooked
+        // CookedTexture.srgb flag now determines the format.
+        // TextureUsageSettings::linear() from a caller has no effect on a
+        // cooked texture.
         _usage_settings: <Self::Asset as LoadableAsset>::UsageSettings,
     ) -> anyhow::Result<Self::Asset> {
         // TODO(follow-up): output root hard-coded as "res" (matches AssetPath's
@@ -32,7 +36,13 @@ impl AssetLoader for TextureLoader {
                 cooked_path.display()
             )
         })?;
-        let cooked: crate::assets::cooked_texture::CookedTexture = bincode::deserialize(&bytes)?;
+        let cooked: crate::assets::cooked_texture::CookedTexture = bincode::deserialize(&bytes)
+            .with_context(|| {
+                format!(
+                    "failed to deserialize cooked texture at '{}'",
+                    cooked_path.display()
+                )
+            })?;
         Ok(Texture::from_cooked(cooked))
     }
 }

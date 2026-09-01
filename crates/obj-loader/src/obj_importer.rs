@@ -118,6 +118,10 @@ fn import_material(
         }
 
         if let Some(normal_texture) = m.normal_texture {
+            // TODO(asset-import-pipeline): MTL texture paths are assumed
+            // relative to the manifest root, and the standalone ImageImporter
+            // always cooks sRGB, so a normal map wired this way loses linear
+            // sampling.
             track_texture_dependency(ctx, mtl_dir, &normal_texture);
             material.set_normal_texture(AssetHandle::weak(AssetId::from_path(&format!(
                 "{normal_texture}#main"

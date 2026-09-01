@@ -49,6 +49,30 @@ fn import_emits_mesh_material_and_scene_sub_assets() {
 }
 
 #[test]
+fn import_tracks_external_buffer_as_dependency() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/triangle_ext.gltf");
+    let relative_source = Path::new("triangle_ext.gltf");
+    let mut ctx = ImportContext::new(relative_source.to_path_buf());
+
+    GltfImporter
+        .import(&fixture, &mut ctx)
+        .expect("importing the external-buffer fixture should succeed");
+
+    let dependencies = ctx.into_parts().dependencies;
+    assert!(
+        dependencies
+            .iter()
+            .any(|dep| dep.path.file_name().and_then(|n| n.to_str()) == Some("triangle_ext.bin")),
+        "the external .bin buffer must be tracked as a cook dependency so a stale \
+         incremental cook can't ship old geometry, got: {:?}",
+        dependencies
+            .iter()
+            .map(|d| d.path.display().to_string())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn import_flattens_multi_primitive_mesh_into_child_nodes() {
     let fixture =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/triangle_two_prims.gltf");

@@ -5,7 +5,7 @@ mod run;
 
 pub use cook::{
     cook_source, cooked_file_path_for_id, hash_file_contents, CookOptions, SourceIndex,
-    SubAssetEntry,
+    SubAssetEntry, COOK_FORMAT_VERSION,
 };
 pub use import_context::{
     DependencyEntry, EmittedSubAsset, ImportContext, ImportError, ImportOutputs,

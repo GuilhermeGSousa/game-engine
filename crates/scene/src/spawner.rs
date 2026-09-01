@@ -63,7 +63,12 @@ pub fn spawn_scene_components(
         let mut has_parent = vec![false; scene.nodes.len()];
         for (index, node) in scene.nodes.iter().enumerate() {
             for &child in &node.children {
-                cmd.add_child(node_entities[index], node_entities[child]);
+                // A malformed cooked Scene can carry an out-of-range child
+                // index; skip it rather than panicking on the main schedule.
+                let Some(&child_entity) = node_entities.get(child) else {
+                    continue;
+                };
+                cmd.add_child(node_entities[index], child_entity);
                 has_parent[child] = true;
             }
         }

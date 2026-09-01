@@ -29,6 +29,11 @@ crate-type = ["cdylib", "rlib"]
 
 [workspace]
 members = ["crates/*", "examples/*"]
+# TODO(asset-import-pipeline): re-enable once Scene carries skeleton/animation/camera/
+# light/extras (see docs/superpowers/plans/2026-08-31-asset-import-pipeline.md
+# Post-Plan Follow-Ups). These examples are 100% animation-FSM demos and cannot be
+# migrated until the offline importer ports skeletons/animations.
+exclude = ["examples/tech-demo", "examples/animation-test"]
 
 [lints.rust]
 warnings = "deny"

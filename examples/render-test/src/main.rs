@@ -5,7 +5,10 @@ use app::{
 use color::Color;
 use ecs::{command::CommandQueue, query::Query, resource::Res, Component, With};
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
-use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
+use game_engine::{
+    scene::{scene::Scene, spawner::SceneSpawnerComponent},
+    DefaultPlugins,
+};
 use glam::{Quat, Vec3};
 use render::components::light::{Light, LightType};
 
@@ -55,7 +58,7 @@ use render::{
     MaterialComponent,
 };
 
-const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
+const SPONZA_PATH: &str = "Sponza/Sponza.gltf#scene";
 
 #[cfg(not(feature = "terminal"))]
 const SPHERE_RADIUS: f32 = 0.35;
@@ -164,17 +167,19 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
-    // `with_physics_shapes` gives every spawned mesh a
-    // `PhysicsMeshShapeGenerator`, so the level gets static triangle-mesh
-    // colliders built from the same vertex data the renderer draws.
-    cmd.spawn(
-        GLTFSpawnerComponent::from_handle(asset_server.load(SPONZA_PATH)).with_physics_shapes(),
-    );
+    // TODO(asset-import-pipeline): Sponza mesh colliders are gone — the old
+    // runtime glTF spawner's physics-shapes option has no Scene equivalent yet.
+    cmd.spawn(SceneSpawnerComponent(
+        asset_server.load::<Scene>(SPONZA_PATH),
+    ));
     // cmd.spawn(WorldGrid::default());
 }
 
-/// Fires a sphere along the camera's view direction on left click, to check
-/// Sponza's generated mesh colliders actually stop things.
+/// Fires a sphere along the camera's view direction on left click.
+///
+// TODO(asset-import-pipeline): the sphere used to collide with Sponza's
+// generated mesh colliders; with the Scene spawner those colliders are gone,
+// so fired spheres now fall straight through the level.
 #[cfg(not(feature = "terminal"))]
 fn shoot_sphere(
     cameras: Query<(&Camera, &GlobalTransform)>,

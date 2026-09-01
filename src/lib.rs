@@ -24,13 +24,13 @@ use app::{
     App, Plugin,
 };
 use director::CameraDirectorPlugin;
-use gltf_loader::plugin::GLTFPlugin;
 use obj_loader::plugin::OBJPlugin;
 use physics::plugin::PhysicsPlugin;
 use render::{
     assets::material::StandardMaterial, plugin::RenderPlugin,
     shadow_pipeline::ShadowPipelinePlugin, MaterialPlugin,
 };
+use scene::plugin::ScenePlugin;
 use skybox::plugin::SkyboxPlugin;
 use ui::plugin::UIPlugin;
 use window::plugin::WindowPlugin;
@@ -68,7 +68,7 @@ impl Plugin for DefaultPlugins {
 
         app.register_plugin(PhysicsPlugin)
             .register_plugin(AnimationPlugin)
-            .register_plugin(GLTFPlugin)
+            .register_plugin(ScenePlugin)
             .register_plugin(OBJPlugin)
             .register_plugin(WorldGridPlugin)
             .register_plugin(GameplayPlugin);

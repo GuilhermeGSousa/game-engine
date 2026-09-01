@@ -1,3 +1,4 @@
+use crate::assets::cooked_texture::CookedTexture;
 use crate::loaders::texture_loader::TextureLoader;
 use anyhow::Context;
 use essential::assets::{Asset, LoadableAsset};
@@ -125,6 +126,27 @@ impl Texture {
 
         Self {
             data: image.to_rgba8().into_raw(),
+            usage_settings,
+        }
+    }
+
+    /// Builds a [`Texture`] from cooked bytes produced by the asset cook
+    /// pipeline.  The cooked `srgb` flag selects the sampled color space; the
+    /// pixels are RGBA8 with no further decoding.
+    pub fn from_cooked(cooked: CookedTexture) -> Self {
+        let mut usage_settings = TextureUsageSettings::default();
+        usage_settings.texture_descriptor.size = Extent3d {
+            width: cooked.width,
+            height: cooked.height,
+            depth_or_array_layers: 1,
+        };
+        usage_settings.texture_descriptor.format = if cooked.srgb {
+            TextureFormat::Rgba8UnormSrgb
+        } else {
+            TextureFormat::Rgba8Unorm
+        };
+        Texture {
+            data: cooked.pixels,
             usage_settings,
         }
     }

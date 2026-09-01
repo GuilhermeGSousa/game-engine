@@ -35,3 +35,29 @@ fn import_produces_one_main_sub_asset_with_correct_pixels() {
 
     std::fs::remove_dir_all(&temp_dir).ok();
 }
+
+#[test]
+fn texture_from_cooked_preserves_dimensions_and_pixels() {
+    let cooked = CookedTexture {
+        width: 2,
+        height: 1,
+        srgb: true,
+        pixels: vec![10, 20, 30, 255, 40, 50, 60, 255],
+    };
+    let texture = render::assets::texture::Texture::from_cooked(cooked);
+    assert_eq!(
+        texture.size().width,
+        2,
+        "from_cooked should carry through the cooked width"
+    );
+    assert_eq!(
+        texture.size().height,
+        1,
+        "from_cooked should carry through the cooked height"
+    );
+    assert_eq!(
+        texture.data(),
+        &[10, 20, 30, 255, 40, 50, 60, 255],
+        "from_cooked should move the cooked pixels through unchanged"
+    );
+}

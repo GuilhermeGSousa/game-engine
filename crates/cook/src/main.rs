@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use asset_cook::{run_cook, CookOptions, Importer};
+use render::importers::image_importer::ImageImporter;
 
 fn registered_importers() -> Vec<Box<dyn Importer>> {
-    // Later phases push their Importer impls here as each is migrated.
-    Vec::new()
+    vec![Box::new(ImageImporter)]
 }
 
 fn main() {

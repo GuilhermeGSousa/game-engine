@@ -34,6 +34,15 @@ struct PrimRef {
     material_sub_asset: usize,
 }
 
+/// Dedup key for the textures a source file needs: one cooked `texture/*`
+/// sub-asset per (source image, colour space) pair. `srgb` orders
+/// `false < true`, keeping cooked-output iteration order stable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct TextureKey {
+    image_index: usize,
+    srgb: bool,
+}
+
 impl Importer for GltfImporter {
     fn supported_extensions(&self) -> &'static [&'static str] {
         &["gltf", "glb"]
@@ -63,13 +72,13 @@ impl Importer for GltfImporter {
         // textures (normal, metallic-roughness, occlusion) are linear. An
         // image can be referenced in both roles, so texture sub-assets are
         // keyed per (image, color space) pair.
-        let mut needed_textures: BTreeSet<(usize, bool)> = BTreeSet::new();
+        let mut needed_textures: BTreeSet<TextureKey> = BTreeSet::new();
         let mut materials: Vec<StandardMaterial> = Vec::new();
         {
             let mut texture_ref =
                 |texture: gltf::Texture<'_>, srgb: bool| -> AssetHandle<Texture> {
                     let image_index = texture.source().index();
-                    needed_textures.insert((image_index, srgb));
+                    needed_textures.insert(TextureKey { image_index, srgb });
                     AssetHandle::weak(ctx.sub_asset_id(&texture_name(image_index, srgb)))
                 };
 
@@ -108,15 +117,15 @@ impl Importer for GltfImporter {
             }
         }
 
-        for (image_index, srgb) in &needed_textures {
-            let rgba = decoded_images[*image_index].to_rgba8();
+        for key in &needed_textures {
+            let rgba = decoded_images[key.image_index].to_rgba8();
             let cooked = CookedTexture {
                 width: rgba.width(),
                 height: rgba.height(),
-                srgb: *srgb,
+                srgb: key.srgb,
                 pixels: rgba.into_raw(),
             };
-            ctx.emit(&texture_name(*image_index, *srgb), &cooked)?;
+            ctx.emit(&texture_name(key.image_index, key.srgb), &cooked)?;
         }
 
         for (index, material) in materials.iter().enumerate() {

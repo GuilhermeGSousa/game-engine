@@ -11,6 +11,7 @@ pub use mesh;
 pub use obj_loader;
 pub use physics;
 pub use render;
+pub use scene;
 pub use skybox;
 pub use ui;
 pub use window;

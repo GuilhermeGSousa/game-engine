@@ -5,6 +5,7 @@ use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
 use essential::transform::Transform;
 use mesh::mesh::MeshComponent;
 use render::components::material::MaterialComponent;
+use render::components::render_entity::SyncWithRenderWorld;
 
 use crate::scene::Scene;
 
@@ -37,14 +38,18 @@ pub fn spawn_scene_components(
         }
 
         for (index, node) in scene.nodes.iter().enumerate() {
-            if let Some(mesh) = &node.mesh {
-                cmd.insert(
+            let Some(mesh) = &node.mesh else {
+                continue;
+            };
+            cmd.insert(
+                (
                     MeshComponent {
                         handle: mesh.clone(),
                     },
-                    node_entities[index],
-                );
-            }
+                    SyncWithRenderWorld,
+                ),
+                node_entities[index],
+            );
             if let Some(material) = &node.material {
                 cmd.insert(
                     MaterialComponent {
@@ -67,5 +72,7 @@ pub fn spawn_scene_components(
                 cmd.add_child(spawner_entity, *node_entity);
             }
         }
+
+        cmd.remove::<SceneSpawnerComponent>(spawner_entity);
     }
 }

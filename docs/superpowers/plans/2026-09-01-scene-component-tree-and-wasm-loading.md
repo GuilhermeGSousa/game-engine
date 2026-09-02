@@ -16,6 +16,7 @@
 - No runtime fallback to parsing DCC source files. The runtime reads only cooked output.
 - `SceneComponent: Component + DeserializeOwned + Sized + 'static`. The `Component` bound stays for now; whether a type inserts itself is decided by its `apply` body, never by the bound.
 - There is exactly one component-registration function, `App::register_component::<T: SceneComponent>()`. `register_reflection` and the `facet` registry are removed.
+- `Component::name()` gains a default body of `std::any::type_name::<Self>()`, so registry keys are full type paths (`essential::transform::Transform`). The derive stops emitting `name()`, and every hand-written `fn name()` body in the workspace is deleted so derived and manual impls agree. Because glTF `extras` author short names, the registry indexes each type under **both** its full path and its final `::` segment (see Task 4).
 - The `Component` trait gains no new method.
 - `AssetHandle` is **not** modified. It stays a `Strong`/`Weak` enum with its existing manual serde impls.
 - Component payloads are serde-JSON strings; the `Scene` asset itself stays bincode.
@@ -584,17 +585,72 @@ pub trait SceneComponent: Component + DeserializeOwned + Sized + 'static {
 
 In `crates/ecs/src/component/mod.rs`, add `pub mod scene;` beside the existing `pub mod bundle;` / `pub mod reflection;` declarations.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 5: Make `Component::name()` default to the full type path**
 
-Run: `cargo test -p ecs --test scene_component`
-Expected: PASS (3 tests)
+The registry keys components by `Component::name()`. Today that is `stringify!(#name)` from the derive — the bare identifier with generics stripped — so `MaterialComponent<StandardMaterial>` and `MaterialComponent<AnyOther>` would collide on one key. Switch to the full type path.
 
-- [ ] **Step 6: Build and format**
+In `crates/ecs/src/component/mod.rs`, give the trait method a default body and drop its `;`:
+
+```rust
+pub trait Component: Send + Sync + 'static {
+    /// The registry key for this component type: its fully-qualified path,
+    /// e.g. `essential::transform::Transform`. Distinguishes generic
+    /// instantiations, which a bare identifier cannot.
+    ///
+    /// NOTE: `std::any::type_name` output is not guaranteed stable across
+    /// compiler versions. Cooked scenes embed these strings, so a toolchain
+    /// upgrade may require re-running `cook` — `COOK_FORMAT_VERSION` and the
+    /// fact that cooked output is git-ignored make that a rebuild, not a
+    /// migration.
+    fn name() -> &'static str
+    where
+        Self: Sized,
+    {
+        std::any::type_name::<Self>()
+    }
+    // ... on_add / on_remove unchanged
+}
+```
+
+In `crates/ecs/macros/src/lib.rs`, delete the generated `fn name()` from the `Component` derive (lines ~16-24) so derived types inherit the default. Leave the `Resource` derive's `name()` alone — resources are not registry keys.
+
+Then delete every now-redundant hand-written `fn name()` body from `impl Component for …` blocks so derived and manual impls agree rather than mixing short and full names. `grep -rn "fn name() -> &'static str" --include=*.rs crates/` finds them; the `Component` ones are in `crates/director/src/virtual_camera.rs`, `crates/essential/src/transform/mod.rs`, `crates/physics/src/collider.rs`, `crates/render/src/components/shadows.rs` (two), `crates/render/src/components/light.rs`, `crates/render/src/material_plugin.rs`, and six in `crates/ecs/tests/component_lifecycle.rs`. Leave `Asset::name()` and `Resource::name()` impls untouched — those are different traits.
+
+Add to the test file from Step 1:
+
+```rust
+#[test]
+fn name_is_the_full_type_path_and_distinguishes_generics() {
+    #[derive(Component, Serialize, Deserialize)]
+    struct Wrapper<T: Send + Sync + 'static> {
+        value: u32,
+        _marker: std::marker::PhantomData<T>,
+    }
+
+    assert!(
+        PlainMarker::name().ends_with("PlainMarker"),
+        "name must be the full path ending in the type identifier, got: {}",
+        PlainMarker::name()
+    );
+    assert_ne!(
+        Wrapper::<u8>::name(),
+        Wrapper::<u16>::name(),
+        "generic instantiations must not collide on one registry key"
+    );
+}
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `cargo test -p ecs --test scene_component && cargo build --workspace`
+Expected: PASS (4 tests); the workspace still builds — deleting the manual `name()` bodies is behaviour-preserving for everything except the string's content.
+
+- [ ] **Step 7: Build and format**
 
 Run: `cargo build --workspace && cargo test -p ecs && cargo fmt -p ecs && cargo fmt --all -- --check`
 Expected: builds clean, all `ecs` tests pass, formatting clean.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add crates/ecs
@@ -674,6 +730,35 @@ fn registered_component_is_deserialized_and_applied() {
 }
 
 #[test]
+fn short_name_alias_resolves_for_blender_authored_extras() {
+    let mut world = World::default();
+    world.register_component_type::<Registered>();
+    let entity = world.spawn(());
+
+    // Blender authors the bare identifier, not the full Rust path.
+    let applied = world.apply_scene_component("Registered", r#"{"value":7}"#, entity, &[entity]);
+
+    assert!(applied, "a short, Blender-style name must resolve to the registered type");
+    assert_eq!(
+        world.get_component_for_entity::<Registered>(entity),
+        Some(&Registered { value: 7 }),
+        "the short alias must apply the same component the full path would"
+    );
+}
+
+#[test]
+fn full_type_path_also_resolves() {
+    let mut world = World::default();
+    world.register_component_type::<Registered>();
+    let entity = world.spawn(());
+
+    let applied =
+        world.apply_scene_component(Registered::name(), r#"{"value":8}"#, entity, &[entity]);
+
+    assert!(applied, "the full type path is the canonical registry key and must resolve");
+}
+
+#[test]
 fn unregistered_component_name_is_reported_not_fatal() {
     let mut world = World::default();
     let entity = world.spawn(());
@@ -727,18 +812,35 @@ fn apply_typed<T: SceneComponent>(
 }
 ```
 
-Change the registry field to `scene_component_map: HashMap<&'static str, ErasedApply>` and replace `register_refection` with:
+Change the registry field to `scene_component_map: HashMap<&'static str, ErasedApply>` and replace `register_refection` with a dual-key registration.
+
+`Component::name()` now returns the full type path (Task 3), which is what distinguishes generic instantiations. But glTF `extras` are authored in Blender as **short** names — `{"components": {"MeshCollider": {}}}` — and an artist cannot be expected to write `physics::shape::MeshCollider`. So index each type under both its full path and its final `::` segment:
 
 ```rust
 pub(crate) fn register_scene_component<T: SceneComponent>(&mut self) {
     self.register_component::<T>();
-    self.scene_component_map.insert(T::name(), apply_typed::<T>);
+
+    let full = T::name();
+    self.scene_component_map.insert(full, apply_typed::<T>);
+
+    // Short alias so Blender-authored `extras` keys resolve. `full` is
+    // 'static, so the suffix borrows from it without allocating.
+    let short = full.rsplit("::").next().unwrap_or(full);
+    if short != full {
+        if let Some(_existing) = self.scene_component_map.insert(short, apply_typed::<T>) {
+            log::warn!(
+                "Two component types share the short name '{short}'; scenes and glTF extras                  that use it now resolve to '{full}'. Author the full path to disambiguate."
+            );
+        }
+    }
 }
 
 pub(crate) fn get_scene_component(&self, name: &str) -> Option<ErasedApply> {
     self.scene_component_map.get(name).copied()
 }
 ```
+
+Exact full-path keys always win because they are inserted first and never aliased; only the short alias can collide, and a collision warns rather than failing silently. Importers emit full paths (Task 6's `push_component` uses `T::name()`); short names exist purely for hand-authored extras.
 
 Delete `crates/ecs/src/component/reflection.rs` and its `pub mod reflection;` declaration in `crates/ecs/src/component/mod.rs`.
 

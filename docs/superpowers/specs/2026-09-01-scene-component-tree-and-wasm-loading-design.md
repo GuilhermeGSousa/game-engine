@@ -108,7 +108,7 @@ The now doubly-dead `load_binary`/`load_to_string` are deleted.
 // crates/scene/src/scene.rs
 #[derive(Serialize, Deserialize)]
 pub struct SerializedComponent {
-    /// Registry key, as supplied when the type was registered.
+    /// Registry key — the name `Component::name()` returns.
     pub type_name: String,
     /// serde-JSON encoding of the component value.
     pub data: String,
@@ -158,7 +158,7 @@ impl<'w> SceneSpawnContext<'w> {
 
 /// Data authored into a cooked Scene that knows how to apply itself to a
 /// spawned entity.
-pub trait SceneComponent: DeserializeOwned + Sized + 'static {
+pub trait SceneComponent: Component + DeserializeOwned + Sized + 'static {
     fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>);
 }
 
@@ -166,9 +166,11 @@ pub trait SceneComponent: DeserializeOwned + Sized + 'static {
 pub struct SceneEntityRef(pub usize);
 ```
 
-**`SceneComponent` deliberately does not require `Component`.** A type that is a runtime component inserts itself; a type that is pure authoring data (`SceneSkeleton`) expands into several runtime components — possibly on *other* entities — and never lands on an entity itself. Both are the same interface.
+**Whether a type inserts itself is decided by its `apply` body, not by the trait bound.** A type that is a runtime component inserts itself; a type that is really authoring data (`SceneSkeleton`) expands into several runtime components — possibly on *other* entities — and simply never inserts one of itself. Both are the same interface.
 
-The `Component` trait is unchanged: no new method, no new bound.
+`SceneComponent` requires `Component` for now. That keeps every registered type a component type, lets the registry key come uniformly from `Component::name()`, and makes the common insert-self body type-check without further bounds. The cost is that authoring-only data like `SceneSkeleton` must still derive `Component` even though nothing ever reads one off an entity. Relaxing this bound later is a non-breaking change; tightening it would not be, so it starts tight (see Follow-Ups).
+
+The `Component` trait itself is unchanged: no new method.
 
 ### The component registry
 
@@ -192,7 +194,7 @@ impl App {
 }
 ```
 
-The registry is keyed by a `&'static str` name supplied at registration. For types that are also `Component`, that is `T::name()`; `SceneSkeleton` and other pure-data types supply their own.
+The registry is keyed by `T::name()`, available on every registered type via the `Component` bound.
 
 There is **no `#[derive(SceneComponent)]`**. Every registered type writes an explicit `impl SceneComponent`; for a plain component that is a two-line insert-self body. This keeps the machinery small and makes each type's spawn behaviour visible at its definition.
 
@@ -210,7 +212,7 @@ There is **no `#[derive(SceneComponent)]`**. Every registered type writes an exp
 | `Camera`, `Light`, `SyncWithRenderWorld` | render | insert self |
 | `MeshComponent` | mesh | upgrade handle, insert self |
 | `MaterialComponent` | render | upgrade handle, insert self |
-| `SceneSkeleton` | scene | expand — never inserts itself |
+| `SceneSkeleton` | scene | expand — derives `Component` to satisfy the bound, but never inserts itself |
 | Blender-extras components | user | insert self |
 
 Each gains `Serialize`/`Deserialize` derives where it lacks them (`Transform` already has them).
@@ -230,10 +232,12 @@ impl SceneComponent for MeshComponent {
 
 `AssetHandle` is **unchanged** — it stays a `Strong`/`Weak` enum with its existing serde impls, so the cooked format is untouched and no re-cook is forced by this.
 
-`SceneSkeleton` is pure authoring data. It is **not** a `Component` and never lands on an entity; it exists because `SkeletonComponent` holds `Vec<Entity>`, which cannot exist at rest:
+`SceneSkeleton` is authoring data: its `apply` expands into runtime components and **never inserts one of itself**, so no entity carries it. It exists because `SkeletonComponent` holds `Vec<Entity>`, which cannot exist at rest:
 
 ```rust
-#[derive(Serialize, Deserialize)]
+/// Derives `Component` only to satisfy the `SceneComponent: Component`
+/// bound — `apply` never inserts one, so no entity ever carries it.
+#[derive(Component, Serialize, Deserialize)]
 pub struct SceneSkeleton {
     pub skeleton: AssetHandle<Skeleton>,
     pub bones: Vec<SceneEntityRef>,
@@ -327,6 +331,7 @@ Cooked output from the current format will not load: `SceneNode`'s layout change
 
 - Physics-shape generation from scenes, replacing `GLTFSpawnerComponent::with_physics_shapes`.
 - A `#[derive(SceneComponent)]` emitting the trivial insert-self body, once the number of plain registered components makes the boilerplate worth removing.
+- Dropping the `SceneComponent: Component` bound, so authoring-only types such as `SceneSkeleton` need not be components at all. Non-breaking when done.
 - Dropping the `facet`/`facet-json` dependencies from `ecs` once nothing references them.
 - Per-usage colour space for standalone cooked textures (`ImageImporter` hard-codes sRGB).
 - MTL texture addressing in `ObjImporter` (assumes manifest-root-relative, untested).

@@ -4,7 +4,6 @@ use std::{
 };
 
 pub mod bundle;
-pub mod reflection;
 pub(crate) mod registry;
 pub mod scene;
 

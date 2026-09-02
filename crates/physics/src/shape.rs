@@ -1,13 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use ecs::{
-    events::event_reader::EventReader, CommandQueue, Component, Entity, Query, Res, ResMut,
-    Resource, With, Without,
+    component::scene::{SceneComponent, SceneSpawnContext},
+    events::event_reader::EventReader,
+    CommandQueue, Component, Entity, Query, Res, ResMut, Resource, With, Without,
 };
 use essential::assets::{asset_store::AssetStore, handle::AssetLifetimeEvent, AssetId};
-use facet::Facet;
 use log::warn;
 use mesh::{Mesh, MeshComponent};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     aabb::Aabb,
@@ -69,8 +70,14 @@ impl PhysicsMeshShapes {
     }
 }
 
-#[derive(Component, Facet)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct MeshCollider;
+
+impl SceneComponent for MeshCollider {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
+    }
+}
 
 pub(crate) fn generate_mesh_shapes(
     meshes_to_generate: Query<(Entity, &MeshComponent), (With<MeshCollider>, Without<Collider>)>,

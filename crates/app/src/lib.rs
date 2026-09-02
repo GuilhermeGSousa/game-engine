@@ -3,7 +3,7 @@ use ecs::system::executor::multi_thread::MultiThreadedExecutor;
 #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
 use ecs::system::executor::single_thread::SingleThreadedExecutor;
 use ecs::{
-    component::Component,
+    component::{scene::SceneComponent, Component},
     events::{
         event_channel::{update_event_channel, EventChannel},
         event_writer::EventWriter,
@@ -13,7 +13,6 @@ use ecs::{
     system::schedule::{CompiledSchedules, ScheduleLabel, Schedules},
     IntoSystemConfig, World,
 };
-use facet::Facet;
 use log::info;
 use runner::AppExit;
 
@@ -180,10 +179,11 @@ impl App {
         self
     }
 
-    // Registers reflection for a component that implements the Facet trait
-    // Allows the user to spawn that component through json (see [`CommandQueue`])
-    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
-        self.main_mut().register_reflection::<T>();
+    /// Registers a [`SceneComponent`] so cooked scenes and glTF `extras` can
+    /// spawn it from JSON by type name (see [`CommandQueue`] and
+    /// `World::apply_scene_component`).
+    pub fn register_component<T: SceneComponent>(&mut self) -> &mut Self {
+        self.main_mut().register_component::<T>();
         self
     }
 

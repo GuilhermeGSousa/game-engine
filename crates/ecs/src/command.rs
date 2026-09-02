@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use log::warn;
-
 use crate::{
     component::{Component, bundle::ComponentBundle},
     entity::{Entity, entity_store::EntityStore},
@@ -231,53 +229,7 @@ impl InsertErasedCommand {
 
 impl Command for InsertErasedCommand {
     fn execute(self: Box<Self>, world: &mut World) {
-        let Some(reflection) = world.get_reflection(&self.component_name).cloned() else {
-            warn!(
-                "Skipping component '{}': no type registered under that name (register it with register_reflection)",
-                self.component_name
-            );
-            return;
-        };
-
-        let partial = match reflection.alloc_shape() {
-            Ok(partial) => partial,
-            Err(err) => {
-                warn!(
-                    "Failed to allocate component '{}': {err}",
-                    self.component_name
-                );
-                return;
-            }
-        };
-
-        let partial = match facet_json::from_str_into_borrowed(&self.component_data, partial) {
-            Ok(partial) => partial,
-            Err(err) => {
-                warn!(
-                    "Failed to deserialize component '{}' from `{}`: {err}",
-                    self.component_name, self.component_data
-                );
-                return;
-            }
-        };
-
-        let heap_value = match partial.build() {
-            Ok(heap_value) => heap_value,
-            Err(err) => {
-                warn!(
-                    "Failed to build component '{}' (are all required fields present?): {err}",
-                    self.component_name
-                );
-                return;
-            }
-        };
-
-        if let Err(err) = reflection.insert(heap_value, world, self.entity) {
-            warn!(
-                "Failed to insert component '{}': {err}",
-                self.component_name
-            );
-        }
+        world.apply_scene_component(&self.component_name, &self.component_data, self.entity, &[]);
     }
 }
 

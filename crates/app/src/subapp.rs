@@ -1,8 +1,8 @@
 use ecs::{
+    component::scene::SceneComponent,
     system::schedule::{InternedScheduleLabel, ScheduleLabel, Schedules},
     Component, IntoSystemConfig, Resource, World,
 };
-use facet::Facet;
 
 use crate::{extractor::ExtractFn, schedule_groups::Startup};
 
@@ -89,8 +89,8 @@ impl SubApp {
         self
     }
 
-    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) -> &mut Self {
-        self.world.register_reflection::<T>();
+    pub fn register_component<T: SceneComponent>(&mut self) -> &mut Self {
+        self.world.register_component_type::<T>();
         self
     }
 

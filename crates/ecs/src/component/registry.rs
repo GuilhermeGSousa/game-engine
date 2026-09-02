@@ -7,11 +7,13 @@ use std::{
 };
 
 use derive_more::{Deref, DerefMut};
-use facet::Facet;
 
 use crate::{
-    Component,
-    component::{ComponentId, reflection::ComponentReflection},
+    Component, Entity,
+    component::{
+        ComponentId,
+        scene::{SceneComponent, SceneSpawnContext},
+    },
 };
 
 pub(crate) struct ComponentInfo {}
@@ -19,10 +21,24 @@ pub(crate) struct ComponentInfo {}
 #[derive(Deref, DerefMut)]
 pub(crate) struct ComponentIndex(usize);
 
+/// Deserializes a JSON payload into `T` and applies it. Returns `Err` with a
+/// human-readable reason when the payload does not parse.
+type ErasedApply = fn(&str, Entity, &mut SceneSpawnContext<'_>) -> Result<(), serde_json::Error>;
+
+fn apply_typed<T: SceneComponent>(
+    json: &str,
+    entity: Entity,
+    ctx: &mut SceneSpawnContext<'_>,
+) -> Result<(), serde_json::Error> {
+    let value: T = serde_json::from_str(json)?;
+    value.apply(entity, ctx);
+    Ok(())
+}
+
 #[derive(Default)]
 pub(crate) struct ComponentRegistry {
     component_map: HashMap<ComponentId, ComponentIndex>,
-    reflection_map: HashMap<&'static str, ComponentReflection>,
+    scene_component_map: HashMap<&'static str, ErasedApply>,
     component_info: Vec<ComponentInfo>,
 }
 
@@ -47,14 +63,34 @@ impl ComponentRegistry {
         };
     }
 
-    pub(crate) fn register_refection<T: Component + for<'a> Facet<'a>>(&mut self) {
+    /// Registers `T` under two keys: its canonical full type path and its final
+    /// `::` segment. Importers emit the full path; the short alias exists so a
+    /// hand-authored glTF `extras` key like `{"MeshCollider": {}}` still
+    /// resolves. Full-path keys are inserted first and never aliased, so only
+    /// the short alias can collide — and a collision warns rather than failing
+    /// silently.
+    pub(crate) fn register_scene_component<T: SceneComponent>(&mut self) {
         self.register_component::<T>();
 
-        self.reflection_map
-            .insert(T::name(), ComponentReflection::from_type::<T>());
+        let full = T::name();
+        self.scene_component_map.insert(full, apply_typed::<T>);
+
+        // Short alias so Blender-authored `extras` keys resolve. `full` is
+        // 'static, so the suffix borrows from it without allocating.
+        let short = full.rsplit("::").next().unwrap_or(full);
+        if short != full {
+            let displaced = self.scene_component_map.insert(short, apply_typed::<T>);
+            if displaced.is_some() {
+                log::warn!(
+                    "Two component types share the short name '{short}'; scenes and glTF \
+                     extras that use it now resolve to '{full}'. Author the full path to \
+                     disambiguate."
+                );
+            }
+        }
     }
 
-    pub(crate) fn get_reflection(&self, name: &str) -> Option<&ComponentReflection> {
-        self.reflection_map.get(name)
+    pub(crate) fn get_scene_component(&self, name: &str) -> Option<ErasedApply> {
+        self.scene_component_map.get(name).copied()
     }
 }

@@ -15,10 +15,6 @@ pub struct Transform {
 }
 
 impl Component for Transform {
-    fn name() -> &'static str {
-        "Transform"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let global_transform = GlobalTransform::new(

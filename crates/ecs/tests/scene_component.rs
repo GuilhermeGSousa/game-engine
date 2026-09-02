@@ -1,0 +1,111 @@
+//! Covers the two shapes SceneComponent must support: a type that inserts
+//! itself, and a type that expands into other components (including onto a
+//! different entity) without ever inserting one of itself.
+use ecs::component::scene::{SceneComponent, SceneEntityRef, SceneSpawnContext};
+use ecs::{Component, Entity, World};
+use serde::{Deserialize, Serialize};
+
+#[derive(Component, Serialize, Deserialize, PartialEq, Debug)]
+struct PlainMarker {
+    value: u32,
+}
+
+impl SceneComponent for PlainMarker {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
+    }
+}
+
+#[derive(Component, Serialize, Deserialize)]
+struct ExpandingAuthoringData {
+    target: SceneEntityRef,
+}
+
+impl SceneComponent for ExpandingAuthoringData {
+    fn apply(self, _entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        // Deliberately inserts onto a *different* entity and never inserts
+        // one of itself.
+        if let Some(other) = ctx.entity_for(self.target) {
+            ctx.insert(PlainMarker { value: 99 }, other);
+        }
+    }
+}
+
+#[test]
+fn apply_can_insert_self() {
+    let mut world = World::default();
+    let entity = world.spawn(());
+    let nodes = [entity];
+
+    {
+        let mut ctx = SceneSpawnContext::new((&mut world).into(), &nodes);
+        PlainMarker { value: 7 }.apply(entity, &mut ctx);
+    }
+
+    assert_eq!(
+        world.get_component_for_entity::<PlainMarker>(entity),
+        Some(&PlainMarker { value: 7 }),
+        "a SceneComponent that inserts itself must land on the entity"
+    );
+}
+
+#[test]
+fn apply_can_expand_onto_another_entity_without_inserting_itself() {
+    let mut world = World::default();
+    let owner = world.spawn(());
+    let other = world.spawn(());
+    let nodes = [owner, other];
+
+    {
+        let mut ctx = SceneSpawnContext::new((&mut world).into(), &nodes);
+        ExpandingAuthoringData {
+            target: SceneEntityRef(1),
+        }
+        .apply(owner, &mut ctx);
+    }
+
+    assert_eq!(
+        world.get_component_for_entity::<PlainMarker>(other),
+        Some(&PlainMarker { value: 99 }),
+        "expansion must be able to write to an entity other than its own"
+    );
+    assert!(
+        world
+            .get_component_for_entity::<ExpandingAuthoringData>(owner)
+            .is_none(),
+        "authoring data that never inserts itself must leave nothing on its own entity"
+    );
+}
+
+#[test]
+fn entity_for_returns_none_for_an_out_of_range_ref() {
+    let mut world = World::default();
+    let entity = world.spawn(());
+    let nodes = [entity];
+
+    let ctx = SceneSpawnContext::new((&mut world).into(), &nodes);
+    assert!(
+        ctx.entity_for(SceneEntityRef(5)).is_none(),
+        "a malformed cooked scene must yield None, never a panic"
+    );
+}
+
+#[test]
+fn name_is_the_full_type_path_and_distinguishes_generics() {
+    #[derive(Component, Serialize, Deserialize)]
+    struct Wrapper<T: Send + Sync + 'static> {
+        value: u32,
+        _marker: std::marker::PhantomData<T>,
+    }
+
+    assert!(
+        PlainMarker::name().ends_with("PlainMarker"),
+        "name must be the full path ending in the type identifier, got: {}",
+        PlainMarker::name()
+    );
+    assert_ne!(
+        Wrapper::<u8>::name(),
+        Wrapper::<u16>::name(),
+        "generic instantiations must not collide on one registry key"
+    );
+}

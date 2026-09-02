@@ -712,8 +712,11 @@ impl<'w> RestrictedWorld<'w> {
 
 impl<'w> From<&'w mut World> for RestrictedWorld<'w> {
     fn from(world: &'w mut World) -> RestrictedWorld<'w> {
+        // A `&mut World` grants exclusive access, so the cell must be mutable —
+        // otherwise `insert`/`despawn`/`remove_component`/`get_resource_mut`
+        // trip `assert_mutable`.
         RestrictedWorld {
-            world_cell: world.as_unsafe_world_cell(),
+            world_cell: world.as_unsafe_world_cell_mut(),
         }
     }
 }

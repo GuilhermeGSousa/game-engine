@@ -37,10 +37,6 @@ pub struct VirtualCamera {
 /// lifecycle, so spawning or despawning a camera is all it takes to enter or
 /// leave the running order — including despawns, which no query can observe.
 impl Component for VirtualCamera {
-    fn name() -> &'static str {
-        "VirtualCamera"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let Some(vcam) = world.get_component_for_entity::<VirtualCamera>(context.entity) else {
@@ -216,7 +212,7 @@ impl CameraPose {
 mod tests {
     use ecs::system::executor::single_thread::SingleThreadedExecutor;
     use ecs::system::schedule::Schedule;
-    use ecs::{CommandQueue, Entity, Res, Resource, world::World};
+    use ecs::{CommandQueue, Component, Entity, Res, Resource, world::World};
 
     use super::VirtualCamera;
     use crate::director::CameraDirector;
@@ -229,7 +225,7 @@ mod tests {
 
     fn insert_authored_camera(mut cmd: CommandQueue, authored: Res<AuthoredComponent>) {
         cmd.insert_from_json(
-            "VirtualCamera".to_string(),
+            VirtualCamera::name().to_string(),
             authored.json.to_string(),
             authored.node,
         );
@@ -274,6 +270,13 @@ mod tests {
     #[test]
     fn a_json_authored_camera_can_ship_disabled() {
         let (mut world, node) = spawn_from_json(r#"{ "priority": 7, "enabled": false }"#);
+
+        assert!(
+            world
+                .get_component_for_entity::<VirtualCamera>(node)
+                .is_some(),
+            "reflection should have inserted the component before we check it shipped disabled"
+        );
 
         let director = world.get_resource_mut::<CameraDirector>().unwrap();
         assert!(!director.is_enabled(node));

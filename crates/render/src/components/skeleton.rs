@@ -28,10 +28,6 @@ pub struct RenderSkeletonComponent {
 }
 
 impl Component for RenderSkeletonComponent {
-    fn name() -> &'static str {
-        "RenderSkeletonComponent"
-    }
-
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let offset = world

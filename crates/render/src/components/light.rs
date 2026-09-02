@@ -164,10 +164,6 @@ impl RenderLight {
 }
 
 impl Component for RenderLight {
-    fn name() -> &'static str {
-        std::any::type_name::<RenderLight>()
-    }
-
     fn on_add() -> Option<ecs::component::ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let slot = if let Some(lights) = world.get_resource_mut::<RenderLights>() {

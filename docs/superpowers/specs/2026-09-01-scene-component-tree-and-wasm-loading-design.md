@@ -29,7 +29,7 @@ Two phases, landing in order.
 
 **Phase 1 — cross-platform cooked loading.** `AssetLoadContext` carries a `CookedAssetRoot`; one shared `async` helper resolves cooked bytes per platform; the four loaders call it.
 
-**Phase 2 — generic scene component tree.** `SceneNode` holds `Vec<SerializedComponent>` instead of typed fields. A serde-backed component registry deserializes each payload into its concrete type and inserts it. Components holding references — asset handles or entity references — override one new default method on `Component` to resolve them after deserialization. `GltfImporter` emits real component values; `spawn_scene_components` inserts them generically.
+**Phase 2 — generic scene component tree.** `SceneNode` holds `Vec<SerializedComponent>` instead of typed fields. A serde-backed component registry deserializes each payload into its concrete type and inserts it. Each payload's type implements one trait, `SceneComponent`, whose `apply` turns it into runtime components — resolving asset handles and entity references, and expanding into several components where needed. `GltfImporter` emits real component values; `spawn_scene_components` inserts them generically.
 
 ### Why serde, not facet
 
@@ -108,7 +108,7 @@ The now doubly-dead `load_binary`/`load_to_string` are deleted.
 // crates/scene/src/scene.rs
 #[derive(Serialize, Deserialize)]
 pub struct SerializedComponent {
-    /// Registry key — the name `Component::name()` returns.
+    /// Registry key, as supplied when the type was registered.
     pub type_name: String,
     /// serde-JSON encoding of the component value.
     pub data: String,
@@ -136,97 +136,101 @@ pub struct Scene {
 
 The tree is explicit in `children`. Parenting is deliberately *not* a component — the hierarchy is structural, and `spawn_scene_components` already wires it with `cmd.add_child`.
 
+### The `SceneComponent` interface
+
+Scene-authored data knows how to become runtime components. That is the whole interface — one trait, one method:
+
+```rust
+// crates/ecs/src/component/scene.rs
+pub struct SceneSpawnContext<'w> {
+    world: RestrictedWorld<'w>,
+    /// Indexed by SceneEntityRef; one entry per Scene node, in node order.
+    node_entities: &'w [Entity],
+}
+
+impl<'w> SceneSpawnContext<'w> {
+    pub fn insert<T: Component>(&mut self, component: T, entity: Entity);
+    pub fn entity_for(&self, r: SceneEntityRef) -> Option<Entity>;
+    /// Escape hatch for resources — notably `AssetServer`, which `ecs`
+    /// cannot name.
+    pub fn world(&mut self) -> &mut RestrictedWorld<'w>;
+}
+
+/// Data authored into a cooked Scene that knows how to apply itself to a
+/// spawned entity.
+pub trait SceneComponent: DeserializeOwned + Sized + 'static {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>);
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct SceneEntityRef(pub usize);
+```
+
+**`SceneComponent` deliberately does not require `Component`.** A type that is a runtime component inserts itself; a type that is pure authoring data (`SceneSkeleton`) expands into several runtime components — possibly on *other* entities — and never lands on an entity itself. Both are the same interface.
+
+The `Component` trait is unchanged: no new method, no new bound.
+
 ### The component registry
 
 One registration function replaces the facet one:
 
 ```rust
 // crates/ecs/src/component/registry.rs
-type ErasedInsert = fn(&str, &mut World, Entity, &[Entity]) -> anyhow::Result<()>;
+type ErasedApply = fn(&str, Entity, &mut SceneSpawnContext<'_>) -> anyhow::Result<()>;
 
-fn insert_typed<T: Component + DeserializeOwned>(
-    json: &str, world: &mut World, entity: Entity, node_entities: &[Entity],
+fn apply_typed<T: SceneComponent>(
+    json: &str, entity: Entity, ctx: &mut SceneSpawnContext<'_>,
 ) -> anyhow::Result<()> {
-    let mut value: T = serde_json::from_str(json)?;
-    {
-        // ctx borrows `world` mutably; scope it so the insert below can too.
-        let mut ctx = SceneResolveContext { world: world.into(), node_entities };
-        value.resolve_scene_refs(&mut ctx);
-    }
-    world.insert(value, entity);
+    let value: T = serde_json::from_str(json)?;
+    value.apply(entity, ctx);
     Ok(())
 }
 
 // crates/app/src/lib.rs
 impl App {
-    pub fn register_component<T: Component + DeserializeOwned>(&mut self) -> &mut Self;
+    pub fn register_component<T: SceneComponent>(&mut self) -> &mut Self;
 }
 ```
 
-`register_reflection` is removed; its two call sites move to `register_component`. `CommandQueue::insert_from_json` is re-backed by this registry and keeps its signature, so PR #56's Blender-extras path is unchanged at the data level — glTF `extras` are already JSON. Extras component types change their bound from `Facet` to `Deserialize`.
+The registry is keyed by a `&'static str` name supplied at registration. For types that are also `Component`, that is `T::name()`; `SceneSkeleton` and other pure-data types supply their own.
+
+There is **no `#[derive(SceneComponent)]`**. Every registered type writes an explicit `impl SceneComponent`; for a plain component that is a two-line insert-self body. This keeps the machinery small and makes each type's spawn behaviour visible at its definition.
+
+`register_reflection` is removed; its two call sites move to `register_component`. `CommandQueue::insert_from_json` is re-backed by this registry and keeps its signature, so PR #56's Blender-extras path is unchanged at the data level — glTF `extras` are already JSON. Extras component types replace their `Facet` bound with an `impl SceneComponent`.
 
 `crates/ecs` gains `serde` (with `derive`, for `SceneEntityRef`) and `serde_json` dependencies, and loses its use of `facet`/`facet-json`. `crates/mesh`, `crates/render`, `crates/animation`, and `crates/scene` gain `serde` where they lack it, plus the `serde` feature on `glam`/`uuid` as needed — `essential` already has all of these from the pipeline work.
 
-### Reference resolution
+### Registered components
 
-`Component` gains one default method, mirroring the existing `on_add`/`on_remove` idiom:
+`ecs` gains no dependency on `essential`: `AssetServer` is a `Resource`, reached through `ctx.world().get_resource()` by the component's own crate.
 
-```rust
-// crates/ecs/src/component/mod.rs
-pub struct SceneResolveContext<'w> {
-    pub world: RestrictedWorld<'w>,
-    /// Indexed by SceneEntityRef; one entry per Scene node, in node order.
-    pub node_entities: &'w [Entity],
-}
+| Type | Crate | `apply` does |
+|---|---|---|
+| `Transform` | essential | insert self (already serde-derived) |
+| `Camera`, `Light`, `SyncWithRenderWorld` | render | insert self |
+| `MeshComponent` | mesh | upgrade handle, insert self |
+| `MaterialComponent` | render | upgrade handle, insert self |
+| `SceneSkeleton` | scene | expand — never inserts itself |
+| Blender-extras components | user | insert self |
 
-pub trait Component {
-    fn name() -> &'static str;
-    fn on_add() -> Option<ComponentLifecycleCallback> { None }
-    fn on_remove() -> Option<ComponentLifecycleCallback> { None }
+Each gains `Serialize`/`Deserialize` derives where it lacks them (`Transform` already has them).
 
-    /// Resolve scene-relative references — upgrade Weak asset handles, map
-    /// SceneEntityRef indices to Entities — after this component is
-    /// deserialized from a cooked Scene. Default: nothing to resolve.
-    fn resolve_scene_refs(&mut self, _ctx: &mut SceneResolveContext<'_>) {}
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SceneEntityRef(pub usize);
-```
-
-Plain-data components and user components from Blender extras need no extra code. Components carrying references override the method with a manual `impl Component`, as `Transform` already does for `on_add`.
-
-`ecs` gains no dependency on `essential`: `AssetServer` is a `Resource`, reached through `RestrictedWorld::get_resource` by the component's own crate.
+A runtime component that carries a reference resolves it and inserts itself:
 
 ```rust
-impl Component for MeshComponent {
-    fn name() -> &'static str { "MeshComponent" }
-    fn resolve_scene_refs(&mut self, ctx: &mut SceneResolveContext<'_>) {
-        if let Some(server) = ctx.world.get_resource::<AssetServer>() {
-            self.handle = server.load_by_id(self.handle.id());
+impl SceneComponent for MeshComponent {
+    fn apply(mut self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        if let Some(server) = ctx.world().get_resource::<AssetServer>() {
+            self.handle = server.load_by_id(self.handle.id());   // Weak → Strong, kicks off the load
         }
+        ctx.insert(self, entity);
     }
 }
 ```
 
 `AssetHandle` is **unchanged** — it stays a `Strong`/`Weak` enum with its existing serde impls, so the cooked format is untouched and no re-cook is forced by this.
 
-### Registered components
-
-| Component | Crate | `resolve_scene_refs` |
-|---|---|---|
-| `Transform` | essential | — (already serde-derived) |
-| `MeshComponent` | mesh | upgrade handle |
-| `MaterialComponent` | render | upgrade handle |
-| `Camera` | render | — |
-| `Light` | render | — |
-| `SyncWithRenderWorld` | render | — |
-| `SceneSkeleton` | scene | upgrade handle, map bone refs, insert `SkeletonComponent` + `AnimationPlayer` + `AnimationRootBone` |
-| Blender-extras components | user | — |
-
-Each gains `Serialize`/`Deserialize` derives where it lacks them (`Transform` already has them).
-
-`SceneSkeleton` is the one DTO, and it is forced — `SkeletonComponent` holds `Vec<Entity>`, which cannot exist at rest:
+`SceneSkeleton` is pure authoring data. It is **not** a `Component` and never lands on an entity; it exists because `SkeletonComponent` holds `Vec<Entity>`, which cannot exist at rest:
 
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -236,9 +240,24 @@ pub struct SceneSkeleton {
     pub bone_ids: Vec<Uuid>,
     pub root: Option<SceneEntityRef>,
 }
+
+impl SceneComponent for SceneSkeleton {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        let bones: Vec<Entity> = self.bones.iter().filter_map(|r| ctx.entity_for(*r)).collect();
+        let skeleton = match ctx.world().get_resource::<AssetServer>() {
+            Some(server) => server.load_by_id(self.skeleton.id()),
+            None => self.skeleton,
+        };
+        if let Some(root) = self.root.and_then(|r| ctx.entity_for(r)) {
+            ctx.insert(AnimationRootBone::default(), root);      // a different entity
+        }
+        ctx.insert(AnimationPlayer::new(bones.len()), entity);
+        ctx.insert(SkeletonComponent::new(skeleton, bones, self.bone_ids), entity);
+    }
+}
 ```
 
-Its `resolve_scene_refs` upgrades the handle, maps each `SceneEntityRef` through `ctx.node_entities`, then inserts `SkeletonComponent::new(skeleton, bone_entities, bone_ids)` and `AnimationPlayer::new(bones.len())` on its own entity via `ctx.world`, plus `AnimationRootBone::default()` on the root bone's entity.
+Expansion onto other entities is an advertised capability of the interface, not a side effect — which is why `apply` receives the whole `SceneSpawnContext` rather than just `&mut self`.
 
 ### New cooked asset types
 
@@ -264,7 +283,7 @@ for each spawner entity whose Scene is loaded:
     spawn one entity per node, collect into node_entities
     for each node, for each SerializedComponent:
         look up type_name in the component registry
-        deserialize, resolve_scene_refs(ctx), insert
+        deserialize into its concrete type and call SceneComponent::apply
     wire children with cmd.add_child
     parent root nodes to the spawner entity
     remove SceneSpawnerComponent
@@ -278,7 +297,7 @@ The current typed mesh/material/`SyncWithRenderWorld` special-casing disappears 
 
 **Cook time.** `GltfImporter` parses the glTF once and emits `mesh/N`, `material/N`, `texture/N[_linear]`, `skeleton/N`, `animation/N` sub-assets; builds one `SceneNode` per glTF node with its components serialized to JSON; records every referenced `AssetId`; emits the `scene` sub-asset. The cook-time reference-integrity pass validates `referenced_assets` against everything produced.
 
-**Runtime.** `asset_server.load::<Scene>("model.gltf#scene")` → `SceneLoader` reads cooked bytes via `load_cooked_asset_bytes` → bincode-deserializes `Scene` → `spawn_scene_components` spawns the tree, and each component's `resolve_scene_refs` upgrades handles (triggering the nested asset loads) and maps entity references.
+**Runtime.** `asset_server.load::<Scene>("model.gltf#scene")` → `SceneLoader` reads cooked bytes via `load_cooked_asset_bytes` → bincode-deserializes `Scene` → `spawn_scene_components` spawns the tree, and each payload's `SceneComponent::apply` inserts its runtime components — upgrading asset handles (which triggers the nested loads) and mapping entity references.
 
 ## Error Handling
 
@@ -293,21 +312,21 @@ The current typed mesh/material/`SyncWithRenderWorld` special-casing disappears 
 - **Unit** — `Scene` bincode round-trip with mixed components; `Skeleton` and `AnimationClip` cook round-trips; `load_cooked_asset_bytes` against a `Directory` root with a temp dir; a `Transform` (glam fields) serde-JSON round-trip through the registry, pinning the reason serde was chosen.
 - **Integration** — a real `spawn_scene_components` test against a `World`: a scene with a parent, a `SceneSkeleton`, and two mesh children; assert entity count, parenting, that resolved `MeshComponent` handles are `Strong`, that `SkeletonComponent::bones()` are the right entities, and that `SceneSpawnerComponent` is gone. This closes the coverage gap the pipeline branch's final review flagged.
 - **Importer** — a skinned, animated glTF fixture; assert `skeleton/0` and `animation/0` sub-assets and a `SceneSkeleton` component on the expected node.
-- **Registry** — a component with a `resolve_scene_refs` override is resolved on insert; an unregistered `type_name` is skipped with a warning rather than failing the spawn.
+- **Registry** — a `SceneComponent` that resolves a handle produces a `Strong` one; a `SceneComponent` that expands (`SceneSkeleton`) inserts its runtime components and leaves nothing of itself on the entity; an unregistered `type_name` is skipped with a warning rather than failing the spawn.
 - **Manual** — un-park `tech-demo` and `animation-test`, cook their assets, confirm they animate; `trunk serve` `render-test` to confirm the wasm path.
 
 ## Migration
 
 Cooked output from the current format will not load: `SceneNode`'s layout changes and new sub-asset kinds appear. `COOK_FORMAT_VERSION` bumps to `2`, which already forces a full re-cook and marks stale `.index` entries dirty. Cooked output is git-ignored, so nothing on disk needs migrating.
 
-`register_reflection` is removed in favour of `register_component`; its call sites and any Blender-extras component types switch their bound from `Facet` to `Deserialize`. `facet` and `facet-json` become removable from `ecs`.
+`register_reflection` is removed in favour of `register_component`; its call sites and any Blender-extras component types replace their `Facet` bound with an `impl SceneComponent` (a two-line insert-self body). `facet` and `facet-json` become removable from `ecs`.
 
 `AssetHandle` is unchanged, so no consumer of it needs to change.
 
 ## Follow-Ups (out of scope)
 
 - Physics-shape generation from scenes, replacing `GLTFSpawnerComponent::with_physics_shapes`.
-- A `#[component(resolve = path::fn)]` attribute on `#[derive(Component)]`, so reference-bearing components need not hand-write the whole `impl Component`.
+- A `#[derive(SceneComponent)]` emitting the trivial insert-self body, once the number of plain registered components makes the boilerplate worth removing.
 - Dropping the `facet`/`facet-json` dependencies from `ecs` once nothing references them.
 - Per-usage colour space for standalone cooked textures (`ImageImporter` hard-codes sRGB).
 - MTL texture addressing in `ObjImporter` (assumes manifest-root-relative, untested).

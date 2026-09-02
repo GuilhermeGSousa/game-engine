@@ -29,3 +29,7 @@ env_logger = "0.11.8"
 wgpu-types = { version = "24", default-features = false }
 winit = { version = "0.30" }
 facet = "0.46"
+
+[build-dependencies]
+anyhow = "1.0.97"
+fs_extra = "1.3.0"

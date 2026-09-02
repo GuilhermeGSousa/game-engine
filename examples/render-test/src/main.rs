@@ -84,10 +84,6 @@ fn main() {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
-        .expect("Failed to set working directory");
-
     let mut app = App::new();
 
     #[cfg(feature = "terminal")]

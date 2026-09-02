@@ -24,25 +24,14 @@ impl AssetLoader for TextureLoader {
         // cooked texture.
         _usage_settings: <Self::Asset as LoadableAsset>::UsageSettings,
     ) -> anyhow::Result<Self::Asset> {
-        // TODO(follow-up): output root hard-coded as "res" (matches AssetPath's
-        // "res/" rooting convention) rather than threaded through AssetLoadContext.
-        let cooked_path = asset_cook::cooked_file_path_for_id(
-            std::path::Path::new("res"),
+        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+            load_context.cooked_root(),
             load_context.asset_id(),
-        );
-        let bytes = std::fs::read(&cooked_path).with_context(|| {
-            format!(
-                "failed to read cooked texture at '{}'",
-                cooked_path.display()
-            )
-        })?;
-        let cooked: crate::assets::cooked_texture::CookedTexture = bincode::deserialize(&bytes)
-            .with_context(|| {
-                format!(
-                    "failed to deserialize cooked texture at '{}'",
-                    cooked_path.display()
-                )
-            })?;
+        )
+        .await
+        .with_context(|| "failed to read cooked texture")?;
+        let cooked: crate::assets::cooked_texture::CookedTexture =
+            bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked texture")?;
         Ok(Texture::from_cooked(cooked))
     }
 }

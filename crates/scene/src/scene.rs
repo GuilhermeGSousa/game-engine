@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use anyhow::Context;
 use asset_cook::CookedAsset;
 use essential::assets::{
@@ -90,19 +88,14 @@ impl AssetLoader for SceneLoader {
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        // TODO(follow-up): output root hard-coded as "res" rather than threaded
-        // through AssetLoadContext.
-        let cooked_path =
-            asset_cook::cooked_file_path_for_id(Path::new("res"), load_context.asset_id());
-        let bytes = std::fs::read(&cooked_path).with_context(|| {
-            format!("failed to read cooked scene at '{}'", cooked_path.display())
-        })?;
-        let mut scene: Scene = bincode::deserialize(&bytes).with_context(|| {
-            format!(
-                "failed to deserialize cooked scene at '{}'",
-                cooked_path.display()
-            )
-        })?;
+        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+            load_context.cooked_root(),
+            load_context.asset_id(),
+        )
+        .await
+        .with_context(|| "failed to read cooked scene")?;
+        let mut scene: Scene =
+            bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked scene")?;
         scene.resolve_asset_handles(load_context.asset_server());
         Ok(scene)
     }

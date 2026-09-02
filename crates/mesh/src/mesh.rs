@@ -41,21 +41,13 @@ impl AssetLoader for MeshLoader {
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        // TODO(follow-up): output root hard-coded as "res" rather than threaded
-        // through AssetLoadContext.
-        let cooked_path = asset_cook::cooked_file_path_for_id(
-            std::path::Path::new("res"),
+        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+            load_context.cooked_root(),
             load_context.asset_id(),
-        );
-        let bytes = std::fs::read(&cooked_path).with_context(|| {
-            format!("failed to read cooked mesh at '{}'", cooked_path.display())
-        })?;
-        bincode::deserialize(&bytes).with_context(|| {
-            format!(
-                "failed to deserialize cooked mesh at '{}'",
-                cooked_path.display()
-            )
-        })
+        )
+        .await
+        .with_context(|| "failed to read cooked mesh")?;
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked mesh")
     }
 }
 

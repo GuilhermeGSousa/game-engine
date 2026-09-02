@@ -17,7 +17,7 @@ use super::{
     asset_container::AssetContainer,
     asset_store::AssetStore,
     handle::{AssetHandle, AssetLifetimeEvent},
-    Asset, AssetId,
+    Asset, AssetId, CookedAssetRoot,
 };
 
 struct LoadedAsset {
@@ -42,6 +42,7 @@ enum AssetLoadEvent {
 pub struct AssetLoadContext {
     asset_server: AssetServer,
     asset_id: AssetId,
+    cooked_root: CookedAssetRoot,
 }
 
 impl AssetLoadContext {
@@ -52,13 +53,22 @@ impl AssetLoadContext {
     pub fn asset_id(&self) -> AssetId {
         self.asset_id
     }
+
+    pub fn cooked_root(&self) -> &CookedAssetRoot {
+        &self.cooked_root
+    }
 }
 
 impl AssetLoadContext {
-    pub(crate) fn new(asset_server: AssetServer, asset_id: AssetId) -> Self {
+    pub(crate) fn new(
+        asset_server: AssetServer,
+        asset_id: AssetId,
+        cooked_root: CookedAssetRoot,
+    ) -> Self {
         Self {
             asset_server,
             asset_id,
+            cooked_root,
         }
     }
 }
@@ -77,6 +87,7 @@ pub(crate) struct AssetServerData {
     handle_provider: AssetHandleProvider,
     asset_load_event_sender: Sender<AssetLoadEvent>,
     asset_load_event_receiver: Receiver<AssetLoadEvent>,
+    cooked_root: RwLock<CookedAssetRoot>,
 }
 
 #[derive(Resource, Clone)]
@@ -94,11 +105,23 @@ impl AssetServer {
             handle_provider: AssetHandleProvider::new(),
             asset_load_event_sender,
             asset_load_event_receiver,
+            cooked_root: RwLock::new(CookedAssetRoot::default_for_platform()),
         };
 
         Self {
             data: Arc::new(server_data),
         }
+    }
+
+    /// The root every cooked-format loader resolves its `.cooked/<id>.bin`
+    /// file against. Defaults to [`CookedAssetRoot::default_for_platform`];
+    /// override with [`AssetServer::set_cooked_root`] before triggering loads.
+    pub fn cooked_root(&self) -> CookedAssetRoot {
+        self.data.cooked_root.read().unwrap().clone()
+    }
+
+    pub fn set_cooked_root(&self, root: CookedAssetRoot) {
+        *self.data.cooked_root.write().unwrap() = root;
     }
 
     pub fn register_asset<A: Asset>(&mut self, asset: &AssetStore<A>) {
@@ -210,8 +233,13 @@ impl AssetServer {
         let task =
             LoadTaskPool::get_or_init(|| TaskPool::with_name("asset-load")).spawn(async move {
                 let log_path = path.clone();
+                let cooked_root = server.cooked_root();
                 let asset = asset_loader
-                    .load(path, &mut AssetLoadContext::new(server, id), usage_settings)
+                    .load(
+                        path,
+                        &mut AssetLoadContext::new(server, id, cooked_root),
+                        usage_settings,
+                    )
                     .await;
                 match asset {
                     Ok(asset) => {

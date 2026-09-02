@@ -93,6 +93,44 @@ impl<'a> From<&'a str> for AssetPath<'a> {
     }
 }
 
+/// Where the runtime finds cooked asset files. The cooked layout is always
+/// `<root>/.cooked/<asset-id-hex>.bin`; only the root differs per platform.
+#[derive(Debug, Clone)]
+pub enum CookedAssetRoot {
+    /// Native: a directory containing `.cooked/`.
+    Directory(PathBuf),
+    /// wasm: a URL base, e.g. `"http://host/res"`.
+    UrlBase(String),
+}
+
+impl CookedAssetRoot {
+    /// Native: `<directory containing the executable>/res`, matching the
+    /// convention the pre-cook `load_binary` used and what the examples'
+    /// `build.rs` copies into place. wasm: `<page origin>/res`.
+    pub fn default_for_platform() -> Self {
+        cfg_if::cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                let origin = web_sys::window()
+                    .and_then(|window| window.location().origin().ok())
+                    .unwrap_or_default();
+                CookedAssetRoot::UrlBase(format!("{origin}/res"))
+            } else {
+                let exe_dir = std::env::current_exe()
+                    .ok()
+                    .and_then(|exe| exe.parent().map(Path::to_path_buf))
+                    .unwrap_or_else(|| PathBuf::from("."));
+                CookedAssetRoot::Directory(exe_dir.join("res"))
+            }
+        }
+    }
+}
+
+impl Default for CookedAssetRoot {
+    fn default() -> Self {
+        Self::default_for_platform()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AssetId(Uuid);
 

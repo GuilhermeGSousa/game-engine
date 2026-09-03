@@ -25,9 +25,8 @@ use log::warn;
 use mesh::mesh::{Mesh, MeshComponent};
 use mesh::skeleton::Skeleton;
 use mesh::vertex::Vertex;
-use render::assets::cooked_texture::CookedTexture;
 use render::assets::material::StandardMaterial;
-use render::assets::texture::Texture;
+use render::assets::texture::{Texture, TextureFormat, TextureKind};
 use render::components::camera::Camera;
 use render::components::light::{Light, LightType};
 use render::components::material::MaterialComponent;
@@ -175,13 +174,18 @@ impl Importer for GltfImporter {
 
         for key in &needed_textures {
             let rgba = decoded_images[key.image_index].to_rgba8();
-            let cooked = CookedTexture {
+            let texture = Texture {
                 width: rgba.width(),
                 height: rgba.height(),
-                srgb: key.srgb,
-                pixels: rgba.into_raw(),
+                format: if key.srgb {
+                    TextureFormat::Rgba8UnormSrgb
+                } else {
+                    TextureFormat::Rgba8Unorm
+                },
+                kind: TextureKind::Sampled,
+                data: rgba.into_raw(),
             };
-            ctx.emit(&texture_name(key.image_index, key.srgb), &cooked)?;
+            ctx.emit(&texture_name(key.image_index, key.srgb), &texture)?;
         }
 
         for (index, material) in materials.iter().enumerate() {

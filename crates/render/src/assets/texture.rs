@@ -1,177 +1,64 @@
-use crate::assets::cooked_texture::CookedTexture;
-use crate::loaders::texture_loader::TextureLoader;
-use anyhow::Context;
+use asset_cook::CookedAsset;
 use essential::assets::{Asset, LoadableAsset};
-use image::{DynamicImage, GenericImageView};
-use wgpu::TextureUsages;
-use wgpu_types::{Extent3d, TextureDescriptor, TextureFormat, TextureViewDescriptor};
 
-pub struct TextureUsageSettings {
-    pub texture_descriptor: TextureDescriptor<Option<&'static str>, &'static [TextureFormat]>,
-    pub texture_view_descriptor: TextureViewDescriptor<Option<&'static str>>,
+use crate::loaders::texture_loader::TextureLoader;
+
+pub use wgpu_types::TextureFormat;
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TextureKind {
+    Sampled,
+    RenderTarget,
 }
 
-impl Default for TextureUsageSettings {
-    fn default() -> Self {
-        Self {
-            texture_descriptor: TextureDescriptor {
-                label: Some("texture"),
-                size: Extent3d {
-                    width: 0,
-                    height: 0,
-                    depth_or_array_layers: 0,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: TextureFormat::Rgba8UnormSrgb,
-                usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-                view_formats: &[],
-            },
-            texture_view_descriptor: TextureViewDescriptor {
-                label: Some("texture_view"),
-                ..Default::default()
-            },
-        }
-    }
-}
-
-impl TextureUsageSettings {
-    /// Settings for non-color data textures (normal maps, metallic-roughness,
-    /// occlusion).  These must not be sRGB-decoded when sampled.
-    pub fn linear() -> Self {
-        let mut settings = Self::default();
-        settings.texture_descriptor.format = TextureFormat::Rgba8Unorm;
-        settings
-    }
-}
-
-#[derive(Asset)]
+#[derive(Asset, serde::Serialize, serde::Deserialize)]
 pub struct Texture {
-    data: Vec<u8>,
-    usage_settings: TextureUsageSettings,
+    pub width: u32,
+    pub height: u32,
+    pub format: wgpu_types::TextureFormat,
+    pub kind: TextureKind,
+    /// RGBA8 pixels matching `format`. Empty for `TextureKind::RenderTarget`.
+    // TODO(asset-trait-merge): a cooked-then-loaded Texture handle is Weak;
+    // block-compressed formats will need format.block_copy_size() at upload.
+    pub data: Vec<u8>,
 }
 
 impl Texture {
-    pub fn from_bytes(
-        bytes: &[u8],
-        mut usage_settings: TextureUsageSettings,
-    ) -> anyhow::Result<Self> {
-        let img = image::load_from_memory(bytes).context("failed to decode image from bytes")?;
-        let dimensions = img.dimensions();
-
-        if usage_settings.texture_descriptor.size.width == 0
-            && usage_settings.texture_descriptor.size.height == 0
-            && usage_settings.texture_descriptor.size.depth_or_array_layers == 0
-        {
-            usage_settings.texture_descriptor.size = Extent3d {
-                width: dimensions.0,
-                height: dimensions.1,
-                depth_or_array_layers: 1,
-            };
-        }
-
-        Ok(Texture {
-            data: img.to_rgba8().into_raw(),
-            usage_settings,
-        })
-    }
-
-    /// Creates a GPU-only render target texture at the given resolution.
-    ///
-    /// The texture carries no CPU pixel data; the camera system creates the
-    /// actual wgpu texture at the specified size.  Pass the same
-    /// [`AssetHandle<Texture>`] to [`Camera::render_target`] and to
-    /// [`UIViewport::texture`] to wire up a camera-to-panel connection.
+    /// A GPU-only render target; the camera system allocates the wgpu texture.
     pub fn render_target(width: u32, height: u32) -> Self {
-        let mut usage_settings = TextureUsageSettings::default();
-        usage_settings.texture_descriptor.usage =
-            TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING;
-        usage_settings.texture_descriptor.size = Extent3d {
+        Self {
             width,
             height,
-            depth_or_array_layers: 1,
-        };
-        Self {
+            format: wgpu_types::TextureFormat::Rgba8UnormSrgb,
+            kind: TextureKind::RenderTarget,
             data: Vec::new(),
-            usage_settings,
         }
     }
 
-    pub fn from_dynamic_image(image: DynamicImage) -> Self {
-        Self::from_dynamic_image_with_format(image, TextureFormat::Rgba8UnormSrgb)
-    }
-
-    /// Like [`Texture::from_dynamic_image`], but for non-color data textures
-    /// (normal maps, metallic-roughness, occlusion) that must not be
-    /// sRGB-decoded when sampled.
-    pub fn from_dynamic_image_linear(image: DynamicImage) -> Self {
-        Self::from_dynamic_image_with_format(image, TextureFormat::Rgba8Unorm)
-    }
-
-    /// Like [`Texture::from_dynamic_image`], but with an explicit texture
-    /// format.  Use [`TextureFormat::Rgba8Unorm`] for non-color data such as
-    /// normal maps, metallic-roughness, and occlusion textures.
-    pub fn from_dynamic_image_with_format(image: DynamicImage, format: TextureFormat) -> Self {
-        let mut usage_settings = TextureUsageSettings::default();
-
-        let extent = Extent3d {
-            width: image.width(),
-            height: image.height(),
+    pub fn size(&self) -> wgpu::Extent3d {
+        wgpu::Extent3d {
+            width: self.width,
+            height: self.height,
             depth_or_array_layers: 1,
-        };
-
-        usage_settings.texture_descriptor.size = extent;
-        usage_settings.texture_descriptor.format = format;
-
-        Self {
-            data: image.to_rgba8().into_raw(),
-            usage_settings,
         }
-    }
-
-    /// Builds a [`Texture`] from cooked bytes produced by the asset cook
-    /// pipeline.  The cooked `srgb` flag selects the sampled color space; the
-    /// pixels are RGBA8 with no further decoding.
-    pub fn from_cooked(cooked: CookedTexture) -> Self {
-        let mut usage_settings = TextureUsageSettings::default();
-        usage_settings.texture_descriptor.size = Extent3d {
-            width: cooked.width,
-            height: cooked.height,
-            depth_or_array_layers: 1,
-        };
-        usage_settings.texture_descriptor.format = if cooked.srgb {
-            TextureFormat::Rgba8UnormSrgb
-        } else {
-            TextureFormat::Rgba8Unorm
-        };
-        Texture {
-            data: cooked.pixels,
-            usage_settings,
-        }
-    }
-
-    pub fn size(&self) -> &wgpu::Extent3d {
-        &self.usage_settings.texture_descriptor.size
     }
 
     pub fn data(&self) -> &[u8] {
         &self.data
     }
-
-    pub fn usage_settings(&self) -> &TextureUsageSettings {
-        &self.usage_settings
-    }
 }
 
 impl LoadableAsset for Texture {
-    type UsageSettings = TextureUsageSettings;
+    type UsageSettings = ();
 
     fn loader() -> Box<dyn essential::assets::asset_loader::AssetLoader<Asset = Self>> {
         Box::new(TextureLoader)
     }
 
-    fn default_usage_settings() -> Self::UsageSettings {
-        TextureUsageSettings::default()
-    }
+    fn default_usage_settings() -> Self::UsageSettings {}
+}
+
+// Removed in Task 7 when `emit` switches to `T: Asset`.
+impl CookedAsset for Texture {
+    const TYPE_NAME: &'static str = "Texture";
 }

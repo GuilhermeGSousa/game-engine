@@ -1,8 +1,8 @@
-//! Covers ImageImporter producing a CookedTexture from a raw image file.
+//! Covers ImageImporter emitting a serialized Texture from a raw image file.
 use std::path::Path;
 
 use asset_cook::{CookedAsset, ImportContext, Importer};
-use render::assets::cooked_texture::CookedTexture;
+use render::assets::texture::{Texture, TextureFormat, TextureKind};
 use render::importers::image_importer::ImageImporter;
 
 fn write_test_png(path: &Path) {
@@ -25,39 +25,46 @@ fn import_produces_one_main_sub_asset_with_correct_pixels() {
 
     assert_eq!(outputs.sub_assets.len(), 1);
     assert_eq!(outputs.sub_assets[0].name, "main");
-    assert_eq!(outputs.sub_assets[0].type_name, CookedTexture::TYPE_NAME);
+    assert_eq!(outputs.sub_assets[0].type_name, Texture::TYPE_NAME);
 
-    let cooked: CookedTexture = bincode::deserialize(&outputs.sub_assets[0].bytes).unwrap();
-    assert_eq!(cooked.width, 2);
-    assert_eq!(cooked.height, 2);
-    assert_eq!(cooked.pixels.len(), 2 * 2 * 4);
-    assert_eq!(&cooked.pixels[0..4], &[255, 0, 0, 255]);
+    let texture: Texture = bincode::deserialize(&outputs.sub_assets[0].bytes).unwrap();
+    assert_eq!(texture.width, 2);
+    assert_eq!(texture.height, 2);
+    assert_eq!(texture.format, TextureFormat::Rgba8UnormSrgb);
+    assert_eq!(texture.kind, TextureKind::Sampled);
+    assert_eq!(texture.data.len(), 2 * 2 * 4);
+    assert_eq!(&texture.data[0..4], &[255, 0, 0, 255]);
 
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
 #[test]
-fn texture_from_cooked_preserves_dimensions_and_pixels() {
-    let cooked = CookedTexture {
+fn texture_round_trips_through_bincode() {
+    let texture = Texture {
         width: 2,
         height: 1,
-        srgb: true,
-        pixels: vec![10, 20, 30, 255, 40, 50, 60, 255],
+        format: TextureFormat::Rgba8UnormSrgb,
+        kind: TextureKind::Sampled,
+        data: vec![10, 20, 30, 255, 40, 50, 60, 255],
     };
-    let texture = render::assets::texture::Texture::from_cooked(cooked);
+    let bytes = bincode::serialize(&texture).expect("Texture should serialize");
+    let decoded: Texture = bincode::deserialize(&bytes).expect("Texture should deserialize");
+
+    assert_eq!(decoded.width, 2, "width must survive the round-trip");
+    assert_eq!(decoded.height, 1, "height must survive the round-trip");
     assert_eq!(
-        texture.size().width,
-        2,
-        "from_cooked should carry through the cooked width"
+        decoded.format,
+        TextureFormat::Rgba8UnormSrgb,
+        "format must survive the round-trip"
     );
     assert_eq!(
-        texture.size().height,
-        1,
-        "from_cooked should carry through the cooked height"
+        decoded.kind,
+        TextureKind::Sampled,
+        "kind must survive the round-trip"
     );
     assert_eq!(
-        texture.data(),
-        &[10, 20, 30, 255, 40, 50, 60, 255],
-        "from_cooked should move the cooked pixels through unchanged"
+        decoded.data,
+        vec![10, 20, 30, 255, 40, 50, 60, 255],
+        "pixels must survive the round-trip unchanged"
     );
 }

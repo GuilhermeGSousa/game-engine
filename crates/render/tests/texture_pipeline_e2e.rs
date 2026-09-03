@@ -2,6 +2,7 @@
 //! deterministic ID-keyed location — no source image decode at load time.
 use asset_cook::{cooked_file_path_for_id, run_cook, CookOptions, Importer};
 use essential::assets::AssetId;
+use render::assets::texture::{Texture, TextureFormat, TextureKind};
 use render::importers::image_importer::ImageImporter;
 
 #[test]
@@ -44,10 +45,17 @@ fn cooked_texture_is_reachable_by_its_deterministic_id() {
     );
 
     let cooked_bytes = std::fs::read(&cooked_path).expect("failed to read cooked texture file");
-    let cooked: render::assets::cooked_texture::CookedTexture =
+    let texture: Texture =
         bincode::deserialize(&cooked_bytes).expect("failed to deserialize cooked texture");
+    assert_eq!(texture.width, 1, "cooked texture width must match fixture");
     assert_eq!(
-        cooked.pixels,
+        texture.height, 1,
+        "cooked texture height must match fixture"
+    );
+    assert_eq!(texture.format, TextureFormat::Rgba8UnormSrgb);
+    assert_eq!(texture.kind, TextureKind::Sampled);
+    assert_eq!(
+        texture.data,
         vec![9, 9, 9, 255],
         "cooked texture pixel data must match fixture image"
     );

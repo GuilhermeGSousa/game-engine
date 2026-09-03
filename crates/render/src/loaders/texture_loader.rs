@@ -1,7 +1,5 @@
 use anyhow::Context;
-use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, AssetPath, LoadableAsset,
-};
+use essential::assets::{asset_loader::AssetLoader, asset_server::AssetLoadContext, AssetPath};
 
 use async_trait::async_trait;
 
@@ -18,11 +16,7 @@ impl AssetLoader for TextureLoader {
         &self,
         _path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
-        // NOTE: usage_settings is deliberately ignored — the cooked
-        // CookedTexture.srgb flag now determines the format.
-        // TextureUsageSettings::linear() from a caller has no effect on a
-        // cooked texture.
-        _usage_settings: <Self::Asset as LoadableAsset>::UsageSettings,
+        _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
         let bytes = essential::assets::utils::load_cooked_asset_bytes(
             load_context.cooked_root(),
@@ -30,8 +24,8 @@ impl AssetLoader for TextureLoader {
         )
         .await
         .with_context(|| "failed to read cooked texture")?;
-        let cooked: crate::assets::cooked_texture::CookedTexture =
+        let texture: Texture =
             bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked texture")?;
-        Ok(Texture::from_cooked(cooked))
+        Ok(texture)
     }
 }

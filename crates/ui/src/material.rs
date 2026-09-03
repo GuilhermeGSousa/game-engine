@@ -24,7 +24,7 @@ use crate::vertex::UIVertex;
 ///     )
 /// }
 /// ```
-#[derive(Component, Asset, AsBindGroup)]
+#[derive(Component, Asset, AsBindGroup, serde::Serialize, serde::Deserialize)]
 #[material(
     vertex_shader = include_str!("shaders/ui.wgsl"),
     fragment_shader = include_str!("shaders/ui.wgsl"),

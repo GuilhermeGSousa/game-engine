@@ -82,6 +82,40 @@ fn import_emits_mesh_material_and_scene_sub_assets() {
 }
 
 #[test]
+fn import_emits_light_and_extras_components() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/triangle.gltf");
+    let mut ctx = ImportContext::new(std::path::PathBuf::from("triangle.gltf"));
+
+    GltfImporter
+        .import(&fixture, &mut ctx)
+        .expect("import should succeed");
+    let outputs = ctx.into_parts();
+
+    let scene_entry = outputs
+        .sub_assets
+        .iter()
+        .find(|s| s.name == "scene")
+        .unwrap();
+    let cooked_scene: Scene = bincode::deserialize(&scene_entry.bytes).unwrap();
+    let names: Vec<&str> = cooked_scene.nodes[0]
+        .components
+        .iter()
+        .map(|c| c.type_name.as_str())
+        .collect();
+
+    // `Component::name()` is the fully-qualified path, so match on the suffix
+    // the way `has_component_ending_in` does elsewhere in this file.
+    assert!(
+        names.iter().any(|n| n.ends_with("light::Light")),
+        "the punctual light must become a Light component, got: {names:?}"
+    );
+    assert!(
+        names.contains(&"MeshCollider"),
+        "a Blender extras entry must become a component payload verbatim, got: {names:?}"
+    );
+}
+
+#[test]
 fn import_emits_skeleton_and_animation_sub_assets() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/skinned.gltf");
     let mut ctx = ImportContext::new(std::path::PathBuf::from("skinned.gltf"));

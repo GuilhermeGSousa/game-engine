@@ -22,7 +22,7 @@ use ecs::component::scene::SceneEntityRef;
 use essential::assets::{AssetId, handle::AssetHandle};
 use essential::transform::Transform;
 use glam::{Mat4, Vec3};
-use gltf::{Node, Primitive, buffer::Data};
+use gltf::{Node, Primitive, buffer::Data, json};
 use image::ImageBuffer;
 use log::warn;
 use mesh::mesh::{Mesh, MeshComponent};
@@ -31,12 +31,27 @@ use mesh::vertex::Vertex;
 use render::assets::cooked_texture::CookedTexture;
 use render::assets::material::StandardMaterial;
 use render::assets::texture::Texture;
+use render::components::camera::Camera;
+use render::components::light::{Light, LightType};
 use render::components::material::MaterialComponent;
 use render::components::render_entity::SyncWithRenderWorld;
-use scene::scene::{Scene, SceneNode};
+use scene::scene::{Scene, SceneNode, SerializedComponent};
 use scene::skeleton::SceneSkeleton;
 use serde::Serialize;
+use serde_json::Value;
 use uuid::Uuid;
+
+// glTF (KHR_lights_punctual) stores light intensity in photometric units: lux
+// (lm/m^2) for directional lights and candela (lm/sr) for point/spot lights.
+// Blender produces these by scaling the artist's watt-based energy by the
+// luminous efficacy of an ideal source, 683 lm/W. This engine has no camera
+// exposure stage and lights at the radiometric (watt) scale, so we divide the
+// imported intensity by this factor to undo that conversion.
+const LUMINOUS_EFFICACY: f32 = 683.0;
+
+/// Key under a node's Blender `extras` object whose value is the map of
+/// `type_name -> component payload` the add-on writes.
+const EXTRAS_COMPONENTS_KEY: &str = "components";
 
 pub struct GltfImporter;
 
@@ -371,6 +386,71 @@ impl Importer for GltfImporter {
                 }
             }
 
+            // A node's glTF `camera` becomes a `Camera` component. Only the
+            // perspective projection maps onto the engine's camera; an
+            // orthographic one is warned about and falls back to
+            // `Camera::default()`, faithful to the old runtime loader.
+            if let Some(camera) = gltf_node.camera() {
+                match camera.projection() {
+                    gltf::camera::Projection::Perspective(perspective) => {
+                        push_node_component(
+                            &mut scene_node,
+                            &Camera {
+                                fovy: perspective.yfov(),
+                                znear: perspective.znear(),
+                                zfar: perspective.zfar().unwrap_or(100.0),
+                                ..Camera::default()
+                            },
+                        )?;
+                    }
+                    gltf::camera::Projection::Orthographic(_) => {
+                        warn!(
+                            "Orthographic camera '{}' is not supported, using default perspective",
+                            camera.name().unwrap_or("<unnamed>")
+                        );
+                        push_node_component(&mut scene_node, &Camera::default())?;
+                    }
+                }
+            }
+
+            // A `KHR_lights_punctual` light becomes a `Light` (+ render-world
+            // sync). Intensity is divided by `LUMINOUS_EFFICACY` to undo
+            // Blender's watt->photometric conversion. `shadowmaps_enabled` was
+            // previously supplied per-spawn by `GLTFSpawnerComponent`, which no
+            // longer exists; per-scene shadow control is a follow-up.
+            if let Some(light) = gltf_node.light() {
+                let [r, g, b] = light.color();
+                let light_type = match light.kind() {
+                    gltf::khr_lights_punctual::Kind::Directional => LightType::Directional,
+                    gltf::khr_lights_punctual::Kind::Point => LightType::Point,
+                    gltf::khr_lights_punctual::Kind::Spot {
+                        outer_cone_angle, ..
+                    } => LightType::Spot {
+                        cone_angle: outer_cone_angle,
+                    },
+                };
+                push_node_component(
+                    &mut scene_node,
+                    &Light {
+                        color: Color::rgba(r, g, b, 1.0),
+                        intensity: light.intensity() / LUMINOUS_EFFICACY,
+                        shadowmaps_enabled: false,
+                        light_type,
+                    },
+                )?;
+                push_node_component(&mut scene_node, &SyncWithRenderWorld)?;
+            }
+
+            // Blender extras written by the add-on under `components` pass
+            // through verbatim: the payload is already JSON, so it becomes a
+            // `SerializedComponent` without re-serialization.
+            for extra in parse_extras(gltf_node.extras()) {
+                scene_node.components.push(SerializedComponent {
+                    type_name: extra.name,
+                    data: extra.data,
+                });
+            }
+
             nodes.push(scene_node);
         }
 
@@ -462,6 +542,35 @@ fn push_mesh_components(
         },
     )?;
     push_node_component(node, &SyncWithRenderWorld)
+}
+
+/// One `type_name -> payload` pair pulled out of a node's Blender `extras`.
+/// `data` is the component's JSON encoding, carried through untouched.
+struct ExtraComponentData {
+    name: String,
+    data: String,
+}
+
+/// Extracts the Blender add-on's `extras.components` map into
+/// [`ExtraComponentData`] entries. Anything else in `extras` — a missing
+/// block, a non-object, an absent `components` key — yields nothing. Values
+/// pass through verbatim; normalizing `{}` to `null` for unit-struct
+/// components is a runtime concern, not this importer's.
+fn parse_extras(extras: &json::Extras) -> Vec<ExtraComponentData> {
+    if let Some(extras) = extras
+        && let Ok(Value::Object(mut data)) = serde_json::from_str::<Value>(extras.get())
+        && let Some(Value::Object(component_data)) = data.remove(EXTRAS_COMPONENTS_KEY)
+    {
+        component_data
+            .into_iter()
+            .map(|(name, value)| ExtraComponentData {
+                name,
+                data: value.to_string(),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    }
 }
 
 /// Resolves one glTF external resource `uri` against the source file's

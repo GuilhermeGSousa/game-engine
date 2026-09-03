@@ -2,9 +2,9 @@ use std::f32::consts::PI;
 
 use game_engine::animation::clip::AnimationClip;
 use game_engine::animation::graph::AnimationGraph;
-use game_engine::animation::node::AnimationClipNode;
 use game_engine::animation::node::AnimationPlayMode::PlayOnce;
 use game_engine::animation::node::state_machine::{AnimationFSMTrigger, AnimationStateMachine};
+use game_engine::animation::node::{AnimationClipNode, AnimationNodeKind};
 use game_engine::animation::player::{AnimationHandleComponent, AnimationPlayer};
 use game_engine::director::VirtualCamera;
 use game_engine::ecs::component::scene::{SceneComponent, SceneSpawnContext};
@@ -158,73 +158,77 @@ pub(crate) fn setup_character_animations(
 
     let mut graph = AnimationGraph::new();
     graph.result_node().with_input(
-        AnimationStateMachine::from_initial_state(
-            "movement",
-            server.add(movement_graph),
-            |transition| {
-                transition
-                    // TODO: not supported yet, jump need to be triggered by an animation event
-                    // .to(
-                    //     "jump_start",
-                    //     AnimationFSMTrigger::on_bool("jumped", true),
-                    //     0.01,
-                    // );
-                    .to(
-                        "air",
-                        AnimationFSMTrigger::on_bool("is_grounded", false),
-                        0.1,
-                    );
-            },
-        )
-        // .state(
-        //     "jump_start",
-        //     server.add(AnimationGraph::from_node(
-        //         AnimationClipNode::new(_jump_start).with_play_mode(PlayOnce),
-        //     )),
-        //     |transition| {
-        //         transition.to("air", AnimationFSMTrigger::OnAnimationEnd, 0.1);
-        //     },
-        // )
-        .state(
-            "air",
-            server.add(AnimationGraph::from_node(AnimationClipNode::new(jump_loop))),
-            |transition| {
-                transition
-                    .to(
-                        "land",
-                        AnimationFSMTrigger::on_bool("is_grounded", true),
-                        0.1,
-                    )
-                    .to(
-                        "movement",
-                        AnimationFSMTrigger::on_bool("is_grounded", true),
-                        0.1,
-                    );
-            },
-        )
-        .state(
-            "land",
-            server.add(AnimationGraph::from_node(
-                AnimationClipNode::new(jump_land)
-                    .with_play_mode(PlayOnce)
-                    .with_start_time(0.1),
-            )),
-            |transition| {
-                transition
-                    .to("movement", AnimationFSMTrigger::OnAnimationEnd, 0.1)
-                    .to(
-                        "jump_start",
-                        AnimationFSMTrigger::on_bool("jumped", true),
-                        0.1,
-                    )
-                    .to(
-                        "movement",
-                        AnimationFSMTrigger::on_non_zero_vec("movement"),
-                        0.1,
-                    );
-            },
-        )
-        .build(),
+        AnimationNodeKind::StateMachine(
+            AnimationStateMachine::from_initial_state(
+                "movement",
+                server.add(movement_graph),
+                |transition| {
+                    transition
+                        // TODO: not supported yet, jump need to be triggered by an animation event
+                        // .to(
+                        //     "jump_start",
+                        //     AnimationFSMTrigger::on_bool("jumped", true),
+                        //     0.01,
+                        // );
+                        .to(
+                            "air",
+                            AnimationFSMTrigger::on_bool("is_grounded", false),
+                            0.1,
+                        );
+                },
+            )
+            // .state(
+            //     "jump_start",
+            //     server.add(AnimationGraph::from_node(AnimationNodeKind::Clip(
+            //         AnimationClipNode::new(_jump_start).with_play_mode(PlayOnce),
+            //     ))),
+            //     |transition| {
+            //         transition.to("air", AnimationFSMTrigger::OnAnimationEnd, 0.1);
+            //     },
+            // )
+            .state(
+                "air",
+                server.add(AnimationGraph::from_node(AnimationNodeKind::Clip(
+                    AnimationClipNode::new(jump_loop),
+                ))),
+                |transition| {
+                    transition
+                        .to(
+                            "land",
+                            AnimationFSMTrigger::on_bool("is_grounded", true),
+                            0.1,
+                        )
+                        .to(
+                            "movement",
+                            AnimationFSMTrigger::on_bool("is_grounded", true),
+                            0.1,
+                        );
+                },
+            )
+            .state(
+                "land",
+                server.add(AnimationGraph::from_node(AnimationNodeKind::Clip(
+                    AnimationClipNode::new(jump_land)
+                        .with_play_mode(PlayOnce)
+                        .with_start_time(0.1),
+                ))),
+                |transition| {
+                    transition
+                        .to("movement", AnimationFSMTrigger::OnAnimationEnd, 0.1)
+                        .to(
+                            "jump_start",
+                            AnimationFSMTrigger::on_bool("jumped", true),
+                            0.1,
+                        )
+                        .to(
+                            "movement",
+                            AnimationFSMTrigger::on_non_zero_vec("movement"),
+                            0.1,
+                        );
+                },
+            )
+            .build(),
+        ),
         |_node_context| {},
     );
 

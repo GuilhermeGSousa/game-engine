@@ -12,8 +12,7 @@ use crate::{
 pub mod blend_space;
 pub mod state_machine;
 
-#[derive(Default)]
-
+#[derive(Clone, Default)]
 pub enum AnimationPlayMode {
     #[default]
     Loop,
@@ -25,7 +24,7 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
 
     fn evaluate(
         &self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         context: &AnimationGraphContext<'_>,
         bone_ids: &[Uuid],
         evaluated_inputs: &[EvaluatedPose],
@@ -35,7 +34,7 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     );
@@ -45,11 +44,33 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
     }
 }
 
-pub trait AnimationNode: AsAny + Sync + Send {
-    fn create_instance(
+/// Closed set of animation-graph node definitions. `Result` and `Blend` carry no
+/// data; the others wrap a definition struct.
+pub enum AnimationNodeKind {
+    Result,
+    // TODO(asset-trait-merge): Task 4 adds serde derives to the wrapped node structs.
+    Clip(AnimationClipNode),
+    Blend,
+    BlendSpace2D(crate::node::blend_space::BlendSpace2DNode),
+    StateMachine(crate::node::state_machine::AnimationStateMachine),
+}
+
+impl AnimationNodeKind {
+    pub(crate) fn create_instance(
         &self,
-        _creation_context: &AnimationGraphContext,
-    ) -> Box<dyn AnimationNodeInstance>;
+        creation_context: &AnimationGraphContext,
+    ) -> Box<dyn AnimationNodeInstance> {
+        match self {
+            AnimationNodeKind::Result | AnimationNodeKind::Blend => Box::new(NoneInstance),
+            AnimationNodeKind::Clip(def) => {
+                Box::new(AnimationClipNodeInstance::new().with_start_time(def.start_time))
+            }
+            AnimationNodeKind::BlendSpace2D(def) => Box::new(
+                crate::node::blend_space::BlendSpace2DInstanceNode::new(def.points()),
+            ),
+            AnimationNodeKind::StateMachine(fsm) => fsm.create_instance_boxed(creation_context),
+        }
+    }
 }
 
 #[derive(AsAny)]
@@ -60,7 +81,7 @@ impl AnimationNodeInstance for NoneInstance {
 
     fn update(
         &mut self,
-        _node: &dyn AnimationNode,
+        _node: &AnimationNodeKind,
         _delta_time: f32,
         _context: &AnimationGraphContext<'_>,
     ) {
@@ -68,7 +89,7 @@ impl AnimationNodeInstance for NoneInstance {
 
     fn evaluate(
         &self,
-        _node: &dyn AnimationNode,
+        _node: &AnimationNodeKind,
         _context: &AnimationGraphContext<'_>,
         _bone_ids: &[Uuid],
         evaluated_inputs: &[EvaluatedPose],
@@ -80,18 +101,6 @@ impl AnimationNodeInstance for NoneInstance {
         if let Some(input) = evaluated_inputs.first() {
             output.copy_from(&input.pose);
         }
-    }
-}
-
-#[derive(AsAny)]
-pub struct AnimationResultNode;
-
-impl AnimationNode for AnimationResultNode {
-    fn create_instance(
-        &self,
-        _creation_context: &AnimationGraphContext,
-    ) -> Box<dyn AnimationNodeInstance> {
-        Box::new(NoneInstance)
     }
 }
 
@@ -147,18 +156,17 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 
     fn evaluate(
         &self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         context: &AnimationGraphContext<'_>,
         bone_ids: &[Uuid],
         _evaluated_inputs: &[EvaluatedPose],
         _pool: &mut PosePool,
         output: &mut Pose,
     ) {
-        let Some(animation_clip) = node
-            .as_any()
-            .downcast_ref::<AnimationClipNode>()
-            .and_then(|animation_clip| context.animation_clips.get(&animation_clip.clip))
-        else {
+        let AnimationNodeKind::Clip(clip_node) = node else {
+            return;
+        };
+        let Some(animation_clip) = context.animation_clips.get(&clip_node.clip) else {
             return;
         };
 
@@ -183,11 +191,11 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
-        let Some(clip_node) = node.as_any().downcast_ref::<AnimationClipNode>() else {
+        let AnimationNodeKind::Clip(clip_node) = node else {
             return;
         };
 
@@ -226,7 +234,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
     }
 }
 
-#[derive(AsAny)]
+#[derive(Clone)]
 pub struct AnimationClipNode {
     clip: AssetHandle<AnimationClip>,
     play_mode: AnimationPlayMode,
@@ -252,27 +260,3 @@ impl AnimationClipNode {
         self
     }
 }
-
-impl AnimationNode for AnimationClipNode {
-    fn create_instance(
-        &self,
-        _creation_context: &AnimationGraphContext,
-    ) -> Box<dyn AnimationNodeInstance> {
-        Box::new(AnimationClipNodeInstance::new().with_start_time(self.start_time))
-    }
-}
-
-#[derive(AsAny)]
-pub struct AnimationBlendNode;
-
-impl AnimationNode for AnimationBlendNode {
-    fn create_instance(
-        &self,
-        _creation_context: &AnimationGraphContext,
-    ) -> Box<dyn AnimationNodeInstance> {
-        Box::new(NoneInstance)
-    }
-}
-pub struct AnimationStateMachineNodeState;
-
-pub struct AnimationStateMachineNode;

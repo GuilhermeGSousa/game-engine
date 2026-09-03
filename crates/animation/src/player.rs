@@ -14,7 +14,7 @@ use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{
-        AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance,
+        AnimationClipNodeInstance, AnimationNodeInstance, AnimationNodeKind,
         state_machine::AnimationStateMachineInstance,
     },
     pose::PosePool,
@@ -29,7 +29,7 @@ pub struct ActiveNodeInstance {
 impl ActiveNodeInstance {
     pub(crate) fn update(
         &mut self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {

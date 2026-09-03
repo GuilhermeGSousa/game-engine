@@ -11,15 +11,12 @@ use uuid::Uuid;
 
 use crate::{
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
-    node::{
-        AnimationNode, AnimationNodeInstance, AnimationResultNode,
-        blend_space::BlendSpace2DBuilderContext,
-    },
+    node::{AnimationNodeInstance, AnimationNodeKind, blend_space::BlendSpace2DBuilderContext},
     player::ActiveNodeInstance,
     pose::{EvaluatedPose, Pose, PosePool},
 };
 
-type AnimationDirectedGraph = DiGraph<Box<dyn AnimationNode>, ()>;
+type AnimationDirectedGraph = DiGraph<AnimationNodeKind, ()>;
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct AnimationNodeIndex(NodeIndex);
@@ -47,7 +44,7 @@ pub struct AnimationGraph {
 impl AnimationGraph {
     pub fn new() -> Self {
         let mut graph = AnimationDirectedGraph::new();
-        let result_node = graph.add_node(Box::new(AnimationResultNode));
+        let result_node = graph.add_node(AnimationNodeKind::Result);
 
         Self {
             graph,
@@ -55,24 +52,16 @@ impl AnimationGraph {
         }
     }
 
-    pub fn from_node<T: AnimationNode + 'static>(node: T) -> Self {
+    pub fn from_node(node: AnimationNodeKind) -> Self {
         let mut graph = Self::new();
         let result_node_index = graph.result_node().index();
         graph.add_node(node, result_node_index);
         graph
     }
 
-    pub fn add_node<T: AnimationNode + 'static>(
+    pub fn add_node(
         &mut self,
-        node: T,
-        output_node: AnimationNodeIndex,
-    ) -> AnimationNodeContext<'_> {
-        self.add_boxed_node(Box::new(node), output_node)
-    }
-
-    pub fn add_boxed_node(
-        &mut self,
-        node: Box<dyn AnimationNode>,
+        node: AnimationNodeKind,
         output_node: AnimationNodeIndex,
     ) -> AnimationNodeContext<'_> {
         let added_node = self.graph.add_node(node);
@@ -104,8 +93,8 @@ impl AnimationGraph {
             .map(|node_index| node_index.into())
     }
 
-    pub fn get_node(&self, node_index: AnimationNodeIndex) -> Option<&dyn AnimationNode> {
-        self.graph.node_weight(*node_index).map(|node| node.deref())
+    pub fn get_node(&self, node_index: AnimationNodeIndex) -> Option<&AnimationNodeKind> {
+        self.graph.node_weight(*node_index)
     }
 
     pub fn get_node_inputs(&self, node_index: AnimationNodeIndex) -> Neighbors<'_, (), u32> {
@@ -129,9 +118,9 @@ impl<'a> AnimationNodeContext<'a> {
         self.node_index
     }
 
-    pub fn with_input<T: AnimationNode + 'static>(
+    pub fn with_input(
         &mut self,
-        node: T,
+        node: AnimationNodeKind,
         f: impl FnOnce(AnimationNodeContext<'_>),
     ) -> &mut Self {
         f(self.graph.add_node(node, self.node_index));

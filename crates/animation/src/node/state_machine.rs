@@ -6,7 +6,7 @@ use crate::pose::{EvaluatedPose, Pose, PosePool};
 use crate::transition::{AnimationTransitionBlender, blend_stack::BlendStack};
 use crate::{
     evaluation::AnimationGraphContext,
-    node::{AnimationNode, AnimationNodeInstance},
+    node::{AnimationNodeInstance, AnimationNodeKind},
 };
 
 use derive_more::Deref;
@@ -73,7 +73,6 @@ impl StateId {
     }
 }
 
-#[derive(AsAny)]
 pub struct AnimationStateMachine {
     initial_state: StateId,
     states: Vec<AnimationFSMState>,
@@ -155,8 +154,8 @@ impl AnimationStateMachine {
     }
 }
 
-impl AnimationNode for AnimationStateMachine {
-    fn create_instance(
+impl AnimationStateMachine {
+    pub(crate) fn create_instance_boxed(
         &self,
         creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
@@ -234,11 +233,11 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
-        let Some(fsm) = node.as_any().downcast_ref::<AnimationStateMachine>() else {
+        let AnimationNodeKind::StateMachine(fsm) = node else {
             return;
         };
 
@@ -291,7 +290,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
 
     fn evaluate(
         &self,
-        _node: &dyn AnimationNode,
+        _node: &AnimationNodeKind,
         context: &AnimationGraphContext<'_>,
         bone_ids: &[Uuid],
         _evaluated_inputs: &[EvaluatedPose],

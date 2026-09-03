@@ -26,7 +26,7 @@ mod tests {
         AnimationFSMTrigger, AnimationStateMachine, AnimationStateMachineInstance,
     };
     use crate::node::{
-        AnimationClipNode, AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance,
+        AnimationClipNode, AnimationClipNodeInstance, AnimationNodeInstance, AnimationNodeKind,
     };
     use crate::pose::PosePool;
 
@@ -68,7 +68,7 @@ mod tests {
             blackboard: &blackboard,
         };
 
-        let node = AnimationClipNode::new(handle).with_start_time(0.4);
+        let node = AnimationNodeKind::Clip(AnimationClipNode::new(handle).with_start_time(0.4));
         let mut instance = node.create_instance(&context);
         assert_eq!(current_time(instance.as_ref()), 0.4);
 
@@ -104,9 +104,11 @@ mod tests {
             blackboard: &blackboard,
         };
 
-        let node = AnimationClipNode::new(handle)
-            .with_play_mode(PlayOnce)
-            .with_start_time(0.4);
+        let node = AnimationNodeKind::Clip(
+            AnimationClipNode::new(handle)
+                .with_play_mode(PlayOnce)
+                .with_start_time(0.4),
+        );
         let mut instance = node.create_instance(&context);
         assert_eq!(current_time(instance.as_ref()), 0.4);
 
@@ -163,26 +165,30 @@ mod tests {
         let movement = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(AnimationClipNode::new(movement_clip)),
+            AnimationGraph::from_node(AnimationNodeKind::Clip(AnimationClipNode::new(
+                movement_clip,
+            ))),
         );
         let jump_start = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(
+            AnimationGraph::from_node(AnimationNodeKind::Clip(
                 AnimationClipNode::new(jump_start_clip).with_play_mode(PlayOnce),
-            ),
+            )),
         );
         let air = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(AnimationClipNode::new(jump_loop_clip)),
+            AnimationGraph::from_node(AnimationNodeKind::Clip(AnimationClipNode::new(
+                jump_loop_clip,
+            ))),
         );
         let land = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(
+            AnimationGraph::from_node(AnimationNodeKind::Clip(
                 AnimationClipNode::new(jump_land_clip).with_play_mode(PlayOnce),
-            ),
+            )),
         );
 
         // The air state fades in slowly (0.1s) while land snaps in (0.01s), so landing early
@@ -208,6 +214,7 @@ mod tests {
             transition.to("movement", AnimationFSMTrigger::OnAnimationEnd, 0.1);
         })
         .build();
+        let fsm = AnimationNodeKind::StateMachine(fsm);
 
         let mut blackboard = AnimationBlackboard::default();
         let mut instance = {
@@ -297,12 +304,12 @@ mod tests {
         let a = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(AnimationClipNode::new(a_clip)),
+            AnimationGraph::from_node(AnimationNodeKind::Clip(AnimationClipNode::new(a_clip))),
         );
         let b = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(AnimationClipNode::new(b_clip)),
+            AnimationGraph::from_node(AnimationNodeKind::Clip(AnimationClipNode::new(b_clip))),
         );
 
         let fsm = AnimationStateMachine::from_initial_state("a", a, |transition| {
@@ -310,6 +317,7 @@ mod tests {
         })
         .state("b", b, |_| {})
         .build();
+        let fsm = AnimationNodeKind::StateMachine(fsm);
 
         let mut blackboard = AnimationBlackboard::default();
         blackboard.set("go", AnimationBlackboardValue::Bool(true));
@@ -388,12 +396,16 @@ mod tests {
         let movement = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(AnimationClipNode::new(movement_clip)),
+            AnimationGraph::from_node(AnimationNodeKind::Clip(AnimationClipNode::new(
+                movement_clip,
+            ))),
         );
         let jump = add_asset(
             &server,
             &mut graphs,
-            AnimationGraph::from_node(AnimationClipNode::new(jump_clip).with_play_mode(PlayOnce)),
+            AnimationGraph::from_node(AnimationNodeKind::Clip(
+                AnimationClipNode::new(jump_clip).with_play_mode(PlayOnce),
+            )),
         );
 
         let fsm = AnimationStateMachine::from_initial_state("movement", movement, |transition| {
@@ -403,6 +415,7 @@ mod tests {
             transition.to("movement", AnimationFSMTrigger::OnAnimationEnd, 0.01);
         })
         .build();
+        let fsm = AnimationNodeKind::StateMachine(fsm);
 
         let mut blackboard = AnimationBlackboard::default();
         let mut instance = {

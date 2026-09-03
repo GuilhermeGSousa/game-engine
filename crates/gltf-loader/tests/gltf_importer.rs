@@ -10,6 +10,7 @@ use essential::assets::AssetId;
 use gltf_loader::gltf_importer::GltfImporter;
 use mesh::mesh::MeshComponent;
 use scene::scene::{Scene, SceneNode};
+use scene::skeleton::SceneSkeleton;
 
 /// The `AssetId` the node's `MeshComponent` payload points at, if it has one.
 fn mesh_handle_id(node: &SceneNode) -> Option<AssetId> {
@@ -77,6 +78,66 @@ fn import_emits_mesh_material_and_scene_sub_assets() {
             .referenced_assets
             .contains(&AssetId::from_path("triangle.gltf#mesh/0")),
         "the mesh id must be recorded in referenced_assets for cook-time validation"
+    );
+}
+
+#[test]
+fn import_emits_skeleton_and_animation_sub_assets() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/skinned.gltf");
+    let mut ctx = ImportContext::new(std::path::PathBuf::from("skinned.gltf"));
+
+    GltfImporter
+        .import(&fixture, &mut ctx)
+        .expect("importing the skinned fixture should succeed");
+    let outputs = ctx.into_parts();
+
+    let names: Vec<&str> = outputs.sub_assets.iter().map(|s| s.name.as_str()).collect();
+    assert!(
+        names.contains(&"skeleton/0"),
+        "expected a skeleton sub-asset, got: {names:?}"
+    );
+    assert!(
+        names.contains(&"animation/0"),
+        "expected an animation sub-asset, got: {names:?}"
+    );
+
+    let scene_entry = outputs
+        .sub_assets
+        .iter()
+        .find(|s| s.name == "scene")
+        .unwrap();
+    let cooked_scene: Scene = bincode::deserialize(&scene_entry.bytes).unwrap();
+
+    let skinned_node = cooked_scene
+        .nodes
+        .iter()
+        .find(|node| {
+            node.components
+                .iter()
+                .any(|c| c.type_name == SceneSkeleton::name())
+        })
+        .expect("a skinned node must carry a SceneSkeleton component");
+
+    let payload = skinned_node
+        .components
+        .iter()
+        .find(|c| c.type_name == SceneSkeleton::name())
+        .unwrap();
+    let scene_skeleton: SceneSkeleton = serde_json::from_str(&payload.data).unwrap();
+
+    assert_eq!(
+        scene_skeleton.skeleton.id(),
+        AssetId::from_path("skinned.gltf#skeleton/0"),
+        "the skeleton handle must address the emitted skeleton sub-asset"
+    );
+    assert_eq!(
+        scene_skeleton.bones.len(),
+        scene_skeleton.bone_ids.len(),
+        "every bone must have a matching stable id for animation channel lookup"
+    );
+    assert!(
+        !scene_skeleton.bones.is_empty(),
+        "the fixture's skin has joints, so bones must not be empty"
     );
 }
 

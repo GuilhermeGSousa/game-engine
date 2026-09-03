@@ -1,25 +1,32 @@
 //! Offline importer that relocates the parsing half of the old runtime
 //! `GLTFLoader` into the asset-cook pipeline. A single `.gltf`/`.glb` is
-//! split into independently-cooked `mesh/*`, `material/*`, `texture/*` and
-//! `scene` sub-assets, cross-referenced by stable `AssetId`.
+//! split into independently-cooked `mesh/*`, `material/*`, `texture/*`,
+//! `skeleton/*`, `animation/*` and `scene` sub-assets, cross-referenced by
+//! stable `AssetId`.
 //!
-// TODO(follow-up): skeleton, animation, camera, light, and Blender-extras component
-// data are not yet ported from the original runtime GLTFLoader (removed in the
-// Task 14b cutover — see git history for the reference implementation).
+// TODO(follow-up): camera, light, and Blender-extras component data are not
+// yet ported from the original runtime GLTFLoader (removed in the Task 14b
+// cutover — see git history for the reference implementation).
 
-use std::collections::BTreeSet;
+use std::borrow::Cow;
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
+use animation::clip::{AnimationChanelOutput, AnimationChannel, AnimationClip};
 use anyhow::{Context, bail};
 use asset_cook::{ImportContext, ImportError, Importer, hash_file_contents};
 use color::Color;
 use ecs::component::Component;
+use ecs::component::scene::SceneEntityRef;
 use essential::assets::{AssetId, handle::AssetHandle};
 use essential::transform::Transform;
-use glam::Vec3;
-use gltf::{Primitive, buffer::Data};
+use glam::{Mat4, Vec3};
+use gltf::{Node, Primitive, buffer::Data};
 use image::ImageBuffer;
+use log::warn;
 use mesh::mesh::{Mesh, MeshComponent};
+use mesh::skeleton::Skeleton;
 use mesh::vertex::Vertex;
 use render::assets::cooked_texture::CookedTexture;
 use render::assets::material::StandardMaterial;
@@ -27,7 +34,9 @@ use render::assets::texture::Texture;
 use render::components::material::MaterialComponent;
 use render::components::render_entity::SyncWithRenderWorld;
 use scene::scene::{Scene, SceneNode};
+use scene::skeleton::SceneSkeleton;
 use serde::Serialize;
+use uuid::Uuid;
 
 pub struct GltfImporter;
 
@@ -45,6 +54,21 @@ struct PrimRef {
 struct TextureKey {
     image_index: usize,
     srgb: bool,
+}
+
+/// One glTF skin resolved to what a `SceneSkeleton` needs: which emitted
+/// `skeleton/N` sub-asset holds its inverse bind matrices, the joint nodes as
+/// `SceneEntityRef`s, and the stable per-bone ids the animation clips key by.
+struct SkinInfo {
+    skeleton_index: usize,
+    bones: Vec<SceneEntityRef>,
+    bone_ids: Vec<Uuid>,
+}
+
+/// The name path from a scene root down to a node, used to derive that node's
+/// stable bone id via [`paths_to_uuid`].
+struct NodePathInfo {
+    node_path: Vec<Cow<'static, str>>,
 }
 
 impl Importer for GltfImporter {
@@ -188,6 +212,114 @@ impl Importer for GltfImporter {
             )?;
         }
 
+        // Name path per node, from every scene root. Bone ids are hashed from
+        // these paths, so a skeleton and the animation clips that drive it
+        // must both resolve bone identity through this one map.
+        let mut node_paths: HashMap<usize, NodePathInfo> = HashMap::new();
+        for scene in document.scenes() {
+            for root_node in scene.nodes() {
+                collect_paths(&root_node, &[], &mut node_paths, &mut HashSet::new());
+            }
+        }
+
+        // Skins -> `skeleton/N` sub-assets. A skin with no inverse bind
+        // matrices is unusable, so it is skipped and its node gets no
+        // `SceneSkeleton`. `SkinInfo` is looked up by `skeleton_index`, not
+        // vector position, so a skipped skin cannot misalign the rest.
+        let mut skins: Vec<SkinInfo> = Vec::new();
+        for (skin_index, skin) in document.skins().enumerate() {
+            let Some(inverse_bind_matrices) = skin
+                .reader(|buffer| Some(&buffers[buffer.index()]))
+                .read_inverse_bind_matrices()
+                .map(|iter| {
+                    iter.map(|pose| Mat4::from_cols_array_2d(&pose))
+                        .collect::<Vec<_>>()
+                })
+            else {
+                continue;
+            };
+
+            let skeleton = Skeleton::from(inverse_bind_matrices);
+            ctx.emit(&format!("skeleton/{skin_index}"), &skeleton)?;
+
+            let bones: Vec<SceneEntityRef> = skin
+                .joints()
+                .map(|joint| SceneEntityRef(joint.index()))
+                .collect();
+            let bone_ids: Vec<Uuid> = skin
+                .joints()
+                .map(|joint| paths_to_uuid(&node_paths[&joint.index()].node_path))
+                .collect();
+
+            skins.push(SkinInfo {
+                skeleton_index: skin_index,
+                bones,
+                bone_ids,
+            });
+        }
+
+        // Animations -> `animation/N` sub-assets. Channel targets are keyed by
+        // the same path hash as the skeleton bones, so clips and skeletons
+        // agree on identity. Clip ids are not recorded in `referenced_assets`:
+        // nothing in the cooked scene points at a clip yet (a later task wires
+        // that), and the cook's reference-integrity pass only checks that
+        // recorded references resolve, not that every sub-asset is referenced.
+        for (animation_index, animation) in document.animations().enumerate() {
+            let mut animation_clip = AnimationClip::default();
+
+            for channel in animation.channels() {
+                let target = channel.target();
+                let target_node_idx = target.node().index();
+                let channel_reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
+
+                let time_samples = channel_reader
+                    .read_inputs()
+                    .map(|inputs| inputs.collect::<Vec<_>>());
+
+                let output_samples = channel_reader.read_outputs().map(|outputs| match outputs {
+                    gltf::animation::util::ReadOutputs::Translations(iter) => {
+                        AnimationChanelOutput::from_translation(iter)
+                    }
+                    gltf::animation::util::ReadOutputs::Rotations(rotations) => match rotations {
+                        gltf::animation::util::Rotations::I8(_) => todo!(),
+                        gltf::animation::util::Rotations::U8(_) => todo!(),
+                        gltf::animation::util::Rotations::I16(_) => todo!(),
+                        gltf::animation::util::Rotations::U16(_) => todo!(),
+                        gltf::animation::util::Rotations::F32(iter) => {
+                            AnimationChanelOutput::from_rotation(iter)
+                        }
+                    },
+                    gltf::animation::util::ReadOutputs::Scales(iter) => {
+                        AnimationChanelOutput::from_scale(iter)
+                    }
+                    gltf::animation::util::ReadOutputs::MorphTargetWeights(_) => todo!(),
+                });
+
+                let Some((time_samples, outputs)) = time_samples.zip(output_samples) else {
+                    continue;
+                };
+
+                if time_samples.is_empty() {
+                    warn!(
+                        "No time samples found for animation channel of index {}",
+                        channel.index()
+                    );
+                    continue;
+                }
+
+                let animation_channel = AnimationChannel::new(time_samples, outputs);
+
+                if let Some(node_path_info) = node_paths.get(&target_node_idx) {
+                    let target_id = paths_to_uuid(&node_path_info.node_path);
+                    animation_clip.add_channel(target_id, animation_channel);
+                } else {
+                    warn!("Missing an node name for node {}.", target_node_idx);
+                }
+            }
+
+            ctx.emit(&format!("animation/{animation_index}"), &animation_clip)?;
+        }
+
         // Node walk. `document.nodes()` yields nodes in index order, so the
         // first `document.nodes().count()` entries of `nodes` line up 1:1 with
         // glTF node indices and every `children` index into that prefix stays
@@ -206,6 +338,39 @@ impl Importer for GltfImporter {
                 &mut scene_node,
                 &Transform::from_matrix(&gltf_node.transform().matrix()),
             )?;
+
+            // A skinned node carries the whole binding: which `skeleton/N`
+            // sub-asset to load, the joint nodes, their stable ids, and the
+            // root bone. Per R6 this goes on the skinned node itself and is
+            // not cloned onto the appended primitive children of a
+            // multi-primitive skinned mesh, so those won't bind skinning
+            // until a follow-up splits the component.
+            if let Some(skin) = gltf_node.skin() {
+                let skin_index = skin.index();
+                if let Some((bones, bone_ids)) = skins
+                    .iter()
+                    .find(|info| info.skeleton_index == skin_index)
+                    .map(|info| (info.bones.clone(), info.bone_ids.clone()))
+                {
+                    let skeleton_id = ctx.sub_asset_id(&format!("skeleton/{skin_index}"));
+                    let root = skin
+                        .skeleton()
+                        .map(|node| SceneEntityRef(node.index()))
+                        .or_else(|| skin.joints().next().map(|j| SceneEntityRef(j.index())));
+
+                    push_node_component(
+                        &mut scene_node,
+                        &SceneSkeleton {
+                            skeleton: AssetHandle::weak(skeleton_id),
+                            bones,
+                            bone_ids,
+                            root,
+                        },
+                    )?;
+                    referenced_assets.push(skeleton_id);
+                }
+            }
+
             nodes.push(scene_node);
         }
 
@@ -498,4 +663,40 @@ fn load_primitive(
     }
 
     Ok(primitive)
+}
+
+/// Walks the node hierarchy from a scene root, recording each node's full name
+/// path. `visited` guards against cycles in malformed documents. Bone ids are
+/// derived from these paths, so a skeleton and its animation clips must both
+/// go through this map to agree on bone identity.
+fn collect_paths(
+    node: &Node,
+    current_path: &[Cow<'static, str>],
+    paths: &mut HashMap<usize, NodePathInfo>,
+    visited: &mut HashSet<usize>,
+) {
+    let mut path = current_path.to_owned();
+    let node_name = node
+        .name()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("GLTF Node: {}", node.index()));
+
+    path.push(Cow::from(node_name));
+
+    visited.insert(node.index());
+    for child in node.children() {
+        if !visited.contains(&child.index()) {
+            collect_paths(&child, &path, paths, visited);
+        }
+    }
+    paths.insert(node.index(), NodePathInfo { node_path: path });
+}
+
+/// Hashes a node's name path into the stable `Uuid` used to key animation
+/// channels and skeleton bones. Not cryptographic; it only needs to be
+/// deterministic across a cook and a runtime load of the same document.
+fn paths_to_uuid(paths: &[Cow<'static, str>]) -> Uuid {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    paths.join("/").hash(&mut hasher);
+    Uuid::from_u128(hasher.finish() as u128)
 }

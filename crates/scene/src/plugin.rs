@@ -1,5 +1,12 @@
 use app::{plugins::Plugin, schedule_groups::Update, App};
 
+use essential::transform::Transform;
+use mesh::mesh::MeshComponent;
+use render::components::camera::Camera;
+use render::components::light::Light;
+use render::components::material::MaterialComponent;
+use render::components::render_entity::SyncWithRenderWorld;
+
 use crate::scene::Scene;
 use crate::spawner::spawn_scene_components;
 
@@ -12,6 +19,14 @@ impl Plugin for ScenePlugin {
         // populated AssetStore for an empty one and add a duplicate tracking
         // system, breaking in-flight loads.
         app.register_asset::<Scene>();
+
+        app.register_component::<Transform>();
+        app.register_component::<MeshComponent>();
+        app.register_component::<MaterialComponent>();
+        app.register_component::<Camera>();
+        app.register_component::<Light>();
+        app.register_component::<SyncWithRenderWorld>();
+
         app.add_system(Update, spawn_scene_components);
     }
 }

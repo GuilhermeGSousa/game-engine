@@ -1,12 +1,16 @@
 use anyhow::Context;
 use asset_cook::CookedAsset;
 use async_trait::async_trait;
-use ecs::Component;
+use ecs::component::scene::{SceneComponent, SceneSpawnContext};
+use ecs::{Component, Entity};
 use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, handle::AssetHandle, Asset,
-    AssetPath, LoadableAsset,
+    asset_loader::AssetLoader,
+    asset_server::{AssetLoadContext, AssetServer},
+    handle::AssetHandle,
+    Asset, AssetPath, LoadableAsset,
 };
 use glam::{Vec2, Vec3};
+use serde::{Deserialize, Serialize};
 
 use crate::vertex::Vertex;
 
@@ -146,7 +150,16 @@ impl Mesh {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct MeshComponent {
     pub handle: AssetHandle<Mesh>,
+}
+
+impl SceneComponent for MeshComponent {
+    fn apply(mut self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        if let Some(server) = ctx.world().get_resource::<AssetServer>() {
+            self.handle = server.load_by_id(self.handle.id());
+        }
+        ctx.insert(self, entity);
+    }
 }

@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 
+use ecs::component::scene::{SceneComponent, SceneSpawnContext};
 use ecs::component::Component;
-use essential::assets::{handle::AssetHandle, AssetId};
+use ecs::Entity;
+use essential::assets::{asset_server::AssetServer, handle::AssetHandle, AssetId, LoadableAsset};
+use serde::{Deserialize, Serialize};
 
 use crate::{assets::material::StandardMaterial, Material};
 
@@ -11,9 +14,19 @@ use crate::{assets::material::StandardMaterial, Material};
 /// The type parameter `M` defaults to [`StandardMaterial`] so existing code that writes
 /// `MaterialComponent { handle: … }` with a `StandardMaterial` handle continues to work
 /// without any change.  Custom materials use `MaterialComponent::<MyMaterial> { handle: … }`.
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct MaterialComponent<M: Material + Send + Sync + 'static = StandardMaterial> {
     pub handle: AssetHandle<M>,
+}
+
+impl<M: Material + LoadableAsset> SceneComponent for MaterialComponent<M> {
+    fn apply(mut self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        if let Some(server) = ctx.world().get_resource::<AssetServer>() {
+            self.handle = server.load_by_id(self.handle.id());
+        }
+        ctx.insert(self, entity);
+    }
 }
 
 /// Render-world component placed on mesh entities to identify which material

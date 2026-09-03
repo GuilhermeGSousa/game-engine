@@ -1,7 +1,7 @@
 use crate::LinearRgba;
 
 /// sRGB + linear alpha color.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Srgba {
     pub r: f32,
     pub g: f32,

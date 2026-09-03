@@ -3,12 +3,14 @@ use color::{Color, LinearRgba};
 use derive_more::Deref;
 use ecs::{
     command::CommandQueue,
+    component::scene::{SceneComponent, SceneSpawnContext},
     component::Component,
     entity::Entity,
     query::Query,
     resource::{Res, Resource},
     Changed,
 };
+use serde::{Deserialize, Serialize};
 
 use encase::{ShaderSize, ShaderType, UniformBuffer};
 use essential::transform::GlobalTransform;
@@ -35,12 +37,18 @@ const MAX_LIGHTS: usize = 128;
 /// outside that same tick — resolved to either a real layer index or `-1`.
 const SHADOW_LAYER_REQUESTED: i32 = -2;
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct Light {
     pub color: Color,
     pub intensity: f32,
     pub shadowmaps_enabled: bool,
     pub light_type: LightType,
+}
+
+impl SceneComponent for Light {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
+    }
 }
 
 impl Light {
@@ -87,6 +95,7 @@ impl Light {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum LightType {
     Point,
     Spot { cone_angle: f32 },

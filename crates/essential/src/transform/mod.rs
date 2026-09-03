@@ -1,6 +1,8 @@
 use std::ops::Mul;
 
+use ecs::component::scene::{SceneComponent, SceneSpawnContext};
 use ecs::component::{Component, ComponentLifecycleCallback};
+use ecs::entity::Entity;
 use glam::{Affine3A, Mat4, Quat, Vec3};
 
 use crate::blend::Blendable;
@@ -32,6 +34,12 @@ impl Component for Transform {
         Some(|mut world, context| {
             world.remove_component::<GlobalTransform>(context.entity, false);
         })
+    }
+}
+
+impl SceneComponent for Transform {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
     }
 }
 

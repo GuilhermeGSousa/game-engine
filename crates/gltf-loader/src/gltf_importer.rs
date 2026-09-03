@@ -36,7 +36,7 @@ use render::components::light::{Light, LightType};
 use render::components::material::MaterialComponent;
 use render::components::render_entity::SyncWithRenderWorld;
 use scene::scene::{Scene, SceneNode, SerializedComponent};
-use scene::skeleton::SceneSkeleton;
+use scene::skeleton::{SceneSkeleton, SceneSkeletonBinding};
 use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
@@ -356,10 +356,11 @@ impl Importer for GltfImporter {
 
             // A skinned node carries the whole binding: which `skeleton/N`
             // sub-asset to load, the joint nodes, their stable ids, and the
-            // root bone. Per R6 this goes on the skinned node itself and is
-            // not cloned onto the appended primitive children of a
-            // multi-primitive skinned mesh, so those won't bind skinning
-            // until a follow-up splits the component.
+            // root bone. This goes on the skinned node itself, which owns the
+            // `AnimationPlayer`. When that node is a multi-primitive mesh its
+            // drawable geometry lives on appended primitive children; the
+            // second node-walk loop gives each of those a `SceneSkeletonBinding`
+            // so they skin from the same bone entities without a second player.
             if let Some(skin) = gltf_node.skin() {
                 let skin_index = skin.index();
                 if let Some((bones, bone_ids)) = skins
@@ -475,6 +476,24 @@ impl Importer for GltfImporter {
                 }
                 _ => {
                     let node_name = nodes[node_index].name.clone();
+
+                    // The `SceneSkeleton` (with the player) sits on the owning
+                    // node; each drawable primitive child gets the binding half
+                    // so it skins from the same bone entities.
+                    let skin_binding = gltf_node.skin().and_then(|skin| {
+                        let skin_index = skin.index();
+                        skins
+                            .iter()
+                            .find(|info| info.skeleton_index == skin_index)
+                            .map(|info| {
+                                (
+                                    ctx.sub_asset_id(&format!("skeleton/{skin_index}")),
+                                    info.bones.clone(),
+                                    info.bone_ids.clone(),
+                                )
+                            })
+                    });
+
                     for (k, p) in prims.iter().enumerate() {
                         let child_index = nodes.len();
                         let mesh_id = ctx.sub_asset_id(&format!("mesh/{}", p.mesh_sub_asset));
@@ -490,6 +509,18 @@ impl Importer for GltfImporter {
                         push_mesh_components(&mut child, mesh_id, material_id)?;
                         referenced_assets.push(mesh_id);
                         referenced_assets.push(material_id);
+
+                        if let Some((skeleton_id, bones, bone_ids)) = &skin_binding {
+                            push_node_component(
+                                &mut child,
+                                &SceneSkeletonBinding {
+                                    skeleton: AssetHandle::weak(*skeleton_id),
+                                    bones: bones.clone(),
+                                    bone_ids: bone_ids.clone(),
+                                },
+                            )?;
+                            referenced_assets.push(*skeleton_id);
+                        }
 
                         nodes.push(child);
                         nodes[node_index].children.push(child_index);

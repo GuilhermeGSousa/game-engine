@@ -15,7 +15,7 @@ pub struct SubAssetEntry {
 /// Bumped whenever the on-disk shape of `SourceIndex` or any cooked payload
 /// changes incompatibly. `source_is_unchanged` treats a mismatch as "must
 /// rebuild", so a layout change can't silently keep stale cooked output.
-pub const COOK_FORMAT_VERSION: u32 = 2;
+pub const COOK_FORMAT_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SourceIndex {

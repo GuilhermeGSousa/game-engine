@@ -44,3 +44,31 @@ impl SceneComponent for SceneSkeleton {
         );
     }
 }
+
+/// The skeleton binding without the player. Cooked onto the appended primitive
+/// child nodes of a multi-primitive skinned mesh so each drawable primitive
+/// skins from the same bone entities the owning node's `AnimationPlayer` drives.
+#[derive(Component, Debug, Clone, Serialize, Deserialize)]
+pub struct SceneSkeletonBinding {
+    pub skeleton: AssetHandle<Skeleton>,
+    pub bones: Vec<SceneEntityRef>,
+    pub bone_ids: Vec<Uuid>,
+}
+
+impl SceneComponent for SceneSkeletonBinding {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        let bones: Vec<Entity> = self
+            .bones
+            .iter()
+            .filter_map(|reference| ctx.entity_for(*reference))
+            .collect();
+        let skeleton = match ctx.world().get_resource::<AssetServer>() {
+            Some(server) => server.load_by_id(self.skeleton.id()),
+            None => self.skeleton.clone(),
+        };
+        ctx.insert(
+            SkeletonComponent::new(skeleton, bones, self.bone_ids),
+            entity,
+        );
+    }
+}

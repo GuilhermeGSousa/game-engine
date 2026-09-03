@@ -8,6 +8,7 @@ use render::components::material::MaterialComponent;
 use render::components::render_entity::SyncWithRenderWorld;
 
 use crate::scene::Scene;
+use crate::skeleton::SceneSkeleton;
 use crate::spawner::spawn_scene_components;
 
 pub struct ScenePlugin;
@@ -26,6 +27,7 @@ impl Plugin for ScenePlugin {
         app.register_component::<Camera>();
         app.register_component::<Light>();
         app.register_component::<SyncWithRenderWorld>();
+        app.register_component::<SceneSkeleton>();
 
         app.add_system(Update, spawn_scene_components);
     }

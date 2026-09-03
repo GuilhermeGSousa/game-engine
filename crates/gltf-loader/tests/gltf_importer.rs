@@ -10,7 +10,7 @@ use essential::assets::AssetId;
 use gltf_loader::gltf_importer::GltfImporter;
 use mesh::mesh::MeshComponent;
 use scene::scene::{Scene, SceneNode};
-use scene::skeleton::SceneSkeleton;
+use scene::skeleton::{SceneSkeleton, SceneSkeletonBinding};
 
 /// The `AssetId` the node's `MeshComponent` payload points at, if it has one.
 fn mesh_handle_id(node: &SceneNode) -> Option<AssetId> {
@@ -266,4 +266,81 @@ fn import_flattens_multi_primitive_mesh_into_child_nodes() {
             "primitive child node {child_index} must reference {expected_mesh_addr} by stable AssetId"
         );
     }
+}
+
+#[test]
+fn multi_primitive_skinned_mesh_binds_every_primitive_child() {
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/skinned_two_prims.gltf");
+    let mut ctx = ImportContext::new(std::path::PathBuf::from("skinned_two_prims.gltf"));
+
+    GltfImporter
+        .import(&fixture, &mut ctx)
+        .expect("importing the two-primitive skinned fixture should succeed");
+    let outputs = ctx.into_parts();
+
+    let scene_entry = outputs
+        .sub_assets
+        .iter()
+        .find(|s| s.name == "scene")
+        .unwrap();
+    let scene: Scene = bincode::deserialize(&scene_entry.bytes).unwrap();
+
+    // The source skinned node carries the full SceneSkeleton (player + root).
+    let source = scene
+        .nodes
+        .iter()
+        .find(|n| {
+            n.components
+                .iter()
+                .any(|c| c.type_name == SceneSkeleton::name())
+        })
+        .expect("source node must carry a SceneSkeleton");
+    let source_skel: SceneSkeleton = serde_json::from_str(
+        &source
+            .components
+            .iter()
+            .find(|c| c.type_name == SceneSkeleton::name())
+            .unwrap()
+            .data,
+    )
+    .unwrap();
+
+    // Every appended primitive child carries a binding-only SceneSkeletonBinding
+    // whose bone_ids match the source skeleton's, so it skins from the same bones.
+    let bindings: Vec<SceneSkeletonBinding> = scene
+        .nodes
+        .iter()
+        .flat_map(|n| n.components.iter())
+        .filter(|c| c.type_name == SceneSkeletonBinding::name())
+        .map(|c| serde_json::from_str(&c.data).unwrap())
+        .collect();
+
+    assert_eq!(
+        bindings.len(),
+        2,
+        "one SceneSkeletonBinding per primitive child, got {}",
+        bindings.len()
+    );
+    for binding in &bindings {
+        assert_eq!(
+            binding.bone_ids, source_skel.bone_ids,
+            "primitive child binding must share the source skeleton's bone ids"
+        );
+        assert_eq!(binding.skeleton.id(), source_skel.skeleton.id());
+    }
+
+    // The Wiggle clip's channel key must be one of those bone ids, or animation
+    // silently does nothing.
+    let clip_entry = outputs
+        .sub_assets
+        .iter()
+        .find(|s| s.name == "animation/0")
+        .unwrap();
+    let clip: animation::clip::AnimationClip = bincode::deserialize(&clip_entry.bytes).unwrap();
+    assert!(
+        clip.target_ids()
+            .any(|id| source_skel.bone_ids.contains(id)),
+        "the animation clip must key at least one channel by a skeleton bone id"
+    );
 }

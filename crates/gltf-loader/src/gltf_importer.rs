@@ -4,9 +4,6 @@
 //! `skeleton/*`, `animation/*` and `scene` sub-assets, cross-referenced by
 //! stable `AssetId`.
 //!
-// TODO(follow-up): camera, light, and Blender-extras component data are not
-// yet ported from the original runtime GLTFLoader (removed in the Task 14b
-// cutover — see git history for the reference implementation).
 
 use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -261,10 +258,26 @@ impl Importer for GltfImporter {
                 .joints()
                 .map(|joint| SceneEntityRef(joint.index()))
                 .collect();
-            let bone_ids: Vec<Uuid> = skin
-                .joints()
-                .map(|joint| paths_to_uuid(&node_paths[&joint.index()].node_path))
-                .collect();
+
+            // A joint node unreachable from every scene root has no path entry,
+            // so it has no stable bone id. A skeleton with a partial bone-id
+            // list is worse than none: skip the whole skin, matching the
+            // animation-channel loop's warn-and-skip.
+            let mut bone_ids: Vec<Uuid> = Vec::with_capacity(bones.len());
+            let mut missing_joint_path = false;
+            for joint in skin.joints() {
+                match node_paths.get(&joint.index()) {
+                    Some(node_path_info) => bone_ids.push(paths_to_uuid(&node_path_info.node_path)),
+                    None => {
+                        warn!("Missing an node name for node {}.", joint.index());
+                        missing_joint_path = true;
+                        break;
+                    }
+                }
+            }
+            if missing_joint_path {
+                continue;
+            }
 
             skins.push(SkinInfo {
                 skeleton_index: skin_index,

@@ -1,4 +1,4 @@
-# Merging `Asset` and `CookedAsset` — Design
+# One `Asset` Trait + Serializable `AnimationGraph` — Design
 
 **Status:** approved for planning
 **Date:** 2026-09-03
@@ -8,22 +8,120 @@
 
 The engine has two overlapping asset traits:
 
-- `essential::assets::Asset` — `Send + Sync + 'static` with `fn name() -> &'static str`. The runtime marker: `AssetStore<A: Asset>`, `AssetServer::add<A: Asset>`, `App::register_asset<A: Asset>` are all generic over it.
-- `asset_cook::CookedAsset` — `Serialize + DeserializeOwned` with `const TYPE_NAME: &'static str` and `fn referenced_sub_assets(&self) -> Vec<AssetId>`. What the offline cook pipeline serializes and what the cooked-bytes loaders deserialize.
+- `essential::assets::Asset` — `Send + Sync + 'static` with `fn name() -> &'static str`. The runtime marker: `AssetStore<A: Asset>`, `AssetServer::add<A: Asset>`, `App::register_asset<A: Asset>` are generic over it.
+- `asset_cook::CookedAsset` — `Serialize + DeserializeOwned` with `const TYPE_NAME: &'static str` and `fn referenced_sub_assets(&self) -> Vec<AssetId>`. What the offline cook pipeline serializes and the cooked-bytes loaders deserialize.
 
-For almost every asset the two are implemented on the *same* type (`Mesh`, `Skeleton`, `AnimationClip`, `Scene`, `StandardMaterial`). The split forces a parallel DTO exactly once — `CookedTexture` shadows `Texture` — because `Texture` embeds a `wgpu_types::TextureDescriptor<Option<&'static str>, &'static [TextureFormat]>` (via `TextureUsageSettings`) whose `&'static` references cannot `Deserialize`.
+For almost every asset the two are implemented on the *same* type (`Mesh`, `Skeleton`, `AnimationClip`, `Scene`, `StandardMaterial`). Two things stand in the way of one trait:
 
-Result: `TYPE_NAME` duplicates `name()`, importers and loaders juggle two vocabularies, and `CookedTexture`/`Texture::from_cooked` exist purely to bridge a gap that is one struct field wide.
+1. **`Texture`** forces a parallel DTO (`CookedTexture`) because it embeds a `wgpu_types::TextureDescriptor<Option<&'static str>, &'static [TextureFormat]>` (via `TextureUsageSettings`) whose `&'static` references cannot `Deserialize`.
+2. **`AnimationGraph`** is `#[derive(Asset)]` (lives in `AssetStore<AnimationGraph>`) but is closure-laden — `DiGraph<Box<dyn AnimationNode>, ()>` with `Arc<dyn Fn>` fields in `BlendSpace2DNode` and `AnimationFSMTrigger`.
 
 ## Goal
 
 One trait. `CookedAsset` is deleted; `Asset` absorbs its responsibilities and gains a `Serialize + DeserializeOwned` supertrait bound, so every asset is uniformly serializable and cook-able. The cook `emit` path and the cooked loaders then need no extra trait vocabulary — a bare `T: Asset` bound carries serialization.
 
-Non-goal for this plan: making `AnimationGraph` genuinely serializable. It is closure-laden (see below) and its redesign is a separate, later project. This plan keeps the build green with a placeholder.
+To get there, both blockers are removed for real (no placeholders): `Texture` serializes directly, and `AnimationGraph` becomes a data structure.
 
-## Scope
+## Order
 
-### 1. The merged trait
+The plan runs in two phases. **Phase A first** (serializable `AnimationGraph`) — it is self-contained in the `animation` crate plus two example call sites and needs nothing from Phase B. **Then Phase B** (the trait merge) — by which point every `Asset` type already derives serde, so the supertrait bound lands clean.
+
+---
+
+# Phase A — Serializable `AnimationGraph`
+
+`AnimationGraph` today: `{ graph: DiGraph<Box<dyn AnimationNode>, ()>, result_node: NodeIndex }`. Five node-definition types implement `AnimationNode` (`AnimationResultNode`, `AnimationClipNode`, `AnimationBlendNode`, `BlendSpace2DNode`, `AnimationStateMachine`); two closure surfaces exist, both with trivial real usage:
+
+- `BlendSpace2DNode.sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>` — every caller passes `|bb| bb.get_vec2("movement").unwrap_or(ZERO)`.
+- `AnimationFSMTrigger::Condition(Arc<dyn Fn(&AnimationBlackboard) -> bool + Send + Sync>)` — only reached through `on_bool(param, value)` / `on_non_zero_vec(param)`. `from_condition` (arbitrary closure) has **zero callers**.
+
+There are **zero `AnimationNode` impls outside the `animation` crate**, so a closed enum loses no real extensibility.
+
+## A1. Node definitions become data (`crates/animation/src/node/`)
+
+Delete the **`AnimationNode` trait**. Node definitions become one enum whose variants wrap small serde structs (keeps the existing builder ergonomics — `AnimationClipNode::new(h).with_play_mode(..)` still works):
+
+```rust
+#[derive(Serialize, Deserialize, Clone)]
+pub enum AnimationNodeKind {
+    Result,
+    Clip(AnimationClipNode),                 // { clip: AssetHandle<AnimationClip>, play_mode, start_time }
+    Blend,                                    // was AnimationBlendNode
+    BlendSpace2D(BlendSpace2DDef),            // { points: Vec<Vec2>, input: BlendInput }
+    StateMachine(AnimationStateMachine),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BlendInput { pub param: String }  // blackboard.get_vec2(&param).unwrap_or(Vec2::ZERO)
+```
+
+- `AnimationClipNode` keeps its fields + `new`/`with_start_time`/`with_play_mode`, drops `#[derive(AsAny)]` and its `impl AnimationNode`, gains `#[derive(Serialize, Deserialize, Clone)]`.
+- `AnimationPlayMode` gains `Serialize, Deserialize` (plain `enum { Loop, PlayOnce }`).
+- `BlendSpace2DDef` replaces `BlendSpace2DNode`'s *definition* role: `{ points: Vec<Vec2>, input: BlendInput }`. The derived `Triangulation2D` is **not** stored on the definition — it moves onto `BlendSpace2DInstanceNode`, built from `points` in `create_instance`.
+- `AnimationStateMachine` becomes a plain serde struct (see A2); its `create_instance` logic moves into the enum's dispatch.
+- Delete dead `AnimationStateMachineNode` / `AnimationStateMachineNodeState`.
+
+Instance creation moves onto the enum:
+
+```rust
+impl AnimationNodeKind {
+    pub(crate) fn create_instance(&self, ctx: &AnimationGraphContext) -> Box<dyn AnimationNodeInstance> { /* match */ }
+}
+```
+
+The **`AnimationNodeInstance` trait stays** (it holds per-playback runtime state — `time`, `blend_stack`, `current_triangulated_point` — that never serializes and is rebuilt each init). Its `evaluate`/`update` signatures change `node: &dyn AnimationNode` → `node: &AnimationNodeKind`; the internal downcasts (`node.as_any().downcast_ref::<AnimationClipNode>()`) become `let AnimationNodeKind::Clip(def) = node else { return; }`.
+
+## A2. Triggers become data (`crates/animation/src/node/state_machine.rs`)
+
+```rust
+#[derive(Serialize, Deserialize, Clone)]
+pub enum AnimationFSMTrigger {
+    Instant,
+    OnAnimationEnd,
+    BoolEquals { param: String, value: bool },
+    Vec2NonZero { param: String },
+}
+```
+
+- Keep `on_bool(param, value) -> Self::BoolEquals { .. }` and `on_non_zero_vec(param) -> Self::Vec2NonZero { .. }` constructors (call sites unchanged).
+- Delete `from_condition` and the `Condition(Arc<dyn Fn>)` variant.
+- `AnimationStateMachineInstance::update`'s `match &transition.trigger`: `BoolEquals { param, value } => ctx.blackboard().get_bool(param).is_some_and(|v| v == *value)`, `Vec2NonZero { param } => ctx.blackboard().get_vec2(param).is_some_and(|v| v.length_squared() > f32::EPSILON)`.
+- `AnimationStateMachine`, `AnimationFSMState`, `AnimationStateMachineTransition`, `StateId` all derive `Serialize, Deserialize, Clone`. Fields are `String` / `AssetHandle<AnimationGraph>` / `usize` / `f32` / the trigger enum — all serde-ready. State-machine *builders* (`from_initial_state`, `state`, `TransitionBuilder`) keep their `FnOnce` args — those are build-time sugar, never stored.
+
+## A3. Graph becomes serde (`crates/animation/src/graph.rs`)
+
+- `type AnimationDirectedGraph = DiGraph<AnimationNodeKind, ()>`.
+- `#[derive(Asset, Serialize, Deserialize)] pub struct AnimationGraph { graph: AnimationDirectedGraph, result_node: AnimationNodeIndex }`.
+- `AnimationNodeIndex(NodeIndex)` derives `Serialize, Deserialize` (petgraph's `NodeIndex` is serde under `serde-1`).
+- `add_node<T: AnimationNode>` / `add_boxed_node(Box<dyn AnimationNode>)` → `add_node(AnimationNodeKind)`. `get_node(idx) -> Option<&AnimationNodeKind>`. `from_node(kind: AnimationNodeKind)`.
+- `crates/animation/Cargo.toml`: `petgraph = { version = "0.8", features = ["serde-1"] }` (the serde feature for petgraph 0.8; `serde` + `derive` are already deps).
+
+## A4. Builder API (`graph.rs`, `node/blend_space.rs`)
+
+- `AnimationNodeContext::with_blend_space_2d_input(param: &str, f: impl FnOnce(&mut BlendSpace2DBuilderContext))` — the sampler closure is gone; `param` builds `BlendInput { param: param.to_string() }`.
+- `BlendSpace2DBuilderContext`: drop `sampler: Arc<dyn Fn>`, add `input: BlendInput`; `nodes: Vec<Box<dyn AnimationNode>>` → `Vec<AnimationNodeKind>`; `input(node: AnimationNodeKind, point)` and `animation_clip_input(handle, point)` (builds `AnimationNodeKind::Clip(..)`).
+- `AnimationNodeContext::with_input<T: AnimationNode>(node, f)` → `with_input(node: AnimationNodeKind, f)`.
+
+## A5. Call sites
+
+- `examples/tech-demo/src/character.rs`: `with_blend_space_2d_input(|bb| bb.get_vec2("movement")…, |ctx| …)` → `with_blend_space_2d_input("movement", |ctx| …)`; `graph.result_node().with_input(AnimationStateMachine::…build(), …)` → wrap in `AnimationNodeKind::StateMachine(…)`; `AnimationClipNode::new(h).with_play_mode(PlayOnce)` still constructs, now wrapped `AnimationNodeKind::Clip(..)` (or via `From`).
+- `examples/animation-test/src/movement_animation.rs`: same `with_blend_space_2d_input` change.
+- `crates/animation/src/lib.rs` tests (FSM/graph tests around lines 185–405): update `from_node(AnimationClipNode::new(..))` → `from_node(AnimationNodeKind::Clip(..))`; triggers unchanged (constructors kept).
+
+## A6. Runtime handle note (out of scope, recorded)
+
+When an `AnimationGraph` is built at runtime via `server.add`, its `AnimationClip` / sub-`AnimationGraph` handles are `Strong`. A cooked-then-loaded graph would carry `Weak` handles needing an upgrade pass (as scene components do). No graph is cooked today, so this is deferred; note it where `AnimationNodeKind::Clip` is defined.
+
+## A7. Tests
+
+- **New:** round-trip a non-trivial `AnimationGraph` through `bincode` — a `BlendSpace2D` with three `Clip` inputs feeding a `Result`, plus a nested `StateMachine` with `BoolEquals` / `OnAnimationEnd` transitions. Assert node count, edge set, `result_node`, and trigger payloads survive.
+- **Unchanged, must pass:** the existing `crates/animation/src/lib.rs` FSM/graph/blend tests, adapted to the new constructors.
+
+---
+
+# Phase B — Merge `Asset` and `CookedAsset`
+
+## B1. The merged trait
 
 `crates/essential/src/assets/mod.rs`:
 
@@ -35,32 +133,24 @@ pub trait Asset:
 
     /// AssetIds of every sub-asset this one references — consumed by the
     /// cook tool's reference-integrity pass. Empty for leaf assets.
-    fn referenced_sub_assets(&self) -> Vec<AssetId> {
-        Vec::new()
-    }
+    fn referenced_sub_assets(&self) -> Vec<AssetId> { Vec::new() }
 }
 ```
 
-- `LoadableAsset: Asset` is unchanged in shape; it inherits the serde bound transitively.
-- `essential` already depends on `serde` with `derive`. No new dependency.
+- `LoadableAsset: Asset` unchanged in shape; inherits the serde bound transitively.
+- `essential` already depends on `serde` with `derive`.
 
-`crates/asset-cook/src/lib.rs`:
+`crates/asset-cook/src/lib.rs`: delete the `CookedAsset` trait; use `essential::assets::Asset` where it was referenced (`asset-cook` already depends on `essential`).
 
-- Delete the `CookedAsset` trait and its `pub use` (it is not re-exported today, but the `use serde::{de::DeserializeOwned, Serialize}` import it needed can go).
-- `asset-cook` already depends on `essential`; bring `essential::assets::Asset` into scope where `CookedAsset` was used.
+`crates/asset-cook/src/import_context.rs`: `emit<T: CookedAsset>` → `emit<T: Asset>`; `type_name: T::TYPE_NAME` → `T::name()`; `value.referenced_sub_assets()` still resolves. `bincode::serialize(value)` compiles from the supertrait.
 
-`crates/asset-cook/src/import_context.rs`:
+`TYPE_NAME` → `name()` is safe: every hand-written `TYPE_NAME` (`"Mesh"`, `"Texture"`, `"Skeleton"`, `"AnimationClip"`) equals `stringify!` of the type, which is exactly what `#[derive(Asset)]` emits. The one consumer is the diagnostic label on `EmittedSubAsset`.
 
-- `emit<T: CookedAsset>` → `emit<T: Asset>`. Body unchanged except `type_name: T::TYPE_NAME` → `type_name: T::name()` and `value.referenced_sub_assets()` still resolves (now an `Asset` method).
-- `bincode::serialize(value)` still compiles: `T: Asset` implies `T: Serialize`.
+`asset-cook` tests (`import_context.rs`, `cook.rs`, `incremental.rs`, `validation.rs`) define fake `impl CookedAsset` — convert each to a `#[derive(Serialize, Deserialize)]` struct + `impl Asset` (with `referenced_sub_assets` where exercised).
 
-`TYPE_NAME` → `name()` equivalence is verified: every hand-written `TYPE_NAME` (`"Mesh"`, `"Texture"`, `"Skeleton"`, `"AnimationClip"`) already equals `stringify!` of the type, which is exactly what `#[derive(Asset)]` emits for `name()`. The one consumer of `type_name` is the diagnostic label on `EmittedSubAsset`/`SubAssetEntry`; behaviour is identical.
+## B2. `Texture` rework
 
-`asset-cook` tests (`import_context.rs`, `cook.rs`, `incremental.rs`, `validation.rs`) each define a fake `impl CookedAsset for FakeThing { const TYPE_NAME = ...; }`. Convert each to `#[derive(Serialize, Deserialize)] struct FakeThing {…}` + `impl Asset for FakeThing { fn name() -> &'static str { "FakeThing" } }` (plus `referenced_sub_assets` override where the test exercises references). These fakes are not `Send + Sync + 'static` concerns — plain structs already satisfy that.
-
-### 2. `Texture` rework
-
-`crates/render/src/assets/texture.rs` — new shape:
+`crates/render/src/assets/texture.rs`:
 
 ```rust
 #[derive(Asset, serde::Serialize, serde::Deserialize)]
@@ -75,121 +165,72 @@ pub struct Texture {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum TextureKind {
-    Sampled,
-    RenderTarget,
-}
+pub enum TextureKind { Sampled, RenderTarget }
 ```
 
-- **Enable the `serde` feature on `wgpu-types`.** `crates/render/Cargo.toml`: `wgpu-types = { version = "24", default-features = false, features = ["serde"] }`. Cargo feature unification means `crates/ui` and `crates/skybox` (which also depend on `wgpu-types`) get the feature too; it is purely additive (adds `#[derive(Serialize, Deserialize)]` to wgpu-types enums).
-- **Delete** `CookedTexture` (`crates/render/src/assets/cooked_texture.rs`, and the `mod cooked_texture` / re-export), `TextureUsageSettings`, `Texture::from_cooked`, `Texture::from_bytes`, `Texture::from_dynamic_image`, `_linear`, `_with_format`. Verified: `TextureUsageSettings`, `from_bytes`, and the `from_dynamic_image*` family have zero callers outside `texture.rs`.
-- `Texture::render_target(width, height)` → `Texture { width, height, format: wgpu_types::TextureFormat::Rgba8UnormSrgb, kind: TextureKind::RenderTarget, data: Vec::new() }`.
-- Keep accessors: `size() -> wgpu::Extent3d` (built from `width`/`height`), `data() -> &[u8]`. Callers: `crates/render/src/components/camera.rs` (2), `crates/render/src/render_asset/render_texture.rs` (2).
-- `impl LoadableAsset for Texture` — `type UsageSettings = ()`; `default_usage_settings()` returns `()`. `TextureLoader` already ignores usage settings for cooked textures.
+- **Enable the `serde` feature on `wgpu-types`**: `crates/render/Cargo.toml` → `wgpu-types = { version = "24", default-features = false, features = ["serde"] }`. Feature unification means `crates/ui` and `crates/skybox` get it too; it is purely additive.
+- **Delete** `CookedTexture` (+ its module and re-export), `TextureUsageSettings`, `Texture::from_cooked`, `from_bytes`, `from_dynamic_image` / `_linear` / `_with_format`. Verified: `TextureUsageSettings`, `from_bytes`, and the `from_dynamic_image*` family have **zero callers** outside `texture.rs`.
+- `Texture::render_target(w, h)` → `Texture { width: w, height: h, format: wgpu_types::TextureFormat::Rgba8UnormSrgb, kind: TextureKind::RenderTarget, data: Vec::new() }`.
+- Keep `size() -> wgpu::Extent3d` (from `width`/`height`) and `data() -> &[u8]`. Callers: `camera.rs` (2), `render_texture.rs` (2).
+- `impl LoadableAsset for Texture` → `type UsageSettings = ()`; `TextureLoader` already ignores usage settings.
 
 `crates/render/src/render_asset/render_texture.rs`:
+- `RenderTexture::from_texture` builds `wgpu::TextureDescriptor` / `TextureViewDescriptor` inline from `width/height/format/kind`: `usage = TEXTURE_BINDING | COPY_DST` (`Sampled`) or `RENDER_ATTACHMENT | TEXTURE_BINDING` (`RenderTarget`); `label: Some("texture")`; default view descriptor. `&'static` labels are unrestricted in render-world code.
+- Pixel upload keeps `bytes_per_row = 4 * width` (all cooked formats are 4-byte RGBA8 today); `TODO` for block-compressed formats.
+- `prepare_asset` render-target skip: `matches!(source_asset.kind, TextureKind::RenderTarget)` instead of the `usage.contains(RENDER_ATTACHMENT)` sniff.
 
-- `RenderTexture::from_texture` builds the `wgpu::TextureDescriptor` and `TextureViewDescriptor` inline from `texture.width/height/format/kind`: `usage = TEXTURE_BINDING | COPY_DST` for `Sampled`, `RENDER_ATTACHMENT | TEXTURE_BINDING` for `RenderTarget`; `label: Some("texture")`; `view_formats: &[]`; default view descriptor. `&'static` labels are unrestricted in render-world code.
-- The pixel upload keeps `bytes_per_row = 4 * width` (all cooked formats are 4-byte RGBA8 today). A `TODO` notes that a block-compressed `format` would need `format.block_copy_size(..)`; out of scope now.
-- `prepare_asset`'s render-target skip: replace the `usage.contains(RENDER_ATTACHMENT)` sniff with `matches!(source_asset.kind, TextureKind::RenderTarget)`.
+`crates/render/src/importers/image_importer.rs` and `crates/gltf-loader/src/gltf_importer.rs`: build `Texture { .., format: if srgb { Rgba8UnormSrgb } else { Rgba8Unorm }, kind: TextureKind::Sampled, data: pixels }` and `ctx.emit(name, &texture)` instead of `CookedTexture`.
 
-`crates/render/src/importers/image_importer.rs` and `crates/gltf-loader/src/gltf_importer.rs`:
+`crates/render/src/loaders/texture_loader.rs`: `bincode::deserialize::<Texture>(&bytes)` directly.
 
-- Both currently build `CookedTexture { width, height, srgb, pixels }` and `ctx.emit(name, &cooked)`. Replace with `Texture { width, height, format: if srgb { Rgba8UnormSrgb } else { Rgba8Unorm }, kind: TextureKind::Sampled, data: pixels }`.
+Tests: `crates/render/tests/image_importer.rs`, `texture_pipeline_e2e.rs` — update to the new `Texture`.
 
-`crates/render/src/loaders/texture_loader.rs`:
+## B3. Materials — serde derives
 
-- `bincode::deserialize::<Texture>(&bytes)` directly; drop `Texture::from_cooked`. The `usage_settings` NOTE comment goes with `from_cooked`.
+Add `#[derive(serde::Serialize, serde::Deserialize)]` to `UIMaterial` (`crates/ui`), `SkyboxMaterial` (`crates/skybox`), `WorldGridMaterial` + `WorldGridUniform` (`crates/world-grid`). All fields are already serde-ready (`LinearRgba`, `f32`, `[f32; 4]`, `Option<AssetHandle<Texture>>`). Required (they are `#[derive(Asset)]`); also makes them scene-authorable.
 
-Tests: `crates/render/tests/image_importer.rs` and `texture_pipeline_e2e.rs` reference `Texture::from_cooked` / `CookedTexture`; update to deserialize `Texture` directly.
+## B4. Call-site sweep
 
-### 3. Materials — serde derives
+Every `#[derive(Asset)]` / `impl Asset for` site must be `Serialize + DeserializeOwned`:
 
-Add `#[derive(serde::Serialize, serde::Deserialize)]` to:
-
-- `crates/ui/src/material.rs` `UIMaterial` (fields: `LinearRgba` ×2, `[f32; 4]`, `f32` — all serde-ready; `LinearRgba` gained serde in the prior plan).
-- `crates/skybox/src/material.rs` `SkyboxMaterial` (one `Option<AssetHandle<Texture>>` — identical to `StandardMaterial`'s texture fields).
-- `crates/world-grid/src/material.rs` `WorldGridMaterial` and its `WorldGridUniform` field struct (`#[repr(C)] Pod` — adding the derives is compatible).
-
-This is required (they are `#[derive(Asset)]`, so they must satisfy the new supertrait) and also makes them scene-authorable — a bonus, not a goal.
-
-### 4. `AnimationGraph` placeholder
-
-`crates/animation/src/graph.rs` `AnimationGraph` is `#[derive(Asset)]` and lives in `AssetStore<AnimationGraph>`, so it must be `Serialize + DeserializeOwned`. Its field is `DiGraph<Box<dyn AnimationNode>, ()>`, and the node types embed closures:
-
-- `BlendSpace2DNode.sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>`
-- `AnimationFSMTrigger::Condition(Arc<dyn Fn(&AnimationBlackboard) -> bool + Send + Sync>)`, plus `from_condition()` for arbitrary user predicates
-
-A real serializable form is a standalone redesign (Plan 2). For now, hand-write impls that fail loudly:
-
-```rust
-impl serde::Serialize for AnimationGraph {
-    fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
-        Err(serde::ser::Error::custom(
-            "AnimationGraph is not serializable yet — see the Plan 2 follow-up",
-        ))
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for AnimationGraph {
-    fn deserialize<D: serde::Deserializer<'de>>(_: D) -> Result<Self, D::Error> {
-        Err(serde::de::Error::custom(
-            "AnimationGraph is not deserializable yet (tracked: <link>)",
-        ))
-    }
-}
-```
-
-Safe in practice: no importer emits an `AnimationGraph`, no loader reads one from cooked bytes, and the arena path (`server.add(graph)`) never serializes. If a future code path *does* try, it errors with a clear message rather than corrupting data. A `// TODO(asset-trait-merge)` on the impls points at the Plan 2 follow-up.
-
-### 5. Call-site sweep
-
-Every `#[derive(Asset)]` / `impl Asset for` site must now also be `Serialize + DeserializeOwned`:
-
-| Type | Crate | Status after this plan |
+| Type | Crate | After |
 |---|---|---|
-| `Mesh` | mesh | already serde ✓ |
-| `Skeleton` | mesh | already serde ✓ |
+| `Mesh`, `Skeleton` | mesh | already serde ✓ |
 | `AnimationClip` | animation | already serde ✓ |
+| `AnimationGraph` | animation | serde via Phase A ✓ |
 | `Scene` | scene | already serde ✓ (overrides `referenced_sub_assets`) |
 | `StandardMaterial` | render | already serde ✓ |
-| `Texture` | render | serde via §2 |
-| `UIMaterial` | ui | serde via §3 |
-| `SkyboxMaterial` | skybox | serde via §3 |
-| `WorldGridMaterial` | world-grid | serde via §3 |
-| `AnimationGraph` | animation | placeholder via §4 |
-| `FakeAsset` | essential test | add serde to the test struct |
-| cook test fakes | asset-cook tests | convert `impl CookedAsset` → `impl Asset` + serde (§1) |
+| `Texture` | render | serde via B2 |
+| `UIMaterial` / `SkyboxMaterial` / `WorldGridMaterial` | ui / skybox / world-grid | serde via B3 |
+| `FakeAsset`, cook test fakes | essential / asset-cook tests | add serde / convert `impl CookedAsset` → `impl Asset` |
 
-The `#[derive(Asset)]` proc-macro (`crates/essential/macros/src/lib.rs`) is unchanged — the supertrait bound is enforced at each impl site by the compiler.
+The `#[derive(Asset)]` proc-macro is unchanged; the supertrait bound is enforced at each impl site.
+
+## B5. `COOK_FORMAT_VERSION`
+
+The cooked byte layout of `Texture` changes (`{width,height,srgb,pixels}` → `{width,height,format,kind,data}`). Bump `COOK_FORMAT_VERSION` (`3` → `4`, `crates/asset-cook/src/cook.rs`). Re-cook `render-test`, `tech-demo`, `animation-test`; confirm `errors: 0`.
+
+---
 
 ## Data flow (unchanged in shape)
 
 Import: `Importer::import` → `ImportContext::emit::<T: Asset>(name, &value)` → `bincode::serialize` → `.cooked/<id>.bin`.
-Runtime: `AssetServer::load` → loader → `load_cooked_asset_bytes` → `bincode::deserialize::<T>()` where `T: LoadableAsset` (hence `Asset`, hence `DeserializeOwned`).
-Arena: `AssetServer::add::<T: Asset>(value)` → `AssetStore<T>` — never serializes; unaffected except `T` now *could* be serialized.
+Runtime load: `AssetServer::load` → loader → `load_cooked_asset_bytes` → `bincode::deserialize::<T>()`, `T: LoadableAsset` (hence `Asset`, hence `DeserializeOwned`).
+Arena: `AssetServer::add::<T: Asset>(value)` → `AssetStore<T>` — never serializes.
 
 ## Testing
 
-- **New:** `Texture` ↔ `bincode` round-trip — one `Sampled` RGBA8 texture and one `RenderTarget`; assert `width/height/format/kind/data` survive.
-- **New:** `AnimationGraph::serialize` and `deserialize` each return `Err` with the placeholder message (documents intent; guards against a silent `#[serde(skip)]`-style regression).
-- **Updated:** `crates/render/tests/image_importer.rs`, `texture_pipeline_e2e.rs` — assert against a directly-deserialized `Texture`.
-- **Updated:** `asset-cook` tests — fakes now `impl Asset`.
-- **Unchanged, must still pass:** all `scene`, `mesh`, `animation` (clip), `gltf-loader` cook/spawn tests — their asset types were already `Serialize + Deserialize`.
+- Phase A: `AnimationGraph` bincode round-trip (A7); existing animation tests adapted.
+- Phase B: `Texture` bincode round-trip (a `Sampled` RGBA8 and a `RenderTarget`); updated `image_importer` / `texture_pipeline_e2e` tests; `asset-cook` test fakes on `impl Asset`.
+- Unchanged, must pass: all `scene` / `mesh` / `gltf-loader` cook & spawn tests.
 - CI gates unchanged: `cargo build --workspace` (zero warnings), `cargo test --workspace`, `cargo fmt --all -- --check`, `cargo clippy -- -A clippy::type_complexity -A clippy::too_many_arguments -D warnings`.
+- Visual (per the project recipe): re-run `tech-demo` + `animation-test` under XWayland after Phase A and again after Phase B — the character must still animate (the FSM + blend space are exactly what Phase A rewrites).
 
 ## Risks
 
-- **wgpu-types `serde` feature unification** touches `ui`/`skybox` builds. Mitigation: additive-only feature; a `cargo build --workspace` in the plan's first task confirms.
-- **`COOK_FORMAT_VERSION`.** The cooked byte layout of `Texture` changes (`CookedTexture{width,height,srgb,pixels}` → `Texture{width,height,format,kind,data}` — `srgb: bool` becomes a `TextureFormat` enum, plus a `kind` field). Bump `COOK_FORMAT_VERSION` (currently `3` → `4`, in `crates/asset-cook/src/cook.rs`) so any stale `.cooked/` regenerates. Re-cook the three examples (`render-test`, `tech-demo`, `animation-test`) as part of the plan and confirm `errors: 0`.
-- **`AnimationGraph` placeholder** could mask a genuine need to serialize it if a future feature assumes all assets round-trip. Mitigation: the loud `Err`, the tracking TODO, and Plan 2 scoped below.
-
-## Plan 2 — serializable `AnimationGraph` (deferred, scoped only)
-
-Its own brainstorm → spec → plan. Sketch:
-
-- Replace `DiGraph<Box<dyn AnimationNode>, ()>` node payloads with a serializable node-kind enum (or `typetag` on `AnimationNode`).
-- `BlendSpace2DNode.sampler` → `BlendInput::BlackboardVec2(String)` (the only form used in practice).
-- `AnimationFSMTrigger::Condition(Arc<dyn Fn>)` → data variants: `Instant`, `OnAnimationEnd`, `BoolEquals { param: String, value: bool }`, `Vec2NonZero { param: String }`.
-- Consequence: the arbitrary-closure escape hatch (`AnimationFSMTrigger::from_condition`, custom samplers) is removed or gated behind a non-serializable, non-cooked builder-only path.
-- Then: delete the placeholder impls from §4.
+- **`AnimationNode` trait deletion** touches every node instance's `evaluate`/`update` (`node/mod.rs`, `blend_space.rs`, `state_machine.rs`) plus `graph.rs`, `player.rs`, `evaluation.rs`. Mitigation: `AnimationNodeInstance` (the stateful half) is untouched in shape; the change is mechanical (trait-object + downcast → enum + match); the existing animation tests and the visual check catch regressions.
+- **Loss of arbitrary FSM/blend closures** (`from_condition`, custom samplers). Verified zero callers. A future need is met by adding a data variant, not by re-opening the closure hatch.
+- **`petgraph` `serde-1` feature** — pulls `serde_derive` and `serde/alloc`. Additive; `cargo build --workspace` in the first Phase-A task confirms.
+- **`wgpu-types` `serde` feature unification** across `ui`/`skybox`. Additive; the first Phase-B task's build confirms.
+- **`COOK_FORMAT_VERSION` bump** invalidates every consumer's `.cooked/`; the three example re-cooks are in the plan.
+- **Runtime→cooked handle upgrade for `AnimationGraph`** (A6) is deferred; safe because nothing cooks a graph yet.

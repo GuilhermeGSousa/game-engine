@@ -16,6 +16,38 @@ impl SceneComponent for Registered {
     }
 }
 
+// Two distinct types whose final `::` segment is the same identifier, so they
+// collide on the short alias but not on the canonical full type path.
+mod alias_clash_a {
+    use super::*;
+
+    #[derive(Component, Serialize, Deserialize, PartialEq, Debug)]
+    pub struct Widget {
+        pub a: u32,
+    }
+
+    impl SceneComponent for Widget {
+        fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+            ctx.insert(self, entity);
+        }
+    }
+}
+
+mod alias_clash_b {
+    use super::*;
+
+    #[derive(Component, Serialize, Deserialize, PartialEq, Debug)]
+    pub struct Widget {
+        pub b: u32,
+    }
+
+    impl SceneComponent for Widget {
+        fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+            ctx.insert(self, entity);
+        }
+    }
+}
+
 #[test]
 fn registered_component_is_deserialized_and_applied() {
     let mut world = World::default();
@@ -67,6 +99,82 @@ fn full_type_path_also_resolves() {
     assert!(
         applied,
         "the full type path is the canonical registry key and must resolve"
+    );
+    assert_eq!(
+        world.get_component_for_entity::<Registered>(entity),
+        Some(&Registered { value: 8 }),
+        "applying via the full type path must insert the real component"
+    );
+}
+
+#[test]
+fn re_registering_the_same_type_is_idempotent() {
+    let mut world = World::default();
+    // Two plugins registering the same component, or one plugin added twice.
+    world.register_component_type::<Registered>();
+    world.register_component_type::<Registered>();
+    let entity = world.spawn(());
+
+    let applied = world.apply_scene_component("Registered", r#"{"value":5}"#, entity, &[entity]);
+
+    assert!(
+        applied,
+        "a double registration must leave the short name resolvable, not corrupt the map"
+    );
+    assert_eq!(
+        world.get_component_for_entity::<Registered>(entity),
+        Some(&Registered { value: 5 }),
+        "re-registering the same type must still deserialize and insert the component"
+    );
+}
+
+#[test]
+fn a_genuine_two_type_short_name_clash_resolves_to_the_last_registered() {
+    let mut world = World::default();
+    world.register_component_type::<alias_clash_a::Widget>();
+    world.register_component_type::<alias_clash_b::Widget>();
+
+    let by_short = world.spawn(());
+    let by_full_a = world.spawn(());
+    let by_full_b = world.spawn(());
+
+    // The shared short name resolves to the type registered last under it.
+    assert!(world.apply_scene_component("Widget", r#"{"b":2}"#, by_short, &[by_short]));
+    assert_eq!(
+        world.get_component_for_entity::<alias_clash_b::Widget>(by_short),
+        Some(&alias_clash_b::Widget { b: 2 }),
+        "a colliding short name must resolve to the most recently registered type"
+    );
+    assert!(
+        world
+            .get_component_for_entity::<alias_clash_a::Widget>(by_short)
+            .is_none(),
+        "the shadowed type must not be applied through the shared short name"
+    );
+
+    // Each canonical full type path still resolves to its own type.
+    assert!(world.apply_scene_component(
+        alias_clash_a::Widget::name(),
+        r#"{"a":1}"#,
+        by_full_a,
+        &[by_full_a],
+    ));
+    assert_eq!(
+        world.get_component_for_entity::<alias_clash_a::Widget>(by_full_a),
+        Some(&alias_clash_a::Widget { a: 1 }),
+        "the first type's canonical key must still resolve to the first type"
+    );
+
+    assert!(world.apply_scene_component(
+        alias_clash_b::Widget::name(),
+        r#"{"b":9}"#,
+        by_full_b,
+        &[by_full_b],
+    ));
+    assert_eq!(
+        world.get_component_for_entity::<alias_clash_b::Widget>(by_full_b),
+        Some(&alias_clash_b::Widget { b: 9 }),
+        "the second type's canonical key must still resolve to the second type"
     );
 }
 

@@ -35,10 +35,22 @@ fn apply_typed<T: SceneComponent>(
     Ok(())
 }
 
+/// A short-name alias slot: the applier plus the `TypeId` that currently owns
+/// the alias. Re-registering the *same* type overwrites the applier silently;
+/// only a second, *different* type claiming the alias is a real collision.
+struct AliasEntry {
+    type_id: TypeId,
+    apply: ErasedApply,
+}
+
 #[derive(Default)]
 pub(crate) struct ComponentRegistry {
     component_map: HashMap<ComponentId, ComponentIndex>,
+    /// Canonical key: the full type path (`T::name()`). Unique per type, so an
+    /// entry here is only ever re-inserted by the same type.
     scene_component_map: HashMap<&'static str, ErasedApply>,
+    /// Convenience key: the final `::` segment, for hand-authored glTF `extras`.
+    scene_alias_map: HashMap<&'static str, AliasEntry>,
     component_info: Vec<ComponentInfo>,
 }
 
@@ -66,9 +78,12 @@ impl ComponentRegistry {
     /// Registers `T` under two keys: its canonical full type path and its final
     /// `::` segment. Importers emit the full path; the short alias exists so a
     /// hand-authored glTF `extras` key like `{"MeshCollider": {}}` still
-    /// resolves. Full-path keys are inserted first and never aliased, so only
-    /// the short alias can collide — and a collision warns rather than failing
-    /// silently.
+    /// resolves.
+    ///
+    /// Re-registering the same `T` (two plugins that both register it, or one
+    /// plugin added twice) is idempotent and silent. Only a *different* type
+    /// claiming an already-taken short name warns; the last registration wins
+    /// the alias, matching the previous plain-`insert` behaviour.
     pub(crate) fn register_scene_component<T: SceneComponent>(&mut self) {
         self.register_component::<T>();
 
@@ -79,18 +94,35 @@ impl ComponentRegistry {
         // 'static, so the suffix borrows from it without allocating.
         let short = full.rsplit("::").next().unwrap_or(full);
         if short != full {
-            let displaced = self.scene_component_map.insert(short, apply_typed::<T>);
-            if displaced.is_some() {
-                log::warn!(
-                    "Two component types share the short name '{short}'; scenes and glTF \
-                     extras that use it now resolve to '{full}'. Author the full path to \
-                     disambiguate."
-                );
+            let type_id = TypeId::of::<T>();
+            match self.scene_alias_map.entry(short) {
+                Occupied(mut entry) => {
+                    if entry.get().type_id != type_id {
+                        log::warn!(
+                            "Two component types share the short name '{short}'; scenes and \
+                             glTF extras that use it now resolve to '{full}'. Author the full \
+                             path to disambiguate."
+                        );
+                    }
+                    *entry.get_mut() = AliasEntry {
+                        type_id,
+                        apply: apply_typed::<T>,
+                    };
+                }
+                Vacant(entry) => {
+                    entry.insert(AliasEntry {
+                        type_id,
+                        apply: apply_typed::<T>,
+                    });
+                }
             }
         }
     }
 
     pub(crate) fn get_scene_component(&self, name: &str) -> Option<ErasedApply> {
-        self.scene_component_map.get(name).copied()
+        self.scene_component_map
+            .get(name)
+            .copied()
+            .or_else(|| self.scene_alias_map.get(name).map(|entry| entry.apply))
     }
 }

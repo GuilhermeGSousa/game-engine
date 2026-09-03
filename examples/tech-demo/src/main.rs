@@ -30,15 +30,11 @@ fn main() {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
-        .expect("Failed to set working directory");
-
     let mut app = App::new();
     app.register_plugin(DefaultPlugins::default())
         .register_plugin(FrameStatsOverlayPlugin);
 
-    app.register_reflection::<PlayerSpawner>();
+    app.register_component::<PlayerSpawner>();
 
     app.add_system(Update, spawn_character)
         .add_system(Startup, spawn_scene)

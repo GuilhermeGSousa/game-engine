@@ -1,0 +1,14 @@
+[[assets]]
+path = "ninja/ninja.glb"
+
+[[assets]]
+path = "ninja/idle.glb"
+
+[[assets]]
+path = "ninja/walk.glb"
+
+[[assets]]
+path = "ninja/strafe_left.glb"
+
+[[assets]]
+path = "ninja/strafe_right.glb"

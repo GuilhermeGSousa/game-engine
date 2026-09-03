@@ -14,36 +14,27 @@ use game_engine::{
         resource::Res,
     },
     essential::{
-        assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
+        assets::{asset_server::AssetServer, handle::AssetHandle},
         time::Time,
         transform::Transform,
     },
-    gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
     render::components::{light::LightType, Light},
+    scene::{scene::Scene, spawner::SceneSpawnerComponent},
     window::input::Input,
 };
 use glam::{Quat, Vec2, Vec3};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-const GLB_ASSET: &str = "res/ninja/ninja.glb";
-const IDLE_ANIM: &str = "res/ninja/idle.glb";
-const WALK_ANIM: &str = "res/ninja/walk.glb";
-const STRAFE_LEFT_ANIM: &str = "res/ninja/strafe_left.glb";
-const STRAFE_RIGHT_ANIM: &str = "res/ninja/strafe_right.glb";
+const NINJA_SCENE: &str = "ninja/ninja.glb#scene";
+const IDLE_ANIM: &str = "ninja/idle.glb#animation/0";
+const WALK_ANIM: &str = "ninja/walk.glb#animation/0";
+const STRAFE_LEFT_ANIM: &str = "ninja/strafe_left.glb#animation/0";
+const STRAFE_RIGHT_ANIM: &str = "ninja/strafe_right.glb#animation/0";
 
-/// Marks the character entity spawned at startup (the GLTF spawner / animation player
-/// entity), so the overlay and gizmo systems can find it.
+/// Marks the character entity spawned at startup (the scene spawner / eventual
+/// `AnimationStore` holder), so the overlay and gizmo systems can find it.
 #[derive(Component)]
 pub(crate) struct AnimatedCharacter;
-
-#[derive(Component)]
-#[allow(dead_code)]
-pub(crate) struct LoadingAnimationStore {
-    pub(crate) idle: AssetHandle<GLTFScene>,
-    pub(crate) walk: AssetHandle<GLTFScene>,
-    pub(crate) strafe_left: AssetHandle<GLTFScene>,
-    pub(crate) strafe_right: AssetHandle<GLTFScene>,
-}
 
 #[derive(Component)]
 pub(crate) struct AnimationStore {
@@ -54,26 +45,20 @@ pub(crate) struct AnimationStore {
 }
 
 pub(crate) fn spawn_character(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
-    let idle = asset_server.load::<GLTFScene>(IDLE_ANIM);
-    let walk = asset_server.load::<GLTFScene>(WALK_ANIM);
-    let strafe_left = asset_server.load::<GLTFScene>(STRAFE_LEFT_ANIM);
-    let strafe_right = asset_server.load::<GLTFScene>(STRAFE_RIGHT_ANIM);
-    let model = asset_server.load_with_usage_settings::<GLTFScene>(
-        GLB_ASSET,
-        GLTFUsageSettings {
-            root_bone: Some("mixamorig:Hips"),
-        },
-    );
+    // TODO(asset-import-pipeline): the old GLTFUsageSettings { root_bone:
+    // "mixamorig:Hips" } hint is gone — the importer picks the skeleton root.
+    let scene = asset_server.load::<Scene>(NINJA_SCENE);
+    let anim_store = AnimationStore {
+        idle: asset_server.load::<AnimationClip>(IDLE_ANIM),
+        walk: asset_server.load::<AnimationClip>(WALK_ANIM),
+        strafe_left: asset_server.load::<AnimationClip>(STRAFE_LEFT_ANIM),
+        strafe_right: asset_server.load::<AnimationClip>(STRAFE_RIGHT_ANIM),
+    };
 
     cmd.spawn((
         AnimatedCharacter,
-        GLTFSpawnerComponent::from_handle(model),
-        LoadingAnimationStore {
-            idle,
-            walk,
-            strafe_left,
-            strafe_right,
-        },
+        SceneSpawnerComponent(scene),
+        anim_store,
         Transform::from_translation_rotation(Vec3::new(0.0, 0.0, -4.0), Quat::IDENTITY),
     ))
     .add_child((
@@ -85,52 +70,6 @@ pub(crate) fn spawn_character(mut cmd: CommandQueue, asset_server: Res<AssetServ
         },
         Transform::from_translation(Vec3::Y * 10.0),
     ));
-}
-
-pub(crate) fn setup_state_machine(
-    animated_entities: Query<(Entity, &LoadingAnimationStore)>,
-    gltf_scenes: Res<AssetStore<GLTFScene>>,
-    mut cmd: CommandQueue,
-) {
-    for (entity, loading_anim_store) in animated_entities.iter() {
-        let (Some(idle), Some(walk), Some(strafe_left), Some(strafe_right)) = (
-            gltf_scenes
-                .get(&loading_anim_store.idle)
-                .and_then(|idle_scene| idle_scene.animations().first().map(|anim| anim.handle())),
-            gltf_scenes
-                .get(&loading_anim_store.walk)
-                .and_then(|walk_scene| walk_scene.animations().first().map(|anim| anim.handle())),
-            gltf_scenes
-                .get(&loading_anim_store.strafe_left)
-                .and_then(|strafe_left_scene| {
-                    strafe_left_scene
-                        .animations()
-                        .first()
-                        .map(|anim| anim.handle())
-                }),
-            gltf_scenes
-                .get(&loading_anim_store.strafe_right)
-                .and_then(|strafe_right_scene| {
-                    strafe_right_scene
-                        .animations()
-                        .first()
-                        .map(|anim| anim.handle())
-                }),
-        ) else {
-            continue;
-        };
-
-        cmd.insert(
-            AnimationStore {
-                idle,
-                walk,
-                strafe_left,
-                strafe_right,
-            },
-            entity,
-        );
-        cmd.remove::<LoadingAnimationStore>(entity);
-    }
 }
 
 pub(crate) fn setup_animations(

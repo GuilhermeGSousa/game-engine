@@ -1,16 +1,16 @@
 use std::f32::consts::PI;
 
-use facet::Facet;
+use game_engine::animation::clip::AnimationClip;
 use game_engine::animation::graph::AnimationGraph;
 use game_engine::animation::node::AnimationClipNode;
 use game_engine::animation::node::AnimationPlayMode::PlayOnce;
 use game_engine::animation::node::state_machine::{AnimationFSMTrigger, AnimationStateMachine};
 use game_engine::animation::player::{AnimationHandleComponent, AnimationPlayer};
 use game_engine::director::VirtualCamera;
+use game_engine::ecs::component::scene::{SceneComponent, SceneSpawnContext};
 use game_engine::ecs::{Entity, Query, ResMut, With, Without};
 use game_engine::essential::transform::Transform;
 use game_engine::gameplay::camera::{CameraPivot, EntityFollow};
-use game_engine::gltf_loader::loader::GLTFInstance;
 use game_engine::physics::body::BodyId;
 use game_engine::physics::collider::{Collider, ColliderOffset};
 use game_engine::physics::ground::GroundProbe;
@@ -18,15 +18,30 @@ use game_engine::physics::movement::CharacterMovement;
 use game_engine::physics::physics_state::PhysicsState;
 use game_engine::physics::rigid_body::MotionType::Dynamic;
 use game_engine::physics::rigid_body::{AllowedDofs, RigidBody};
+use game_engine::scene::{scene::Scene, spawner::SceneSpawnerComponent};
 use game_engine::window::input::{Input, KeyCode, PhysicalKey};
 use game_engine::{
     ecs::{CommandQueue, Component, Res},
-    essential::assets::{asset_server::AssetServer, asset_store::AssetStore},
-    gltf_loader::loader::{GLTFScene, GLTFSpawnerComponent, GLTFUsageSettings},
+    essential::assets::asset_server::AssetServer,
 };
 use glam::{Quat, Vec2, Vec3};
+use serde::{Deserialize, Serialize};
 
-const CHAR_ASSET: &str = "res/UAL1.glb";
+const CHAR_SCENE: &str = "UAL1.glb#scene";
+
+// TODO(asset-import-pipeline): magic indices — a cooked animation-name manifest would replace these.
+const IDLE_LOOP: &str = "UAL1.glb#animation/53";
+const JOG_FWD_LOOP: &str = "UAL1.glb#animation/67";
+const JOG_FWD_L_LOOP: &str = "UAL1.glb#animation/64";
+const JOG_FWD_R_LOOP: &str = "UAL1.glb#animation/68";
+const JOG_LEFT_LOOP: &str = "UAL1.glb#animation/69";
+const JOG_RIGHT_LOOP: &str = "UAL1.glb#animation/70";
+const JOG_BWD_LOOP: &str = "UAL1.glb#animation/62";
+const JOG_BWD_L_LOOP: &str = "UAL1.glb#animation/61";
+const JOG_BWD_R_LOOP: &str = "UAL1.glb#animation/63";
+const JUMP_START: &str = "UAL1.glb#animation/73";
+const JUMP_LOOP: &str = "UAL1.glb#animation/72";
+const JUMP_LAND: &str = "UAL1.glb#animation/71";
 
 #[derive(Component)]
 pub(crate) struct Player;
@@ -34,9 +49,15 @@ pub(crate) struct Player;
 #[derive(Component)]
 pub(crate) struct AnimationsReady;
 
-#[derive(Component, Facet)]
+#[derive(Component, Serialize, Deserialize)]
 pub(crate) struct PlayerSpawner {
     should_spawn: bool,
+}
+
+impl SceneComponent for PlayerSpawner {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
+    }
 }
 
 pub(crate) fn spawn_character(
@@ -44,13 +65,6 @@ pub(crate) fn spawn_character(
     asset_server: Res<AssetServer>,
     mut cmd: CommandQueue,
 ) {
-    let char_handle = asset_server.load_with_usage_settings::<GLTFScene>(
-        CHAR_ASSET,
-        GLTFUsageSettings {
-            root_bone: Some("root"),
-        },
-    );
-
     for (spawn_point, mut spawner) in spawners.iter() {
         if !spawner.should_spawn {
             return;
@@ -58,10 +72,12 @@ pub(crate) fn spawn_character(
 
         let collider = Collider::capsule(2.0, 1.0);
         let offset = ColliderOffset::bottom_origin(&collider);
+        // TODO(asset-import-pipeline): the old GLTFUsageSettings { root_bone: "root" }
+        // hint is gone — the importer picks the skeleton root itself.
         let character = cmd
             .spawn((
                 Player,
-                GLTFSpawnerComponent::from_handle(char_handle.clone()),
+                SceneSpawnerComponent(asset_server.load::<Scene>(CHAR_SCENE)),
                 RigidBody {
                     density: 1000.0,
                     allowed_dofs: AllowedDofs::TRANSLATION | AllowedDofs::ROTATION_Y,
@@ -94,80 +110,35 @@ pub(crate) fn spawn_character(
     }
 }
 
+/// Builds the movement blend space + jump FSM once the spawned scene has
+/// inserted its `AnimationPlayer`. Exactly one skinned character exists, so the
+/// sole player (on a spawned descendant of the `Player` entity) is
+/// unambiguously ours; `AnimationsReady` guards against re-running.
+///
+// TODO(asset-import-pipeline): the jump FSM's runtime behaviour is unverified —
+// the hard-coded UAL1 animation indices compile and cook, but the state
+// transitions have not been exercised in this task.
 pub(crate) fn setup_character_animations(
-    players: Query<(Entity, &GLTFInstance), (With<Player>, Without<AnimationsReady>)>,
+    players: Query<(Entity, &AnimationPlayer), Without<AnimationsReady>>,
     server: Res<AssetServer>,
     mut cmd: CommandQueue,
-    gltf_store: Res<AssetStore<GLTFScene>>,
 ) {
-    // The GLTFInstance only exists once the scene has finished spawning; follow it
-    // straight to the animated node instead of scanning every AnimationPlayer.
-    let Some((player_entity, instance)) = players.iter().next() else {
+    let Some((player_entity, _player)) = players.iter().next() else {
         return;
     };
 
-    let Some(gltf_char) = gltf_store.get(instance.handle()) else {
-        return;
-    };
-
-    let Some(entity) = instance.animation_player() else {
-        return;
-    };
-
-    let (
-        Some(idle),
-        Some(jog),
-        Some(jog_fw_l),
-        Some(jog_fw_r),
-        Some(jog_l),
-        Some(jog_r),
-        Some(jog_bw),
-        Some(job_bw_l),
-        Some(job_bw_r),
-        Some(_jump_start),
-        Some(jump_loop),
-        Some(jump_land),
-    ) = (
-        gltf_char
-            .get_animation("Idle_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Fwd_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Fwd_L_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Fwd_R_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Left_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Right_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Bwd_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Bwd_L_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jog_Bwd_R_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jump_Start")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jump_Loop")
-            .map(|anim| anim.handle()),
-        gltf_char
-            .get_animation("Jump_Land")
-            .map(|anim| anim.handle()),
-    )
-    else {
-        return;
-    };
+    let idle = server.load::<AnimationClip>(IDLE_LOOP);
+    let jog = server.load::<AnimationClip>(JOG_FWD_LOOP);
+    let jog_fw_l = server.load::<AnimationClip>(JOG_FWD_L_LOOP);
+    let jog_fw_r = server.load::<AnimationClip>(JOG_FWD_R_LOOP);
+    let jog_l = server.load::<AnimationClip>(JOG_LEFT_LOOP);
+    let jog_r = server.load::<AnimationClip>(JOG_RIGHT_LOOP);
+    let jog_bw = server.load::<AnimationClip>(JOG_BWD_LOOP);
+    let job_bw_l = server.load::<AnimationClip>(JOG_BWD_L_LOOP);
+    let job_bw_r = server.load::<AnimationClip>(JOG_BWD_R_LOOP);
+    let _jump_start = server.load::<AnimationClip>(JUMP_START);
+    let jump_loop = server.load::<AnimationClip>(JUMP_LOOP);
+    let jump_land = server.load::<AnimationClip>(JUMP_LAND);
 
     let mut movement_graph = AnimationGraph::new();
     movement_graph.result_node().with_blend_space_2d_input(
@@ -187,7 +158,6 @@ pub(crate) fn setup_character_animations(
     );
 
     let mut graph = AnimationGraph::new();
-    let mut fsm_node_index = None;
     graph.result_node().with_input(
         AnimationStateMachine::from_initial_state(
             "movement",
@@ -210,7 +180,7 @@ pub(crate) fn setup_character_animations(
         // .state(
         //     "jump_start",
         //     server.add(AnimationGraph::from_node(
-        //         AnimationClipNode::new(jump_start).with_play_mode(PlayOnce),
+        //         AnimationClipNode::new(_jump_start).with_play_mode(PlayOnce),
         //     )),
         //     |transition| {
         //         transition.to("air", AnimationFSMTrigger::OnAnimationEnd, 0.1);
@@ -256,12 +226,13 @@ pub(crate) fn setup_character_animations(
             },
         )
         .build(),
-        |node_context| {
-            fsm_node_index = Some(node_context.index());
-        },
+        |_node_context| {},
     );
 
-    cmd.insert(AnimationHandleComponent::new(server.add(graph)), entity);
+    cmd.insert(
+        AnimationHandleComponent::new(server.add(graph)),
+        player_entity,
+    );
     cmd.insert(AnimationsReady, player_entity);
 }
 
@@ -288,7 +259,7 @@ pub(crate) fn face_camera_direction(
 }
 
 pub(crate) fn update_movement(
-    movement: Query<(&mut CharacterMovement, &GLTFInstance, &GroundProbe, &BodyId), With<Player>>,
+    movement: Query<(&mut CharacterMovement, &GroundProbe, &BodyId), With<Player>>,
     anim_players: Query<&mut AnimationPlayer>,
     input: Res<Input>,
     mut physics: ResMut<PhysicsState>,
@@ -311,12 +282,10 @@ pub(crate) fn update_movement(
         player_input += Vec2::X;
     }
 
-    for (mut movement, instance, ground, body_id) in movement.iter() {
-        let Some(animation_player) = instance.animation_player() else {
-            continue;
-        };
-
-        let Some(mut animation_player) = anim_players.get_entity(animation_player) else {
+    for (mut movement, ground, body_id) in movement.iter() {
+        // One skinned character, so the sole AnimationPlayer (on a spawned
+        // descendant of the Player entity) is this character's.
+        let Some(mut animation_player) = anim_players.iter().next() else {
             continue;
         };
 

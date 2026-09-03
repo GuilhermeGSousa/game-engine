@@ -23,6 +23,7 @@ pub struct BlendInput {
 
 /// A 2D blend space definition: the sample points and which blackboard `Vec2`
 /// param drives sampling. Triangulation is built on the instance, not here.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct BlendSpace2DNode {
     points: Vec<Vec2>,
     input: BlendInput,
@@ -35,6 +36,10 @@ impl BlendSpace2DNode {
 
     pub fn points(&self) -> &[Vec2] {
         &self.points
+    }
+
+    pub fn input(&self) -> &BlendInput {
+        &self.input
     }
 }
 

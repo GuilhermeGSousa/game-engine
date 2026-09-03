@@ -18,6 +18,7 @@ pub struct AnimationFSMStateDefinition<'a> {
     pub graph: AssetHandle<AnimationGraph>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct AnimationFSMState {
     name: String,
     graph: AssetHandle<AnimationGraph>,
@@ -52,13 +53,14 @@ pub struct AnimationStateMachineTransitionDefinition<'a> {
     pub transition_time: f32,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct AnimationStateMachineTransition {
     next_state: StateId,
     trigger: AnimationFSMTrigger,
     transition_time: f32,
 }
 
-#[derive(Clone, Copy, Deref)]
+#[derive(Clone, Copy, Deref, serde::Serialize, serde::Deserialize)]
 pub struct StateId(usize);
 
 impl From<usize> for StateId {
@@ -73,6 +75,7 @@ impl StateId {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct AnimationStateMachine {
     initial_state: StateId,
     states: Vec<AnimationFSMState>,

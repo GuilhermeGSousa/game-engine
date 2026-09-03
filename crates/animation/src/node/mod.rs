@@ -12,7 +12,7 @@ use crate::{
 pub mod blend_space;
 pub mod state_machine;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub enum AnimationPlayMode {
     #[default]
     Loop,
@@ -46,9 +46,12 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
 
 /// Closed set of animation-graph node definitions. `Result` and `Blend` carry no
 /// data; the others wrap a definition struct.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum AnimationNodeKind {
     Result,
-    // TODO(asset-trait-merge): Task 4 adds serde derives to the wrapped node structs.
+    // TODO(asset-trait-merge): a cooked-then-loaded graph carries Weak
+    // AssetHandles; needs an upgrade pass like scene components. No graph is
+    // cooked yet.
     Clip(AnimationClipNode),
     Blend,
     BlendSpace2D(crate::node::blend_space::BlendSpace2DNode),
@@ -234,7 +237,7 @@ impl AnimationNodeInstance for AnimationClipNodeInstance {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct AnimationClipNode {
     clip: AssetHandle<AnimationClip>,
     play_mode: AnimationPlayMode,

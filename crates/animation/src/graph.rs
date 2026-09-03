@@ -18,7 +18,7 @@ use crate::{
 
 type AnimationDirectedGraph = DiGraph<AnimationNodeKind, ()>;
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AnimationNodeIndex(NodeIndex);
 
 impl Deref for AnimationNodeIndex {
@@ -35,7 +35,7 @@ impl From<NodeIndex> for AnimationNodeIndex {
     }
 }
 
-#[derive(Asset)]
+#[derive(Asset, serde::Serialize, serde::Deserialize)]
 pub struct AnimationGraph {
     graph: AnimationDirectedGraph,
     result_node: AnimationNodeIndex,

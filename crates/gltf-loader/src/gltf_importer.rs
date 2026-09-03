@@ -13,17 +13,21 @@ use std::path::Path;
 use anyhow::{Context, bail};
 use asset_cook::{ImportContext, ImportError, Importer, hash_file_contents};
 use color::Color;
-use essential::assets::handle::AssetHandle;
+use ecs::component::Component;
+use essential::assets::{AssetId, handle::AssetHandle};
 use essential::transform::Transform;
 use glam::Vec3;
 use gltf::{Primitive, buffer::Data};
 use image::ImageBuffer;
-use mesh::mesh::Mesh;
+use mesh::mesh::{Mesh, MeshComponent};
 use mesh::vertex::Vertex;
 use render::assets::cooked_texture::CookedTexture;
 use render::assets::material::StandardMaterial;
 use render::assets::texture::Texture;
+use render::components::material::MaterialComponent;
+use render::components::render_entity::SyncWithRenderWorld;
 use scene::scene::{Scene, SceneNode};
+use serde::Serialize;
 
 pub struct GltfImporter;
 
@@ -188,16 +192,21 @@ impl Importer for GltfImporter {
         // first `document.nodes().count()` entries of `nodes` line up 1:1 with
         // glTF node indices and every `children` index into that prefix stays
         // valid. Extra primitive child-nodes (for multi-primitive meshes) are
-        // appended afterwards.
+        // appended afterwards. Every runtime concern is emitted as a
+        // `SerializedComponent`; referenced ids are recorded as we go.
         let mut nodes: Vec<SceneNode> = Vec::new();
+        let mut referenced_assets: Vec<AssetId> = Vec::new();
         for gltf_node in document.nodes() {
-            nodes.push(SceneNode {
+            let mut scene_node = SceneNode {
                 name: gltf_node.name().map(str::to_string).unwrap_or_default(),
-                transform: Transform::from_matrix(&gltf_node.transform().matrix()),
                 children: gltf_node.children().map(|c| c.index()).collect(),
-                mesh: None,
-                material: None,
-            });
+                components: Vec::new(),
+            };
+            push_node_component(
+                &mut scene_node,
+                &Transform::from_matrix(&gltf_node.transform().matrix()),
+            )?;
+            nodes.push(scene_node);
         }
 
         for gltf_node in document.nodes() {
@@ -211,38 +220,83 @@ impl Importer for GltfImporter {
                 0 => {}
                 1 => {
                     let p = &prims[0];
-                    nodes[node_index].mesh = Some(AssetHandle::weak(
-                        ctx.sub_asset_id(&format!("mesh/{}", p.mesh_sub_asset)),
-                    ));
-                    nodes[node_index].material = Some(AssetHandle::weak(
-                        ctx.sub_asset_id(&format!("material/{}", p.material_sub_asset)),
-                    ));
+                    let mesh_id = ctx.sub_asset_id(&format!("mesh/{}", p.mesh_sub_asset));
+                    let material_id =
+                        ctx.sub_asset_id(&format!("material/{}", p.material_sub_asset));
+
+                    push_mesh_components(&mut nodes[node_index], mesh_id, material_id)?;
+                    referenced_assets.push(mesh_id);
+                    referenced_assets.push(material_id);
                 }
                 _ => {
                     let node_name = nodes[node_index].name.clone();
                     for (k, p) in prims.iter().enumerate() {
                         let child_index = nodes.len();
-                        nodes.push(SceneNode {
+                        let mesh_id = ctx.sub_asset_id(&format!("mesh/{}", p.mesh_sub_asset));
+                        let material_id =
+                            ctx.sub_asset_id(&format!("material/{}", p.material_sub_asset));
+
+                        let mut child = SceneNode {
                             name: format!("{node_name}.primitive{k}"),
-                            transform: Transform::IDENTITY,
                             children: Vec::new(),
-                            mesh: Some(AssetHandle::weak(
-                                ctx.sub_asset_id(&format!("mesh/{}", p.mesh_sub_asset)),
-                            )),
-                            material: Some(AssetHandle::weak(
-                                ctx.sub_asset_id(&format!("material/{}", p.material_sub_asset)),
-                            )),
-                        });
+                            components: Vec::new(),
+                        };
+                        push_node_component(&mut child, &Transform::IDENTITY)?;
+                        push_mesh_components(&mut child, mesh_id, material_id)?;
+                        referenced_assets.push(mesh_id);
+                        referenced_assets.push(material_id);
+
+                        nodes.push(child);
                         nodes[node_index].children.push(child_index);
                     }
                 }
             }
         }
 
-        ctx.emit("scene", &Scene { nodes })?;
+        ctx.emit(
+            "scene",
+            &Scene {
+                nodes,
+                referenced_assets,
+            },
+        )?;
 
         Ok(())
     }
+}
+
+/// Serializes `component` onto `node`, mapping the serde failure into an
+/// `ImportError` tagged against the `scene` sub-asset.
+fn push_node_component<T: Serialize + Component>(
+    node: &mut SceneNode,
+    component: &T,
+) -> Result<(), ImportError> {
+    node.push_component(component)
+        .map_err(|err| ImportError::SerializationFailed {
+            sub_asset_name: "scene".to_string(),
+            message: err.to_string(),
+        })
+}
+
+/// Pushes the mesh/material/render-sync trio a drawable node carries.
+fn push_mesh_components(
+    node: &mut SceneNode,
+    mesh_id: AssetId,
+    material_id: AssetId,
+) -> Result<(), ImportError> {
+    push_node_component(
+        node,
+        &MeshComponent {
+            handle: AssetHandle::weak(mesh_id),
+        },
+    )?;
+    push_node_component(
+        node,
+        &MaterialComponent::<StandardMaterial> {
+            handle: AssetHandle::weak(material_id),
+        },
+    )?;
+    push_node_component(node, &SyncWithRenderWorld)
 }
 
 /// Resolves one glTF external resource `uri` against the source file's

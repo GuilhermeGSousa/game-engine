@@ -1,67 +1,66 @@
 use anyhow::Context;
 use asset_cook::CookedAsset;
+use ecs::component::Component;
 use essential::assets::{
-    asset_loader::AssetLoader,
-    asset_server::{AssetLoadContext, AssetServer},
-    handle::AssetHandle,
-    Asset, AssetId, AssetPath, LoadableAsset,
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, Asset, AssetId, AssetPath,
+    LoadableAsset,
 };
-use essential::transform::Transform;
-use mesh::mesh::Mesh;
-use render::assets::material::StandardMaterial;
 use serde::{Deserialize, Serialize};
 
-/// One node in a [`Scene`]: a named local transform plus optional mesh and
-/// material references and the indices of its children within `Scene::nodes`.
-///
-/// Skeleton/camera/light/extras fields are an explicit follow-up; this type
-/// carries the mesh/material/hierarchy core shared by every source format.
-#[derive(Serialize, Deserialize)]
+/// One component's cooked payload: the registry key it was registered under
+/// plus its serde-JSON encoding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializedComponent {
+    pub type_name: String,
+    pub data: String,
+}
+
+/// One node in a [`Scene`]: a name, the indices of its children within
+/// `Scene::nodes`, and the list of components authored onto it. Every
+/// runtime concern (transform, mesh, material, camera, light, ...) is carried
+/// as a [`SerializedComponent`]; the spawner applies them generically through
+/// the component registry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneNode {
     pub name: String,
-    pub transform: Transform,
+    /// Indices into `Scene::nodes`.
     pub children: Vec<usize>,
-    pub mesh: Option<AssetHandle<Mesh>>,
-    pub material: Option<AssetHandle<StandardMaterial>>,
+    pub components: Vec<SerializedComponent>,
+}
+
+impl SceneNode {
+    /// Serializes `component` and appends it to this node. Importers use this
+    /// rather than building [`SerializedComponent`] by hand, so the registry
+    /// key always comes from [`Component::name`].
+    pub fn push_component<T: Serialize + Component>(
+        &mut self,
+        component: &T,
+    ) -> anyhow::Result<()> {
+        self.components.push(SerializedComponent {
+            type_name: T::name().to_string(),
+            data: serde_json::to_string(component)?,
+        });
+        Ok(())
+    }
 }
 
 /// A format-agnostic scene graph, serialized directly (no separate DTO) and
 /// cooked as its own asset. `nodes[0]` is not special — roots are simply the
 /// nodes no other node lists as a child.
-#[derive(Asset, Serialize, Deserialize)]
+#[derive(Asset, Debug, Clone, Serialize, Deserialize)]
 pub struct Scene {
     pub nodes: Vec<SceneNode>,
+    /// Every [`AssetId`] reachable from the nodes' components. Component
+    /// payloads are opaque strings, so [`CookedAsset::referenced_sub_assets`]
+    /// cannot introspect them — the importer records the ids here as it emits.
+    pub referenced_assets: Vec<AssetId>,
 }
 
 impl CookedAsset for Scene {
     const TYPE_NAME: &'static str = "Scene";
 
     fn referenced_sub_assets(&self) -> Vec<AssetId> {
-        self.nodes
-            .iter()
-            .flat_map(|node| {
-                [
-                    node.mesh.as_ref().map(|handle| handle.id()),
-                    node.material.as_ref().map(|handle| handle.id()),
-                ]
-            })
-            .flatten()
-            .collect()
-    }
-}
-
-impl Scene {
-    /// Upgrades every `Weak` mesh/material handle to a live `Strong` one via
-    /// the given `AssetServer`, kicking off their loads.
-    pub(crate) fn resolve_asset_handles(&mut self, asset_server: &AssetServer) {
-        for node in &mut self.nodes {
-            if let Some(handle) = &mut node.mesh {
-                *handle = asset_server.load_by_id(handle.id());
-            }
-            if let Some(handle) = &mut node.material {
-                *handle = asset_server.load_by_id(handle.id());
-            }
-        }
+        self.referenced_assets.clone()
     }
 }
 
@@ -94,9 +93,8 @@ impl AssetLoader for SceneLoader {
         )
         .await
         .with_context(|| "failed to read cooked scene")?;
-        let mut scene: Scene =
-            bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked scene")?;
-        scene.resolve_asset_handles(load_context.asset_server());
-        Ok(scene)
+        // Each component upgrades its own Weak handle in `apply`, so the
+        // loader no longer resolves anything itself.
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked scene")
     }
 }

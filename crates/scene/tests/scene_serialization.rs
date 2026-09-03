@@ -1,9 +1,20 @@
 //! Covers Scene/SceneNode round-tripping directly through bincode and
-//! reporting mesh/material references for cook-time validation.
+//! reporting the assets its component payloads reference for cook-time
+//! validation.
 use asset_cook::CookedAsset;
+use ecs::component::Component;
 use essential::assets::{handle::AssetHandle, AssetId};
-use essential::transform::Transform;
-use scene::scene::{Scene, SceneNode};
+use mesh::mesh::MeshComponent;
+use render::assets::material::StandardMaterial;
+use render::components::material::MaterialComponent;
+use scene::scene::{Scene, SceneNode, SerializedComponent};
+
+fn component<T: serde::Serialize + Component>(value: &T) -> SerializedComponent {
+    SerializedComponent {
+        type_name: T::name().to_string(),
+        data: serde_json::to_string(value).unwrap(),
+    }
+}
 
 #[test]
 fn round_trips_and_reports_references() {
@@ -14,19 +25,23 @@ fn round_trips_and_reports_references() {
         nodes: vec![
             SceneNode {
                 name: "root".to_string(),
-                transform: Transform::default(),
                 children: vec![1],
-                mesh: None,
-                material: None,
+                components: vec![],
             },
             SceneNode {
                 name: "child".to_string(),
-                transform: Transform::default(),
                 children: vec![],
-                mesh: Some(AssetHandle::weak(mesh_id)),
-                material: Some(AssetHandle::weak(material_id)),
+                components: vec![
+                    component(&MeshComponent {
+                        handle: AssetHandle::weak(mesh_id),
+                    }),
+                    component(&MaterialComponent::<StandardMaterial> {
+                        handle: AssetHandle::weak(material_id),
+                    }),
+                ],
             },
         ],
+        referenced_assets: vec![mesh_id, material_id],
     };
 
     let bytes = bincode::serialize(&sc).expect("Scene must serialize through bincode");
@@ -43,8 +58,15 @@ fn round_trips_and_reports_references() {
         vec![1],
         "child indices are plain data and must round-trip verbatim"
     );
+
+    let mesh_payload = decoded.nodes[1]
+        .components
+        .iter()
+        .find(|c| c.type_name == MeshComponent::name())
+        .expect("the child node must carry a MeshComponent payload");
+    let decoded_mesh: MeshComponent = serde_json::from_str(&mesh_payload.data).unwrap();
     assert_eq!(
-        decoded.nodes[1].mesh.as_ref().unwrap().id(),
+        decoded_mesh.handle.id(),
         mesh_id,
         "a node's mesh handle must deserialize back to the same AssetId"
     );
@@ -52,6 +74,6 @@ fn round_trips_and_reports_references() {
     assert_eq!(
         sc.referenced_sub_assets(),
         vec![mesh_id, material_id],
-        "every node's mesh/material reference must be collected across the whole scene"
+        "referenced_sub_assets must report every AssetId the scene's components use"
     );
 }

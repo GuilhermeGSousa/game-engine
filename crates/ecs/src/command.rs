@@ -105,6 +105,24 @@ impl<'w, 's> CommandQueue<'w, 's> {
             entity,
         ));
     }
+
+    /// Queues a cooked scene component for deserialization and application.
+    /// `node_entities` lets the component resolve `SceneEntityRef`s to the
+    /// other entities spawned for the same scene.
+    pub fn apply_scene_component(
+        &mut self,
+        type_name: String,
+        data: String,
+        entity: Entity,
+        node_entities: std::sync::Arc<[Entity]>,
+    ) {
+        self.queue_state.add_command(ApplySceneComponentCommand {
+            type_name,
+            data,
+            entity,
+            node_entities,
+        });
+    }
 }
 
 pub struct CommandQueueState {
@@ -230,6 +248,24 @@ impl InsertErasedCommand {
 impl Command for InsertErasedCommand {
     fn execute(self: Box<Self>, world: &mut World) {
         world.apply_scene_component(&self.component_name, &self.component_data, self.entity, &[]);
+    }
+}
+
+pub(crate) struct ApplySceneComponentCommand {
+    type_name: String,
+    data: String,
+    entity: Entity,
+    node_entities: std::sync::Arc<[Entity]>,
+}
+
+impl Command for ApplySceneComponentCommand {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.apply_scene_component(
+            &self.type_name,
+            &self.data,
+            self.entity,
+            &self.node_entities,
+        );
     }
 }
 

@@ -53,4 +53,24 @@ fn import_emits_mesh_material_and_flat_scene() {
         cooked_scene.nodes[0].children.is_empty(),
         "OBJ has no hierarchy"
     );
+
+    let component_names: Vec<&str> = cooked_scene.nodes[0]
+        .components
+        .iter()
+        .map(|c| c.type_name.as_str())
+        .collect();
+    assert!(
+        component_names.iter().any(|n| n.ends_with("MeshComponent")),
+        "the flat scene node must carry a MeshComponent payload, got: {component_names:?}"
+    );
+    assert!(
+        component_names
+            .iter()
+            .any(|n| n.ends_with("MaterialComponent")),
+        "the fixture ships an .mtl, so the node must carry a MaterialComponent payload, got: {component_names:?}"
+    );
+    assert!(
+        !cooked_scene.referenced_assets.is_empty(),
+        "the mesh/material ids the node references must be recorded in referenced_assets"
+    );
 }

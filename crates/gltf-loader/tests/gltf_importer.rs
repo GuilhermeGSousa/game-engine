@@ -1,12 +1,34 @@
 //! Covers GltfImporter splitting a single .gltf into independently-cooked
 //! mesh, material, and scene sub-assets (this fixture has no textures),
-//! with the scene's node referencing the mesh/material by stable AssetId.
+//! with the scene's node referencing the mesh/material by stable AssetId
+//! through serialized component payloads.
 use std::path::Path;
 
 use asset_cook::{ImportContext, Importer};
+use ecs::component::Component;
 use essential::assets::AssetId;
 use gltf_loader::gltf_importer::GltfImporter;
-use scene::scene::Scene;
+use mesh::mesh::MeshComponent;
+use scene::scene::{Scene, SceneNode};
+
+/// The `AssetId` the node's `MeshComponent` payload points at, if it has one.
+fn mesh_handle_id(node: &SceneNode) -> Option<AssetId> {
+    node.components
+        .iter()
+        .find(|c| c.type_name == MeshComponent::name())
+        .map(|c| {
+            serde_json::from_str::<MeshComponent>(&c.data)
+                .expect("a MeshComponent payload must deserialize")
+                .handle
+                .id()
+        })
+}
+
+fn has_component_ending_in(node: &SceneNode, suffix: &str) -> bool {
+    node.components
+        .iter()
+        .any(|c| c.type_name.ends_with(suffix))
+}
 
 #[test]
 fn import_emits_mesh_material_and_scene_sub_assets() {
@@ -42,9 +64,19 @@ fn import_emits_mesh_material_and_scene_sub_assets() {
     assert_eq!(cooked_scene.nodes.len(), 1);
     assert_eq!(cooked_scene.nodes[0].name, "Triangle");
     assert_eq!(
-        cooked_scene.nodes[0].mesh.as_ref().unwrap().id(),
-        AssetId::from_path("triangle.gltf#mesh/0"),
-        "the scene node's mesh handle must carry the exact same AssetId a runtime load of 'triangle.gltf#mesh/0' would compute"
+        mesh_handle_id(&cooked_scene.nodes[0]),
+        Some(AssetId::from_path("triangle.gltf#mesh/0")),
+        "the scene node's MeshComponent must carry the exact same AssetId a runtime load of 'triangle.gltf#mesh/0' would compute"
+    );
+    assert!(
+        has_component_ending_in(&cooked_scene.nodes[0], "MaterialComponent"),
+        "the drawable node must also carry a MaterialComponent payload"
+    );
+    assert!(
+        cooked_scene
+            .referenced_assets
+            .contains(&AssetId::from_path("triangle.gltf#mesh/0")),
+        "the mesh id must be recorded in referenced_assets for cook-time validation"
     );
 }
 
@@ -107,11 +139,11 @@ fn import_flattens_multi_primitive_mesh_into_child_nodes() {
     let parent = &cooked_scene.nodes[0];
     assert_eq!(parent.name, "Triangle", "parent keeps the glTF node name");
     assert!(
-        parent.mesh.is_none(),
+        mesh_handle_id(parent).is_none(),
         "a multi-primitive parent node holds no mesh of its own"
     );
     assert!(
-        parent.material.is_none(),
+        !has_component_ending_in(parent, "MaterialComponent"),
         "a multi-primitive parent node holds no material of its own"
     );
     assert_eq!(
@@ -130,16 +162,12 @@ fn import_flattens_multi_primitive_mesh_into_child_nodes() {
             "primitive child node {child_index} is a leaf"
         );
         assert!(
-            child.material.is_some(),
-            "primitive child node {child_index} carries a material handle"
+            has_component_ending_in(child, "MaterialComponent"),
+            "primitive child node {child_index} carries a material component"
         );
         assert_eq!(
-            child
-                .mesh
-                .as_ref()
-                .expect("primitive child node has a mesh handle")
-                .id(),
-            AssetId::from_path(expected_mesh_addr),
+            mesh_handle_id(child),
+            Some(AssetId::from_path(expected_mesh_addr)),
             "primitive child node {child_index} must reference {expected_mesh_addr} by stable AssetId"
         );
     }

@@ -3,9 +3,6 @@ use ecs::{
 };
 use essential::assets::{asset_store::AssetStore, handle::AssetHandle};
 use essential::transform::Transform;
-use mesh::mesh::MeshComponent;
-use render::components::material::MaterialComponent;
-use render::components::render_entity::SyncWithRenderWorld;
 
 use crate::scene::Scene;
 
@@ -15,9 +12,10 @@ use crate::scene::Scene;
 pub struct SceneSpawnerComponent(pub AssetHandle<Scene>);
 
 /// Expands every entity carrying a [`SceneSpawnerComponent`] whose scene asset
-/// has finished loading into one entity per `SceneNode`, wiring up
-/// mesh/material components and the parent/child hierarchy. Root nodes are
-/// parented to the spawner entity so they inherit its transform.
+/// has finished loading into one entity per `SceneNode`. Each node's cooked
+/// components are applied generically through the component registry, and the
+/// parent/child hierarchy is wired up. Root nodes are parented to the spawner
+/// entity so they inherit its transform.
 pub fn spawn_scene_components(
     mut cmd: CommandQueue,
     spawners: Query<(Entity, &SceneSpawnerComponent, Option<&Transform>)>,
@@ -33,29 +31,21 @@ pub fn spawn_scene_components(
         }
 
         let mut node_entities = Vec::with_capacity(scene.nodes.len());
-        for node in &scene.nodes {
-            node_entities.push(cmd.spawn(node.transform.clone()).entity());
+        for _ in &scene.nodes {
+            node_entities.push(cmd.spawn(()).entity());
         }
 
+        // Every queued command needs the node map; share one allocation
+        // rather than cloning a Vec per component (Sponza queues hundreds).
+        let shared_nodes: std::sync::Arc<[Entity]> = node_entities.clone().into();
+
         for (index, node) in scene.nodes.iter().enumerate() {
-            let Some(mesh) = &node.mesh else {
-                continue;
-            };
-            cmd.insert(
-                (
-                    MeshComponent {
-                        handle: mesh.clone(),
-                    },
-                    SyncWithRenderWorld,
-                ),
-                node_entities[index],
-            );
-            if let Some(material) = &node.material {
-                cmd.insert(
-                    MaterialComponent {
-                        handle: material.clone(),
-                    },
+            for component in &node.components {
+                cmd.apply_scene_component(
+                    component.type_name.clone(),
+                    component.data.clone(),
                     node_entities[index],
+                    shared_nodes.clone(),
                 );
             }
         }

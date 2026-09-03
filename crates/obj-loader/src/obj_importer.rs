@@ -8,13 +8,17 @@ use std::path::Path;
 
 use asset_cook::{ImportContext, ImportError, Importer, hash_file_contents};
 use color::Color;
+use ecs::component::Component;
 use essential::assets::AssetId;
 use essential::assets::handle::AssetHandle;
 use essential::transform::Transform;
-use mesh::mesh::Mesh;
+use mesh::mesh::{Mesh, MeshComponent};
 use mesh::vertex::Vertex;
 use render::assets::material::StandardMaterial;
+use render::components::material::MaterialComponent;
+use render::components::render_entity::SyncWithRenderWorld;
 use scene::scene::{Scene, SceneNode};
+use serde::Serialize;
 
 pub struct ObjImporter;
 
@@ -44,26 +48,63 @@ impl Importer for ObjImporter {
             ctx.emit(&format!("mesh/{index}"), &mesh)?;
         }
 
-        let nodes = models
-            .iter()
-            .enumerate()
-            .map(|(index, model)| SceneNode {
+        let mut nodes: Vec<SceneNode> = Vec::with_capacity(models.len());
+        let mut referenced_assets: Vec<AssetId> = Vec::new();
+        for (index, model) in models.iter().enumerate() {
+            let mut node = SceneNode {
                 name: model.name.clone(),
-                transform: Transform::default(),
                 children: vec![],
-                mesh: Some(AssetHandle::weak(
-                    ctx.sub_asset_id(&format!("mesh/{index}")),
-                )),
-                material: mtl_stem
-                    .as_ref()
-                    .map(|stem| AssetHandle::weak(ctx.sub_asset_id(&format!("material/{stem}")))),
-            })
-            .collect();
+                components: Vec::new(),
+            };
+            push_node_component(&mut node, &Transform::default())?;
 
-        ctx.emit("scene", &Scene { nodes })?;
+            let mesh_id = ctx.sub_asset_id(&format!("mesh/{index}"));
+            push_node_component(
+                &mut node,
+                &MeshComponent {
+                    handle: AssetHandle::weak(mesh_id),
+                },
+            )?;
+            referenced_assets.push(mesh_id);
+
+            if let Some(stem) = mtl_stem.as_ref() {
+                let material_id = ctx.sub_asset_id(&format!("material/{stem}"));
+                push_node_component(
+                    &mut node,
+                    &MaterialComponent::<StandardMaterial> {
+                        handle: AssetHandle::weak(material_id),
+                    },
+                )?;
+                referenced_assets.push(material_id);
+            }
+
+            push_node_component(&mut node, &SyncWithRenderWorld)?;
+            nodes.push(node);
+        }
+
+        ctx.emit(
+            "scene",
+            &Scene {
+                nodes,
+                referenced_assets,
+            },
+        )?;
 
         Ok(())
     }
+}
+
+/// Serializes `component` onto `node`, mapping the serde failure into an
+/// `ImportError` tagged against the `scene` sub-asset.
+fn push_node_component<T: Serialize + Component>(
+    node: &mut SceneNode,
+    component: &T,
+) -> Result<(), ImportError> {
+    node.push_component(component)
+        .map_err(|err| ImportError::SerializationFailed {
+            sub_asset_name: "scene".to_string(),
+            message: err.to_string(),
+        })
 }
 
 /// Parses the first `mtllib`-referenced `.mtl`, tracks it (and any texture

@@ -2,10 +2,8 @@
 //! sub-assets, cook_source writes each to its flat, AssetId-keyed location.
 use std::path::Path;
 
-use asset_cook::{
-    cook_source, cooked_file_path_for_id, CookedAsset, ImportContext, ImportError, Importer,
-};
-use essential::assets::AssetId;
+use asset_cook::{cook_source, cooked_file_path_for_id, ImportContext, ImportError, Importer};
+use essential::assets::{Asset, AssetId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -13,8 +11,10 @@ struct FakeCookedThing {
     value: u32,
 }
 
-impl CookedAsset for FakeCookedThing {
-    const TYPE_NAME: &'static str = "FakeThing";
+impl Asset for FakeCookedThing {
+    fn name() -> &'static str {
+        "FakeThing"
+    }
 }
 
 struct FakeImporter;

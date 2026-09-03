@@ -1,4 +1,3 @@
-use asset_cook::CookedAsset;
 use essential::assets::{Asset, LoadableAsset};
 
 use crate::loaders::texture_loader::TextureLoader;
@@ -56,9 +55,4 @@ impl LoadableAsset for Texture {
     }
 
     fn default_usage_settings() -> Self::UsageSettings {}
-}
-
-// Removed in Task 7 when `emit` switches to `T: Asset`.
-impl CookedAsset for Texture {
-    const TYPE_NAME: &'static str = "Texture";
 }

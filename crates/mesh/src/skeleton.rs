@@ -1,5 +1,4 @@
 use anyhow::Context;
-use asset_cook::CookedAsset;
 use async_trait::async_trait;
 use ecs::{Component, Entity};
 use essential::assets::{
@@ -21,10 +20,6 @@ impl From<Vec<Mat4>> for Skeleton {
             inverse_bindposes: value.into_boxed_slice(),
         }
     }
-}
-
-impl CookedAsset for Skeleton {
-    const TYPE_NAME: &'static str = "Skeleton";
 }
 
 impl LoadableAsset for Skeleton {

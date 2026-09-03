@@ -1,7 +1,6 @@
 use std::collections::{HashMap, hash_map::Keys};
 
 use anyhow::Context;
-use asset_cook::CookedAsset;
 use async_trait::async_trait;
 use essential::assets::{
     Asset, AssetPath, LoadableAsset, asset_loader::AssetLoader, asset_server::AssetLoadContext,
@@ -159,10 +158,6 @@ impl AnimationClip {
     pub fn duration(&self) -> f32 {
         self.duration
     }
-}
-
-impl CookedAsset for AnimationClip {
-    const TYPE_NAME: &'static str = "AnimationClip";
 }
 
 impl LoadableAsset for AnimationClip {

@@ -1,7 +1,7 @@
 //! Covers ImportContext's sub-asset emission, same-file reference-ID
 //! computation, and dependency tracking.
-use asset_cook::{CookedAsset, ImportContext};
-use essential::assets::AssetId;
+use asset_cook::ImportContext;
+use essential::assets::{Asset, AssetId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -9,8 +9,10 @@ struct FakeCookedThing {
     referenced: AssetId,
 }
 
-impl CookedAsset for FakeCookedThing {
-    const TYPE_NAME: &'static str = "FakeThing";
+impl Asset for FakeCookedThing {
+    fn name() -> &'static str {
+        "FakeThing"
+    }
 
     fn referenced_sub_assets(&self) -> Vec<AssetId> {
         vec![self.referenced]
@@ -63,12 +65,12 @@ fn emit_records_sub_asset_with_serialized_bytes_and_references() {
     );
     assert_eq!(
         entry.type_name, "FakeThing",
-        "emitted sub-asset carries the CookedAsset TYPE_NAME"
+        "emitted sub-asset carries the Asset::name()"
     );
     assert_eq!(
         entry.references,
         vec![referenced_id],
-        "references extracted from CookedAsset::referenced_sub_assets"
+        "references extracted from Asset::referenced_sub_assets"
     );
 
     let round_tripped: FakeCookedThing =

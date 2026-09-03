@@ -1,5 +1,4 @@
 use anyhow::Context;
-use asset_cook::CookedAsset;
 use bytemuck::{Pod, Zeroable};
 use color::{Color, LinearRgba};
 use essential::assets::{
@@ -110,7 +109,7 @@ pub trait AsBindGroup {
 ///
 /// Use this as a starting point, or define your own material by implementing
 /// [`AsBindGroup`] (manually or via `#[derive(AsBindGroup)]`).
-#[derive(Asset, AsBindGroup, Default, serde::Serialize, serde::Deserialize)]
+#[derive(AsBindGroup, Default, serde::Serialize, serde::Deserialize)]
 #[material(
     vertex_shader = include_str!("../shaders/shader.wgsl"),
     fragment_shader = include_str!("../shaders/shader.wgsl"),
@@ -320,11 +319,13 @@ impl StandardMaterial {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Cooked-asset representation + loader for StandardMaterial
+// Asset impl + loader for StandardMaterial
 // ────────────────────────────────────────────────────────────────────────────
 
-impl CookedAsset for StandardMaterial {
-    const TYPE_NAME: &'static str = "StandardMaterial";
+impl Asset for StandardMaterial {
+    fn name() -> &'static str {
+        "StandardMaterial"
+    }
 
     fn referenced_sub_assets(&self) -> Vec<AssetId> {
         [

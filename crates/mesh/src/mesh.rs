@@ -1,5 +1,4 @@
 use anyhow::Context;
-use asset_cook::CookedAsset;
 use async_trait::async_trait;
 use ecs::component::scene::{SceneComponent, SceneSpawnContext};
 use ecs::{Component, Entity};
@@ -18,10 +17,6 @@ use crate::vertex::Vertex;
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
-}
-
-impl CookedAsset for Mesh {
-    const TYPE_NAME: &'static str = "Mesh";
 }
 
 impl LoadableAsset for Mesh {

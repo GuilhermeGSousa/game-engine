@@ -1,5 +1,4 @@
 use anyhow::Context;
-use asset_cook::CookedAsset;
 use ecs::component::Component;
 use essential::assets::{
     asset_loader::AssetLoader, asset_server::AssetLoadContext, Asset, AssetId, AssetPath,
@@ -47,17 +46,19 @@ impl SceneNode {
 /// A format-agnostic scene graph, serialized directly (no separate DTO) and
 /// cooked as its own asset. `nodes[0]` is not special — roots are simply the
 /// nodes no other node lists as a child.
-#[derive(Asset, Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Scene {
     pub nodes: Vec<SceneNode>,
     /// Every [`AssetId`] reachable from the nodes' components. Component
-    /// payloads are opaque strings, so [`CookedAsset::referenced_sub_assets`]
+    /// payloads are opaque strings, so [`Asset::referenced_sub_assets`]
     /// cannot introspect them — the importer records the ids here as it emits.
     pub referenced_assets: Vec<AssetId>,
 }
 
-impl CookedAsset for Scene {
-    const TYPE_NAME: &'static str = "Scene";
+impl Asset for Scene {
+    fn name() -> &'static str {
+        "Scene"
+    }
 
     fn referenced_sub_assets(&self) -> Vec<AssetId> {
         self.referenced_assets.clone()

@@ -15,25 +15,6 @@ pub use run::{run_cook, CookReport};
 
 use std::path::{Path, PathBuf};
 
-use essential::assets::AssetId;
-use serde::{de::DeserializeOwned, Serialize};
-
-/// A cooked, on-disk representation of one engine asset. Implemented
-/// directly on the real asset type wherever possible (e.g. `StandardMaterial`,
-/// `Scene`) — a separate DTO is only introduced when the live type holds
-/// data that genuinely can't serialize (e.g. GPU descriptor types), never
-/// merely because it holds an `AssetHandle<T>` field, since `AssetHandle<T>`
-/// is itself serializable.
-pub trait CookedAsset: Serialize + DeserializeOwned {
-    const TYPE_NAME: &'static str;
-
-    /// AssetIds of every other sub-asset this one references. Used by the
-    /// cook tool's global reference-integrity validation pass.
-    fn referenced_sub_assets(&self) -> Vec<AssetId> {
-        Vec::new()
-    }
-}
-
 pub trait Importer: Send + Sync {
     fn supported_extensions(&self) -> &'static [&'static str];
 

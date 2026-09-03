@@ -1,9 +1,8 @@
 //! Covers Scene/SceneNode round-tripping directly through bincode and
 //! reporting the assets its component payloads reference for cook-time
 //! validation.
-use asset_cook::CookedAsset;
 use ecs::component::Component;
-use essential::assets::{handle::AssetHandle, AssetId};
+use essential::assets::{handle::AssetHandle, Asset, AssetId};
 use mesh::mesh::MeshComponent;
 use render::assets::material::StandardMaterial;
 use render::components::material::MaterialComponent;

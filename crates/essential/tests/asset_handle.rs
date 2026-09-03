@@ -4,6 +4,7 @@
 //! since deserialization has no AssetServer to resolve against).
 use essential::assets::{handle::AssetHandle, Asset, AssetId};
 
+#[derive(serde::Serialize, serde::Deserialize)]
 struct FakeAsset;
 impl Asset for FakeAsset {
     fn name() -> &'static str {

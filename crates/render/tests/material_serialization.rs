@@ -1,7 +1,7 @@
 //! Covers StandardMaterial round-tripping directly through bincode (no DTO)
 //! and reporting its texture references for cook-time validation.
 use color::Color;
-use essential::assets::{handle::AssetHandle, AssetId};
+use essential::assets::{handle::AssetHandle, Asset, AssetId};
 use render::assets::material::StandardMaterial;
 use render::assets::texture::Texture;
 
@@ -33,7 +33,7 @@ fn referenced_sub_assets_lists_present_textures_only() {
     let albedo_id = AssetId::from_path("models/character.gltf#texture/albedo");
     let material = StandardMaterial::new(Some(AssetHandle::<Texture>::weak(albedo_id)), None);
 
-    let refs = asset_cook::CookedAsset::referenced_sub_assets(&material);
+    let refs = Asset::referenced_sub_assets(&material);
     assert_eq!(
         refs,
         vec![albedo_id],

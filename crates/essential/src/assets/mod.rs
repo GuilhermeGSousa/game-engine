@@ -170,8 +170,14 @@ impl Default for AssetId {
     }
 }
 
-pub trait Asset: Send + Sync + 'static {
+pub trait Asset: Send + Sync + 'static + serde::Serialize + serde::de::DeserializeOwned {
     fn name() -> &'static str;
+
+    /// AssetIds of every sub-asset this one references — the cook tool's
+    /// reference-integrity pass. Empty for leaf assets.
+    fn referenced_sub_assets(&self) -> Vec<AssetId> {
+        Vec::new()
+    }
 }
 
 pub trait LoadableAsset: Asset {

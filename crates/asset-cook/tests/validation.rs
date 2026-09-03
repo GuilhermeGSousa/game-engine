@@ -3,10 +3,10 @@
 use std::path::Path;
 
 use asset_cook::{
-    run_cook, CookOptions, CookedAsset, EmittedSubAsset, ImportContext, ImportError, Importer,
-    ValidationIssue, ValidationSeverity,
+    run_cook, CookOptions, EmittedSubAsset, ImportContext, ImportError, Importer, ValidationIssue,
+    ValidationSeverity,
 };
-use essential::assets::AssetId;
+use essential::assets::{Asset, AssetId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -14,8 +14,11 @@ struct RefThing {
     references: Vec<AssetId>,
 }
 
-impl CookedAsset for RefThing {
-    const TYPE_NAME: &'static str = "RefThing";
+impl Asset for RefThing {
+    fn name() -> &'static str {
+        "RefThing"
+    }
+
     fn referenced_sub_assets(&self) -> Vec<AssetId> {
         self.references.clone()
     }

@@ -1,7 +1,8 @@
 //! Covers ImageImporter emitting a serialized Texture from a raw image file.
 use std::path::Path;
 
-use asset_cook::{CookedAsset, ImportContext, Importer};
+use asset_cook::{ImportContext, Importer};
+use essential::assets::Asset;
 use render::assets::texture::{Texture, TextureFormat, TextureKind};
 use render::importers::image_importer::ImageImporter;
 
@@ -25,7 +26,7 @@ fn import_produces_one_main_sub_asset_with_correct_pixels() {
 
     assert_eq!(outputs.sub_assets.len(), 1);
     assert_eq!(outputs.sub_assets[0].name, "main");
-    assert_eq!(outputs.sub_assets[0].type_name, Texture::TYPE_NAME);
+    assert_eq!(outputs.sub_assets[0].type_name, Texture::name());
 
     let texture: Texture = bincode::deserialize(&outputs.sub_assets[0].bytes).unwrap();
     assert_eq!(texture.width, 2);

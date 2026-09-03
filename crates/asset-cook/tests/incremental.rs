@@ -4,9 +4,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use asset_cook::{
-    run_cook, CookOptions, CookedAsset, DependencyEntry, ImportContext, ImportError, Importer,
-    SourceIndex,
+    run_cook, CookOptions, DependencyEntry, ImportContext, ImportError, Importer, SourceIndex,
 };
+use essential::assets::Asset;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -14,8 +14,10 @@ struct CountedThing {
     value: u32,
 }
 
-impl CookedAsset for CountedThing {
-    const TYPE_NAME: &'static str = "CountedThing";
+impl Asset for CountedThing {
+    fn name() -> &'static str {
+        "CountedThing"
+    }
 }
 
 struct CountingImporter {

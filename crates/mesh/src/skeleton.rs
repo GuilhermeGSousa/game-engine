@@ -1,9 +1,16 @@
+use anyhow::Context;
+use asset_cook::CookedAsset;
+use async_trait::async_trait;
 use ecs::{Component, Entity};
-use essential::assets::{handle::AssetHandle, Asset};
+use essential::assets::{
+    asset_loader::AssetLoader, asset_server::AssetLoadContext, handle::AssetHandle, Asset,
+    AssetPath, LoadableAsset,
+};
 use glam::Mat4;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Asset)]
+#[derive(Asset, Serialize, Deserialize)]
 pub struct Skeleton {
     pub inverse_bindposes: Box<[Mat4]>,
 }
@@ -13,6 +20,41 @@ impl From<Vec<Mat4>> for Skeleton {
         Self {
             inverse_bindposes: value.into_boxed_slice(),
         }
+    }
+}
+
+impl CookedAsset for Skeleton {
+    const TYPE_NAME: &'static str = "Skeleton";
+}
+
+impl LoadableAsset for Skeleton {
+    type UsageSettings = ();
+    fn loader() -> Box<dyn AssetLoader<Asset = Self>> {
+        Box::new(SkeletonLoader)
+    }
+    fn default_usage_settings() -> Self::UsageSettings {}
+}
+
+pub struct SkeletonLoader;
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl AssetLoader for SkeletonLoader {
+    type Asset = Skeleton;
+
+    async fn load(
+        &self,
+        _path: AssetPath<'static>,
+        load_context: &mut AssetLoadContext,
+        _usage_settings: (),
+    ) -> anyhow::Result<Self::Asset> {
+        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+            load_context.cooked_root(),
+            load_context.asset_id(),
+        )
+        .await
+        .with_context(|| "failed to read cooked skeleton")?;
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked skeleton")
     }
 }
 

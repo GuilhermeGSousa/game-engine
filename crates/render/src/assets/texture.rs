@@ -17,8 +17,6 @@ pub struct Texture {
     pub format: wgpu_types::TextureFormat,
     pub kind: TextureKind,
     /// RGBA8 pixels matching `format`. Empty for `TextureKind::RenderTarget`.
-    // TODO(asset-trait-merge): a cooked-then-loaded Texture handle is Weak;
-    // block-compressed formats will need format.block_copy_size() at upload.
     pub data: Vec<u8>,
 }
 

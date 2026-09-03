@@ -155,6 +155,15 @@ impl AnimationStateMachine {
     ) -> Option<&Vec<AnimationStateMachineTransition>> {
         self.transitions.get(*state_index)
     }
+
+    /// Every transition trigger, flattened across states — lets callers inspect
+    /// trigger payloads without exposing the private transition table.
+    pub fn triggers(&self) -> impl Iterator<Item = &AnimationFSMTrigger> + '_ {
+        self.transitions
+            .iter()
+            .flatten()
+            .map(|transition| &transition.trigger)
+    }
 }
 
 impl AnimationStateMachine {

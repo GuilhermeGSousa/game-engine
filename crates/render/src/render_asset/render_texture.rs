@@ -47,6 +47,13 @@ impl RenderTexture {
         let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         if !texture.data().is_empty() {
+            // TODO(asset-trait-merge): assumes a 4-byte-per-texel format. Block-compressed
+            // or wide formats would need format.block_copy_size(None) here.
+            debug_assert_eq!(
+                texture.format.block_copy_size(None),
+                Some(4),
+                "bytes_per_row assumes a 4-byte-per-texel format",
+            );
             queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
                     aspect: wgpu::TextureAspect::All,

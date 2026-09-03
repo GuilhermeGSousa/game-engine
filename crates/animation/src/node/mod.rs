@@ -253,6 +253,10 @@ impl AnimationClipNode {
         }
     }
 
+    pub fn clip(&self) -> &AssetHandle<AnimationClip> {
+        &self.clip
+    }
+
     pub fn with_start_time(mut self, start_time: f32) -> Self {
         self.start_time = start_time;
         self

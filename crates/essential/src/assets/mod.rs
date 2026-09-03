@@ -170,6 +170,12 @@ impl Default for AssetId {
     }
 }
 
+/// A unit of loadable engine content. The `Serialize + DeserializeOwned`
+/// supertrait means a cooked, on-disk asset is just an `Asset` —
+/// `ImportContext::emit` needs no separate DTO trait. Reach for a distinct
+/// DTO type only when the live asset holds data that genuinely cannot
+/// serialize (GPU descriptor handles, `&'static` refs) — never merely for an
+/// `AssetHandle<T>` field, which serializes to its bare `AssetId`.
 pub trait Asset: Send + Sync + 'static + serde::Serialize + serde::de::DeserializeOwned {
     fn name() -> &'static str;
 

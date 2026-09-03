@@ -15,8 +15,20 @@ pub async fn load_cooked_asset_bytes(
     match root {
         CookedAssetRoot::Directory(dir) => {
             let path = dir.join(".cooked").join(&file_name);
-            std::fs::read(&path)
-                .with_context(|| format!("failed to read cooked asset '{}'", path.display()))
+            cfg_if! {
+                if #[cfg(target_arch = "wasm32")] {
+                    anyhow::bail!(
+                        "CookedAssetRoot::Directory is not supported on wasm32 ('{}')",
+                        path.display()
+                    )
+                } else {
+                    async_fs::read(&path)
+                        .await
+                        .with_context(|| {
+                            format!("failed to read cooked asset '{}'", path.display())
+                        })
+                }
+            }
         }
         CookedAssetRoot::UrlBase(base) => {
             cfg_if! {

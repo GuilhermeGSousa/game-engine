@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref, sync::Arc};
+use std::{collections::HashMap, ops::Deref};
 
 use essential::assets::{Asset, handle::AssetHandle};
 use log::warn;
@@ -10,7 +10,6 @@ use petgraph::{
 use uuid::Uuid;
 
 use crate::{
-    blackboard::AnimationBlackboard,
     evaluation::{AnimationGraphContext, AnimationGraphEvaluator},
     node::{
         AnimationNode, AnimationNodeInstance, AnimationResultNode,
@@ -141,7 +140,7 @@ impl<'a> AnimationNodeContext<'a> {
 
     pub fn with_blend_space_2d_input(
         &mut self,
-        sampler: impl Fn(&AnimationBlackboard) -> glam::Vec2 + Send + Sync + 'static,
+        param: &str,
         f: impl FnOnce(&mut BlendSpace2DBuilderContext<'_>),
     ) -> &mut Self {
         let mut builder_context = BlendSpace2DBuilderContext {
@@ -149,7 +148,9 @@ impl<'a> AnimationNodeContext<'a> {
             output_node_index: self.node_index,
             points: Vec::new(),
             nodes: Vec::new(),
-            sampler: Arc::new(sampler),
+            input: crate::node::blend_space::BlendInput {
+                param: param.to_string(),
+            },
         };
 
         f(&mut builder_context);

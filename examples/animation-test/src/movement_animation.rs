@@ -1,7 +1,6 @@
 use color::Color;
 use game_engine::{
     animation::{
-        blackboard::AnimationBlackboard,
         clip::AnimationClip,
         graph::AnimationGraph,
         player::{AnimationHandleComponent, AnimationPlayer},
@@ -85,18 +84,15 @@ pub(crate) fn setup_animations(
     for (player_entity, _player) in players.iter() {
         let mut movement_graph = AnimationGraph::new();
 
-        movement_graph.result_node().with_blend_space_2d_input(
-            |blackboard: &AnimationBlackboard| {
-                blackboard.get_vec2("movement").unwrap_or(Vec2::ZERO)
-            },
-            |context| {
+        movement_graph
+            .result_node()
+            .with_blend_space_2d_input("movement", |context| {
                 context
                     .animation_clip_input(anim_store.idle.clone(), Vec2::ZERO)
                     .animation_clip_input(anim_store.strafe_left.clone(), Vec2::new(-1.0, 0.0))
                     .animation_clip_input(anim_store.strafe_right.clone(), Vec2::new(1.0, 0.0))
                     .animation_clip_input(anim_store.walk.clone(), Vec2::new(0.0, 1.0));
-            },
-        );
+            });
 
         cmd.insert(
             AnimationHandleComponent {

@@ -1,4 +1,4 @@
-use std::{any::Any, sync::Arc};
+use std::any::Any;
 
 use essential::{
     assets::handle::AssetHandle,
@@ -9,26 +9,29 @@ use glam::Vec2;
 use log::warn;
 
 use crate::{
-    blackboard::AnimationBlackboard,
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeContext, AnimationNodeIndex},
     node::{AnimationClipNode, AnimationNode, AnimationNodeInstance},
 };
 
+/// Which blackboard `Vec2` param drives a blend space. Read with
+/// `blackboard.get_vec2(&param).unwrap_or(Vec2::ZERO)`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BlendInput {
+    pub param: String,
+}
+
 #[derive(AsAny)]
 pub struct BlendSpace2DNode {
     triangulation: Triangulation2D,
-    sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
+    input: BlendInput,
 }
 
 impl BlendSpace2DNode {
-    pub(crate) fn new(
-        points: Vec<Vec2>,
-        sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
-    ) -> Self {
+    pub(crate) fn new(points: Vec<Vec2>, input: BlendInput) -> Self {
         Self {
             triangulation: Triangulation2D::build(points),
-            sampler,
+            input,
         }
     }
 
@@ -69,7 +72,10 @@ impl AnimationNodeInstance for BlendSpace2DInstanceNode {
         let Some(blend_space) = node.as_any().downcast_ref::<BlendSpace2DNode>() else {
             return;
         };
-        let sample = (blend_space.sampler)(context.blackboard());
+        let sample = context
+            .blackboard()
+            .get_vec2(&blend_space.input.param)
+            .unwrap_or(glam::Vec2::ZERO);
         self.current_triangulated_point = Some(blend_space.triangulation.locate_or_nearest(sample));
     }
 
@@ -122,12 +128,12 @@ pub struct BlendSpace2DBuilderContext<'a> {
     pub(crate) output_node_index: AnimationNodeIndex,
     pub(crate) points: Vec<Vec2>,
     pub(crate) nodes: Vec<Box<dyn AnimationNode>>,
-    pub(crate) sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
+    pub(crate) input: BlendInput,
 }
 
 impl<'a> BlendSpace2DBuilderContext<'a> {
     pub(crate) fn build(self) -> AnimationNodeContext<'a> {
-        let blend_space = BlendSpace2DNode::new(self.points, self.sampler);
+        let blend_space = BlendSpace2DNode::new(self.points, self.input);
 
         let blend_space_node = self
             .graph

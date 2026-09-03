@@ -141,9 +141,9 @@ pub(crate) fn setup_character_animations(
     let jump_land = server.load::<AnimationClip>(JUMP_LAND);
 
     let mut movement_graph = AnimationGraph::new();
-    movement_graph.result_node().with_blend_space_2d_input(
-        |blackboard| blackboard.get_vec2("movement").unwrap_or(Vec2::ZERO),
-        |context| {
+    movement_graph
+        .result_node()
+        .with_blend_space_2d_input("movement", |context| {
             context
                 .animation_clip_input(idle, Vec2::ZERO)
                 .animation_clip_input(jog, Vec2::new(0.0, 1.0))
@@ -154,8 +154,7 @@ pub(crate) fn setup_character_animations(
                 .animation_clip_input(jog_bw, Vec2::new(0.0, -1.0))
                 .animation_clip_input(job_bw_l, Vec2::new(-1.0, -1.0))
                 .animation_clip_input(job_bw_r, Vec2::new(1.0, -1.0));
-        },
-    );
+        });
 
     let mut graph = AnimationGraph::new();
     graph.result_node().with_input(

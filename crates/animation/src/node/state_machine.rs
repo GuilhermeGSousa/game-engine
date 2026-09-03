@@ -1,7 +1,6 @@
 use std::any::Any;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use crate::blackboard::AnimationBlackboard;
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
 use crate::pose::{EvaluatedPose, Pose, PosePool};
 use crate::transition::{AnimationTransitionBlender, blend_stack::BlendStack};
@@ -24,34 +23,26 @@ pub(crate) struct AnimationFSMState {
     graph: AssetHandle<AnimationGraph>,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AnimationFSMTrigger {
     Instant,
     OnAnimationEnd,
-    Condition(Arc<dyn Fn(&AnimationBlackboard) -> bool + Send + Sync>),
+    BoolEquals { param: String, value: bool },
+    Vec2NonZero { param: String },
 }
 
 impl AnimationFSMTrigger {
-    pub fn from_condition<F>(condition: F) -> Self
-    where
-        F: Fn(&AnimationBlackboard) -> bool + Send + Sync + 'static,
-    {
-        Self::Condition(Arc::new(condition))
-    }
-
     pub fn on_bool(param_name: impl Into<String>, cond: bool) -> Self {
-        let param_name = param_name.into();
-        AnimationFSMTrigger::from_condition(move |blackboard| {
-            blackboard.get_bool(&param_name).is_some_and(|v| v == cond)
-        })
+        Self::BoolEquals {
+            param: param_name.into(),
+            value: cond,
+        }
     }
 
     pub fn on_non_zero_vec(param_name: impl Into<String>) -> Self {
-        let param_name = param_name.into();
-        AnimationFSMTrigger::from_condition(move |blackboard| {
-            blackboard
-                .get_vec2(&param_name)
-                .is_some_and(|val| val.length_squared() > f32::EPSILON)
-        })
+        Self::Vec2NonZero {
+            param: param_name.into(),
+        }
     }
 }
 
@@ -261,8 +252,22 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
                     self.transition(context, transition);
                     break;
                 }
-                AnimationFSMTrigger::Condition(cond_fn) => {
-                    if cond_fn(context.blackboard()) {
+                AnimationFSMTrigger::BoolEquals { param, value } => {
+                    if context
+                        .blackboard()
+                        .get_bool(param)
+                        .is_some_and(|v| v == *value)
+                    {
+                        self.transition(context, transition);
+                        break;
+                    }
+                }
+                AnimationFSMTrigger::Vec2NonZero { param } => {
+                    if context
+                        .blackboard()
+                        .get_vec2(param)
+                        .is_some_and(|v| v.length_squared() > f32::EPSILON)
+                    {
                         self.transition(context, transition);
                         break;
                     }

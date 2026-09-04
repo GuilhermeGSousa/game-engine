@@ -28,12 +28,12 @@ Deliberately minimal for v1. An editor (planned) will later handle stale-referen
 
 ## Non-goals
 
-- **No stable random ids / registry / redirectors now.** The header reserves the id field (seam A) so a future editor can mint stable ids, build a `path ↔ id` registry, redirect renames, and switch `AssetHandle` to the stable id — without a format-version break. Not built here.
+- **No *minted* stable ids or redirectors now.** The header's `asset_id` field (seam A) stays `AssetId::from_path(address)` — deterministic, not a randomly-minted identity — through both phases. A future editor can replace it with a minted id and add rename redirectors without a format-version break. (Phase 2 *does* add an id → address registry — see *Registry* — but that registry maps today's deterministic ids, it does not require minting new ones.)
 - **No re-import machinery.** `import` re-run overwrites convention paths; a file the user renamed becomes a stale duplicate. Provenance-in-header, incremental skip, skip-deleted, `--extract`, and prior-output cleanup are all deferred.
 - **No incremental import.** Every `import <source>` re-runs the full importer and rewrites all of that source's content files.
 - **No batch import.** `import` takes one source per invocation. A convention-walking `import --all <dir>` is a natural follow-up but is not needed for reproducibility now that the content tree is committed.
 - **No whole-tree reference-integrity check.** A `content-check` tool that scans the whole content tree is a future thing that seam B enables.
-- **No Unreal Asset *Manager*** (Primary Asset Ids, asset bundles, chunk assignment). The useful borrowed idea is the Asset *Registry* — an index built by scanning lightweight headers — which seam B enables later.
+- **No Unreal Asset *Manager*** (Primary Asset Ids, asset bundles, chunk assignment for packaging/streaming) — that's shipping-scale infrastructure nothing here needs. (Its metadata-index idea, scoped down to the one lookup Phase 2 actually needs, *is* in scope — see *Registry*.)
 - **No rename-fixup tooling.** Renaming a content asset: fix code references (`load::<T>("…")` string literals) by hand; asset→asset references embedded in payloads go dead until the referrer is re-imported or re-saved.
 - **No git-LFS setup.** Deferred by explicit decision; see *Risks*.
 
@@ -127,21 +127,40 @@ fn read_content_asset(bytes: &[u8]) -> anyhow::Result<(ContentAssetHeader, &[u8]
 fn write_content_asset(header: &ContentAssetHeader, payload: &[u8]) -> Vec<u8>
 ```
 
-The per-type loaders (`texture`, `mesh`, `material`, `scene`, `skeleton`, `clip`) fetch bytes through one helper:
+The per-type loaders (`texture`, `mesh`, `material`, `scene`, `skeleton`, `clip`) fetch bytes through one helper. (Named `load_asset_bytes` in the shipped Plan 1 code — the signature below matches what actually landed; this doc originally sketched it as `load_content_asset_bytes` before implementation.)
 
 ```rust
-async fn load_content_asset_bytes(
-    root: &ContentAssetRoot,
-    address: &str,          // AssetPath::address(), e.g. "content/hero/body.gasset"
+async fn load_asset_bytes(
+    root: &CookedAssetRoot,   // renamed ContentAssetRoot in Phase 2 — see Rename sweep
+    address: &str,            // AssetPath::address(), e.g. "content/hero/body.gasset"
+    id: AssetId,               // still needed in Plan 1, for the .cooked fallback; dropped in Phase 2
     expected_kind: &str,
 ) -> anyhow::Result<Vec<u8>>   // payload, header stripped
 ```
 
 - Resolve `<root>/<address>`; read (reusing the `async-fs` off-thread read); require the `magic` prefix; `read_content_asset`; assert `header.kind == expected_kind`; return the payload slice for the caller's existing `bincode::deserialize::<A>`.
 - A missing file, absent magic, or `kind` mismatch is an error naming the resolved path and both kinds.
-- **Phase 1 keeps a `.cooked/<hash>.bin` fallback** so the cook and the content system coexist while the examples are still on the old pipeline; **phase 2 deletes it** (see *Delivery phasing*).
+- **Plan 1 keeps a `.cooked/<hash>.bin` fallback** (and a short-circuit for empty / `#`-fragment addresses straight to it) so the cook and the content system coexist while the examples are still on the old pipeline. **Phase 2 deletes the fallback entirely** and resolves `load_by_id`'s path-less case a different way — see *Registry*.
 
-`AssetLoadContext` already receives the `AssetPath` (loader first param), so no `AssetServer` signature change is needed. `AssetServer::add` / `load_by_id` / procedural `AssetStore` inserts are untouched — they never hit disk.
+`AssetLoadContext` already receives the `AssetPath` (loader first param), so no `AssetServer` signature change is needed. `AssetServer::add` / procedural `AssetStore` inserts are untouched — they never hit disk. `load_by_id` (below) changes in Phase 2.
+
+### Registry (Phase 2)
+
+Plan 1's loaders find bytes by *address*. `load_by_id(id)` (used by every component's `apply()` to upgrade a deserialized `Weak` handle — `MeshComponent`, `MaterialComponent`, `SkeletonComponent`, `StandardMaterial`'s textures, camera render targets) has no address, only the id — today it works because the id doubles as the `.cooked/<hex>.bin` filename, a pure function needing no lookup. Once content assets live at their literal human path instead of a hash-derived one, that trick is gone: the id is a one-way hash of the path, so a caller with only the id has no way back to it. Phase 2 needs an explicit **id → address index** — an Asset Registry, in Unreal's sense (the metadata-index sense, not the Primary-Asset-Id/bundle sense already ruled out in *Non-goals*).
+
+**File:** `<content-root>/.registry.toml` — e.g. `content/.registry.toml`. Plain TOML (not `GRDY`-framed; it is infrastructure, not a game asset), keyed by `AssetId::simple_hex()`:
+
+```toml
+[assets]
+"8a3f1c2e9b4d4a1f8e6c2b3d4f5a6b7c" = "content/hero/body.gasset"
+"1c908c1a2b3d4e5f6a7b8c9d0e1f2a3b" = "content/hero/hero.scene.gasset"
+```
+
+Living *inside* the content root (not beside it at the project root) means it needs no special-casing: `build.rs` already copies `content/` next to the binary, and Trunk's `copy-dir` already ships it on wasm, so the registry rides along automatically and resolves through the same `<root>/<address>` fetch every content asset uses — `content/.registry.toml` is just another well-known, fixed address.
+
+**Written by `import` and `save_content_asset`, directly, on every write.** Each reads the existing registry (empty if absent), upserts an entry per content asset it just wrote (`id → address`), writes the file back. No pruning of stale entries — an old sub-asset the source no longer emits stays registered pointing at a file that may no longer be written, which surfaces as a load error rather than silent corruption (ties to the *No re-import machinery* non-goal: nothing currently detects "this sub-asset is gone"). Because every content asset's header independently carries its own `asset_id` (seam A) and `kind`, the registry is *derived data*, not a second source of truth — a future `content-check`/rebuild tool can always regenerate it from scratch by scanning the tree's headers (cheap: header-only, no payload read), which is the disaster-recovery path if it's ever suspected to have drifted. That tool is not built now.
+
+**Read by `AssetServer::request_load`, only for path-less loads.** Today `request_load`'s spawned async task calls `loader.load(path, ctx, ...)` where a path-less call gets `path = AssetPath::new("")`. In Phase 2, before that call, when `path` was `None` the task instead: loads the registry once (first use; native via the same off-thread read every content fetch uses, wasm via one `reqwest::get`; cached in `AssetServer`'s data for subsequent calls), looks up `id`, and builds a real `AssetPath` from the address it finds — **or errors** if `id` is not registered (there is no `.cooked` left to fall back to). The loader then runs exactly as it does for a normal `load()` call, with a genuine address; **loaders never see an empty address in Phase 2** and gain no registry-awareness of their own. `load_asset_bytes`'s empty/`#` short-circuit and its `id`/`.cooked` fallback (Plan 1) are deleted along with the fallback they protected — nothing produces a `#`-fragment address once the manifest cook is gone, and nothing calls it with an empty one once `request_load` resolves `load_by_id` upstream. The helper's signature loses its `id` parameter entirely (renamed `load_content_asset_bytes` per *Rename sweep*, taking only `root` and `address`).
 
 ### Rename sweep
 
@@ -151,11 +170,13 @@ async fn load_content_asset_bytes(
 | `crates/asset-cook` (crate) | `crates/asset-import` (crate) |
 | `CookedAssetRoot` (`Directory` / `UrlBase`) | `ContentAssetRoot` (same variants, new defaults — see *Path normalization*) |
 | `AssetLoadContext::cooked_root()` / `set_cooked_root` | `content_root()` / `set_content_root` |
-| `load_cooked_asset_bytes` | `load_content_asset_bytes` (new signature above) |
-| `.cooked/<hash>.bin` layout | gone (content tree replaces it) |
+| `load_asset_bytes` (Plan 1's actual name; `load_cooked_asset_bytes` deleted outright, see below) | `load_content_asset_bytes` — drops the `id` parameter, drops the empty/`#`/fallback branches (see *Registry*) |
+| `.cooked/<hash>.bin` layout | gone (content tree + registry replace it) |
 | `.gitignore` cook-regeneration comments (3×) | removed with their entries |
 
-Deleted outright: `run_cook`, `cook_source`, `CookReport`, `CookOptions`, `AssetManifest` / `ManifestEntry`, `SourceIndex`, `COOK_FORMAT_VERSION`, `cooked_file_path_for_id`, the `.index/` machinery, the manifest-driven validation pass, every `assets.toml`, and `AssetPath`'s `res/` normalization.
+Deleted outright: `run_cook`, `cook_source`, `CookReport`, `CookOptions`, `AssetManifest` / `ManifestEntry`, `SourceIndex`, `COOK_FORMAT_VERSION`, `cooked_file_path_for_id`, `load_cooked_asset_bytes`, the `.index/` machinery, the manifest-driven validation pass, every `assets.toml`, and `AssetPath`'s `res/` normalization.
+
+New in Phase 2 (not a rename): `content/.registry.toml` per project and the registry read/write code — see *Registry*.
 
 Kept in `crates/asset-import`: `Importer` trait, `ImportContext` (+ `SubAssetIdResolver`), `EmittedSubAsset`, `ImportOutputs`, `ImportError`, the per-importer `validate` hook. `DependencyEntry` / `hash_file_contents` / `ImportContext::track_dependency` are **retained as dead plumbing** — the importer bodies still call `track_dependency` and nothing consumes it until incremental import exists. Recorded here so a reviewer doesn't flag it as an oversight.
 
@@ -187,7 +208,7 @@ Two plans, so neither leaves the workspace red for long:
 
 **Plan 1 — content assets alongside the cook** (`docs/superpowers/plans/2026-09-04-content-assets-phase-1.md`). `essential::assets::content` (header + read/write), `save_content_asset`, the `ImportContext` resolver hook, `crates/import` + `content.toml`, and loaders switched to content-first **with the `.cooked` fallback retained**. **Purely additive** — nothing is renamed, deleted, or repointed; the cook, `assets.toml`, and all three examples keep working exactly as they do today.
 
-**Plan 2 — cut over and delete.** Import each example's sources, rewrite its `load()` calls, `build.rs` + `index.html` + `.gitignore`, commit the content trees, visual-verify; then delete `crates/cook` and the content-first fallback, and do the whole rename sweep — including `AssetPath`'s `res/` removal and the new `ContentAssetRoot` defaults.
+**Plan 2 — cut over and delete.** Import each example's sources, rewrite its `load()` calls, `build.rs` + `index.html` + `.gitignore`, commit the content trees, visual-verify; build the registry (*Registry*) and move `load_by_id`'s resolution into `AssetServer::request_load`; then delete `crates/cook`, `load_cooked_asset_bytes`, and Plan 1's content-first fallback (including its empty/`#`-address short-circuit, now unreachable), and do the whole rename sweep — including `AssetPath`'s `res/` removal and the new `ContentAssetRoot` defaults.
 
 > The `res/` removal and the root-default change (`<exe-dir>/res` → `<exe-dir>`) belong to **Plan 2**, not Plan 1: moving the root relocates where cooked files are found and breaks the examples' `build.rs`, so they must land together with the example cutover.
 
@@ -201,19 +222,21 @@ Two plans, so neither leaves the workspace red for long:
 - `save_content_asset::<Scene>` → `load::<Scene>` round-trips the tree.
 - The three examples build, import cleanly, and pass their visual check.
 - CI gates unchanged: `cargo build --workspace` (zero warnings), `cargo test --workspace`, `cargo fmt --all -- --check`, `cargo clippy -- -A clippy::type_complexity -A clippy::too_many_arguments -D warnings`.
+- **Phase 2 additions:** `import` (and `save_content_asset`) upserts a real entry into `content/.registry.toml`, preserving pre-existing unrelated entries; a second import of a different source doesn't clobber the first's entries. `AssetServer::load_by_id(id)` for a registered id resolves and loads the right asset (proves the `request_load`-level lookup, not just the registry file format). `load_by_id` for an unregistered id errors, naming the id, not a `.cooked` path (there is none). A scene spawn that exercises `MeshComponent`/`MaterialComponent`/`SkeletonComponent` handle-upgrade (i.e. `load_by_id` in practice) still works end-to-end — this is the exact class of bug Plan 1's final review found invisible to unit tests, so Phase 2's test plan must include a real `AssetServer` + spawn path, not only `load_asset_bytes`-level tests.
 
 ## Risks
 
 - **Repo size.** Committing the three examples' content trees adds roughly **700 MB** of binary to git history (today's cooked output: 292 MB render-test, 215 MB tech-demo, 194 MB animation-test). Accepted by explicit decision, with git-LFS deferred. Note that adding LFS *after* the fact requires a history rewrite to actually shrink the repo — cheap on this branch (history is rewritten routinely here), expensive once merged and shared.
-- **Renames are unguarded.** Path is identity and there is no fixup tooling; renaming a referenced content asset silently dead-references its referrers until re-import or re-save.
+- **Renames are unguarded.** Path is identity and there is no fixup tooling; renaming a referenced content asset silently dead-references its referrers until re-import or re-save. In Phase 2 this also silently orphans that asset's registry entry (stale, pointing at a since-moved file) until the next `import`/`save` of *something* touches that id again — nothing currently detects or reports it.
 - **No reproducibility check.** With `assets.toml` gone, nothing verifies the committed content tree actually matches what `import` would produce from the committed sources. A CI "re-import and diff" step is a natural follow-up.
+- **The registry can drift from the tree** (an entry pointing at a deleted/moved file, or a file whose id isn't registered) with no automatic detection — recoverable only by the not-yet-built rebuild tool (*Deferred*). Because it's derived from header data that already exists, this is a bounded, fixable risk rather than data loss, but Phase 2 ships without the tool that fixes it.
 
 ## Deferred (documented for the future editor)
 
-- **Re-import**: provenance in the header; incremental skip; skip user-deleted sub-assets; `--extract sub=path`; delete prior auto-output before re-export.
+- **Re-import**: provenance in the header; incremental skip; skip user-deleted sub-assets (including pruning their stale registry entries); `--extract sub=path`; delete prior auto-output before re-export.
 - **Batch import** (`import --all <dir>` walking a source directory).
-- **Stable identity**: mint random ids into the `asset_id` field; a `path ↔ id` registry (seam B); `AssetHandle` serializes the stable id; redirectors + "fix up references".
-- **Whole-content-tree reference-integrity check** (`content-check`), via seam B.
+- **Minted stable identity**: replace `asset_id`'s deterministic `from_path` value with a randomly-minted id at import/save time; `AssetHandle` serializes the minted id instead of (or alongside) the path-derived one; rename redirectors + a "fix up references" batch op. (The Phase-2 *registry* — id → address — ships without this; it indexes today's deterministic ids.)
+- **Registry rebuild tool** (`content-check` or similar): regenerate `content/.registry.toml` from a full header scan of the tree, and separately validate the whole tree's reference graph (seam B) — the registry's disaster-recovery path and a whole-content-tree reference-integrity check, in one tool.
 - **Trustworthy header `references` for editor-authored assets.**
 - **Per-asset import settings** (LOD, compression, axis fixups).
 - **git-LFS** for the content trees.

@@ -5,7 +5,7 @@
 use anyhow::{bail, Context};
 use serde::{Deserialize, Serialize};
 
-use super::AssetId;
+use super::{Asset, AssetId};
 
 /// Leading bytes of every content asset file.
 pub const CONTENT_ASSET_MAGIC: [u8; 4] = *b"GRDY";
@@ -60,4 +60,35 @@ pub fn read_content_asset(bytes: &[u8]) -> anyhow::Result<(ContentAssetHeader, &
     let header: ContentAssetHeader = bincode::deserialize(&bytes[8..header_end])
         .context("failed to deserialize content asset header")?;
     Ok((header, &bytes[header_end..]))
+}
+
+/// Writes `value` as a content asset at `project_root/address`, creating
+/// parent directories as needed.
+///
+/// `address` is the project-relative path (`"content/hero/body.gasset"`) and
+/// is what the asset's id is hashed from; `project_root` is the source tree
+/// an editor saves into, which is deliberately *not* the exe-relative
+/// runtime root — a save must land in the tree under version control, not
+/// beside the binary where the next build overwrites it.
+pub fn save_content_asset<A: Asset>(
+    value: &A,
+    project_root: &std::path::Path,
+    address: &str,
+) -> anyhow::Result<()> {
+    let header = ContentAssetHeader {
+        format_version: CONTENT_FORMAT_VERSION,
+        asset_id: AssetId::from_path(address),
+        references: value.referenced_sub_assets(),
+        kind: A::name().to_string(),
+    };
+    let payload = bincode::serialize(value).context("failed to serialize content asset payload")?;
+    let bytes = write_content_asset(&header, &payload)?;
+
+    let path = project_root.join(address);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create '{}'", parent.display()))?;
+    }
+    std::fs::write(&path, bytes)
+        .with_context(|| format!("failed to write content asset '{}'", path.display()))
 }

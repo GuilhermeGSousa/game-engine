@@ -16,8 +16,9 @@ use crate::{
 use super::{
     asset_container::AssetContainer,
     asset_store::AssetStore,
+    content::AssetRegistry,
     handle::{AssetHandle, AssetLifetimeEvent},
-    Asset, AssetId, CookedAssetRoot,
+    Asset, AssetId, ContentAssetRoot,
 };
 
 struct LoadedAsset {
@@ -42,7 +43,7 @@ enum AssetLoadEvent {
 pub struct AssetLoadContext {
     asset_server: AssetServer,
     asset_id: AssetId,
-    cooked_root: CookedAssetRoot,
+    content_root: ContentAssetRoot,
 }
 
 impl AssetLoadContext {
@@ -54,8 +55,8 @@ impl AssetLoadContext {
         self.asset_id
     }
 
-    pub fn cooked_root(&self) -> &CookedAssetRoot {
-        &self.cooked_root
+    pub fn content_root(&self) -> &ContentAssetRoot {
+        &self.content_root
     }
 }
 
@@ -63,12 +64,12 @@ impl AssetLoadContext {
     pub(crate) fn new(
         asset_server: AssetServer,
         asset_id: AssetId,
-        cooked_root: CookedAssetRoot,
+        content_root: ContentAssetRoot,
     ) -> Self {
         Self {
             asset_server,
             asset_id,
-            cooked_root,
+            content_root,
         }
     }
 }
@@ -87,7 +88,10 @@ pub(crate) struct AssetServerData {
     handle_provider: AssetHandleProvider,
     asset_load_event_sender: Sender<AssetLoadEvent>,
     asset_load_event_receiver: Receiver<AssetLoadEvent>,
-    cooked_root: RwLock<CookedAssetRoot>,
+    content_root: RwLock<ContentAssetRoot>,
+    // Cached after the first path-less (`load_by_id`) resolution; see
+    // `AssetServer::resolve_by_id`.
+    registry: RwLock<Option<Arc<AssetRegistry>>>,
 }
 
 #[derive(Resource, Clone)]
@@ -105,7 +109,8 @@ impl AssetServer {
             handle_provider: AssetHandleProvider::new(),
             asset_load_event_sender,
             asset_load_event_receiver,
-            cooked_root: RwLock::new(CookedAssetRoot::default_for_platform()),
+            content_root: RwLock::new(ContentAssetRoot::default_for_platform()),
+            registry: RwLock::new(None),
         };
 
         Self {
@@ -113,15 +118,15 @@ impl AssetServer {
         }
     }
 
-    /// The root every cooked-format loader resolves its `.cooked/<id>.bin`
-    /// file against. Defaults to [`CookedAssetRoot::default_for_platform`];
-    /// override with [`AssetServer::set_cooked_root`] before triggering loads.
-    pub fn cooked_root(&self) -> CookedAssetRoot {
-        self.data.cooked_root.read().unwrap().clone()
+    /// The root every content-asset loader resolves its address against.
+    /// Defaults to [`ContentAssetRoot::default_for_platform`]; override with
+    /// [`AssetServer::set_content_root`] before triggering loads.
+    pub fn content_root(&self) -> ContentAssetRoot {
+        self.data.content_root.read().unwrap().clone()
     }
 
-    pub fn set_cooked_root(&self, root: CookedAssetRoot) {
-        *self.data.cooked_root.write().unwrap() = root;
+    pub fn set_content_root(&self, root: ContentAssetRoot) {
+        *self.data.content_root.write().unwrap() = root;
     }
 
     pub fn register_asset<A: Asset>(&mut self, asset: &AssetStore<A>) {
@@ -158,8 +163,9 @@ impl AssetServer {
 
     /// Loads (or returns a handle to an already-loading/loaded asset for) the
     /// given `AssetId` directly, with no `AssetPath` involved. Used by
-    /// callers (e.g. importers building references, or cooked-format
-    /// loaders) that only have an `AssetId` and no human-readable path.
+    /// callers (e.g. importers building references) that only have an
+    /// `AssetId` and no human-readable path; `request_load` resolves it to
+    /// an address via the asset registry.
     ///
     /// This is the same per-ID dedup and request-load logic `load_internal`
     /// has always used, extracted so `load_internal` and `load_by_id` share
@@ -207,14 +213,36 @@ impl AssetServer {
         }
     }
 
+    /// Resolves `id` to its content-tree address via the asset registry, for
+    /// a path-less (`load_by_id`) load. Loads and caches the registry from
+    /// `content_root()` on first use; concurrent first-use callers may each
+    /// load it once — a benign race, not a correctness issue, since the
+    /// registry is read-only from the runtime's perspective.
+    async fn resolve_by_id(&self, id: AssetId) -> Option<String> {
+        let cached = self.data.registry.read().unwrap().clone();
+        if let Some(registry) = cached {
+            return registry.get(id).map(str::to_owned);
+        }
+
+        let root = self.content_root();
+        let registry = match crate::assets::utils::load_registry(&root).await {
+            Ok(registry) => Arc::new(registry),
+            Err(error) => {
+                log::error!("failed to load asset registry: {error:#}");
+                return None;
+            }
+        };
+        let address = registry.get(id).map(str::to_owned);
+        *self.data.registry.write().unwrap() = Some(registry);
+        address
+    }
+
     /// Spawns the async load task for `id`. `path` is the human-readable
-    /// asset path used both to actually locate/parse the file today and for
-    /// error logging; `load_by_id` callers have no path (they only have an
-    /// `AssetId`), so they pass `None` and get an empty placeholder path
-    /// here. Cooked-format loaders (added in later tasks) are expected to
-    /// resolve their file location from `AssetLoadContext::asset_id()`
-    /// instead of relying on this path, which is what makes `load_by_id`
-    /// (path-less) usable for them.
+    /// asset path used both to locate/parse the file and for error logging;
+    /// `load_by_id` callers have no path (they only have an `AssetId`), so
+    /// they pass `None` and this resolves one via the asset registry before
+    /// the loader ever runs — a registry miss fails the load outright rather
+    /// than calling the loader with a placeholder path.
     fn request_load<A: LoadableAsset>(
         &self,
         path: Option<AssetPath<'static>>,
@@ -226,18 +254,31 @@ impl AssetServer {
         let sender = self.data.asset_load_event_sender.clone();
 
         let server = self.clone();
-        let path = path.unwrap_or_else(|| AssetPath::new(""));
         // No profiling scope around the async body: a scope guard must not be
         // held across .await (tasks can migrate between worker threads).
         // Load costs show up on the named "asset-load-N" threads instead.
         let task =
             LoadTaskPool::get_or_init(|| TaskPool::with_name("asset-load")).spawn(async move {
+                let path = match path {
+                    Some(path) => path,
+                    None => match server.resolve_by_id(id).await {
+                        Some(address) => AssetPath::new(address),
+                        None => {
+                            log::error!(
+                                "no content asset registered for AssetId {id:?} (type {})",
+                                std::any::type_name::<A>()
+                            );
+                            sender.send(AssetLoadEvent::LoadFailed(id)).unwrap();
+                            return;
+                        }
+                    },
+                };
                 let log_path = path.clone();
-                let cooked_root = server.cooked_root();
+                let content_root = server.content_root();
                 let asset = asset_loader
                     .load(
                         path,
-                        &mut AssetLoadContext::new(server, id, cooked_root),
+                        &mut AssetLoadContext::new(server, id, content_root),
                         usage_settings,
                     )
                     .await;
@@ -354,5 +395,68 @@ impl AssetHandleProvider {
 
             AssetHandle::strong(handle)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assets::content::AssetRegistry;
+
+    fn temp_root(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("asset-server-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("content")).unwrap();
+        dir
+    }
+
+    #[test]
+    fn resolve_by_id_finds_a_registered_asset() {
+        let dir = temp_root("resolve-hit");
+        let id = AssetId::from_path("content/hero/scene.gasset");
+        let mut registry = AssetRegistry::new();
+        registry.insert(id, "content/hero/scene.gasset");
+        registry.save(&dir).expect("save registry");
+
+        let server = AssetServer::new();
+        server.set_content_root(ContentAssetRoot::Directory(dir.clone()));
+        let resolved = pollster::block_on(server.resolve_by_id(id));
+
+        assert_eq!(resolved.as_deref(), Some("content/hero/scene.gasset"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_by_id_returns_none_for_an_unregistered_id() {
+        let dir = temp_root("resolve-miss");
+        let server = AssetServer::new();
+        server.set_content_root(ContentAssetRoot::Directory(dir.clone()));
+        let resolved = pollster::block_on(server.resolve_by_id(AssetId::new()));
+        assert_eq!(resolved, None);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn resolve_by_id_caches_the_registry_after_first_load() {
+        let dir = temp_root("resolve-cache");
+        let id = AssetId::from_path("content/hero/scene.gasset");
+        let mut registry = AssetRegistry::new();
+        registry.insert(id, "content/hero/scene.gasset");
+        registry.save(&dir).expect("save registry");
+
+        let server = AssetServer::new();
+        server.set_content_root(ContentAssetRoot::Directory(dir.clone()));
+        let first = pollster::block_on(server.resolve_by_id(id));
+        assert_eq!(first.as_deref(), Some("content/hero/scene.gasset"));
+
+        // Removing the on-disk registry must not affect a cached lookup.
+        std::fs::remove_file(dir.join("content/.registry.toml")).unwrap();
+        let second = pollster::block_on(server.resolve_by_id(id));
+        assert_eq!(
+            second.as_deref(),
+            Some("content/hero/scene.gasset"),
+            "the registry is cached after first use, so a since-deleted file must not affect the second lookup"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

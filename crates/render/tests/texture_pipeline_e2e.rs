@@ -2,8 +2,8 @@
 //! runtime byte-loading path — the same envelope every AssetLoader reads.
 use asset_import::{ImportContext, Importer};
 use essential::assets::content::{write_content_asset, ContentAssetHeader, CONTENT_FORMAT_VERSION};
-use essential::assets::utils::load_asset_bytes;
-use essential::assets::{Asset, AssetId, CookedAssetRoot};
+use essential::assets::utils::load_content_asset_bytes;
+use essential::assets::{Asset, ContentAssetRoot};
 use render::assets::texture::{Texture, TextureFormat, TextureKind};
 use render::importers::image_importer::ImageImporter;
 
@@ -45,10 +45,9 @@ fn an_imported_texture_is_reachable_at_its_conventional_address() {
     )
     .unwrap();
 
-    let bytes = pollster::block_on(load_asset_bytes(
-        &CookedAssetRoot::Directory(temp_dir.clone()),
+    let bytes = pollster::block_on(load_content_asset_bytes(
+        &ContentAssetRoot::Directory(temp_dir.clone()),
         address,
-        AssetId::from_path(address),
         Texture::name(),
     ))
     .expect("the imported texture must load back through the runtime byte path");

@@ -2,16 +2,16 @@
 //! path reads them back as the right type, and an editor-saved Scene
 //! round-trips.
 //!
-//! These drive `load_asset_bytes` — the exact helper every AssetLoader
-//! calls — rather than `AssetServer::load`, because completing an
-//! AssetServer load needs the LoadTaskPool plus a World to pump
+//! These drive `load_content_asset_bytes` — the exact helper every
+//! AssetLoader calls — rather than `AssetServer::load`, because completing
+//! an AssetServer load needs the LoadTaskPool plus a World to pump
 //! `handle_asset_load_events`, and no such harness exists in the test
 //! suite today. This covers the same code path minus the task-pool wrapper.
 use std::path::{Path, PathBuf};
 
 use essential::assets::content::{read_content_asset, save_content_asset};
-use essential::assets::utils::load_asset_bytes;
-use essential::assets::{Asset, AssetId, CookedAssetRoot};
+use essential::assets::utils::load_content_asset_bytes;
+use essential::assets::{Asset, AssetId, ContentAssetRoot};
 use mesh::mesh::Mesh;
 use scene::scene::{Scene, SceneNode};
 
@@ -29,10 +29,9 @@ fn imported_content_assets_load_back_as_their_type() {
     import::import_source(&fixture(), &root, &Default::default()).expect("import");
 
     let address = "content/triangle/mesh_0.gasset";
-    let bytes = pollster::block_on(load_asset_bytes(
-        &CookedAssetRoot::Directory(root.clone()),
+    let bytes = pollster::block_on(load_content_asset_bytes(
+        &ContentAssetRoot::Directory(root.clone()),
         address,
-        AssetId::from_path(address),
         Mesh::name(),
     ))
     .expect("the imported content asset loads");
@@ -45,10 +44,9 @@ fn imported_content_assets_load_back_as_their_type() {
     );
 
     // The same file refuses to load as the wrong type.
-    let err = pollster::block_on(load_asset_bytes(
-        &CookedAssetRoot::Directory(root.clone()),
+    let err = pollster::block_on(load_content_asset_bytes(
+        &ContentAssetRoot::Directory(root.clone()),
         address,
-        AssetId::from_path(address),
         Scene::name(),
     ))
     .expect_err("kind tag must reject a Scene load of a Mesh file");
@@ -72,10 +70,9 @@ fn an_editor_saved_scene_round_trips() {
     };
     save_content_asset(&scene, &root, address).expect("save");
 
-    let bytes = pollster::block_on(load_asset_bytes(
-        &CookedAssetRoot::Directory(root.clone()),
+    let bytes = pollster::block_on(load_content_asset_bytes(
+        &ContentAssetRoot::Directory(root.clone()),
         address,
-        AssetId::from_path(address),
         Scene::name(),
     ))
     .expect("an editor-saved asset loads through the runtime path");

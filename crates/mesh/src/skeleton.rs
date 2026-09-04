@@ -43,10 +43,9 @@ impl AssetLoader for SkeletonLoader {
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        let bytes = essential::assets::utils::load_asset_bytes(
-            load_context.cooked_root(),
+        let bytes = essential::assets::utils::load_content_asset_bytes(
+            load_context.content_root(),
             &path.address(),
-            load_context.asset_id(),
             Skeleton::name(),
         )
         .await

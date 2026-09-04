@@ -32,10 +32,6 @@ impl<'a> AssetPath<'a> {
             normalized.drain(..2);
         }
 
-        if !normalized.starts_with("res/") {
-            normalized = format!("res/{}", normalized);
-        }
-
         AssetPath {
             normalized_path: Cow::Owned(Path::new(&normalized).to_owned()),
         }
@@ -45,21 +41,17 @@ impl<'a> AssetPath<'a> {
         &self.normalized_path
     }
 
-    /// Recovers the logical asset address this path was constructed from,
-    /// i.e. the string as a human would write it in `assets.toml` or a
-    /// `load()` call (e.g. `"models/character.gltf#scene"`), by stripping
-    /// the `"res/"` prefix `AssetPath::new` adds during normalization.
+    /// Recovers the logical asset address this path was constructed from —
+    /// the string a caller wrote in a `load()` call or that `import`'s
+    /// content-address convention produced (e.g.
+    /// `"content/hero/scene.gasset"`) — as an owned `String`.
     ///
     /// This is what `AssetId::from_path` must be given so that a runtime
-    /// `load()` call and cook-time ID computation (which both derive an
-    /// `AssetId` from the same manifest-relative address string, with no
-    /// `"res/"` prefix) agree on the same `AssetId` for the same asset.
+    /// `load()` call and import-time ID computation (which both derive an
+    /// `AssetId` from the same address string) agree on the same `AssetId`
+    /// for the same asset.
     pub fn address(&self) -> String {
-        let normalized = self.normalized_path.to_string_lossy();
-        normalized
-            .strip_prefix("res/")
-            .unwrap_or(&normalized)
-            .to_owned()
+        self.normalized_path.to_string_lossy().into_owned()
     }
 
     pub fn into_owned(self) -> AssetPath<'static> {
@@ -94,39 +86,41 @@ impl<'a> From<&'a str> for AssetPath<'a> {
     }
 }
 
-/// Where the runtime finds cooked asset files. The cooked layout is always
-/// `<root>/.cooked/<asset-id-hex>.bin`; only the root differs per platform.
+/// Where the runtime finds content asset files. Only the root differs per
+/// platform; every address is a full path relative to it (e.g.
+/// `"content/hero/scene.gasset"` — the `content/` segment is part of the
+/// address, not injected by the root).
 #[derive(Debug, Clone)]
-pub enum CookedAssetRoot {
-    /// Native: a directory containing `.cooked/`.
+pub enum ContentAssetRoot {
+    /// Native: the directory containing the executable.
     Directory(PathBuf),
-    /// wasm: a URL base, e.g. `"http://host/res"`.
+    /// wasm: the page origin, e.g. `"http://host"`.
     UrlBase(String),
 }
 
-impl CookedAssetRoot {
-    /// Native: `<directory containing the executable>/res`, matching the
-    /// convention the pre-cook `load_binary` used and what the examples'
-    /// `build.rs` copies into place. wasm: `<page origin>/res`.
+impl ContentAssetRoot {
+    /// Native: `<directory containing the executable>`, matching what each
+    /// example's `build.rs` copies its `content/` tree next to. wasm:
+    /// `<page origin>`, matching Trunk's `copy-dir` target.
     pub fn default_for_platform() -> Self {
         cfg_if::cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
                 let origin = web_sys::window()
                     .and_then(|window| window.location().origin().ok())
                     .unwrap_or_default();
-                CookedAssetRoot::UrlBase(format!("{origin}/res"))
+                ContentAssetRoot::UrlBase(origin)
             } else {
                 let exe_dir = std::env::current_exe()
                     .ok()
                     .and_then(|exe| exe.parent().map(Path::to_path_buf))
                     .unwrap_or_else(|| PathBuf::from("."));
-                CookedAssetRoot::Directory(exe_dir.join("res"))
+                ContentAssetRoot::Directory(exe_dir)
             }
         }
     }
 }
 
-impl Default for CookedAssetRoot {
+impl Default for ContentAssetRoot {
     fn default() -> Self {
         Self::default_for_platform()
     }

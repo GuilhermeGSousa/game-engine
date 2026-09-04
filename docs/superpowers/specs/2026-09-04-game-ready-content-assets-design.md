@@ -185,9 +185,11 @@ Read by `import`; the **runtime does not read it** (the path carries the extensi
 
 Two plans, so neither leaves the workspace red for long:
 
-**Plan 1 — content assets alongside the cook.** `essential::assets::content` (header + read/write), `ContentAssetRoot` rename + `AssetPath` `res/` removal + new root defaults, `ImportContext` resolver hook, `crates/import` + `content.toml`, `save_content_asset`, loaders switched to content-first **with the `.cooked` fallback retained**. The cook, `assets.toml`, and the examples keep working untouched. Ships green and independently testable.
+**Plan 1 — content assets alongside the cook** (`docs/superpowers/plans/2026-09-04-content-assets-phase-1.md`). `essential::assets::content` (header + read/write), `save_content_asset`, the `ImportContext` resolver hook, `crates/import` + `content.toml`, and loaders switched to content-first **with the `.cooked` fallback retained**. **Purely additive** — nothing is renamed, deleted, or repointed; the cook, `assets.toml`, and all three examples keep working exactly as they do today.
 
-**Plan 2 — cut over and delete.** Import each example's sources, rewrite its `load()` calls, `build.rs` + `index.html` + `.gitignore`, commit the content trees, visual-verify; then delete `crates/cook` and the fallback, and finish the rename sweep (`crates/asset-cook` → `crates/asset-import`, strip the manifest/cook/index code).
+**Plan 2 — cut over and delete.** Import each example's sources, rewrite its `load()` calls, `build.rs` + `index.html` + `.gitignore`, commit the content trees, visual-verify; then delete `crates/cook` and the content-first fallback, and do the whole rename sweep — including `AssetPath`'s `res/` removal and the new `ContentAssetRoot` defaults.
+
+> The `res/` removal and the root-default change (`<exe-dir>/res` → `<exe-dir>`) belong to **Plan 2**, not Plan 1: moving the root relocates where cooked files are found and breaks the examples' `build.rs`, so they must land together with the example cutover.
 
 ## Testing
 

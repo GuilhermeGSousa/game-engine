@@ -177,16 +177,18 @@ impl AssetLoader for AnimationClipLoader {
 
     async fn load(
         &self,
-        _path: AssetPath<'static>,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+        let bytes = essential::assets::utils::load_asset_bytes(
             load_context.cooked_root(),
+            &path.address(),
             load_context.asset_id(),
+            AnimationClip::name(),
         )
         .await
-        .with_context(|| "failed to read cooked animation clip")?;
-        bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked animation clip")
+        .with_context(|| "failed to read animation clip asset")?;
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize animation clip asset")
     }
 }

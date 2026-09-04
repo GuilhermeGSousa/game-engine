@@ -1,4 +1,5 @@
 use anyhow::Context;
+use essential::assets::Asset;
 use essential::assets::{asset_loader::AssetLoader, asset_server::AssetLoadContext, AssetPath};
 
 use async_trait::async_trait;
@@ -14,18 +15,20 @@ impl AssetLoader for TextureLoader {
 
     async fn load(
         &self,
-        _path: AssetPath<'static>,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+        let bytes = essential::assets::utils::load_asset_bytes(
             load_context.cooked_root(),
+            &path.address(),
             load_context.asset_id(),
+            Texture::name(),
         )
         .await
-        .with_context(|| "failed to read cooked texture")?;
+        .with_context(|| "failed to read texture asset")?;
         let texture: Texture =
-            bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked texture")?;
+            bincode::deserialize(&bytes).with_context(|| "failed to deserialize texture asset")?;
         Ok(texture)
     }
 }

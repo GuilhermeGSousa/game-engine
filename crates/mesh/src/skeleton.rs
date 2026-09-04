@@ -39,17 +39,19 @@ impl AssetLoader for SkeletonLoader {
 
     async fn load(
         &self,
-        _path: AssetPath<'static>,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+        let bytes = essential::assets::utils::load_asset_bytes(
             load_context.cooked_root(),
+            &path.address(),
             load_context.asset_id(),
+            Skeleton::name(),
         )
         .await
-        .with_context(|| "failed to read cooked skeleton")?;
-        bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked skeleton")
+        .with_context(|| "failed to read skeleton asset")?;
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize skeleton asset")
     }
 }
 

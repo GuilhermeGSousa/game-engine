@@ -36,17 +36,19 @@ impl AssetLoader for MeshLoader {
 
     async fn load(
         &self,
-        _path: AssetPath<'static>,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+        let bytes = essential::assets::utils::load_asset_bytes(
             load_context.cooked_root(),
+            &path.address(),
             load_context.asset_id(),
+            Mesh::name(),
         )
         .await
-        .with_context(|| "failed to read cooked mesh")?;
-        bincode::deserialize(&bytes).with_context(|| "failed to deserialize cooked mesh")
+        .with_context(|| "failed to read mesh asset")?;
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize mesh asset")
     }
 }
 

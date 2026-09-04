@@ -380,18 +380,20 @@ impl AssetLoader for StandardMaterialLoader {
 
     async fn load(
         &self,
-        _path: AssetPath<'static>,
+        path: AssetPath<'static>,
         load_context: &mut AssetLoadContext,
         _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        let bytes = essential::assets::utils::load_cooked_asset_bytes(
+        let bytes = essential::assets::utils::load_asset_bytes(
             load_context.cooked_root(),
+            &path.address(),
             load_context.asset_id(),
+            StandardMaterial::name(),
         )
         .await
-        .with_context(|| "failed to read cooked material")?;
-        let mut material: StandardMaterial = bincode::deserialize(&bytes)
-            .with_context(|| "failed to deserialize cooked material")?;
+        .with_context(|| "failed to read material asset")?;
+        let mut material: StandardMaterial =
+            bincode::deserialize(&bytes).with_context(|| "failed to deserialize material asset")?;
         material.resolve_asset_handles(load_context.asset_server());
         Ok(material)
     }

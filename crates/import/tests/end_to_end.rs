@@ -1,4 +1,4 @@
-//! The full Plan 1 loop: import writes content assets, the runtime byte
+//! The full import loop: import writes content assets, the runtime byte
 //! path reads them back as the right type, and an editor-saved Scene
 //! round-trips.
 //!
@@ -43,7 +43,6 @@ fn imported_content_assets_load_back_as_their_type() {
         "the triangle fixture's mesh survives import -> load"
     );
 
-    // The same file refuses to load as the wrong type.
     let err = pollster::block_on(load_content_asset_bytes(
         &ContentAssetRoot::Directory(root.clone()),
         address,
@@ -79,11 +78,14 @@ fn an_editor_saved_scene_round_trips() {
     let restored: Scene = bincode::deserialize(&bytes).expect("payload is a Scene");
     assert_eq!(restored.nodes.len(), scene.nodes.len());
 
-    // And its header is well-formed.
     let raw = std::fs::read(root.join(address)).unwrap();
     let (header, _) = read_content_asset(&raw).expect("readable");
     assert_eq!(header.kind, Scene::name());
     assert_eq!(header.asset_id, AssetId::from_path(address));
+    assert_eq!(
+        header.provenance, None,
+        "an editor save is not import-derived"
+    );
 
     std::fs::remove_dir_all(&root).ok();
 }

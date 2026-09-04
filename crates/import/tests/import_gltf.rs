@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use ecs::component::Component;
-use essential::assets::content::read_content_asset;
+use essential::assets::content::{read_content_asset, AssetRegistry, ImportProvenance};
 use essential::assets::{Asset, AssetId};
 use mesh::mesh::MeshComponent;
 use scene::scene::Scene;
@@ -23,19 +23,17 @@ fn writes_content_assets_with_content_path_cross_references() {
     let written = import::import_source(&fixture(), &project_root, &Default::default())
         .expect("import succeeds");
 
-    // One file per emitted sub-asset, at the convention address.
     for expected in [
         "content/triangle/mesh_0.gasset",
         "content/triangle/scene.gasset",
     ] {
         assert!(
-            written.iter().any(|a| a == expected),
+            written.iter().any(|a| a.address == expected),
             "expected {expected} among {written:?}"
         );
         assert!(project_root.join(expected).exists(), "{expected} on disk");
     }
 
-    // The scene's header declares its kind and its outbound references.
     let raw = std::fs::read(project_root.join("content/triangle/scene.gasset")).unwrap();
     let (header, payload) = read_content_asset(&raw).expect("readable");
     assert_eq!(header.kind, Scene::name());
@@ -43,11 +41,15 @@ fn writes_content_assets_with_content_path_cross_references() {
         header.asset_id,
         AssetId::from_path("content/triangle/scene.gasset")
     );
+    assert_eq!(
+        header.provenance,
+        Some(ImportProvenance {
+            source: fixture().display().to_string(),
+            sub_asset: "scene".to_string(),
+        }),
+        "import must record where the content asset came from"
+    );
 
-    // The baked mesh handle addresses the content path, not the glTF sub-asset.
-    // `AssetHandle` serializes as its bare `AssetId`, so deserializing the
-    // component payload and reading `.handle.id()` is exact — the same idiom
-    // `crates/gltf-loader/tests/gltf_importer.rs::mesh_handle_id` uses.
     let scene: Scene = bincode::deserialize(payload).expect("scene payload");
     let mesh_id = AssetId::from_path("content/triangle/mesh_0.gasset");
     let component = scene.nodes[0]
@@ -67,6 +69,27 @@ fn writes_content_assets_with_content_path_cross_references() {
         header.references.contains(&mesh_id),
         "header references list carries the content-path mesh id"
     );
+
+    std::fs::remove_dir_all(&project_root).ok();
+}
+
+#[test]
+fn import_upserts_the_registry_for_every_written_asset() {
+    let project_root =
+        std::env::temp_dir().join(format!("import-gltf-registry-{}", std::process::id()));
+    std::fs::create_dir_all(&project_root).unwrap();
+
+    let written = import::import_source(&fixture(), &project_root, &Default::default())
+        .expect("import succeeds");
+
+    let registry = AssetRegistry::load(&project_root).expect("registry loads");
+    for asset in &written {
+        assert_eq!(
+            registry.get(AssetId::from_path(&asset.address)),
+            Some(asset.address.as_str()),
+            "import must register every content asset it writes"
+        );
+    }
 
     std::fs::remove_dir_all(&project_root).ok();
 }

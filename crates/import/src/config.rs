@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 /// `content.toml` at a project root. Only the `import` side reads this —
 /// the runtime gets the extension from the asset path and the root from
-/// `CookedAssetRoot`.
+/// `ContentAssetRoot`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct ContentConfig {

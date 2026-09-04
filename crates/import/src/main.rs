@@ -54,8 +54,8 @@ fn main() -> anyhow::Result<()> {
 
     let written = import_source(&source, &project_root, &config)?;
     println!("imported {} -> {} assets", source.display(), written.len());
-    for address in &written {
-        println!("  {address}");
+    for asset in &written {
+        println!("  {} -> {}", asset.sub_asset_name, asset.address);
     }
     Ok(())
 }

@@ -4,7 +4,7 @@
 //! through serialized component payloads.
 use std::path::Path;
 
-use asset_cook::{ImportContext, Importer};
+use asset_import::{ImportContext, Importer};
 use ecs::component::Component;
 use essential::assets::AssetId;
 use gltf_loader::gltf_importer::GltfImporter;

@@ -2,7 +2,7 @@
 //! and scene sub-assets, reusing the same Scene shape as glTF.
 use std::path::Path;
 
-use asset_cook::{ImportContext, Importer};
+use asset_import::{ImportContext, Importer};
 use obj_loader::obj_importer::ObjImporter;
 use scene::scene::Scene;
 

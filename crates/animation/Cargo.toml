@@ -8,7 +8,6 @@ app = { path = "../app" }
 essential = { path = "../essential" }
 ecs = { path = "../ecs" }
 mesh = { path = "../mesh" }
-asset-cook = { path = "../asset-cook" }
 glam = { version = "0.30.1", features = ["serde"] }
 uuid = { version = "1.18.1", features = ["v4", "js", "serde"] }
 petgraph = { version = "0.8", features = ["serde-1"] }

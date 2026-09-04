@@ -1,7 +1,7 @@
 //! Covers ImageImporter emitting a serialized Texture from a raw image file.
 use std::path::Path;
 
-use asset_cook::{ImportContext, Importer};
+use asset_import::{ImportContext, Importer};
 use essential::assets::Asset;
 use render::assets::texture::{Texture, TextureFormat, TextureKind};
 use render::importers::image_importer::ImageImporter;

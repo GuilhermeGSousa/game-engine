@@ -51,10 +51,9 @@ pub trait Component: Send + Sync + 'static {
     /// instantiations, which a bare identifier cannot.
     ///
     /// NOTE: `std::any::type_name` output is not guaranteed stable across
-    /// compiler versions. Cooked scenes embed these strings, so a toolchain
-    /// upgrade may require re-running `cook` — `COOK_FORMAT_VERSION` and the
-    /// fact that cooked output is git-ignored make that a rebuild, not a
-    /// migration.
+    /// compiler versions. Scenes embed these strings, so a toolchain
+    /// upgrade may require re-running `import` — `CONTENT_FORMAT_VERSION`
+    /// changes make that a rebuild, not a migration.
     fn name() -> &'static str
     where
         Self: Sized,

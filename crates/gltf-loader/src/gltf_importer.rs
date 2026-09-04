@@ -12,7 +12,7 @@ use std::path::Path;
 
 use animation::clip::{AnimationChanelOutput, AnimationChannel, AnimationClip};
 use anyhow::{Context, bail};
-use asset_cook::{ImportContext, ImportError, Importer, hash_file_contents};
+use asset_import::{ImportContext, ImportError, Importer, hash_file_contents};
 use color::Color;
 use ecs::component::Component;
 use ecs::component::scene::SceneEntityRef;

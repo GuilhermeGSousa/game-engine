@@ -36,7 +36,7 @@ anyhow = "1.0.97"
 winit = { version = "0.30" }
 offset-allocator = { version = "0.2.0" }
 derive_more = { version = "2", features = ["full"] }
-asset-cook = { path = "../asset-cook" }
+asset-import = { path = "../asset-import" }
 serde = { version = "1", features = ["derive"] }
 bincode = "1.3"
 

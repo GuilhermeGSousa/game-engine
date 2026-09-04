@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use essential::assets::{Asset, AssetId};
 
@@ -6,6 +6,22 @@ use essential::assets::{Asset, AssetId};
 pub struct DependencyEntry {
     pub path: PathBuf,
     pub content_hash: u64,
+}
+
+/// Hashes a file's contents for [`ImportContext::track_dependency`]. Kept
+/// as dead plumbing: importers still record dependencies, but nothing
+/// consumes them until a future incremental-import feature reads them back.
+pub fn hash_file_contents(path: &Path) -> Result<u64, ImportError> {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
+    let bytes = std::fs::read(path).map_err(|err| ImportError::SourceUnreadable {
+        source_path: path.to_path_buf(),
+        message: err.to_string(),
+    })?;
+
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    Ok(hasher.finish())
 }
 
 #[derive(Debug, Clone)]

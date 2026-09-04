@@ -1,64 +1,63 @@
-//! End-to-end proof that a texture can be cooked and then read at its
-//! deterministic ID-keyed location — no source image decode at load time.
-use asset_cook::{cooked_file_path_for_id, run_cook, CookOptions, Importer};
-use essential::assets::AssetId;
+//! End-to-end proof that an imported texture round-trips through the
+//! runtime byte-loading path — the same envelope every AssetLoader reads.
+use asset_import::{ImportContext, Importer};
+use essential::assets::content::{write_content_asset, ContentAssetHeader, CONTENT_FORMAT_VERSION};
+use essential::assets::utils::load_asset_bytes;
+use essential::assets::{Asset, AssetId, CookedAssetRoot};
 use render::assets::texture::{Texture, TextureFormat, TextureKind};
 use render::importers::image_importer::ImageImporter;
 
 #[test]
-fn cooked_texture_is_reachable_by_its_deterministic_id() {
+fn an_imported_texture_is_reachable_at_its_conventional_address() {
     let temp_dir = std::env::temp_dir().join(format!("texture-e2e-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&temp_dir);
-    let source_root = temp_dir.join("assets");
-    let output_root = temp_dir.join("res");
-    std::fs::create_dir_all(source_root.join("textures")).unwrap();
+    std::fs::create_dir_all(&temp_dir).unwrap();
 
+    let source_path = temp_dir.join("swatch.png");
     let img = image::RgbaImage::from_pixel(1, 1, image::Rgba([9, 9, 9, 255]));
-    img.save(source_root.join("textures/swatch.png"))
+    img.save(&source_path)
         .expect("failed to save fixture texture");
 
-    let manifest_path = temp_dir.join("assets.toml");
-    std::fs::write(
-        &manifest_path,
-        "[[assets]]\npath = \"textures/swatch.png\"\n",
-    )
-    .expect("failed to write manifest");
-
-    let importers: Vec<Box<dyn Importer>> = vec![Box::new(ImageImporter)];
-    let options = CookOptions {
-        manifest_path,
-        source_root,
-        output_root: output_root.clone(),
-    };
-    let report = run_cook(&importers, &options);
-    assert!(
-        report.errors.is_empty(),
-        "cooking the fixture texture must succeed: {:?}",
-        report.errors
-    );
-
-    let expected_id = AssetId::from_path("textures/swatch.png#main");
-    let cooked_path = cooked_file_path_for_id(&output_root, expected_id);
-    assert!(
-        cooked_path.exists(),
-        "the cooked texture must be reachable purely from its AssetId"
-    );
-
-    let cooked_bytes = std::fs::read(&cooked_path).expect("failed to read cooked texture file");
-    let texture: Texture =
-        bincode::deserialize(&cooked_bytes).expect("failed to deserialize cooked texture");
-    assert_eq!(texture.width, 1, "cooked texture width must match fixture");
+    let mut ctx = ImportContext::new(std::path::PathBuf::from("swatch.png"));
+    ImageImporter
+        .import(&source_path, &mut ctx)
+        .expect("importing the fixture texture must succeed");
+    let outputs = ctx.into_parts();
     assert_eq!(
-        texture.height, 1,
-        "cooked texture height must match fixture"
+        outputs.sub_assets.len(),
+        1,
+        "one image yields one sub-asset"
     );
+    let sub_asset = &outputs.sub_assets[0];
+
+    let address = "content/swatch/main.gasset";
+    let header = ContentAssetHeader {
+        format_version: CONTENT_FORMAT_VERSION,
+        asset_id: sub_asset.asset_id,
+        references: sub_asset.references.clone(),
+        kind: sub_asset.type_name.to_string(),
+    };
+    std::fs::create_dir_all(temp_dir.join("content/swatch")).unwrap();
+    std::fs::write(
+        temp_dir.join(address),
+        write_content_asset(&header, &sub_asset.bytes).unwrap(),
+    )
+    .unwrap();
+
+    let bytes = pollster::block_on(load_asset_bytes(
+        &CookedAssetRoot::Directory(temp_dir.clone()),
+        address,
+        AssetId::from_path(address),
+        Texture::name(),
+    ))
+    .expect("the imported texture must load back through the runtime byte path");
+
+    let texture: Texture = bincode::deserialize(&bytes).expect("failed to deserialize texture");
+    assert_eq!(texture.width, 1);
+    assert_eq!(texture.height, 1);
     assert_eq!(texture.format, TextureFormat::Rgba8UnormSrgb);
     assert_eq!(texture.kind, TextureKind::Sampled);
-    assert_eq!(
-        texture.data,
-        vec![9, 9, 9, 255],
-        "cooked texture pixel data must match fixture image"
-    );
+    assert_eq!(texture.data, vec![9, 9, 9, 255]);
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }

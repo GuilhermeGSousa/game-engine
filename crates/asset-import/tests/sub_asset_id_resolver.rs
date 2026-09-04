@@ -3,7 +3,7 @@
 //! without the importers knowing which pipeline they run under.
 use std::path::PathBuf;
 
-use asset_cook::{ImportContext, SubAssetIdResolver};
+use asset_import::{ImportContext, SubAssetIdResolver};
 use essential::assets::{Asset, AssetId};
 
 #[derive(serde::Serialize, serde::Deserialize)]

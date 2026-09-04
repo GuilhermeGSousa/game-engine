@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use asset_cook::{ImportContext, ImportError, Importer, hash_file_contents};
+use asset_import::{ImportContext, ImportError, Importer, hash_file_contents};
 use color::Color;
 use ecs::component::Component;
 use essential::assets::AssetId;

@@ -10,7 +10,6 @@ ecs = { path = "../ecs" }
 mesh = { path = "../mesh" }
 render = { path = "../render" }
 animation = { path = "../animation" }
-asset-cook = { path = "../asset-cook" }
 async-trait = "0.1.50"
 anyhow = "1.0.97"
 serde = { version = "1", features = ["derive"] }

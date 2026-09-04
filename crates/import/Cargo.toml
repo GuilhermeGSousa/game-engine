@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-asset-cook = { path = "../asset-cook" }
+asset-import = { path = "../asset-import" }
 essential = { path = "../essential" }
 gltf-loader = { path = "../gltf-loader" }
 obj-loader = { path = "../obj-loader" }

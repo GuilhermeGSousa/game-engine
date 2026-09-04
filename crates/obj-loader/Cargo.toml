@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 app = { path = "../app" }
-asset-cook = { path = "../asset-cook" }
+asset-import = { path = "../asset-import" }
 color = { path = "../color" }
 essential = { path = "../essential" }
 mesh = { path = "../mesh" }

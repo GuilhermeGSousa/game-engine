@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{bail, Context};
-use asset_cook::{ImportContext, Importer, SubAssetIdResolver};
+use asset_import::{ImportContext, Importer, SubAssetIdResolver};
 use essential::assets::content::{write_content_asset, ContentAssetHeader, CONTENT_FORMAT_VERSION};
 use essential::assets::AssetId;
 

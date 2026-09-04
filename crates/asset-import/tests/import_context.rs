@@ -1,6 +1,6 @@
 //! Covers ImportContext's sub-asset emission, same-file reference-ID
 //! computation, and dependency tracking.
-use asset_cook::ImportContext;
+use asset_import::ImportContext;
 use essential::assets::{Asset, AssetId};
 use serde::{Deserialize, Serialize};
 

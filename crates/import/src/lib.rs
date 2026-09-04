@@ -2,6 +2,7 @@
 //! content-path sub-asset-id resolver and writes one content asset per
 //! emitted sub-asset. The binary (`src/main.rs`) is a thin CLI over
 //! [`import_source`].
+use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{bail, Context};
@@ -48,10 +49,7 @@ pub fn import_source(
     // is a pure function of the sub-asset name, so one importer pass is
     // enough — no need to discover the sub-asset set first.
     let owned_source = source.to_path_buf();
-    let owned_config = ContentConfig {
-        extension: config.extension.clone(),
-        root: config.root.clone(),
-    };
+    let owned_config = config.clone();
     let resolver: SubAssetIdResolver = Box::new(move |sub_name| {
         AssetId::from_path(&content_address(&owned_config, &owned_source, sub_name))
     });
@@ -63,14 +61,19 @@ pub fn import_source(
         .with_context(|| format!("importing '{}'", source.display()))?;
     let outputs = ctx.into_parts();
 
-    let emitted: Vec<AssetId> = outputs.sub_assets.iter().map(|s| s.asset_id).collect();
+    let emitted: HashSet<AssetId> = outputs.sub_assets.iter().map(|s| s.asset_id).collect();
     let mut written = Vec::with_capacity(outputs.sub_assets.len());
 
     for sub_asset in &outputs.sub_assets {
         for reference in &sub_asset.references {
+            // A reference outside this source's emitted set is a cross-source
+            // link the content-path resolver never produced (e.g. an OBJ's
+            // `<tex>#main` texture id). Phase 1 has no cross-source import
+            // story, so warn and keep going rather than aborting the import.
             if !emitted.contains(reference) {
-                bail!(
-                    "'{}' references {reference:?}, which this source does not emit",
+                log::warn!(
+                    "'{}' references {reference:?}, which this source does not emit; \
+                     leaving it unresolved (cross-source imports land in Phase 2)",
                     sub_asset.name
                 );
             }

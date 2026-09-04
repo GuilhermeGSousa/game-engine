@@ -31,9 +31,20 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(2);
     };
 
-    let config_path = config_path.unwrap_or_else(|| PathBuf::from("content.toml"));
-    let project_root = project_root_of(&config_path);
-    let mut config = ContentConfig::load_or_default(&project_root)?;
+    // An explicit `--config <file>` loads that exact file (erroring if it is
+    // missing) and its parent is the project root; the implicit case reads
+    // `content.toml` from the current directory, or the built-in defaults.
+    let (project_root, mut config) = match config_path {
+        Some(path) => {
+            let config = ContentConfig::load(&path)?;
+            (project_root_of(&path), config)
+        }
+        None => {
+            let root = PathBuf::from(".");
+            let config = ContentConfig::load_or_default(&root)?;
+            (root, config)
+        }
+    };
     if let Some(extension) = extension {
         config.extension = extension;
     }

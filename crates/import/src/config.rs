@@ -6,7 +6,8 @@ use serde::Deserialize;
 /// `content.toml` at a project root. Only the `import` side reads this —
 /// the runtime gets the extension from the asset path and the root from
 /// `CookedAssetRoot`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct ContentConfig {
     /// Uniform extension for every content asset, without the dot.
     pub extension: String,
@@ -48,7 +49,10 @@ pub fn content_address(config: &ContentConfig, source: &Path, sub_name: &str) ->
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "asset".to_string());
-    let sanitized = sub_name.replace('/', "_");
+    // A '#' in the address would be permanently unloadable (the runtime's
+    // content-first guard sends any '#' address straight to the cooked layout);
+    // '\\' would split the join on Windows.
+    let sanitized = sub_name.replace(['/', '\\', '#'], "_");
     format!("{}/{stem}/{sanitized}.{}", config.root, config.extension)
 }
 
@@ -58,4 +62,29 @@ pub fn project_root_of(config_path: &Path) -> PathBuf {
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_partial_config_fills_the_missing_field_from_default() {
+        let config: ContentConfig = toml::from_str(r#"root = "content""#).expect("parses");
+        assert_eq!(config.root, "content");
+        assert_eq!(
+            config.extension, "gasset",
+            "the unset field takes its default"
+        );
+    }
+
+    #[test]
+    fn a_hash_in_a_sub_asset_name_is_sanitized_out_of_the_address() {
+        let address = content_address(
+            &ContentConfig::default(),
+            Path::new("hero.obj"),
+            "material/steel#main",
+        );
+        assert!(!address.contains('#'), "got: {address}");
+    }
 }

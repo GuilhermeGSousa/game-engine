@@ -13,7 +13,7 @@ use essential::assets::content::{read_content_asset, save_content_asset};
 use essential::assets::utils::load_asset_bytes;
 use essential::assets::{Asset, AssetId, CookedAssetRoot};
 use mesh::mesh::Mesh;
-use scene::scene::Scene;
+use scene::scene::{Scene, SceneNode};
 
 fn fixture() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -63,7 +63,11 @@ fn an_editor_saved_scene_round_trips() {
     let address = "content/levels/intro.gasset";
 
     let scene = Scene {
-        nodes: Vec::new(),
+        nodes: vec![SceneNode {
+            name: "root".to_string(),
+            children: Vec::new(),
+            components: Vec::new(),
+        }],
         referenced_assets: Vec::new(),
     };
     save_content_asset(&scene, &root, address).expect("save");

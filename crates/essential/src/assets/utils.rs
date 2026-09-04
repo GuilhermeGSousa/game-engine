@@ -63,9 +63,10 @@ pub async fn load_asset_bytes(
     id: AssetId,
     expected_kind: &str,
 ) -> anyhow::Result<Vec<u8>> {
-    // Cook-style "<source>#<sub>" addresses are never content assets, and the
-    // fragment corrupts both the native path join and the wasm request URL.
-    if address.contains('#') {
+    // A path-less load (load_by_id) arrives as an empty address; a cook-style
+    // "<source>#<sub>" address is never a content asset and its fragment
+    // corrupts the path join / request URL. Both go straight to the cooked layout.
+    if address.is_empty() || address.contains('#') {
         return load_cooked_asset_bytes(root, id).await;
     }
 
@@ -99,9 +100,22 @@ async fn try_read_relative(
                     let _ = path;
                     Ok(None)
                 } else {
+                    // A path-less or otherwise non-file join (the root dir
+                    // itself, a file where a directory was expected) is
+                    // absence, not failure, so the caller can fall back.
                     match async_fs::read(&path).await {
                         Ok(bytes) => Ok(Some(bytes)),
-                        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                        Err(err)
+                            if matches!(
+                                err.kind(),
+                                std::io::ErrorKind::NotFound
+                                    | std::io::ErrorKind::IsADirectory
+                                    | std::io::ErrorKind::NotADirectory
+                                    | std::io::ErrorKind::InvalidInput
+                            ) =>
+                        {
+                            Ok(None)
+                        }
                         Err(err) => Err(anyhow::Error::new(err))
                             .with_context(|| format!("failed to read '{}'", path.display())),
                     }
@@ -124,8 +138,10 @@ async fn try_read_relative(
                         .with_context(|| format!("failed to read response body for '{url}'"))?;
                     Ok(Some(bytes.to_vec()))
                 } else {
-                    let _ = (base, relative);
-                    anyhow::bail!("CookedAssetRoot::UrlBase is only supported on wasm32")
+                    let _ = relative;
+                    anyhow::bail!(
+                        "CookedAssetRoot::UrlBase is only supported on wasm32 (base '{base}')"
+                    )
                 }
             }
         }

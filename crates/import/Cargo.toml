@@ -11,6 +11,7 @@ obj-loader = { path = "../obj-loader" }
 render = { path = "../render" }
 anyhow = "1.0.97"
 env_logger = "0.11.6"
+log = "0.4.27"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 

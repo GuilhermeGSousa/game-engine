@@ -65,3 +65,17 @@ fn rejects_a_truncated_header() {
         "error should say the file is truncated, got: {err}"
     );
 }
+
+#[test]
+fn rejects_an_unknown_format_version() {
+    let mut future = header();
+    future.format_version = CONTENT_FORMAT_VERSION + 1;
+    let bytes = write_content_asset(&future, b"payload").expect("write");
+
+    let err = read_content_asset(&bytes).expect_err("a newer format version must be rejected");
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("version") && message.contains(&(CONTENT_FORMAT_VERSION + 1).to_string()),
+        "error should name the unsupported version, got: {message}"
+    );
+}

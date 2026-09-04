@@ -1,5 +1,5 @@
 //! Framing for game-ready content assets: `magic | u32 header_len |
-//! bincode(ContentAssetHeader) | bincode(payload)`. The header is read
+//! bincode(ContentAssetHeader) | payload (verbatim)`. The header is read
 //! without touching the payload, so a future asset registry can index a
 //! whole content tree by scanning headers alone.
 use anyhow::{bail, Context};
@@ -29,9 +29,12 @@ pub fn write_content_asset(header: &ContentAssetHeader, payload: &[u8]) -> anyho
     let header_bytes =
         bincode::serialize(header).context("failed to serialize content asset header")?;
 
+    let header_len =
+        u32::try_from(header_bytes.len()).context("content asset header exceeds 4 GiB")?;
+
     let mut out = Vec::with_capacity(8 + header_bytes.len() + payload.len());
     out.extend_from_slice(&CONTENT_ASSET_MAGIC);
-    out.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
+    out.extend_from_slice(&header_len.to_le_bytes());
     out.extend_from_slice(&header_bytes);
     out.extend_from_slice(payload);
     Ok(out)
@@ -59,6 +62,12 @@ pub fn read_content_asset(bytes: &[u8]) -> anyhow::Result<(ContentAssetHeader, &
 
     let header: ContentAssetHeader = bincode::deserialize(&bytes[8..header_end])
         .context("failed to deserialize content asset header")?;
+    if header.format_version != CONTENT_FORMAT_VERSION {
+        bail!(
+            "unsupported content asset format version {} (this build expects {CONTENT_FORMAT_VERSION})",
+            header.format_version
+        );
+    }
     Ok((header, &bytes[header_end..]))
 }
 

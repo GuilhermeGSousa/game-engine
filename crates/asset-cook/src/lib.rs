@@ -8,7 +8,7 @@ pub use cook::{
     SubAssetEntry, COOK_FORMAT_VERSION,
 };
 pub use import_context::{
-    DependencyEntry, EmittedSubAsset, ImportContext, ImportError, ImportOutputs,
+    DependencyEntry, EmittedSubAsset, ImportContext, ImportError, ImportOutputs, SubAssetIdResolver,
 };
 pub use manifest::{AssetManifest, ManifestEntry};
 pub use run::{run_cook, CookReport};

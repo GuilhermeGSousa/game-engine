@@ -43,10 +43,16 @@ pub struct ImportOutputs {
     pub dependencies: Vec<DependencyEntry>,
 }
 
+/// Maps a sub-asset name to the `AssetId` that references to it should use.
+/// The default addresses sub-assets against the source file
+/// (`"<source>#<sub>"`); the `import` tool substitutes content-tree paths.
+pub type SubAssetIdResolver = Box<dyn Fn(&str) -> AssetId + Send + Sync>;
+
 pub struct ImportContext {
     relative_source: PathBuf,
     sub_assets: Vec<EmittedSubAsset>,
     dependencies: Vec<DependencyEntry>,
+    sub_asset_id_resolver: Option<SubAssetIdResolver>,
 }
 
 impl ImportContext {
@@ -55,6 +61,23 @@ impl ImportContext {
             relative_source,
             sub_assets: Vec::new(),
             dependencies: Vec::new(),
+            sub_asset_id_resolver: None,
+        }
+    }
+
+    /// Like [`ImportContext::new`], but with a caller-supplied
+    /// [`SubAssetIdResolver`] that decides the id of every same-file
+    /// cross-reference (used by the `import` tool to redirect them to
+    /// content-tree paths).
+    pub fn with_sub_asset_id_resolver(
+        relative_source: PathBuf,
+        resolver: SubAssetIdResolver,
+    ) -> Self {
+        Self {
+            relative_source,
+            sub_assets: Vec::new(),
+            dependencies: Vec::new(),
+            sub_asset_id_resolver: Some(resolver),
         }
     }
 
@@ -63,8 +86,15 @@ impl ImportContext {
     /// layout. Importers use this to build same-file cross-references
     /// (e.g. a material's texture, a scene node's mesh) as real
     /// `AssetHandle::weak(id)` values on the structs they emit.
+    ///
+    /// When a [`SubAssetIdResolver`] was supplied via
+    /// [`ImportContext::with_sub_asset_id_resolver`], it decides the id
+    /// instead of the default `"<source>#<sub>"` addressing.
     pub fn sub_asset_id(&self, name: &str) -> AssetId {
-        AssetId::from_path(&format!("{}#{}", self.relative_source.display(), name))
+        match &self.sub_asset_id_resolver {
+            Some(resolve) => resolve(name),
+            None => AssetId::from_path(&format!("{}#{}", self.relative_source.display(), name)),
+        }
     }
 
     pub fn emit<T: Asset>(&mut self, name: &str, value: &T) -> Result<(), ImportError> {

@@ -30,6 +30,7 @@ fn prefers_a_content_asset_over_the_cooked_file() {
         asset_id: id,
         references: Vec::new(),
         kind: "Mesh".to_string(),
+        provenance: None,
     };
     std::fs::create_dir_all(dir.join("content/x")).unwrap();
     std::fs::write(
@@ -88,6 +89,7 @@ fn a_kind_mismatch_is_an_error() {
         asset_id: id,
         references: Vec::new(),
         kind: "Mesh".to_string(),
+        provenance: None,
     };
     std::fs::create_dir_all(dir.join("content/x")).unwrap();
     std::fs::write(
@@ -134,6 +136,7 @@ fn a_hash_fragment_address_never_probes_for_a_content_asset() {
         asset_id: id,
         references: Vec::new(),
         kind: "Mesh".to_string(),
+        provenance: None,
     };
     std::fs::write(
         dir.join(address),
@@ -238,6 +241,7 @@ fn a_real_loader_reads_a_content_asset_and_falls_back() {
         asset_id: id,
         references: Vec::new(),
         kind: "Mesh".to_string(),
+        provenance: None,
     };
     std::fs::create_dir_all(dir.join("content/x")).unwrap();
     let payload = bincode::serialize(&mesh).unwrap();

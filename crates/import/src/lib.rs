@@ -85,6 +85,7 @@ pub fn import_source(
             asset_id: sub_asset.asset_id,
             references: sub_asset.references.clone(),
             kind: sub_asset.type_name.to_string(),
+            provenance: None,
         };
         let bytes = write_content_asset(&header, &sub_asset.bytes)?;
 

@@ -2,6 +2,9 @@
 //! bincode(ContentAssetHeader) | payload (verbatim)`. The header is read
 //! without touching the payload, so a future asset registry can index a
 //! whole content tree by scanning headers alone.
+use std::collections::BTreeMap;
+use std::path::Path;
+
 use anyhow::{bail, Context};
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +13,14 @@ use super::{Asset, AssetId};
 /// Leading bytes of every content asset file.
 pub const CONTENT_ASSET_MAGIC: [u8; 4] = *b"GRDY";
 
-pub const CONTENT_FORMAT_VERSION: u32 = 1;
+/// Bumped whenever `ContentAssetHeader`'s on-disk shape changes
+/// incompatibly. `read_content_asset` rejects a mismatch outright.
+pub const CONTENT_FORMAT_VERSION: u32 = 2;
+
+/// Where `AssetRegistry` lives, relative to the same root content-asset
+/// addresses resolve against (a project root at import/save time, the
+/// runtime `ContentAssetRoot` at load time).
+pub const REGISTRY_FILE_NAME: &str = "content/.registry.toml";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentAssetHeader {
@@ -23,6 +33,21 @@ pub struct ContentAssetHeader {
     pub references: Vec<AssetId>,
     /// Authoritative type tag; must equal the loading type's `Asset::name()`.
     pub kind: String,
+    /// Where this content asset came from, if `import` produced it from a
+    /// DCC source rather than an editor saving it directly.
+    pub provenance: Option<ImportProvenance>,
+}
+
+/// The offline source (and sub-asset within it) that `import` produced a
+/// content asset from — lets a future editor show "re-import" provenance
+/// without re-deriving it from the address string.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportProvenance {
+    /// The source path exactly as passed to `import_source`, not otherwise
+    /// normalized against any project root.
+    pub source: String,
+    /// The sub-asset name within that source, e.g. `"mesh/0"`.
+    pub sub_asset: String,
 }
 
 pub fn write_content_asset(header: &ContentAssetHeader, payload: &[u8]) -> anyhow::Result<Vec<u8>> {
@@ -72,7 +97,8 @@ pub fn read_content_asset(bytes: &[u8]) -> anyhow::Result<(ContentAssetHeader, &
 }
 
 /// Writes `value` as a content asset at `project_root/address`, creating
-/// parent directories as needed.
+/// parent directories as needed, and upserts the asset registry so a
+/// path-less (`AssetServer::load_by_id`) load can find it later.
 ///
 /// `address` is the project-relative path (`"content/hero/body.gasset"`) and
 /// is what the asset's id is hashed from; `project_root` is the source tree
@@ -81,14 +107,16 @@ pub fn read_content_asset(bytes: &[u8]) -> anyhow::Result<(ContentAssetHeader, &
 /// beside the binary where the next build overwrites it.
 pub fn save_content_asset<A: Asset>(
     value: &A,
-    project_root: &std::path::Path,
+    project_root: &Path,
     address: &str,
 ) -> anyhow::Result<()> {
+    let asset_id = AssetId::from_path(address);
     let header = ContentAssetHeader {
         format_version: CONTENT_FORMAT_VERSION,
-        asset_id: AssetId::from_path(address),
+        asset_id,
         references: value.referenced_sub_assets(),
         kind: A::name().to_string(),
+        provenance: None,
     };
     let payload = bincode::serialize(value).context("failed to serialize content asset payload")?;
     let bytes = write_content_asset(&header, &payload)?;
@@ -99,5 +127,90 @@ pub fn save_content_asset<A: Asset>(
             .with_context(|| format!("failed to create '{}'", parent.display()))?;
     }
     std::fs::write(&path, bytes)
-        .with_context(|| format!("failed to write content asset '{}'", path.display()))
+        .with_context(|| format!("failed to write content asset '{}'", path.display()))?;
+
+    let mut registry = AssetRegistry::load(project_root)?;
+    registry.insert(asset_id, address);
+    registry.save(project_root)
+}
+
+/// A serialized `[assets]` table in `.registry.toml`: `AssetId::simple_hex()`
+/// keys to content-tree address values.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct RegistryFile {
+    #[serde(default)]
+    assets: BTreeMap<String, String>,
+}
+
+/// Maps AssetIds to their content-tree address. Backs `AssetServer`'s
+/// path-less (`load_by_id`) resolution now that content assets live at
+/// literal human paths instead of the old `.cooked/<hex>.bin`
+/// naming-is-lookup convention: `import` and `save_content_asset` upsert it
+/// directly, merge-only, never pruned.
+#[derive(Debug, Clone, Default)]
+pub struct AssetRegistry {
+    entries: BTreeMap<AssetId, String>,
+}
+
+impl AssetRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Loads `<project_root>/content/.registry.toml`, or an empty registry
+    /// if it does not exist yet (a content tree with nothing imported or
+    /// saved into it has no registry file).
+    pub fn load(project_root: &Path) -> anyhow::Result<Self> {
+        let path = project_root.join(REGISTRY_FILE_NAME);
+        match std::fs::read_to_string(&path) {
+            Ok(text) => Self::parse(&text),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
+            Err(err) => Err(err).with_context(|| format!("failed to read '{}'", path.display())),
+        }
+    }
+
+    pub fn parse(text: &str) -> anyhow::Result<Self> {
+        let file: RegistryFile = toml::from_str(text).context("failed to parse asset registry")?;
+        let mut entries = BTreeMap::new();
+        for (hex, address) in file.assets {
+            let id = AssetId::from_simple_hex(&hex)
+                .map_err(|err| anyhow::anyhow!("invalid asset id '{hex}' in registry: {err}"))?;
+            entries.insert(id, address);
+        }
+        Ok(Self { entries })
+    }
+
+    pub fn save(&self, project_root: &Path) -> anyhow::Result<()> {
+        let path = project_root.join(REGISTRY_FILE_NAME);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create '{}'", parent.display()))?;
+        }
+        let assets = self
+            .entries
+            .iter()
+            .map(|(id, address)| (id.simple_hex(), address.clone()))
+            .collect();
+        let text = toml::to_string_pretty(&RegistryFile { assets })
+            .context("failed to serialize asset registry")?;
+        std::fs::write(&path, text).with_context(|| format!("failed to write '{}'", path.display()))
+    }
+
+    pub fn get(&self, id: AssetId) -> Option<&str> {
+        self.entries.get(&id).map(String::as_str)
+    }
+
+    pub fn insert(&mut self, id: AssetId, address: impl Into<String>) {
+        self.entries.insert(id, address.into());
+    }
+
+    pub fn remove(&mut self, id: AssetId) -> Option<String> {
+        self.entries.remove(&id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (AssetId, &str)> {
+        self.entries
+            .iter()
+            .map(|(id, address)| (*id, address.as_str()))
+    }
 }

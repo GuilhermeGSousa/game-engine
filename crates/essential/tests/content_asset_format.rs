@@ -15,6 +15,7 @@ fn header() -> ContentAssetHeader {
             AssetId::from_path("content/hero/skin.gasset"),
         ],
         kind: "Mesh".to_string(),
+        provenance: None,
     }
 }
 

@@ -132,7 +132,7 @@ impl Default for CookedAssetRoot {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct AssetId(Uuid);
 
 /// Fixed namespace for deriving AssetIds from asset paths, so the same
@@ -162,6 +162,13 @@ impl AssetId {
     /// pure function of the ID).
     pub fn simple_hex(&self) -> String {
         self.0.simple().to_string()
+    }
+
+    /// Inverse of `simple_hex()` — parses an AssetId back from its
+    /// 32-lowercase-hex-digit form. Used by `AssetRegistry` to reconstruct
+    /// ids read back from `.registry.toml`.
+    pub fn from_simple_hex(hex: &str) -> Result<Self, uuid::Error> {
+        Uuid::parse_str(hex).map(AssetId)
     }
 }
 

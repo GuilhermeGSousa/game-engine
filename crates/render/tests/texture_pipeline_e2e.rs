@@ -36,6 +36,7 @@ fn an_imported_texture_is_reachable_at_its_conventional_address() {
         asset_id: sub_asset.asset_id,
         references: sub_asset.references.clone(),
         kind: sub_asset.type_name.to_string(),
+        provenance: None,
     };
     std::fs::create_dir_all(temp_dir.join("content/swatch")).unwrap();
     std::fs::write(

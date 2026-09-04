@@ -77,17 +77,44 @@ struct ContentAssetHeader {
     references: Vec<AssetId>,
     /// Authoritative type tag == `A::name()` (e.g. "Mesh", "Scene").
     kind: String,
+    /// Where this asset came from. `None` for editor-authored assets (there
+    /// is no DCC source). Captured now so it's never lost, even though
+    /// nothing acts on it yet — see "Provenance is captured, not used".
+    provenance: Option<ImportProvenance>,
+}
+
+struct ImportProvenance {
+    /// Project-relative source path, e.g. "assets/hero.gltf".
+    source: String,
+    /// The sub-asset name the importer emitted, e.g. "mesh/0" or "scene".
+    sub_asset: String,
 }
 ```
 
 - `magic` is a raw prefix for cheap sniffing / clear "this is not a content asset" errors.
 - `load::<T>(path)` reads magic + header; a `kind != T::name()` mismatch is a **hard load error**, not a warning.
 
+**Provenance is captured, not used.** `ImportProvenance` answers "what produced this file" — an editor's "re-import from `assets/hero.gltf`" action, or its "this was hand-authored" indicator, both just read the field. Phase 2 populates it and stops there: no automatic re-import matching, no staleness detection against the source. That logic is still in *Deferred*; only the data it would need is captured now, because it's expensive to backfill once a project has hundreds of provenance-less files and cheap to record at write time.
+
 ### Import — `cargo run -p import -- raw/hero.gltf`
 
 1. Select the offline importer by source extension, from the importer list the deleted `cook` binary used (`ImageImporter`, `GltfImporter`, `ObjImporter`) — moved to `crates/import`.
 2. Run the importer **once**, with an `ImportContext` whose **sub-asset-id resolver** (new hook, below) is wired to content paths.
-3. For every `EmittedSubAsset { name, asset_id, type_name, bytes, references }`, write `content_path_for(name)` as a content asset: `magic` + `bincode(ContentAssetHeader { format_version, asset_id, references, kind: type_name.into() })` + `bytes`. Plain overwrite.
+3. For every `EmittedSubAsset { name, asset_id, type_name, bytes, references }`, write `content_path_for(name)` as a content asset: `magic` + `bincode(ContentAssetHeader { format_version, asset_id, references, kind: type_name.into(), provenance: Some(ImportProvenance { source: <project-relative source path>, sub_asset: name.clone() }) })` + `bytes`. Plain overwrite.
+
+**API, not just a CLI.** `crates/import`'s CLI is a thin wrapper the eventual editor supersedes; the library function underneath is the actual deliverable, and it returns structured results rather than printing them:
+
+```rust
+pub struct ImportedAsset { pub sub_asset_name: String, pub address: String, pub kind: String }
+
+pub fn import_source(
+    source: &Path,
+    project_root: &Path,
+    config: &ContentConfig,
+) -> anyhow::Result<Vec<ImportedAsset>>
+```
+
+An editor calls this in-process (no subprocess) to drive its own import UI, batch it over many sources itself, and render per-file results — without re-deriving `content_path_for`'s address scheme or re-parsing CLI output.
 
 `content_path_for(sub_name) = "<content-root>/<source-stem>/<sanitize(sub_name)>.<ext>"` where `<source-stem>` is the **source file name without extension** (`raw/a/b/hero.gltf` → `hero`); e.g. `content/hero/mesh_0.<ext>`, `content/hero/animation_12.<ext>`, `content/hero/scene.<ext>`. `sanitize` replaces `/` (`mesh/0` → `mesh_0`).
 
@@ -109,7 +136,7 @@ type SubAssetIdResolver = Box<dyn Fn(&str) -> AssetId + Send + Sync>;
 fn save_content_asset<A: Asset>(value: &A, project_path: &Path) -> std::io::Result<()>
 ```
 
-Writes `magic` + `bincode(ContentAssetHeader { format_version, asset_id: AssetId::from_path(<project-relative form>), references: value.referenced_sub_assets(), kind: A::name().into() })` + `bincode(value)`.
+Writes `magic` + `bincode(ContentAssetHeader { format_version, asset_id: AssetId::from_path(<project-relative form>), references: value.referenced_sub_assets(), kind: A::name().into(), provenance: None })` + `bincode(value)`. `provenance` is always `None` here — an editor-authored asset has no DCC source; that's exactly what distinguishes it from an imported one when something later reads the header.
 
 **Two roots, deliberately.** The runtime `ContentAssetRoot` is *exe-relative* (`<exe-dir>`, populated by the example's `build.rs` copy). An editor must save into the **project source tree** — the committed one — or the save is clobbered by the next `cargo build` and never reaches VCS. So `save_content_asset` takes a real filesystem path supplied by the caller and does **not** resolve through `ContentAssetRoot`. The practical dev workflow is for an editor to also point its runtime root at the project tree (`set_content_root(ContentAssetRoot::Directory(project_dir))`) so it loads and saves the same files; the spec does not build that, it just keeps the two roots distinct.
 
@@ -148,7 +175,24 @@ async fn load_asset_bytes(
 
 Plan 1's loaders find bytes by *address*. `load_by_id(id)` (used by every component's `apply()` to upgrade a deserialized `Weak` handle — `MeshComponent`, `MaterialComponent`, `SkeletonComponent`, `StandardMaterial`'s textures, camera render targets) has no address, only the id — today it works because the id doubles as the `.cooked/<hex>.bin` filename, a pure function needing no lookup. Once content assets live at their literal human path instead of a hash-derived one, that trick is gone: the id is a one-way hash of the path, so a caller with only the id has no way back to it. Phase 2 needs an explicit **id → address index** — an Asset Registry, in Unreal's sense (the metadata-index sense, not the Primary-Asset-Id/bundle sense already ruled out in *Non-goals*).
 
-**File:** `<content-root>/.registry.toml` — e.g. `content/.registry.toml`. Plain TOML (not `GRDY`-framed; it is infrastructure, not a game asset), keyed by `AssetId::simple_hex()`:
+**A real type, not file-read/write logic living inside `import`.** Both `import`/`save_content_asset` (writers) and `AssetServer` (reader) need this, and a future editor needs to browse and query it — so it belongs in `essential::assets::content`, alongside `ContentAssetHeader`, as a type every one of those callers shares:
+
+```rust
+pub struct AssetRegistry { /* AssetId -> String address, plus load/save */ }
+
+impl AssetRegistry {
+    pub fn load(path: &Path) -> anyhow::Result<Self>;       // missing file = empty registry
+    pub fn save(&self, path: &Path) -> anyhow::Result<()>;
+    pub fn get(&self, id: AssetId) -> Option<&str>;
+    pub fn insert(&mut self, id: AssetId, address: String);
+    pub fn remove(&mut self, id: AssetId) -> Option<String>; // unused today; free for a future rename tool
+    pub fn iter(&self) -> impl Iterator<Item = (AssetId, &str)>; // an editor's content-browser feed
+}
+```
+
+`import` and `save_content_asset` both become "`AssetRegistry::load` → `insert` → `save`" instead of independently reading and writing TOML; `AssetServer::request_load` becomes "`AssetRegistry::load` (once, cached) → `get`". None of them touch the file format directly. `remove`/`iter` have no caller yet in Phase 2 — they're here because a content-browser or a rename tool is exactly "iterate the registry" / "remove and re-insert an entry," and adding them once, now, is what "build the API the editor needs" means concretely; leaving them off would just mean re-adding this same type later.
+
+**File:** `<content-root>/.registry.toml` — e.g. `content/.registry.toml`. Plain TOML (not `GRDY`-framed; it is infrastructure, not a game asset), keyed by `AssetId::simple_hex()` — this is `AssetRegistry::load`/`save`'s on-disk shape, not something callers construct by hand:
 
 ```toml
 [assets]
@@ -158,9 +202,9 @@ Plan 1's loaders find bytes by *address*. `load_by_id(id)` (used by every compon
 
 Living *inside* the content root (not beside it at the project root) means it needs no special-casing: `build.rs` already copies `content/` next to the binary, and Trunk's `copy-dir` already ships it on wasm, so the registry rides along automatically and resolves through the same `<root>/<address>` fetch every content asset uses — `content/.registry.toml` is just another well-known, fixed address.
 
-**Written by `import` and `save_content_asset`, directly, on every write.** Each reads the existing registry (empty if absent), upserts an entry per content asset it just wrote (`id → address`), writes the file back. No pruning of stale entries — an old sub-asset the source no longer emits stays registered pointing at a file that may no longer be written, which surfaces as a load error rather than silent corruption (ties to the *No re-import machinery* non-goal: nothing currently detects "this sub-asset is gone"). Because every content asset's header independently carries its own `asset_id` (seam A) and `kind`, the registry is *derived data*, not a second source of truth — a future `content-check`/rebuild tool can always regenerate it from scratch by scanning the tree's headers (cheap: header-only, no payload read), which is the disaster-recovery path if it's ever suspected to have drifted. That tool is not built now.
+**Written by `import` and `save_content_asset`, directly, on every write.** Each does `AssetRegistry::load(registry_path)` (empty if the file is absent), `insert`s an entry per content asset it just wrote (`id → address`), `save`s it back. No pruning of stale entries — an old sub-asset the source no longer emits stays registered pointing at a file that may no longer be written, which surfaces as a load error rather than silent corruption (ties to the *No re-import machinery* non-goal: nothing currently detects "this sub-asset is gone"). Because every content asset's header independently carries its own `asset_id` (seam A) and `kind`, the registry is *derived data*, not a second source of truth — a future `content-check`/rebuild tool can always regenerate it from scratch by scanning the tree's headers (cheap: header-only, no payload read) and calling `AssetRegistry::insert` for each, which is the disaster-recovery path if it's ever suspected to have drifted. That tool is not built now.
 
-**Read by `AssetServer::request_load`, only for path-less loads.** Today `request_load`'s spawned async task calls `loader.load(path, ctx, ...)` where a path-less call gets `path = AssetPath::new("")`. In Phase 2, before that call, when `path` was `None` the task instead: loads the registry once (first use; native via the same off-thread read every content fetch uses, wasm via one `reqwest::get`; cached in `AssetServer`'s data for subsequent calls), looks up `id`, and builds a real `AssetPath` from the address it finds — **or errors** if `id` is not registered (there is no `.cooked` left to fall back to). The loader then runs exactly as it does for a normal `load()` call, with a genuine address; **loaders never see an empty address in Phase 2** and gain no registry-awareness of their own. `load_asset_bytes`'s empty/`#` short-circuit and its `id`/`.cooked` fallback (Plan 1) are deleted along with the fallback they protected — nothing produces a `#`-fragment address once the manifest cook is gone, and nothing calls it with an empty one once `request_load` resolves `load_by_id` upstream. The helper's signature loses its `id` parameter entirely (renamed `load_content_asset_bytes` per *Rename sweep*, taking only `root` and `address`).
+**Read by `AssetServer::request_load`, only for path-less loads.** Today `request_load`'s spawned async task calls `loader.load(path, ctx, ...)` where a path-less call gets `path = AssetPath::new("")`. In Phase 2, before that call, when `path` was `None` the task instead: `AssetRegistry::load`s once (first use; native via the same off-thread read every content fetch uses, wasm via one `reqwest::get`; the loaded registry cached in `AssetServer`'s data for subsequent calls), `get`s `id`, and builds a real `AssetPath` from the address it finds — **or errors** if `id` is not registered (there is no `.cooked` left to fall back to). The loader then runs exactly as it does for a normal `load()` call, with a genuine address; **loaders never see an empty address in Phase 2** and gain no registry-awareness of their own. `load_asset_bytes`'s empty/`#` short-circuit and its `id`/`.cooked` fallback (Plan 1) are deleted along with the fallback they protected — nothing produces a `#`-fragment address once the manifest cook is gone, and nothing calls it with an empty one once `request_load` resolves `load_by_id` upstream. The helper's signature loses its `id` parameter entirely (renamed `load_content_asset_bytes` per *Rename sweep*, taking only `root` and `address`).
 
 ### Rename sweep
 
@@ -222,7 +266,7 @@ Two plans, so neither leaves the workspace red for long:
 - `save_content_asset::<Scene>` → `load::<Scene>` round-trips the tree.
 - The three examples build, import cleanly, and pass their visual check.
 - CI gates unchanged: `cargo build --workspace` (zero warnings), `cargo test --workspace`, `cargo fmt --all -- --check`, `cargo clippy -- -A clippy::type_complexity -A clippy::too_many_arguments -D warnings`.
-- **Phase 2 additions:** `import` (and `save_content_asset`) upserts a real entry into `content/.registry.toml`, preserving pre-existing unrelated entries; a second import of a different source doesn't clobber the first's entries. `AssetServer::load_by_id(id)` for a registered id resolves and loads the right asset (proves the `request_load`-level lookup, not just the registry file format). `load_by_id` for an unregistered id errors, naming the id, not a `.cooked` path (there is none). A scene spawn that exercises `MeshComponent`/`MaterialComponent`/`SkeletonComponent` handle-upgrade (i.e. `load_by_id` in practice) still works end-to-end — this is the exact class of bug Plan 1's final review found invisible to unit tests, so Phase 2's test plan must include a real `AssetServer` + spawn path, not only `load_asset_bytes`-level tests.
+- **Phase 2 additions:** `AssetRegistry::load` → `insert` → `save` round-trips (including "missing file loads as empty" and "loading an existing registry preserves its other entries"); `import` (and `save_content_asset`) upserts a real entry into `content/.registry.toml` via that API, and a second import of a different source doesn't clobber the first's entries. `AssetServer::load_by_id(id)` for a registered id resolves and loads the right asset (proves the `request_load`-level lookup, not just `AssetRegistry` in isolation). `load_by_id` for an unregistered id errors, naming the id, not a `.cooked` path (there is none). A scene spawn that exercises `MeshComponent`/`MaterialComponent`/`SkeletonComponent` handle-upgrade (i.e. `load_by_id` in practice) still works end-to-end — this is the exact class of bug Plan 1's final review found invisible to unit tests, so Phase 2's test plan must include a real `AssetServer` + spawn path, not only `load_asset_bytes`-level tests. `import`-produced headers carry `provenance == Some({source, sub_asset})` matching the real source path and sub-asset name; `save_content_asset`-produced headers carry `provenance == None`.
 
 ## Risks
 
@@ -233,7 +277,7 @@ Two plans, so neither leaves the workspace red for long:
 
 ## Deferred (documented for the future editor)
 
-- **Re-import**: provenance in the header; incremental skip; skip user-deleted sub-assets (including pruning their stale registry entries); `--extract sub=path`; delete prior auto-output before re-export.
+- **Re-import**: matching against the now-captured `provenance` field; incremental skip; skip user-deleted sub-assets (including pruning their stale registry entries); `--extract sub=path`; delete prior auto-output before re-export.
 - **Batch import** (`import --all <dir>` walking a source directory).
 - **Minted stable identity**: replace `asset_id`'s deterministic `from_path` value with a randomly-minted id at import/save time; `AssetHandle` serializes the minted id instead of (or alongside) the path-derived one; rename redirectors + a "fix up references" batch op. (The Phase-2 *registry* — id → address — ships without this; it indexes today's deterministic ids.)
 - **Registry rebuild tool** (`content-check` or similar): regenerate `content/.registry.toml` from a full header scan of the tree, and separately validate the whole tree's reference graph (seam B) — the registry's disaster-recovery path and a whole-content-tree reference-integrity check, in one tool.

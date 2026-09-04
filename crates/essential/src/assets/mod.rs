@@ -13,6 +13,7 @@ pub mod asset_container;
 pub mod asset_loader;
 pub mod asset_server;
 pub mod asset_store;
+pub mod content;
 pub mod handle;
 pub mod utils;
 

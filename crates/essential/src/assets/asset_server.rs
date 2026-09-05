@@ -127,6 +127,7 @@ impl AssetServer {
 
     pub fn set_content_root(&self, root: ContentAssetRoot) {
         *self.data.content_root.write().unwrap() = root;
+        *self.data.registry.write().unwrap() = None;
     }
 
     pub fn register_asset<A: Asset>(&mut self, asset: &AssetStore<A>) {
@@ -401,12 +402,82 @@ impl AssetHandleProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::content::AssetRegistry;
+    use crate::assets::{
+        asset_loader::AssetLoader,
+        asset_store::AssetStore,
+        content::{save_content_asset, AssetRegistry},
+    };
+    use ecs::world::World;
 
     fn temp_root(tag: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("asset-server-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("content")).unwrap();
         dir
+    }
+
+    /// A minimal real asset: written to disk by `save_content_asset` and read
+    /// back through the same `load_content_asset_bytes` path every shipped
+    /// loader uses, so `load_by_id` is exercised end to end rather than
+    /// against a mock.
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct FixtureAsset {
+        value: u32,
+    }
+
+    impl Asset for FixtureAsset {
+        fn name() -> &'static str {
+            "FixtureAsset"
+        }
+    }
+
+    impl LoadableAsset for FixtureAsset {
+        type UsageSettings = ();
+
+        fn loader() -> Box<dyn AssetLoader<Asset = Self>> {
+            Box::new(FixtureLoader)
+        }
+
+        fn default_usage_settings() -> Self::UsageSettings {}
+    }
+
+    struct FixtureLoader;
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl AssetLoader for FixtureLoader {
+        type Asset = FixtureAsset;
+
+        async fn load(
+            &self,
+            path: AssetPath<'static>,
+            load_context: &mut AssetLoadContext,
+            _usage_settings: (),
+        ) -> anyhow::Result<Self::Asset> {
+            let bytes = crate::assets::utils::load_content_asset_bytes(
+                load_context.content_root(),
+                &path.address(),
+                FixtureAsset::name(),
+            )
+            .await?;
+            Ok(bincode::deserialize(&bytes)?)
+        }
+    }
+
+    /// Runs the load task `load_by_id` spawned for `id` to completion.
+    ///
+    /// Taking the real `Task` out of `pending_tasks` and awaiting it makes the
+    /// wait deterministic — the task is a `Future`, so there is no sleeping or
+    /// polling — while still running the genuine `LoadTaskPool` task, registry
+    /// read and loader.
+    fn drive_pending_load(server: &AssetServer, id: AssetId) {
+        let task = server
+            .data
+            .pending_tasks
+            .write()
+            .unwrap()
+            .remove(&id)
+            .expect("load_by_id spawns a load task for an id that isn't loaded yet");
+        pollster::block_on(task);
     }
 
     #[test]
@@ -456,6 +527,61 @@ mod tests {
             Some("content/hero/scene.gasset"),
             "the registry is cached after first use, so a since-deleted file must not affect the second lookup"
         );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn load_by_id_loads_a_registered_content_asset() {
+        let dir = temp_root("load-by-id-hit");
+        let address = "content/fixture/value.gasset";
+        // Writes both the .gasset file and its registry entry, exactly as
+        // `import` and an editor save do.
+        save_content_asset(&FixtureAsset { value: 7 }, &dir, address).expect("save content asset");
+        let id = AssetId::from_path(address);
+
+        let mut world = World::new();
+        let store = AssetStore::<FixtureAsset>::new();
+        let mut server = AssetServer::new();
+        server.register_asset::<FixtureAsset>(&store);
+        server.set_content_root(ContentAssetRoot::Directory(dir.clone()));
+        world.insert_resource(store);
+        world.insert_resource(server.clone());
+
+        let handle = server.load_by_id::<FixtureAsset>(id);
+        drive_pending_load(&server, id);
+        handle_asset_load_events(&mut world);
+
+        assert!(
+            server.data.loaded_assets.read().unwrap().contains(&id),
+            "a registered id must resolve through the registry and finish loading"
+        );
+        let store = world
+            .get_resource::<AssetStore<FixtureAsset>>()
+            .expect("asset store");
+        assert_eq!(store.get(&handle).map(|asset| asset.value), Some(7));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn load_by_id_fails_for_an_unregistered_id() {
+        let dir = temp_root("load-by-id-miss");
+        let store = AssetStore::<FixtureAsset>::new();
+        let mut server = AssetServer::new();
+        server.register_asset::<FixtureAsset>(&store);
+        server.set_content_root(ContentAssetRoot::Directory(dir.clone()));
+
+        let id = AssetId::new();
+        let _handle = server.load_by_id::<FixtureAsset>(id);
+        drive_pending_load(&server, id);
+
+        match server.data.asset_load_event_receiver.try_recv() {
+            Ok(AssetLoadEvent::LoadFailed(failed)) => assert_eq!(failed, id),
+            Ok(AssetLoadEvent::Loaded(_)) => panic!("an unregistered id must not produce an asset"),
+            Err(error) => panic!("expected a LoadFailed event, got {error}"),
+        }
+        assert!(!server.data.loaded_assets.read().unwrap().contains(&id));
 
         std::fs::remove_dir_all(&dir).ok();
     }

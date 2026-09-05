@@ -24,8 +24,8 @@ impl Importer for ImageImporter {
             height,
             // TODO(asset-import-pipeline): colour space hard-coded sRGB —
             // standalone linear textures (normal/metallic-roughness .png)
-            // can't be cooked correctly yet; needs a per-entry hint in
-            // assets.toml or a filename convention.
+            // can't be imported correctly yet; needs a per-entry hint in
+            // content.toml or a filename convention.
             format: wgpu_types::TextureFormat::Rgba8UnormSrgb,
             kind: TextureKind::Sampled,
             data: img.to_rgba8().into_raw(),

@@ -145,15 +145,15 @@ impl AssetId {
     /// Deterministically derives a stable AssetId from a full asset address
     /// string (e.g. "models/character.gltf#texture/albedo"). The same
     /// string always produces the same ID, with no shared state required —
-    /// this is what lets the cook tool and the runtime independently agree
-    /// on an asset's identity and cooked-file location.
+    /// this is what lets the import tool and the runtime independently agree
+    /// on an asset's identity.
     pub fn from_path(path: &str) -> Self {
         AssetId(Uuid::new_v5(&ASSET_PATH_NAMESPACE, path.as_bytes()))
     }
 
     /// The AssetId's underlying UUID as 32 lowercase hex digits, no hyphens —
-    /// used as the cooked-file basename (a filesystem-friendly, collision-free
-    /// pure function of the ID).
+    /// used as the `AssetRegistry` key (a text-friendly, collision-free pure
+    /// function of the ID).
     pub fn simple_hex(&self) -> String {
         self.0.simple().to_string()
     }
@@ -181,7 +181,7 @@ impl Default for AssetId {
 pub trait Asset: Send + Sync + 'static + serde::Serialize + serde::de::DeserializeOwned {
     fn name() -> &'static str;
 
-    /// AssetIds of every sub-asset this one references — the cook tool's
+    /// AssetIds of every sub-asset this one references — the import tool's
     /// reference-integrity pass. Empty for leaf assets.
     fn referenced_sub_assets(&self) -> Vec<AssetId> {
         Vec::new()

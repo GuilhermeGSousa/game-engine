@@ -49,9 +49,10 @@ pub fn content_address(config: &ContentConfig, source: &Path, sub_name: &str) ->
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "asset".to_string());
-    // A '#' in the address would be permanently unloadable (the runtime's
-    // content-first guard sends any '#' address straight to the cooked layout);
-    // '\\' would split the join on Windows.
+    // A '#' is fragile in an address that doubles as a filesystem path and a
+    // cross-reference string (it reads as a fragment separator in URL-shaped
+    // contexts, and needs escaping in others); '\\' would split the join on
+    // Windows.
     let sanitized = sub_name.replace(['/', '\\', '#'], "_");
     format!("{}/{stem}/{sanitized}.{}", config.root, config.extension)
 }

@@ -98,8 +98,8 @@ impl ImportContext {
     }
 
     /// Computes the stable AssetId a sub-asset name resolves to *within this
-    /// source file*, without needing to know the final on-disk cooked
-    /// layout. Importers use this to build same-file cross-references
+    /// source file*, without needing to know the final content-tree
+    /// address. Importers use this to build same-file cross-references
     /// (e.g. a material's texture, a scene node's mesh) as real
     /// `AssetHandle::weak(id)` values on the structs they emit.
     ///

@@ -500,7 +500,7 @@ impl World {
 
     /// Deserializes `json` into the component registered under `type_name` and
     /// applies it to `entity`. Returns `false` (having logged why) when the name
-    /// is unregistered or the payload does not parse — a cooked scene may carry
+    /// is unregistered or the payload does not parse — a scene may carry
     /// components this application does not know about.
     pub fn apply_scene_component(
         &mut self,

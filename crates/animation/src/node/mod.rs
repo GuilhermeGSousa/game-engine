@@ -49,9 +49,9 @@ pub trait AnimationNodeInstance: AsAny + Sync + Send {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum AnimationNodeKind {
     Result,
-    // TODO(asset-trait-merge): a cooked-then-loaded graph carries Weak
+    // TODO(asset-trait-merge): an imported-then-loaded graph carries Weak
     // AssetHandles; needs an upgrade pass like scene components. No graph is
-    // cooked yet.
+    // imported yet.
     Clip(AnimationClipNode),
     Blend,
     BlendSpace2D(crate::node::blend_space::BlendSpace2DNode),

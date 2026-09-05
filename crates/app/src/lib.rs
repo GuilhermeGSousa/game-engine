@@ -179,7 +179,7 @@ impl App {
         self
     }
 
-    /// Registers a [`SceneComponent`] so cooked scenes and glTF `extras` can
+    /// Registers a [`SceneComponent`] so serialized scenes and glTF `extras` can
     /// spawn it from JSON by type name (see [`CommandQueue`] and
     /// `World::apply_scene_component`).
     pub fn register_component<T: SceneComponent>(&mut self) -> &mut Self {

@@ -1,6 +1,6 @@
 //! Covers AssetId::from_path's determinism (same input -> same ID, every
-//! run) and its bincode round-trip, both load-bearing for the cook pipeline:
-//! cook-time and run-time must independently compute the same ID from the
+//! run) and its bincode round-trip, both load-bearing for the import pipeline:
+//! import-time and run-time must independently compute the same ID from the
 //! same "path#fragment" string with no shared state.
 use essential::assets::AssetId;
 

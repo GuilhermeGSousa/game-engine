@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 
 const CHAR_SCENE: &str = "content/UAL1/scene.gasset";
 
-// TODO(asset-import-pipeline): magic indices — a cooked animation-name manifest would replace these.
+// TODO(asset-import-pipeline): magic indices — an animation-name manifest sub-asset would replace these.
 const IDLE_LOOP: &str = "content/UAL1/animation_53.gasset";
 const JOG_FWD_LOOP: &str = "content/UAL1/animation_67.gasset";
 const JOG_FWD_L_LOOP: &str = "content/UAL1/animation_64.gasset";
@@ -116,7 +116,7 @@ pub(crate) fn spawn_character(
 /// unambiguously ours; `AnimationsReady` guards against re-running.
 ///
 // TODO(asset-import-pipeline): the jump FSM's runtime behaviour is unverified —
-// the hard-coded UAL1 animation indices compile and cook, but the state
+// the hard-coded UAL1 animation indices compile and import, but the state
 // transitions have not been exercised in this task.
 pub(crate) fn setup_character_animations(
     players: Query<(Entity, &AnimationPlayer), Without<AnimationsReady>>,

@@ -1,7 +1,7 @@
 //! Covers spawn_scene_components end-to-end: one entity per node, components
 //! deserialized and applied from their JSON payloads, hierarchy wired, and
 //! the spawner component removed so the scene expands exactly once. The
-//! `spawner_expands_nodes_and_upgrades_cooked_handles` case additionally
+//! `spawner_expands_nodes_and_upgrades_weak_handles` case additionally
 //! drives the real system with a wired `AssetServer`, so the Weak->Strong
 //! mesh-handle upgrade in `MeshComponent::apply` is exercised for real.
 use ecs::component::Component;
@@ -110,14 +110,14 @@ fn unregistered_component_is_skipped_without_failing_the_node() {
 }
 
 #[test]
-fn spawner_expands_nodes_and_upgrades_cooked_handles() {
+fn spawner_expands_nodes_and_upgrades_weak_handles() {
     let mut world = World::default();
     world.register_component_type::<Transform>();
     world.register_component_type::<MeshComponent>();
     world.register_component::<SceneSpawnerComponent>();
 
     // A wired AssetServer with the Mesh lifetime sender registered lets
-    // `MeshComponent::apply` upgrade a cooked Weak handle to Strong exactly
+    // `MeshComponent::apply` upgrade a serialized Weak handle to Strong exactly
     // as it does at runtime, instead of degrading gracefully.
     let mesh_store = AssetStore::<Mesh>::new();
     let mut asset_server = AssetServer::new();
@@ -186,11 +186,11 @@ fn spawner_expands_nodes_and_upgrades_cooked_handles() {
 
     assert!(
         is_strong,
-        "the spawner must upgrade the cooked Weak mesh handle to Strong via the AssetServer"
+        "the spawner must upgrade the serialized Weak mesh handle to Strong via the AssetServer"
     );
     assert_eq!(
         handle_id, mesh_id,
-        "the upgraded handle must still resolve to the cooked AssetId"
+        "the upgraded handle must still resolve to the serialized AssetId"
     );
     assert_eq!(
         translation,

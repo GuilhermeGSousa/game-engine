@@ -1,5 +1,5 @@
 //! Covers that the engine's spawnable components implement `SceneComponent`:
-//! a handle-bearing one (`MeshComponent`) preserves the `AssetId` the cooked
+//! a handle-bearing one (`MeshComponent`) preserves the `AssetId` the serialized
 //! scene referenced when `apply` runs, and a plain data component
 //! (`Transform`) is inserted with its fields intact.
 //!
@@ -36,7 +36,7 @@ fn mesh_component_apply_inserts_the_component_preserving_its_asset_id() {
     assert_eq!(
         inserted.handle.id(),
         id,
-        "resolving must preserve the AssetId the cooked scene referenced"
+        "resolving must preserve the AssetId the serialized scene referenced"
     );
 }
 

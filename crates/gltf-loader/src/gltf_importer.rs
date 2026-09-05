@@ -1,6 +1,6 @@
 //! Offline importer that relocates the parsing half of the old runtime
-//! `GLTFLoader` into the asset-cook pipeline. A single `.gltf`/`.glb` is
-//! split into independently-cooked `mesh/*`, `material/*`, `texture/*`,
+//! `GLTFLoader` into the import pipeline. A single `.gltf`/`.glb` is
+//! split into independently-imported `mesh/*`, `material/*`, `texture/*`,
 //! `skeleton/*`, `animation/*` and `scene` sub-assets, cross-referenced by
 //! stable `AssetId`.
 //!
@@ -51,16 +51,16 @@ const EXTRAS_COMPONENTS_KEY: &str = "components";
 
 pub struct GltfImporter;
 
-/// One emitted primitive of a glTF mesh: the sub-asset indices of its cooked
+/// One emitted primitive of a glTF mesh: the sub-asset indices of its imported
 /// `mesh/*` geometry and the `material/*` it draws with.
 struct PrimRef {
     mesh_sub_asset: usize,
     material_sub_asset: usize,
 }
 
-/// Dedup key for the textures a source file needs: one cooked `texture/*`
+/// Dedup key for the textures a source file needs: one imported `texture/*`
 /// sub-asset per (source image, colour space) pair. `srgb` orders
-/// `false < true`, keeping cooked-output iteration order stable.
+/// `false < true`, keeping import-output iteration order stable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TextureKey {
     image_index: usize,
@@ -95,8 +95,8 @@ impl Importer for GltfImporter {
             })?;
 
         // Track every external `.bin`/image `uri` the document pulls in, so
-        // editing one and re-running `cook` re-imports instead of shipping
-        // stale cooked output. Embedded `data:` URIs need no tracking — a
+        // editing one and re-running `import` regenerates instead of shipping
+        // stale imported output. Embedded `data:` URIs need no tracking — a
         // change there changes the `.gltf`'s own hash.
         let source_dir = source_path.parent().unwrap_or_else(|| Path::new(""));
         for buffer in document.buffers() {
@@ -293,8 +293,8 @@ impl Importer for GltfImporter {
         // Animations -> `animation/N` sub-assets. Channel targets are keyed by
         // the same path hash as the skeleton bones, so clips and skeletons
         // agree on identity. Clip ids are not recorded in `referenced_assets`:
-        // nothing in the cooked scene points at a clip yet (a later task wires
-        // that), and the cook's reference-integrity pass only checks that
+        // nothing in the imported scene points at a clip yet (a later task wires
+        // that), and the import's reference-integrity pass only checks that
         // recorded references resolve, not that every sub-asset is referenced.
         for (animation_index, animation) in document.animations().enumerate() {
             let mut animation_clip = AnimationClip::default();
@@ -622,7 +622,7 @@ fn parse_extras(extras: &json::Extras) -> Vec<ExtraComponentData> {
 }
 
 /// Resolves one glTF external resource `uri` against the source file's
-/// directory and records it as a cook dependency. `data:` URIs are embedded,
+/// directory and records it as an import dependency. `data:` URIs are embedded,
 /// not external, so they are skipped; an unreadable path is silently ignored
 /// (a genuinely missing external file surfaces from `gltf::import` itself).
 fn track_external(ctx: &mut ImportContext, source_dir: &Path, uri: &str) {
@@ -851,7 +851,7 @@ fn collect_paths(
 
 /// Hashes a node's name path into the stable `Uuid` used to key animation
 /// channels and skeleton bones. Not cryptographic; it only needs to be
-/// deterministic across a cook and a runtime load of the same document.
+/// deterministic across an import and a runtime load of the same document.
 fn paths_to_uuid(paths: &[Cow<'static, str>]) -> Uuid {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     paths.join("/").hash(&mut hasher);

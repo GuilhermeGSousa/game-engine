@@ -1,5 +1,5 @@
 //! Covers StandardMaterial round-tripping directly through bincode (no DTO)
-//! and reporting its texture references for cook-time validation.
+//! and reporting its texture references for import-time validation.
 use color::Color;
 use essential::assets::{handle::AssetHandle, Asset, AssetId};
 use render::assets::material::StandardMaterial;
@@ -24,7 +24,7 @@ fn round_trips_through_bincode_with_weak_texture_handles() {
     assert_eq!(
         decoded.base_color_factor(),
         material.base_color_factor(),
-        "uniform PBR parameters (base colour, factors, MaterialFlags) must survive the cooked round-trip"
+        "uniform PBR parameters (base colour, factors, MaterialFlags) must survive the serialized round-trip"
     );
 }
 

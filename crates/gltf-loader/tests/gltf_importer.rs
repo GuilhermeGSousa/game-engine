@@ -1,4 +1,4 @@
-//! Covers GltfImporter splitting a single .gltf into independently-cooked
+//! Covers GltfImporter splitting a single .gltf into independently-imported
 //! mesh, material, and scene sub-assets (this fixture has no textures),
 //! with the scene's node referencing the mesh/material by stable AssetId
 //! through serialized component payloads.
@@ -77,7 +77,7 @@ fn import_emits_mesh_material_and_scene_sub_assets() {
         cooked_scene
             .referenced_assets
             .contains(&AssetId::from_path("triangle.gltf#mesh/0")),
-        "the mesh id must be recorded in referenced_assets for cook-time validation"
+        "the mesh id must be recorded in referenced_assets for import-time validation"
     );
 }
 
@@ -190,8 +190,8 @@ fn import_tracks_external_buffer_as_dependency() {
         dependencies
             .iter()
             .any(|dep| dep.path.file_name().and_then(|n| n.to_str()) == Some("triangle_ext.bin")),
-        "the external .bin buffer must be tracked as a cook dependency so a stale \
-         incremental cook can't ship old geometry, got: {:?}",
+        "the external .bin buffer must be tracked as an import dependency so a stale \
+         incremental re-import can't ship old geometry, got: {:?}",
         dependencies
             .iter()
             .map(|d| d.path.display().to_string())

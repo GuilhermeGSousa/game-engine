@@ -1,4 +1,4 @@
-//! Covers AnimationClip round-tripping through bincode so it can be cooked
+//! Covers AnimationClip round-tripping through bincode so it can be imported
 //! as a standalone sub-asset addressable as "file.gltf#animation/0".
 use animation::clip::{AnimationChanelOutput, AnimationChannel, AnimationClip};
 use glam::Vec3;

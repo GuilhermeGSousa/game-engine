@@ -50,7 +50,7 @@ fn rejects_a_buffer_without_the_magic() {
         "error should name the missing magic, got: {err}"
     );
 
-    // A headerless cooked blob must also be rejected, not misread.
+    // A headerless raw blob must also be rejected, not misread.
     assert!(read_content_asset(b"\x01\x02\x03").is_err());
     assert!(read_content_asset(&[]).is_err());
 }

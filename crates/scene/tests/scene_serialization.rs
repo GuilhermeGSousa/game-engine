@@ -1,5 +1,5 @@
 //! Covers Scene/SceneNode round-tripping directly through bincode and
-//! reporting the assets its component payloads reference for cook-time
+//! reporting the assets its component payloads reference for import-time
 //! validation.
 use ecs::component::Component;
 use essential::assets::{handle::AssetHandle, Asset, AssetId};

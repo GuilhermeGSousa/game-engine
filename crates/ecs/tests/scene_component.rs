@@ -86,7 +86,7 @@ fn entity_for_returns_none_for_an_out_of_range_ref() {
     let ctx = SceneSpawnContext::new((&mut world).into(), &nodes);
     assert!(
         ctx.entity_for(SceneEntityRef(5)).is_none(),
-        "a malformed cooked scene must yield None, never a panic"
+        "a malformed scene must yield None, never a panic"
     );
 }
 

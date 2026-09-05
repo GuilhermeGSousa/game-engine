@@ -8,7 +8,7 @@ use crate::{component::Component, entity::Entity, world::RestrictedWorld};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SceneEntityRef(pub usize);
 
-/// What a [`SceneComponent`] gets while a cooked scene is being spawned.
+/// What a [`SceneComponent`] gets while a scene is being spawned.
 pub struct SceneSpawnContext<'w> {
     world: RestrictedWorld<'w>,
     node_entities: &'w [Entity],
@@ -29,7 +29,7 @@ impl<'w> SceneSpawnContext<'w> {
     }
 
     /// Resolves a node reference to its spawned entity. Returns `None` for an
-    /// out-of-range index, so a malformed cooked scene cannot panic.
+    /// out-of-range index, so a malformed scene cannot panic.
     pub fn entity_for(&self, reference: SceneEntityRef) -> Option<Entity> {
         self.node_entities.get(reference.0).copied()
     }
@@ -41,7 +41,7 @@ impl<'w> SceneSpawnContext<'w> {
     }
 }
 
-/// Data authored into a cooked `Scene` that knows how to apply itself to a
+/// Data authored into a `Scene` that knows how to apply itself to a
 /// spawned entity.
 ///
 /// A type that is a runtime component inserts itself. A type that is really

@@ -106,7 +106,7 @@ impl<'w, 's> CommandQueue<'w, 's> {
         ));
     }
 
-    /// Queues a cooked scene component for deserialization and application.
+    /// Queues a scene component for deserialization and application.
     /// `node_entities` lets the component resolve `SceneEntityRef`s to the
     /// other entities spawned for the same scene.
     pub fn apply_scene_component(

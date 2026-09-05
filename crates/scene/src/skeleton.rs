@@ -7,7 +7,7 @@ use mesh::skeleton::{Skeleton, SkeletonComponent};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Skeleton binding as authored into a cooked scene. Bones are node indices
+/// Skeleton binding as authored into a scene. Bones are node indices
 /// here because `SkeletonComponent` holds `Entity`, which cannot exist at rest.
 ///
 /// Derives `Component` only to satisfy the `SceneComponent: Component` bound —
@@ -45,7 +45,7 @@ impl SceneComponent for SceneSkeleton {
     }
 }
 
-/// The skeleton binding without the player. Cooked onto the appended primitive
+/// The skeleton binding without the player. Serialized onto the appended primitive
 /// child nodes of a multi-primitive skinned mesh so each drawable primitive
 /// skins from the same bone entities the owning node's `AnimationPlayer` drives.
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]

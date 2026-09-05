@@ -12,7 +12,7 @@ use crate::scene::Scene;
 pub struct SceneSpawnerComponent(pub AssetHandle<Scene>);
 
 /// Expands every entity carrying a [`SceneSpawnerComponent`] whose scene asset
-/// has finished loading into one entity per `SceneNode`. Each node's cooked
+/// has finished loading into one entity per `SceneNode`. Each node's serialized
 /// components are applied generically through the component registry, and the
 /// parent/child hierarchy is wired up. Root nodes are parented to the spawner
 /// entity so they inherit its transform.
@@ -53,7 +53,7 @@ pub fn spawn_scene_components(
         let mut has_parent = vec![false; scene.nodes.len()];
         for (index, node) in scene.nodes.iter().enumerate() {
             for &child in &node.children {
-                // A malformed cooked Scene can carry an out-of-range child
+                // A malformed Scene can carry an out-of-range child
                 // index; skip it rather than panicking on the main schedule.
                 let Some(&child_entity) = node_entities.get(child) else {
                     continue;

@@ -6,7 +6,7 @@ use essential::assets::{
 };
 use serde::{Deserialize, Serialize};
 
-/// One component's cooked payload: the registry key it was registered under
+/// One component's serialized payload: the registry key it was registered under
 /// plus its serde-JSON encoding.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerializedComponent {
@@ -44,7 +44,7 @@ impl SceneNode {
 }
 
 /// A format-agnostic scene graph, serialized directly (no separate DTO) and
-/// cooked as its own asset. `nodes[0]` is not special — roots are simply the
+/// serialized as its own asset. `nodes[0]` is not special — roots are simply the
 /// nodes no other node lists as a child.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Scene {

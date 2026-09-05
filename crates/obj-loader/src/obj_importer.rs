@@ -1,6 +1,6 @@
 //! Offline importer that relocates the runtime `OBJLoader`/`MTLLoader` parsing
-//! into the asset-cook pipeline. A single `.obj` (plus the `.mtl` named in its
-//! first `mtllib` line) is split into independently-cooked `mesh/*`, a single
+//! into the import pipeline. A single `.obj` (plus the `.mtl` named in its
+//! first `mtllib` line) is split into independently-imported `mesh/*`, a single
 //! `material/<mtl stem>`, and one flat `scene` sub-asset, cross-referenced by
 //! stable `AssetId`.
 
@@ -150,7 +150,7 @@ fn import_material(
         if let Some(diffuse_texture) = m.diffuse_texture {
             // TODO(asset-import-pipeline): MTL texture paths are assumed
             // relative to the manifest root, and the standalone ImageImporter
-            // always cooks sRGB, so a normal map wired this way loses linear
+            // always imports as sRGB, so a normal map wired this way loses linear
             // sampling.
             track_texture_dependency(ctx, mtl_dir, &diffuse_texture);
             material.set_base_color_texture(AssetHandle::weak(AssetId::from_path(&format!(
@@ -161,7 +161,7 @@ fn import_material(
         if let Some(normal_texture) = m.normal_texture {
             // TODO(asset-import-pipeline): MTL texture paths are assumed
             // relative to the manifest root, and the standalone ImageImporter
-            // always cooks sRGB, so a normal map wired this way loses linear
+            // always imports as sRGB, so a normal map wired this way loses linear
             // sampling.
             track_texture_dependency(ctx, mtl_dir, &normal_texture);
             material.set_normal_texture(AssetHandle::weak(AssetId::from_path(&format!(

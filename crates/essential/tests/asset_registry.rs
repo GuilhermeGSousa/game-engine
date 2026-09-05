@@ -88,15 +88,16 @@ fn save_content_asset_upserts_the_registry() {
 
     save_content_asset(&Thing, &dir, address).expect("save");
 
+    let raw = std::fs::read(dir.join(address)).unwrap();
+    let (header, _) = read_content_asset(&raw).expect("readable");
+
     let registry = AssetRegistry::load(&dir).expect("load");
     assert_eq!(
-        registry.get(AssetId::from_path(address)),
+        registry.get(header.asset_id),
         Some(address),
         "save_content_asset must register the asset it just wrote"
     );
 
-    let raw = std::fs::read(dir.join(address)).unwrap();
-    let (header, _) = read_content_asset(&raw).expect("readable");
     assert_eq!(
         header.provenance, None,
         "an editor save is not import-derived"
@@ -271,5 +272,51 @@ fn from_content_tree_of_an_absent_tree_is_empty() {
     let registry = AssetRegistry::from_content_tree(&dir, "content", "gasset")
         .expect("a project with no content tree yet is not an error");
     assert_eq!(registry.iter().count(), 0);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn save_content_asset_mints_an_id_not_derived_from_the_address() {
+    let dir = temp_root("save-mints");
+    let address = "content/things/one.gasset";
+
+    save_content_asset(&Thing, &dir, address).expect("save");
+
+    let raw = std::fs::read(dir.join(address)).unwrap();
+    let (header, _) = read_content_asset(&raw).expect("readable");
+    assert_ne!(
+        header.asset_id,
+        AssetId::from_path(address),
+        "identity must be minted, not derived from where the file happens to sit"
+    );
+    assert_eq!(
+        AssetRegistry::load(&dir).unwrap().get(header.asset_id),
+        Some(address),
+        "the registry points at the minted id"
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn saving_over_an_existing_asset_reuses_its_id() {
+    let dir = temp_root("save-reuses");
+    let address = "content/things/two.gasset";
+
+    save_content_asset(&Thing, &dir, address).expect("first save");
+    let first = read_content_asset_header(&dir.join(address))
+        .unwrap()
+        .asset_id;
+
+    save_content_asset(&Thing, &dir, address).expect("second save");
+    let second = read_content_asset_header(&dir.join(address))
+        .unwrap()
+        .asset_id;
+
+    assert_eq!(
+        first, second,
+        "re-saving must keep the identity every existing reference names"
+    );
+
     std::fs::remove_dir_all(&dir).ok();
 }

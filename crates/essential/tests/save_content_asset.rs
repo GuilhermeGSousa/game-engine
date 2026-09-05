@@ -1,5 +1,5 @@
-//! save_content_asset writes a content asset into a project tree, hashing
-//! its id from the project-relative address (not the absolute path).
+//! save_content_asset writes a content asset into a project tree, minting
+//! its id on first save and reusing it on re-save.
 use essential::assets::content::{read_content_asset, save_content_asset};
 use essential::assets::{Asset, AssetId};
 
@@ -29,11 +29,6 @@ fn writes_a_readable_content_asset_under_the_project_root() {
     let (header, payload) = read_content_asset(&written).expect("readable");
 
     assert_eq!(header.kind, "Widget");
-    assert_eq!(
-        header.asset_id,
-        AssetId::from_path(address),
-        "id is hashed from the project-relative address, not the absolute path"
-    );
     assert_eq!(
         header.references,
         vec![AssetId::from_path("content/parts/spoke.gasset")],

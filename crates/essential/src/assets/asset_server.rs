@@ -405,7 +405,7 @@ mod tests {
     use crate::assets::{
         asset_loader::AssetLoader,
         asset_store::AssetStore,
-        content::{save_content_asset, AssetRegistry},
+        content::{read_content_asset_header, save_content_asset, AssetRegistry},
     };
     use ecs::world::World;
 
@@ -538,7 +538,9 @@ mod tests {
         // Writes both the .gasset file and its registry entry, exactly as
         // `import` and an editor save do.
         save_content_asset(&FixtureAsset { value: 7 }, &dir, address).expect("save content asset");
-        let id = AssetId::from_path(address);
+        let id = read_content_asset_header(&dir.join(address))
+            .expect("read header")
+            .asset_id;
 
         let mut world = World::new();
         let store = AssetStore::<FixtureAsset>::new();

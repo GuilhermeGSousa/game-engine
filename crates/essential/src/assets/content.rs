@@ -147,17 +147,20 @@ pub fn read_content_asset_header(path: &Path) -> anyhow::Result<ContentAssetHead
 /// parent directories as needed, and upserts the asset registry so a
 /// path-less (`AssetServer::load_by_id`) load can find it later.
 ///
-/// `address` is the project-relative path (`"content/hero/body.gasset"`) and
-/// is what the asset's id is hashed from; `project_root` is the source tree
-/// an editor saves into, which is deliberately *not* the exe-relative
-/// runtime root — a save must land in the tree under version control, not
-/// beside the binary where the next build overwrites it.
+/// The asset's id is *minted* the first time an address is written and
+/// reused every time after, by reading the header already on disk — so a
+/// re-save keeps the identity that existing references name. `address` is
+/// the project-relative path (`"content/hero/body.gasset"`); `project_root`
+/// is the source tree an editor saves into, which is deliberately *not* the
+/// exe-relative runtime root — a save must land in the tree under version
+/// control, not beside the binary where the next build overwrites it.
 pub fn save_content_asset<A: Asset>(
     value: &A,
     project_root: &Path,
     address: &str,
 ) -> anyhow::Result<()> {
-    let asset_id = AssetId::from_path(address);
+    let path = project_root.join(address);
+    let asset_id = mint_or_reuse_id(&path)?;
     let header = ContentAssetHeader {
         format_version: CONTENT_FORMAT_VERSION,
         asset_id,
@@ -168,7 +171,6 @@ pub fn save_content_asset<A: Asset>(
     let payload = bincode::serialize(value).context("failed to serialize content asset payload")?;
     let bytes = write_content_asset(&header, &payload)?;
 
-    let path = project_root.join(address);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("failed to create '{}'", parent.display()))?;
@@ -179,6 +181,16 @@ pub fn save_content_asset<A: Asset>(
     let mut registry = AssetRegistry::load(project_root)?;
     registry.insert(asset_id, address);
     registry.save(project_root)
+}
+
+/// The id to write at `path`: the one already in the file's header if a
+/// content asset is there, otherwise a freshly minted one. Identity is
+/// assigned once and then belongs to the asset, not to its location.
+pub fn mint_or_reuse_id(path: &Path) -> anyhow::Result<AssetId> {
+    if path.exists() {
+        return Ok(read_content_asset_header(path)?.asset_id);
+    }
+    Ok(AssetId::new())
 }
 
 /// A serialized `[assets]` table in `.registry.toml`: `AssetId::simple_hex()`

@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use essential::assets::content::{read_content_asset, save_content_asset};
 use essential::assets::utils::load_content_asset_bytes;
-use essential::assets::{Asset, AssetId, ContentAssetRoot};
+use essential::assets::{Asset, ContentAssetRoot};
 use mesh::mesh::Mesh;
 use scene::scene::{Scene, SceneNode};
 
@@ -81,7 +81,6 @@ fn an_editor_saved_scene_round_trips() {
     let raw = std::fs::read(root.join(address)).unwrap();
     let (header, _) = read_content_asset(&raw).expect("readable");
     assert_eq!(header.kind, Scene::name());
-    assert_eq!(header.asset_id, AssetId::from_path(address));
     assert_eq!(
         header.provenance, None,
         "an editor save is not import-derived"

@@ -37,8 +37,5 @@ __pycache__/
 .obsidian
 .trash
 
-# tech-demo cook output (regenerate with: cargo run -p cook -- examples/tech-demo/assets.toml examples/tech-demo/assets examples/tech-demo/res)
-/examples/tech-demo/res/
-
 # animation-test cook output (regenerate with: cargo run -p cook -- examples/animation-test/assets.toml examples/animation-test/assets examples/animation-test/res)
 /examples/animation-test/res/

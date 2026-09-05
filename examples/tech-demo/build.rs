@@ -4,15 +4,14 @@ use std::path::{Path, PathBuf};
 use fs_extra::copy_items;
 use fs_extra::dir::CopyOptions;
 
-/// Copies the cooked `res/` directory next to the built binary, so the
-/// executable-relative `CookedAssetRoot::Directory` default finds it.
-/// `res/` is produced by `cook`; if it does not exist yet, do nothing.
+/// Copies the `content/` directory next to the built binary, so the
+/// executable-relative `ContentAssetRoot::Directory` default finds it.
 fn main() -> anyhow::Result<()> {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).canonicalize()?;
-    let res_path = manifest_dir.join("res");
-    println!("cargo:rerun-if-changed={}", res_path.display());
+    let content_path = manifest_dir.join("content");
+    println!("cargo:rerun-if-changed={}", content_path.display());
 
-    if !res_path.exists() {
+    if !content_path.exists() {
         return Ok(());
     }
 
@@ -22,7 +21,7 @@ fn main() -> anyhow::Result<()> {
     let output_path = out_dir.ancestors().nth(3).unwrap().to_path_buf();
 
     copy_items(
-        &[res_path],
+        &[content_path],
         Path::new(&output_path),
         &CopyOptions {
             overwrite: true,

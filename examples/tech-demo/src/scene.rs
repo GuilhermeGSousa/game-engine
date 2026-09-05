@@ -4,7 +4,7 @@ use game_engine::{
     scene::{scene::Scene, spawner::SceneSpawnerComponent},
 };
 
-const FOREST_SCENE: &str = "forest.glb#scene";
+const FOREST_SCENE: &str = "content/forest/scene.gasset";
 
 pub(crate) fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
     // TODO(asset-import-pipeline): the forest lost its per-scene shadow opt-in

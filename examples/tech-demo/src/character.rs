@@ -27,21 +27,21 @@ use game_engine::{
 use glam::{Quat, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
-const CHAR_SCENE: &str = "UAL1.glb#scene";
+const CHAR_SCENE: &str = "content/UAL1/scene.gasset";
 
 // TODO(asset-import-pipeline): magic indices — a cooked animation-name manifest would replace these.
-const IDLE_LOOP: &str = "UAL1.glb#animation/53";
-const JOG_FWD_LOOP: &str = "UAL1.glb#animation/67";
-const JOG_FWD_L_LOOP: &str = "UAL1.glb#animation/64";
-const JOG_FWD_R_LOOP: &str = "UAL1.glb#animation/68";
-const JOG_LEFT_LOOP: &str = "UAL1.glb#animation/69";
-const JOG_RIGHT_LOOP: &str = "UAL1.glb#animation/70";
-const JOG_BWD_LOOP: &str = "UAL1.glb#animation/62";
-const JOG_BWD_L_LOOP: &str = "UAL1.glb#animation/61";
-const JOG_BWD_R_LOOP: &str = "UAL1.glb#animation/63";
-const JUMP_START: &str = "UAL1.glb#animation/73";
-const JUMP_LOOP: &str = "UAL1.glb#animation/72";
-const JUMP_LAND: &str = "UAL1.glb#animation/71";
+const IDLE_LOOP: &str = "content/UAL1/animation_53.gasset";
+const JOG_FWD_LOOP: &str = "content/UAL1/animation_67.gasset";
+const JOG_FWD_L_LOOP: &str = "content/UAL1/animation_64.gasset";
+const JOG_FWD_R_LOOP: &str = "content/UAL1/animation_68.gasset";
+const JOG_LEFT_LOOP: &str = "content/UAL1/animation_69.gasset";
+const JOG_RIGHT_LOOP: &str = "content/UAL1/animation_70.gasset";
+const JOG_BWD_LOOP: &str = "content/UAL1/animation_62.gasset";
+const JOG_BWD_L_LOOP: &str = "content/UAL1/animation_61.gasset";
+const JOG_BWD_R_LOOP: &str = "content/UAL1/animation_63.gasset";
+const JUMP_START: &str = "content/UAL1/animation_73.gasset";
+const JUMP_LOOP: &str = "content/UAL1/animation_72.gasset";
+const JUMP_LAND: &str = "content/UAL1/animation_71.gasset";
 
 #[derive(Component)]
 pub(crate) struct Player;

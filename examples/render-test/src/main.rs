@@ -58,7 +58,7 @@ use render::{
     MaterialComponent,
 };
 
-const SPONZA_PATH: &str = "Sponza/Sponza.gltf#scene";
+const SPONZA_PATH: &str = "content/Sponza/scene.gasset";
 
 #[cfg(not(feature = "terminal"))]
 const SPHERE_RADIUS: f32 = 0.35;

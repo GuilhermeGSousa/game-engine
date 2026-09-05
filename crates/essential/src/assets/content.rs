@@ -25,9 +25,10 @@ pub const REGISTRY_FILE_NAME: &str = "content/.registry.toml";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentAssetHeader {
     pub format_version: u32,
-    /// Identity. Today always `AssetId::from_path(<project-relative path>)`,
-    /// which is recomputable from the path — it is stored so a future editor
-    /// can mint a stable id here instead without a format break.
+    /// Identity: a UUID minted when the asset is first written and carried
+    /// here from then on, so it survives the file being renamed or moved.
+    /// Deliberately not derived from the address — only the asset registry
+    /// connects an address back to the id.
     pub asset_id: AssetId,
     /// Outbound references, so a registry scan never reads payloads.
     pub references: Vec<AssetId>,

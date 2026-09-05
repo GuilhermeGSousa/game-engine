@@ -2,7 +2,7 @@
 //! bincode(ContentAssetHeader) | payload (verbatim)`. The header is read
 //! without touching the payload, so a future asset registry can index a
 //! whole content tree by scanning headers alone.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use anyhow::{bail, Context};
@@ -96,6 +96,53 @@ pub fn read_content_asset(bytes: &[u8]) -> anyhow::Result<(ContentAssetHeader, &
     Ok((header, &bytes[header_end..]))
 }
 
+/// Reads just the header of the content asset at `path`, never the payload.
+///
+/// A content tree holds whole textures and meshes — tens of megabytes each —
+/// so indexing one by reading every file whole is not viable. This reads the
+/// 8-byte magic-and-length prefix, then exactly `header_len` more bytes.
+pub fn read_content_asset_header(path: &Path) -> anyhow::Result<ContentAssetHeader> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)
+        .with_context(|| format!("failed to open '{}'", path.display()))?;
+
+    let mut prefix = [0u8; 8];
+    file.read_exact(&mut prefix)
+        .with_context(|| format!("'{}' is too short to be a content asset", path.display()))?;
+    if prefix[..4] != CONTENT_ASSET_MAGIC {
+        bail!(
+            "not a content asset: '{}' is missing the GRDY magic prefix",
+            path.display()
+        );
+    }
+
+    let header_len = u32::from_le_bytes(
+        prefix[4..8]
+            .try_into()
+            .expect("slice of exactly 4 bytes is always a [u8; 4]"),
+    ) as usize;
+
+    let mut header_bytes = vec![0u8; header_len];
+    file.read_exact(&mut header_bytes).with_context(|| {
+        format!(
+            "content asset '{}' truncated: header claims {header_len} bytes",
+            path.display()
+        )
+    })?;
+
+    let header: ContentAssetHeader = bincode::deserialize(&header_bytes)
+        .with_context(|| format!("failed to deserialize header of '{}'", path.display()))?;
+    if header.format_version != CONTENT_FORMAT_VERSION {
+        bail!(
+            "unsupported content asset format version {} in '{}' (this build expects {CONTENT_FORMAT_VERSION})",
+            header.format_version,
+            path.display()
+        );
+    }
+    Ok(header)
+}
+
 /// Writes `value` as a content asset at `project_root/address`, creating
 /// parent directories as needed, and upserts the asset registry so a
 /// path-less (`AssetServer::load_by_id`) load can find it later.
@@ -150,6 +197,7 @@ struct RegistryFile {
 #[derive(Debug, Clone, Default)]
 pub struct AssetRegistry {
     entries: BTreeMap<AssetId, String>,
+    by_address: HashMap<String, AssetId>,
 }
 
 impl AssetRegistry {
@@ -171,13 +219,79 @@ impl AssetRegistry {
 
     pub fn parse(text: &str) -> anyhow::Result<Self> {
         let file: RegistryFile = toml::from_str(text).context("failed to parse asset registry")?;
-        let mut entries = BTreeMap::new();
+        let mut registry = Self::default();
         for (hex, address) in file.assets {
             let id = AssetId::from_simple_hex(&hex)
                 .map_err(|err| anyhow::anyhow!("invalid asset id '{hex}' in registry: {err}"))?;
-            entries.insert(id, address);
+            if let Some(existing) = registry.by_address.get(&address) {
+                bail!(
+                    "asset registry maps two ids ({} and {}) to the same address '{address}'",
+                    existing.simple_hex(),
+                    id.simple_hex()
+                );
+            }
+            registry.insert(id, address);
         }
-        Ok(Self { entries })
+        Ok(registry)
+    }
+
+    /// Builds a registry by scanning `<project_root>/<content_root>` for
+    /// `*.<extension>` files and reading each one's header.
+    ///
+    /// This is the authoritative way to produce a registry: identity lives in
+    /// the header, so a scan re-points an id at wherever its file actually is
+    /// now — which is what lets a content asset be renamed or moved without
+    /// breaking the references that name its id. An absent content tree is an
+    /// empty registry, not an error.
+    pub fn from_content_tree(
+        project_root: &Path,
+        content_root: &str,
+        extension: &str,
+    ) -> anyhow::Result<Self> {
+        let root = project_root.join(content_root);
+        let mut registry = Self::default();
+        let mut source_of: HashMap<AssetId, String> = HashMap::new();
+
+        let mut stack = vec![root.clone()];
+        while let Some(dir) = stack.pop() {
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(entries) => entries,
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(err) => {
+                    return Err(err).with_context(|| format!("failed to read '{}'", dir.display()))
+                }
+            };
+            for entry in entries {
+                let path = entry
+                    .with_context(|| format!("failed to read an entry of '{}'", dir.display()))?
+                    .path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|e| e.to_str()) != Some(extension) {
+                    continue;
+                }
+
+                let header = read_content_asset_header(&path)?;
+                let address = path
+                    .strip_prefix(project_root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+
+                if let Some(previous) = source_of.get(&header.asset_id) {
+                    bail!(
+                        "content tree is malformed: '{previous}' and '{address}' both carry asset id {}",
+                        header.asset_id.simple_hex()
+                    );
+                }
+                source_of.insert(header.asset_id, address.clone());
+                registry.insert(header.asset_id, address);
+            }
+        }
+
+        Ok(registry)
     }
 
     pub fn save(&self, project_root: &Path) -> anyhow::Result<()> {
@@ -201,11 +315,23 @@ impl AssetRegistry {
     }
 
     pub fn insert(&mut self, id: AssetId, address: impl Into<String>) {
-        self.entries.insert(id, address.into());
+        let address = address.into();
+        if let Some(previous) = self.entries.insert(id, address.clone()) {
+            self.by_address.remove(&previous);
+        }
+        self.by_address.insert(address, id);
     }
 
     pub fn remove(&mut self, id: AssetId) -> Option<String> {
-        self.entries.remove(&id)
+        let address = self.entries.remove(&id)?;
+        self.by_address.remove(&address);
+        Some(address)
+    }
+
+    /// The id of the asset at `address`, for a path-based load. The inverse
+    /// of [`AssetRegistry::get`].
+    pub fn id_for_address(&self, address: &str) -> Option<AssetId> {
+        self.by_address.get(address).copied()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (AssetId, &str)> {

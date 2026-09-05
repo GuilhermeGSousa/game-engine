@@ -24,11 +24,11 @@ use game_engine::{
 use glam::{Quat, Vec2, Vec3};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-const NINJA_SCENE: &str = "ninja/ninja.glb#scene";
-const IDLE_ANIM: &str = "ninja/idle.glb#animation/0";
-const WALK_ANIM: &str = "ninja/walk.glb#animation/0";
-const STRAFE_LEFT_ANIM: &str = "ninja/strafe_left.glb#animation/0";
-const STRAFE_RIGHT_ANIM: &str = "ninja/strafe_right.glb#animation/0";
+const NINJA_SCENE: &str = "content/ninja/scene.gasset";
+const IDLE_ANIM: &str = "content/idle/animation_0.gasset";
+const WALK_ANIM: &str = "content/walk/animation_0.gasset";
+const STRAFE_LEFT_ANIM: &str = "content/strafe_left/animation_0.gasset";
+const STRAFE_RIGHT_ANIM: &str = "content/strafe_right/animation_0.gasset";
 
 /// Marks the character entity spawned at startup (the scene spawner / eventual
 /// `AnimationStore` holder), so the overlay and gizmo systems can find it.

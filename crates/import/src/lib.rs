@@ -2,13 +2,14 @@
 //! content-path sub-asset-id resolver and writes one content asset per
 //! emitted sub-asset. The binary (`src/main.rs`) is a thin CLI over
 //! [`import_source`].
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context};
 use asset_import::{ImportContext, Importer, SubAssetIdResolver};
 use essential::assets::content::{
-    write_content_asset, AssetRegistry, ContentAssetHeader, ImportProvenance,
+    mint_or_reuse_id, write_content_asset, AssetRegistry, ContentAssetHeader, ImportProvenance,
     CONTENT_FORMAT_VERSION,
 };
 use essential::assets::AssetId;
@@ -62,13 +63,29 @@ pub fn import_source(
         );
     };
 
-    // Cross-references resolve to content-tree addresses. `content_address`
-    // is a pure function of the sub-asset name, so one importer pass is
-    // enough — no need to discover the sub-asset set first.
+    // Identity is minted per address and reused from the header already on
+    // disk, so it must be decided once per sub-asset name and shared between
+    // the cross-references baked during the importer pass and the headers
+    // written afterwards. `content_address` is a pure function of the name,
+    // so this memo is the single place an id is decided for this run.
+    let minted: Arc<Mutex<HashMap<String, AssetId>>> = Arc::new(Mutex::new(HashMap::new()));
+
     let owned_source = source.to_path_buf();
     let owned_config = config.clone();
+    let owned_root = project_root.to_path_buf();
+    let memo = Arc::clone(&minted);
     let resolver: SubAssetIdResolver = Box::new(move |sub_name| {
-        AssetId::from_path(&content_address(&owned_config, &owned_source, sub_name))
+        let address = content_address(&owned_config, &owned_source, sub_name);
+        let mut memo = memo.lock().expect("mint memo poisoned");
+        if let Some(id) = memo.get(&address) {
+            return *id;
+        }
+        // A failure to read an existing header would mean a corrupt tree;
+        // mint rather than panic in a resolver that cannot return an error,
+        // and let the write below surface the real problem.
+        let id = mint_or_reuse_id(&owned_root.join(&address)).unwrap_or_else(|_| AssetId::new());
+        memo.insert(address, id);
+        id
     });
 
     let mut ctx = ImportContext::with_sub_asset_id_resolver(source.to_path_buf(), resolver);
@@ -79,7 +96,6 @@ pub fn import_source(
     let outputs = ctx.into_parts();
 
     let emitted: HashSet<AssetId> = outputs.sub_assets.iter().map(|s| s.asset_id).collect();
-    let mut registry = AssetRegistry::load(project_root)?;
     let mut written = Vec::with_capacity(outputs.sub_assets.len());
 
     for sub_asset in &outputs.sub_assets {
@@ -119,7 +135,6 @@ pub fn import_source(
         std::fs::write(&path, bytes)
             .with_context(|| format!("failed to write '{}'", path.display()))?;
 
-        registry.insert(sub_asset.asset_id, address.clone());
         written.push(ImportedAsset {
             sub_asset_name: sub_asset.name.clone(),
             address,
@@ -127,7 +142,12 @@ pub fn import_source(
         });
     }
 
-    registry.save(project_root)?;
+    // The registry is derived data: rebuilt from the tree rather than merged
+    // into, so a content asset that was renamed or moved by hand is
+    // re-pointed at where it actually is, and an entry whose file is gone
+    // does not linger.
+    AssetRegistry::from_content_tree(project_root, &config.root, &config.extension)?
+        .save(project_root)?;
 
     Ok(written)
 }

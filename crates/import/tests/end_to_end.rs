@@ -9,7 +9,9 @@
 //! suite today. This covers the same code path minus the task-pool wrapper.
 use std::path::{Path, PathBuf};
 
-use essential::assets::content::{read_content_asset, save_content_asset};
+use essential::assets::content::{
+    read_content_asset, read_content_asset_header, save_content_asset, AssetRegistry,
+};
 use essential::assets::utils::load_content_asset_bytes;
 use essential::assets::{Asset, ContentAssetRoot};
 use mesh::mesh::Mesh;
@@ -84,6 +86,57 @@ fn an_editor_saved_scene_round_trips() {
     assert_eq!(
         header.provenance, None,
         "an editor save is not import-derived"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn a_baked_reference_resolves_to_the_minted_id_of_its_target() {
+    let root = std::env::temp_dir().join(format!("content-minted-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let written = import::import_source(&fixture(), &root, &Default::default()).expect("import");
+
+    let scene_address = &written
+        .iter()
+        .find(|a| a.sub_asset_name == "scene")
+        .expect("the fixture emits a scene")
+        .address;
+    let mesh_address = &written
+        .iter()
+        .find(|a| a.sub_asset_name.starts_with("mesh/"))
+        .expect("the fixture emits a mesh")
+        .address;
+
+    // Load the scene by address, exactly as game code would.
+    let bytes = pollster::block_on(load_content_asset_bytes(
+        &ContentAssetRoot::Directory(root.clone()),
+        scene_address,
+        Scene::name(),
+    ))
+    .expect("the scene loads by address");
+    let scene: Scene = bincode::deserialize(&bytes).expect("payload is a Scene");
+
+    // The id it references is the mesh's *minted* id — not derivable from
+    // either address — and the registry is what connects the two.
+    let referenced = scene
+        .referenced_assets
+        .first()
+        .copied()
+        .expect("the scene references its mesh");
+    let registry = AssetRegistry::load(&root).expect("registry loads");
+    assert_eq!(
+        registry.get(referenced),
+        Some(mesh_address.as_str()),
+        "a baked reference must resolve through the registry to the file it names"
+    );
+    assert_eq!(
+        read_content_asset_header(&root.join(mesh_address))
+            .unwrap()
+            .asset_id,
+        referenced,
+        "and that file's own header must carry the same id"
     );
 
     std::fs::remove_dir_all(&root).ok();

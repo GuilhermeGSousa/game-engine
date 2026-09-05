@@ -3,7 +3,9 @@
 use std::path::{Path, PathBuf};
 
 use ecs::component::Component;
-use essential::assets::content::{read_content_asset, AssetRegistry, ImportProvenance};
+use essential::assets::content::{
+    read_content_asset, read_content_asset_header, AssetRegistry, ImportProvenance,
+};
 use essential::assets::{Asset, AssetId};
 use mesh::mesh::MeshComponent;
 use scene::scene::Scene;
@@ -37,9 +39,10 @@ fn writes_content_assets_with_content_path_cross_references() {
     let raw = std::fs::read(project_root.join("content/triangle/scene.gasset")).unwrap();
     let (header, payload) = read_content_asset(&raw).expect("readable");
     assert_eq!(header.kind, Scene::name());
-    assert_eq!(
+    assert_ne!(
         header.asset_id,
-        AssetId::from_path("content/triangle/scene.gasset")
+        AssetId::from_path("content/triangle/scene.gasset"),
+        "identity is minted, not derived from the address"
     );
     assert_eq!(
         header.provenance,
@@ -51,7 +54,9 @@ fn writes_content_assets_with_content_path_cross_references() {
     );
 
     let scene: Scene = bincode::deserialize(payload).expect("scene payload");
-    let mesh_id = AssetId::from_path("content/triangle/mesh_0.gasset");
+    let mesh_id = read_content_asset_header(&project_root.join("content/triangle/mesh_0.gasset"))
+        .expect("mesh header")
+        .asset_id;
     let component = scene.nodes[0]
         .components
         .iter()
@@ -63,11 +68,11 @@ fn writes_content_assets_with_content_path_cross_references() {
         .id();
     assert_eq!(
         referenced, mesh_id,
-        "the MeshComponent must address the content path, not triangle.gltf#mesh/0"
+        "the MeshComponent must address the mesh's minted id, not triangle.gltf#mesh/0"
     );
     assert!(
         header.references.contains(&mesh_id),
-        "header references list carries the content-path mesh id"
+        "header references list carries the mesh's minted id"
     );
 
     std::fs::remove_dir_all(&project_root).ok();
@@ -84,11 +89,84 @@ fn import_upserts_the_registry_for_every_written_asset() {
 
     let registry = AssetRegistry::load(&project_root).expect("registry loads");
     for asset in &written {
+        let id = read_content_asset_header(&project_root.join(&asset.address))
+            .expect("header")
+            .asset_id;
         assert_eq!(
-            registry.get(AssetId::from_path(&asset.address)),
+            registry.get(id),
             Some(asset.address.as_str()),
             "import must register every content asset it writes"
         );
+    }
+
+    std::fs::remove_dir_all(&project_root).ok();
+}
+
+#[test]
+fn re_importing_reuses_the_ids_already_on_disk() {
+    let project_root =
+        std::env::temp_dir().join(format!("import-gltf-reuse-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project_root);
+    std::fs::create_dir_all(&project_root).unwrap();
+
+    let first = import::import_source(&fixture(), &project_root, &Default::default())
+        .expect("first import");
+    let ids_before: Vec<AssetId> = first
+        .iter()
+        .map(|a| {
+            read_content_asset_header(&project_root.join(&a.address))
+                .unwrap()
+                .asset_id
+        })
+        .collect();
+
+    let second = import::import_source(&fixture(), &project_root, &Default::default())
+        .expect("second import");
+    let ids_after: Vec<AssetId> = second
+        .iter()
+        .map(|a| {
+            read_content_asset_header(&project_root.join(&a.address))
+                .unwrap()
+                .asset_id
+        })
+        .collect();
+
+    assert_eq!(
+        ids_before, ids_after,
+        "a re-import must keep every id, or every baked cross-reference breaks"
+    );
+
+    std::fs::remove_dir_all(&project_root).ok();
+}
+
+#[test]
+fn import_writes_a_registry_rebuilt_from_the_tree() {
+    let project_root =
+        std::env::temp_dir().join(format!("import-gltf-rebuild-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&project_root);
+    std::fs::create_dir_all(&project_root).unwrap();
+
+    // A stale entry that no file backs. A merge would keep it; a rebuild
+    // from the tree must drop it.
+    let mut stale = AssetRegistry::new();
+    stale.insert(AssetId::new(), "content/gone/removed.gasset");
+    stale.save(&project_root).unwrap();
+
+    let written =
+        import::import_source(&fixture(), &project_root, &Default::default()).expect("import");
+
+    let registry = AssetRegistry::load(&project_root).expect("registry loads");
+    assert_eq!(
+        registry.iter().count(),
+        written.len(),
+        "the registry is exactly the tree, with no stale entries left over"
+    );
+    for asset in &written {
+        let id = read_content_asset_header(&project_root.join(&asset.address))
+            .unwrap()
+            .asset_id;
+        assert_eq!(registry.get(id), Some(asset.address.as_str()));
+        assert_eq!(registry.id_for_address(&asset.address), Some(id));
     }
 
     std::fs::remove_dir_all(&project_root).ok();

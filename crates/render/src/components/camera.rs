@@ -2,12 +2,20 @@ use app::extractor::Extracted;
 use color::{Color, LinearRgba};
 use encase::{ShaderType, UniformBuffer};
 use essential::{
-    assets::{asset_store::AssetStore, handle::AssetHandle},
+    assets::{asset_server::AssetServer, asset_store::AssetStore, handle::AssetHandle},
     transform::GlobalTransform,
 };
 
-use ecs::{command::CommandQueue, component::Component, query::Query, resource::Res};
+use ecs::{
+    command::CommandQueue,
+    component::scene::{SceneComponent, SceneSpawnContext},
+    component::Component,
+    query::Query,
+    resource::Res,
+    Entity,
+};
 use glam::{Mat4, Vec3};
+use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
 use window::plugin::Window;
 
@@ -28,6 +36,7 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(
 );
 
 #[allow(dead_code)]
+#[derive(Serialize, Deserialize)]
 pub enum RenderTarget {
     MainWindow,
     Texture(AssetHandle<Texture>),
@@ -44,7 +53,7 @@ impl RenderTarget {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct Camera {
     pub aspect: f32,
     pub fovy: f32,
@@ -52,6 +61,17 @@ pub struct Camera {
     pub zfar: f32,
     pub clear_color: Color,
     pub render_target: RenderTarget,
+}
+
+impl SceneComponent for Camera {
+    fn apply(mut self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        if let RenderTarget::Texture(handle) = &self.render_target {
+            if let Some(server) = ctx.world().get_resource::<AssetServer>() {
+                self.render_target = RenderTarget::Texture(server.load_by_id(handle.id()));
+            }
+        }
+        ctx.insert(self, entity);
+    }
 }
 
 impl Camera {

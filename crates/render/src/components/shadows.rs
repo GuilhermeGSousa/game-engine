@@ -58,10 +58,6 @@ impl RenderShadowCasterSlot {
 }
 
 impl Component for RenderShadowCasterSlot {
-    fn name() -> &'static str {
-        std::any::type_name::<RenderShadowCasterSlot>()
-    }
-
     fn on_remove() -> Option<ecs::component::ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let Some(&slot) =

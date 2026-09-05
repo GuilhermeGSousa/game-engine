@@ -1,11 +1,17 @@
 use std::collections::{HashMap, hash_map::Keys};
 
-use essential::assets::Asset;
+use anyhow::Context;
+use async_trait::async_trait;
+use essential::assets::{
+    Asset, AssetPath, LoadableAsset, asset_loader::AssetLoader, asset_server::AssetLoadContext,
+};
 use glam::{Quat, Vec3};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::pose::JointPose;
 
+#[derive(Serialize, Deserialize)]
 pub enum AnimationChanelOutput {
     Translation(Vec<Vec3>),
     Rotation(Vec<Quat>),
@@ -26,6 +32,7 @@ impl AnimationChanelOutput {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AnimationChannel {
     time_samples: Vec<f32>,
     outputs: AnimationChanelOutput,
@@ -116,7 +123,7 @@ impl AnimationChannel {
     }
 }
 
-#[derive(Asset)]
+#[derive(Asset, Serialize, Deserialize)]
 pub struct AnimationClip {
     channels: HashMap<Uuid, Vec<AnimationChannel>>,
     duration: f32,
@@ -150,5 +157,37 @@ impl AnimationClip {
 
     pub fn duration(&self) -> f32 {
         self.duration
+    }
+}
+
+impl LoadableAsset for AnimationClip {
+    type UsageSettings = ();
+    fn loader() -> Box<dyn AssetLoader<Asset = Self>> {
+        Box::new(AnimationClipLoader)
+    }
+    fn default_usage_settings() -> Self::UsageSettings {}
+}
+
+pub struct AnimationClipLoader;
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl AssetLoader for AnimationClipLoader {
+    type Asset = AnimationClip;
+
+    async fn load(
+        &self,
+        path: AssetPath<'static>,
+        load_context: &mut AssetLoadContext,
+        _usage_settings: (),
+    ) -> anyhow::Result<Self::Asset> {
+        let bytes = essential::assets::utils::load_content_asset_bytes(
+            load_context.content_root(),
+            &path.address(),
+            AnimationClip::name(),
+        )
+        .await
+        .with_context(|| "failed to read animation clip asset")?;
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize animation clip asset")
     }
 }

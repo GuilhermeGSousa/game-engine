@@ -1,10 +1,21 @@
 use app::extractor::extract as extract_main_world;
 use derive_more::Deref;
-use ecs::{component::Component, Entity, With, Without, World};
+use ecs::{
+    component::scene::{SceneComponent, SceneSpawnContext},
+    component::Component,
+    Entity, With, Without, World,
+};
+use serde::{Deserialize, Serialize};
 
 /// Marks a main-world entity as needing a mirror entity in the render world.
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct SyncWithRenderWorld;
+
+impl SceneComponent for SyncWithRenderWorld {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
+    }
+}
 
 /// On a main-world entity: the id of its mirror entity in the render world.
 #[derive(Component, Deref)]

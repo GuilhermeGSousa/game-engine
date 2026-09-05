@@ -23,7 +23,7 @@ essential = { path = "../essential" }
 mesh = { path = "../mesh" }
 ecs = { path = "../ecs" }
 glam = { version = "0.30.1" }
-facet = "0.46"
+serde = { version = "1", features = ["derive"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 jolt-ffi = { path = "../jolt-ffi", optional = true }
@@ -31,3 +31,6 @@ rapier3d = { version = "0.34", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 rapier3d = { version = "0.34" }
+
+[dev-dependencies]
+serde_json = "1.0"

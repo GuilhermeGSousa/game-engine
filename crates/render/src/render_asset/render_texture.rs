@@ -1,5 +1,5 @@
 use crate::{
-    assets::texture::Texture,
+    assets::texture::{Texture, TextureKind},
     device::RenderDevice,
     queue::RenderQueue,
     render_asset::{AssetPreparationError, RenderAsset},
@@ -27,12 +27,33 @@ impl RenderTexture {
     }
 
     pub fn from_texture(texture: &Texture, device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-        let usage_settings = texture.usage_settings();
-        let wgpu_texture = device.create_texture(&usage_settings.texture_descriptor);
-        let view = wgpu_texture.create_view(&usage_settings.texture_view_descriptor);
+        let usage = match texture.kind {
+            TextureKind::Sampled => TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            TextureKind::RenderTarget => {
+                TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING
+            }
+        };
+        let size = texture.size();
+        let wgpu_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: texture.format,
+            usage,
+            view_formats: &[],
+        });
+        let view = wgpu_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         if !texture.data().is_empty() {
-            let dimensions = texture.size();
+            // TODO(asset-trait-merge): assumes a 4-byte-per-texel format. Block-compressed
+            // or wide formats would need format.block_copy_size(None) here.
+            debug_assert_eq!(
+                texture.format.block_copy_size(None),
+                Some(4),
+                "bytes_per_row assumes a 4-byte-per-texel format",
+            );
             queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
                     aspect: wgpu::TextureAspect::All,
@@ -43,10 +64,10 @@ impl RenderTexture {
                 texture.data(),
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(4 * dimensions.width),
-                    rows_per_image: Some(dimensions.height),
+                    bytes_per_row: Some(4 * size.width),
+                    rows_per_image: Some(size.height),
                 },
-                *dimensions,
+                size,
             );
         }
 
@@ -122,13 +143,7 @@ impl RenderAsset for RenderTexture {
         // Render-target textures (created via Texture::render_target()) carry no
         // CPU data and are managed directly by the camera system.  Skip them here
         // so prepare_render_asset never overwrites the camera's allocation.
-        let is_rtt = source_asset.data().is_empty()
-            && source_asset
-                .usage_settings()
-                .texture_descriptor
-                .usage
-                .contains(TextureUsages::RENDER_ATTACHMENT);
-        if is_rtt {
+        if matches!(source_asset.kind, TextureKind::RenderTarget) {
             return Err(AssetPreparationError::NotReady);
         }
 

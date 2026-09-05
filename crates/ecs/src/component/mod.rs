@@ -4,8 +4,8 @@ use std::{
 };
 
 pub mod bundle;
-pub mod reflection;
 pub(crate) mod registry;
+pub mod scene;
 
 pub use ecs_macros::Component;
 
@@ -46,8 +46,20 @@ pub struct ComponentLifecycleContext {
 /// }
 /// ```
 pub trait Component: Send + Sync + 'static {
-    /// Returns the human-readable name of this component (usually the type name).
-    fn name() -> &'static str;
+    /// The registry key for this component type: its fully-qualified path,
+    /// e.g. `essential::transform::Transform`. Distinguishes generic
+    /// instantiations, which a bare identifier cannot.
+    ///
+    /// NOTE: `std::any::type_name` output is not guaranteed stable across
+    /// compiler versions. Scenes embed these strings, so a toolchain
+    /// upgrade may require re-running `import` — `CONTENT_FORMAT_VERSION`
+    /// changes make that a rebuild, not a migration.
+    fn name() -> &'static str
+    where
+        Self: Sized,
+    {
+        std::any::type_name::<Self>()
+    }
 
     /// Optional callback invoked immediately after this component is added to an entity.
     fn on_add() -> Option<ComponentLifecycleCallback> {

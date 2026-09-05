@@ -1,8 +1,6 @@
 use anyhow::Context;
-use essential::assets::{
-    asset_loader::AssetLoader, asset_server::AssetLoadContext, utils::load_binary, AssetPath,
-    LoadableAsset,
-};
+use essential::assets::Asset;
+use essential::assets::{asset_loader::AssetLoader, asset_server::AssetLoadContext, AssetPath};
 
 use async_trait::async_trait;
 
@@ -18,16 +16,18 @@ impl AssetLoader for TextureLoader {
     async fn load(
         &self,
         path: AssetPath<'static>,
-        _load_context: &mut AssetLoadContext,
-        usage_settings: <Self::Asset as LoadableAsset>::UsageSettings,
+        load_context: &mut AssetLoadContext,
+        _usage_settings: (),
     ) -> anyhow::Result<Self::Asset> {
-        let data = load_binary(path.clone()).await?;
-
-        Texture::from_bytes(&data, usage_settings).with_context(|| {
-            format!(
-                "failed to create texture from '{}'",
-                path.to_path().display()
-            )
-        })
+        let bytes = essential::assets::utils::load_content_asset_bytes(
+            load_context.content_root(),
+            &path.address(),
+            Texture::name(),
+        )
+        .await
+        .with_context(|| "failed to read texture asset")?;
+        let texture: Texture =
+            bincode::deserialize(&bytes).with_context(|| "failed to deserialize texture asset")?;
+        Ok(texture)
     }
 }

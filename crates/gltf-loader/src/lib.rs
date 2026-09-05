@@ -1,2 +1,1 @@
-pub mod loader;
-pub mod plugin;
+pub mod gltf_importer;

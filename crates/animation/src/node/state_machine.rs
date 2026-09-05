@@ -1,13 +1,12 @@
 use std::any::Any;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use crate::blackboard::AnimationBlackboard;
 use crate::graph::{AnimationGraph, AnimationGraphInstance, AnimationGraphInstances, GraphId};
 use crate::pose::{EvaluatedPose, Pose, PosePool};
 use crate::transition::{AnimationTransitionBlender, blend_stack::BlendStack};
 use crate::{
     evaluation::AnimationGraphContext,
-    node::{AnimationNode, AnimationNodeInstance},
+    node::{AnimationNodeInstance, AnimationNodeKind},
 };
 
 use derive_more::Deref;
@@ -19,39 +18,32 @@ pub struct AnimationFSMStateDefinition<'a> {
     pub graph: AssetHandle<AnimationGraph>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct AnimationFSMState {
     name: String,
     graph: AssetHandle<AnimationGraph>,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AnimationFSMTrigger {
     Instant,
     OnAnimationEnd,
-    Condition(Arc<dyn Fn(&AnimationBlackboard) -> bool + Send + Sync>),
+    BoolEquals { param: String, value: bool },
+    Vec2NonZero { param: String },
 }
 
 impl AnimationFSMTrigger {
-    pub fn from_condition<F>(condition: F) -> Self
-    where
-        F: Fn(&AnimationBlackboard) -> bool + Send + Sync + 'static,
-    {
-        Self::Condition(Arc::new(condition))
-    }
-
     pub fn on_bool(param_name: impl Into<String>, cond: bool) -> Self {
-        let param_name = param_name.into();
-        AnimationFSMTrigger::from_condition(move |blackboard| {
-            blackboard.get_bool(&param_name).is_some_and(|v| v == cond)
-        })
+        Self::BoolEquals {
+            param: param_name.into(),
+            value: cond,
+        }
     }
 
     pub fn on_non_zero_vec(param_name: impl Into<String>) -> Self {
-        let param_name = param_name.into();
-        AnimationFSMTrigger::from_condition(move |blackboard| {
-            blackboard
-                .get_vec2(&param_name)
-                .is_some_and(|val| val.length_squared() > f32::EPSILON)
-        })
+        Self::Vec2NonZero {
+            param: param_name.into(),
+        }
     }
 }
 
@@ -61,13 +53,14 @@ pub struct AnimationStateMachineTransitionDefinition<'a> {
     pub transition_time: f32,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct AnimationStateMachineTransition {
     next_state: StateId,
     trigger: AnimationFSMTrigger,
     transition_time: f32,
 }
 
-#[derive(Clone, Copy, Deref)]
+#[derive(Clone, Copy, Deref, serde::Serialize, serde::Deserialize)]
 pub struct StateId(usize);
 
 impl From<usize> for StateId {
@@ -82,7 +75,7 @@ impl StateId {
     }
 }
 
-#[derive(AsAny)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct AnimationStateMachine {
     initial_state: StateId,
     states: Vec<AnimationFSMState>,
@@ -162,10 +155,19 @@ impl AnimationStateMachine {
     ) -> Option<&Vec<AnimationStateMachineTransition>> {
         self.transitions.get(*state_index)
     }
+
+    /// Every transition trigger, flattened across states — lets callers inspect
+    /// trigger payloads without exposing the private transition table.
+    pub fn triggers(&self) -> impl Iterator<Item = &AnimationFSMTrigger> + '_ {
+        self.transitions
+            .iter()
+            .flatten()
+            .map(|transition| &transition.trigger)
+    }
 }
 
-impl AnimationNode for AnimationStateMachine {
-    fn create_instance(
+impl AnimationStateMachine {
+    pub(crate) fn create_instance_boxed(
         &self,
         creation_context: &AnimationGraphContext,
     ) -> Box<dyn AnimationNodeInstance> {
@@ -243,11 +245,11 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
-        let Some(fsm) = node.as_any().downcast_ref::<AnimationStateMachine>() else {
+        let AnimationNodeKind::StateMachine(fsm) = node else {
             return;
         };
 
@@ -261,8 +263,22 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
                     self.transition(context, transition);
                     break;
                 }
-                AnimationFSMTrigger::Condition(cond_fn) => {
-                    if cond_fn(context.blackboard()) {
+                AnimationFSMTrigger::BoolEquals { param, value } => {
+                    if context
+                        .blackboard()
+                        .get_bool(param)
+                        .is_some_and(|v| v == *value)
+                    {
+                        self.transition(context, transition);
+                        break;
+                    }
+                }
+                AnimationFSMTrigger::Vec2NonZero { param } => {
+                    if context
+                        .blackboard()
+                        .get_vec2(param)
+                        .is_some_and(|v| v.length_squared() > f32::EPSILON)
+                    {
                         self.transition(context, transition);
                         break;
                     }
@@ -286,7 +302,7 @@ impl AnimationNodeInstance for AnimationStateMachineInstance {
 
     fn evaluate(
         &self,
-        _node: &dyn AnimationNode,
+        _node: &AnimationNodeKind,
         context: &AnimationGraphContext<'_>,
         bone_ids: &[Uuid],
         _evaluated_inputs: &[EvaluatedPose],

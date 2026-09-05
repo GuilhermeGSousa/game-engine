@@ -1,13 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use ecs::{
-    events::event_reader::EventReader, CommandQueue, Component, Entity, Query, Res, ResMut,
-    Resource, With, Without,
+    component::scene::{SceneComponent, SceneSpawnContext},
+    events::event_reader::EventReader,
+    CommandQueue, Component, Entity, Query, Res, ResMut, Resource, With, Without,
 };
 use essential::assets::{asset_store::AssetStore, handle::AssetLifetimeEvent, AssetId};
-use facet::Facet;
 use log::warn;
 use mesh::{Mesh, MeshComponent};
+use serde::Serialize;
 
 use crate::{
     aabb::Aabb,
@@ -69,8 +70,24 @@ impl PhysicsMeshShapes {
     }
 }
 
-#[derive(Component, Facet)]
+#[derive(Component, Serialize)]
 pub struct MeshCollider;
+
+// The Blender add-on writes unit-struct extras as `{}`, but serde's derived
+// impl for a unit struct only accepts JSON `null`. Accept any shape so a
+// `"MeshCollider": {}` payload deserializes.
+impl<'de> serde::Deserialize<'de> for MeshCollider {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_ignored_any(serde::de::IgnoredAny)?;
+        Ok(MeshCollider)
+    }
+}
+
+impl SceneComponent for MeshCollider {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
+    }
+}
 
 pub(crate) fn generate_mesh_shapes(
     meshes_to_generate: Query<(Entity, &MeshComponent), (With<MeshCollider>, Without<Collider>)>,
@@ -108,5 +125,18 @@ pub(crate) fn clean_shapes_for_dropped_meshes(
                 mesh_shapes.drop_shape(asset_id);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MeshCollider;
+
+    // The Blender add-on emits unit-struct extras as `{}`; a plain derived
+    // `Deserialize` would only accept `null`. Both must round-trip.
+    #[test]
+    fn mesh_collider_deserializes_from_any_shape() {
+        assert!(serde_json::from_str::<MeshCollider>("{}").is_ok());
+        assert!(serde_json::from_str::<MeshCollider>("null").is_ok());
     }
 }

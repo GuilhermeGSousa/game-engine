@@ -1,13 +1,12 @@
 use anymap3::AnyMap;
-use facet::Facet;
 use log::warn;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
 use crate::component::Tick;
 use crate::component::bundle::{ComponentBundle, MergeRow, PushRow, ReplaceRow};
-use crate::component::reflection::ComponentReflection;
 use crate::component::registry::ComponentRegistry;
+use crate::component::scene::{SceneComponent, SceneSpawnContext};
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
 use crate::query::QueryData;
@@ -495,12 +494,37 @@ impl World {
         self.component_registry.register_component::<T>();
     }
 
-    pub fn register_reflection<T: Component + for<'a> Facet<'a>>(&mut self) {
-        self.component_registry.register_refection::<T>();
+    pub fn register_component_type<T: SceneComponent>(&mut self) {
+        self.component_registry.register_scene_component::<T>();
     }
 
-    pub(crate) fn get_reflection(&self, name: &str) -> Option<&ComponentReflection> {
-        self.component_registry.get_reflection(name)
+    /// Deserializes `json` into the component registered under `type_name` and
+    /// applies it to `entity`. Returns `false` (having logged why) when the name
+    /// is unregistered or the payload does not parse — a scene may carry
+    /// components this application does not know about.
+    pub fn apply_scene_component(
+        &mut self,
+        type_name: &str,
+        json: &str,
+        entity: Entity,
+        node_entities: &[Entity],
+    ) -> bool {
+        let Some(apply) = self.component_registry.get_scene_component(type_name) else {
+            warn!(
+                "Skipping component '{type_name}': no type registered under that name \
+                 (register it with App::register_component)"
+            );
+            return false;
+        };
+
+        let mut ctx = SceneSpawnContext::new(RestrictedWorld::from(self), node_entities);
+        match apply(json, entity, &mut ctx) {
+            Ok(()) => true,
+            Err(err) => {
+                warn!("Failed to deserialize component '{type_name}' from `{json}`: {err}");
+                false
+            }
+        }
     }
 
     pub fn run_schedule(&mut self, label: impl ScheduleLabel) {
@@ -712,8 +736,11 @@ impl<'w> RestrictedWorld<'w> {
 
 impl<'w> From<&'w mut World> for RestrictedWorld<'w> {
     fn from(world: &'w mut World) -> RestrictedWorld<'w> {
+        // A `&mut World` grants exclusive access, so the cell must be mutable —
+        // otherwise `insert`/`despawn`/`remove_component`/`get_resource_mut`
+        // trip `assert_mutable`.
         RestrictedWorld {
-            world_cell: world.as_unsafe_world_cell(),
+            world_cell: world.as_unsafe_world_cell_mut(),
         }
     }
 }

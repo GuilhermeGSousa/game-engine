@@ -30,6 +30,12 @@ __pycache__/
 
 .claude
 
+# Superpowers subagent-driven-development scratch workspaces
+.superpowers/
+
+# Superpowers plans/specs — process artifacts, kept locally, not in history
+docs/superpowers/
+
 # Obsidian
 .obsidian
 .trash

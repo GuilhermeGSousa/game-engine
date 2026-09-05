@@ -1,6 +1,12 @@
+use anyhow::Context;
 use bytemuck::{Pod, Zeroable};
 use color::{Color, LinearRgba};
-use essential::assets::{handle::AssetHandle, Asset};
+use essential::assets::{
+    asset_loader::AssetLoader,
+    asset_server::{AssetLoadContext, AssetServer},
+    handle::AssetHandle,
+    Asset, AssetId, AssetPath, LoadableAsset,
+};
 use glam::Vec3;
 use render_macros::AsBindGroup;
 
@@ -103,7 +109,7 @@ pub trait AsBindGroup {
 ///
 /// Use this as a starting point, or define your own material by implementing
 /// [`AsBindGroup`] (manually or via `#[derive(AsBindGroup)]`).
-#[derive(Asset, AsBindGroup, Default)]
+#[derive(AsBindGroup, Default, serde::Serialize, serde::Deserialize)]
 #[material(
     vertex_shader = include_str!("../shaders/shader.wgsl"),
     fragment_shader = include_str!("../shaders/shader.wgsl"),
@@ -313,11 +319,91 @@ impl StandardMaterial {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Asset impl + loader for StandardMaterial
+// ────────────────────────────────────────────────────────────────────────────
+
+impl Asset for StandardMaterial {
+    fn name() -> &'static str {
+        "StandardMaterial"
+    }
+
+    fn referenced_sub_assets(&self) -> Vec<AssetId> {
+        [
+            &self.base_color_texture,
+            &self.normal_texture,
+            &self.metallic_roughness_texture,
+            &self.emissive_texture,
+            &self.occlusion_texture,
+        ]
+        .into_iter()
+        .filter_map(|field| field.as_ref().map(|handle| handle.id()))
+        .collect()
+    }
+}
+
+impl StandardMaterial {
+    /// Upgrades every `Weak` texture handle to a live `Strong` one via the
+    /// given `AssetServer`. Defined in this module so it can reach the private
+    /// texture fields directly.
+    pub(crate) fn resolve_asset_handles(&mut self, asset_server: &AssetServer) {
+        for handle in [
+            &mut self.base_color_texture,
+            &mut self.normal_texture,
+            &mut self.metallic_roughness_texture,
+            &mut self.emissive_texture,
+            &mut self.occlusion_texture,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            *handle = asset_server.load_by_id(handle.id());
+        }
+    }
+}
+
+impl LoadableAsset for StandardMaterial {
+    type UsageSettings = ();
+
+    fn loader() -> Box<dyn AssetLoader<Asset = Self>> {
+        Box::new(StandardMaterialLoader)
+    }
+
+    fn default_usage_settings() -> Self::UsageSettings {}
+}
+
+pub struct StandardMaterialLoader;
+
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl AssetLoader for StandardMaterialLoader {
+    type Asset = StandardMaterial;
+
+    async fn load(
+        &self,
+        path: AssetPath<'static>,
+        load_context: &mut AssetLoadContext,
+        _usage_settings: (),
+    ) -> anyhow::Result<Self::Asset> {
+        let bytes = essential::assets::utils::load_content_asset_bytes(
+            load_context.content_root(),
+            &path.address(),
+            StandardMaterial::name(),
+        )
+        .await
+        .with_context(|| "failed to read material asset")?;
+        let mut material: StandardMaterial =
+            bincode::deserialize(&bytes).with_context(|| "failed to deserialize material asset")?;
+        material.resolve_asset_handles(load_context.asset_server());
+        Ok(material)
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // MaterialFlags / MaterialUniform (used by StandardMaterial)
 // ────────────────────────────────────────────────────────────────────────────
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable, serde::Serialize, serde::Deserialize)]
 pub struct MaterialFlags(u32);
 
 bitflags! {
@@ -347,7 +433,7 @@ bitflags! {
 /// 56..64  _padding           vec2<u32>
 /// ```
 #[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
+#[derive(Copy, Clone, Pod, Zeroable, serde::Serialize, serde::Deserialize)]
 pub(crate) struct MaterialUniform {
     base_color_factor: LinearRgba,
     emissive_factor: [f32; 3],

@@ -1,13 +1,54 @@
-use ecs::Component;
-use essential::assets::{handle::AssetHandle, Asset};
+use anyhow::Context;
+use async_trait::async_trait;
+use ecs::component::scene::{SceneComponent, SceneSpawnContext};
+use ecs::{Component, Entity};
+use essential::assets::{
+    asset_loader::AssetLoader,
+    asset_server::{AssetLoadContext, AssetServer},
+    handle::AssetHandle,
+    Asset, AssetPath, LoadableAsset,
+};
 use glam::{Vec2, Vec3};
+use serde::{Deserialize, Serialize};
 
 use crate::vertex::Vertex;
 
-#[derive(Asset)]
+#[derive(Asset, serde::Serialize, serde::Deserialize)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+}
+
+impl LoadableAsset for Mesh {
+    type UsageSettings = ();
+    fn loader() -> Box<dyn AssetLoader<Asset = Self>> {
+        Box::new(MeshLoader)
+    }
+    fn default_usage_settings() -> Self::UsageSettings {}
+}
+
+pub struct MeshLoader;
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl AssetLoader for MeshLoader {
+    type Asset = Mesh;
+
+    async fn load(
+        &self,
+        path: AssetPath<'static>,
+        load_context: &mut AssetLoadContext,
+        _usage_settings: (),
+    ) -> anyhow::Result<Self::Asset> {
+        let bytes = essential::assets::utils::load_content_asset_bytes(
+            load_context.content_root(),
+            &path.address(),
+            Mesh::name(),
+        )
+        .await
+        .with_context(|| "failed to read mesh asset")?;
+        bincode::deserialize(&bytes).with_context(|| "failed to deserialize mesh asset")
+    }
 }
 
 impl Mesh {
@@ -105,7 +146,16 @@ impl Mesh {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct MeshComponent {
     pub handle: AssetHandle<Mesh>,
+}
+
+impl SceneComponent for MeshComponent {
+    fn apply(mut self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        if let Some(server) = ctx.world().get_resource::<AssetServer>() {
+            self.handle = server.load_by_id(self.handle.id());
+        }
+        ctx.insert(self, entity);
+    }
 }

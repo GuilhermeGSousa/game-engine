@@ -4,8 +4,13 @@ use app::{
 };
 use color::Color;
 use ecs::{command::CommandQueue, query::Query, resource::Res, Component, With};
+#[cfg(not(target_arch = "wasm32"))]
+use essential::assets::ContentAssetRoot;
 use essential::{assets::asset_server::AssetServer, time::Time, transform::Transform};
-use game_engine::{gltf_loader::loader::GLTFSpawnerComponent, DefaultPlugins};
+use game_engine::{
+    scene::{scene::Scene, spawner::SceneSpawnerComponent},
+    DefaultPlugins,
+};
 use glam::{Quat, Vec3};
 use render::components::light::{Light, LightType};
 
@@ -55,7 +60,7 @@ use render::{
     MaterialComponent,
 };
 
-const SPONZA_PATH: &str = "res/Sponza/Sponza.gltf";
+const SPONZA_PATH: &str = "content/Sponza/scene.gasset";
 
 #[cfg(not(feature = "terminal"))]
 const SPHERE_RADIUS: f32 = 0.35;
@@ -80,10 +85,6 @@ fn main() {
             env_logger::init();
         }
     }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
-        .expect("Failed to set working directory");
 
     let mut app = App::new();
 
@@ -114,8 +115,33 @@ fn main() {
         app.register_plugin(DebugGizmosPlugin);
     }
 
+    set_own_content_root(&mut app);
     app.run();
 }
+
+/// Points this example's `AssetServer` at its own
+/// `<exe-dir>/render-test-content/content/` (populated by `build.rs`) rather
+/// than the bare exe-dir default, which every example in this workspace shares
+/// (they all build into one Cargo `target/` directory). Must run before any
+/// system calls `.load()` — here, in `main()` before `app.run()`, is early
+/// enough. wasm serves each example from its own Trunk-built origin already,
+/// so there is nothing to disambiguate there.
+#[cfg(not(target_arch = "wasm32"))]
+fn set_own_content_root(app: &mut App) {
+    let Some(asset_server) = app.get_resource::<AssetServer>() else {
+        return;
+    };
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    asset_server.set_content_root(ContentAssetRoot::Directory(
+        exe_dir.join(format!("{}-content", env!("CARGO_PKG_NAME"))),
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn set_own_content_root(_app: &mut App) {}
 
 #[cfg(feature = "terminal")]
 fn spawn_camera_terminal(
@@ -164,17 +190,19 @@ fn spawn_camera_windowed(mut cmd: CommandQueue) {
 }
 
 fn spawn_scene(mut cmd: CommandQueue, asset_server: Res<AssetServer>) {
-    // `with_physics_shapes` gives every spawned mesh a
-    // `PhysicsMeshShapeGenerator`, so the level gets static triangle-mesh
-    // colliders built from the same vertex data the renderer draws.
-    cmd.spawn(
-        GLTFSpawnerComponent::from_handle(asset_server.load(SPONZA_PATH)).with_physics_shapes(),
-    );
+    // TODO(asset-import-pipeline): Sponza mesh colliders are gone — the old
+    // runtime glTF spawner's physics-shapes option has no Scene equivalent yet.
+    cmd.spawn(SceneSpawnerComponent(
+        asset_server.load::<Scene>(SPONZA_PATH),
+    ));
     // cmd.spawn(WorldGrid::default());
 }
 
-/// Fires a sphere along the camera's view direction on left click, to check
-/// Sponza's generated mesh colliders actually stop things.
+/// Fires a sphere along the camera's view direction on left click.
+///
+// TODO(asset-import-pipeline): the sphere used to collide with Sponza's
+// generated mesh colliders; with the Scene spawner those colliders are gone,
+// so fired spheres now fall straight through the level.
 #[cfg(not(feature = "terminal"))]
 fn shoot_sphere(
     cameras: Query<(&Camera, &GlobalTransform)>,
@@ -262,7 +290,7 @@ fn make_uv_sphere(radius: f32, rings: u32, segments: u32) -> Mesh {
 fn rotate_cube(cubes: Query<&mut Transform, With<Cube>>, time: Res<Time>) {
     let delta = time.delta().as_secs_f32();
     for mut transform in cubes.iter() {
-        transform.rotation = transform.rotation * Quat::from_rotation_y(delta);
+        transform.rotation *= Quat::from_rotation_y(delta);
     }
 }
 

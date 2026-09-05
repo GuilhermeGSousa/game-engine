@@ -72,10 +72,6 @@ impl ColliderOffset {
 }
 
 impl Component for Collider {
-    fn name() -> &'static str {
-        "Collider"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         None
     }

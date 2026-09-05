@@ -1,65 +1,102 @@
 use anyhow::Context;
 use cfg_if::cfg_if;
 
-use super::AssetPath;
+use super::content::AssetRegistry;
+use super::ContentAssetRoot;
 
-#[cfg(target_arch = "wasm32")]
-fn format_url<'a>(path: AssetPath<'a>) -> reqwest::Url {
-    let window = web_sys::window().unwrap();
-    let location = window.location();
-    let origin = location.origin().unwrap();
+/// Reads an asset's payload from the content asset at `<root>/<address>`.
+pub async fn load_content_asset_bytes(
+    root: &ContentAssetRoot,
+    address: &str,
+    expected_kind: &str,
+) -> anyhow::Result<Vec<u8>> {
+    let raw = try_read_relative(root, address)
+        .await?
+        .with_context(|| format!("no content asset at '{address}'"))?;
 
-    let base = reqwest::Url::parse(&format!("{}/", origin,)).unwrap();
-    base.join(path.to_string()).unwrap()
+    let (header, payload) = crate::assets::content::read_content_asset(&raw)
+        .with_context(|| format!("malformed content asset '{address}'"))?;
+    if header.kind != expected_kind {
+        anyhow::bail!(
+            "content asset '{address}' holds a {} but a {expected_kind} was requested",
+            header.kind
+        );
+    }
+    Ok(payload.to_vec())
 }
 
-pub async fn load_to_string<'a>(path: AssetPath<'a>) -> anyhow::Result<String> {
-    cfg_if! {
-        if #[cfg(target_arch = "wasm32")] {
-            let url = format_url(path);
-            let txt = reqwest::get(url.clone())
-                .await
-                .with_context(|| format!("HTTP request for asset '{}' failed", url))?
-                .text()
-                .await
-                .with_context(|| format!("failed to read response body for asset '{}'", url))?;
-        } else {
-            let exe_path = std::env::current_exe()
-                .context("could not determine executable path")?;
-            let exe_dir = exe_path
-                .parent()
-                .context("could not determine executable directory")?;
-            let path = exe_dir.join(path.normalized_path);
-            let txt = std::fs::read_to_string(&path)
-                .with_context(|| format!("failed to read file '{}'", path.display()))?;
+/// Reads and parses `.registry.toml` from `root`, for `AssetServer`'s
+/// path-less (`load_by_id`) resolution. An absent registry (nothing has
+/// ever been imported or saved into this root) is an empty registry, not
+/// an error.
+pub async fn load_registry(root: &ContentAssetRoot) -> anyhow::Result<AssetRegistry> {
+    match try_read_relative(root, crate::assets::content::REGISTRY_FILE_NAME).await? {
+        Some(bytes) => {
+            let text =
+                String::from_utf8(bytes).context("asset registry file is not valid UTF-8")?;
+            AssetRegistry::parse(&text)
         }
+        None => Ok(AssetRegistry::default()),
     }
-
-    Ok(txt)
 }
 
-pub async fn load_binary<'a>(path: AssetPath<'a>) -> anyhow::Result<Vec<u8>> {
-    cfg_if! {
-        if #[cfg(target_arch = "wasm32")] {
-            let url = format_url(path);
-            let data = reqwest::get(url.clone())
-                .await
-                .with_context(|| format!("HTTP request for asset '{}' failed", url))?
-                .bytes()
-                .await
-                .with_context(|| format!("failed to read response body for asset '{}'", url))?
-                .to_vec();
-        } else {
-            let exe_path = std::env::current_exe()
-                .context("could not determine executable path")?;
-            let exe_dir = exe_path
-                .parent()
-                .context("could not determine executable directory")?;
-            let path = exe_dir.join(path.normalized_path);
-            let data = std::fs::read(&path)
-                .with_context(|| format!("failed to read file '{}'", path.display()))?;
+/// Reads `<root>/<relative>`, returning `Ok(None)` when it simply is not
+/// there (a missing file natively, a non-success status on wasm) so the
+/// caller can turn absence into its own error message. Any other failure
+/// is a real error.
+async fn try_read_relative(
+    root: &ContentAssetRoot,
+    relative: &str,
+) -> anyhow::Result<Option<Vec<u8>>> {
+    match root {
+        ContentAssetRoot::Directory(dir) => {
+            let path = dir.join(relative);
+            cfg_if! {
+                if #[cfg(target_arch = "wasm32")] {
+                    let _ = path;
+                    Ok(None)
+                } else {
+                    match async_fs::read(&path).await {
+                        Ok(bytes) => Ok(Some(bytes)),
+                        Err(err)
+                            if matches!(
+                                err.kind(),
+                                std::io::ErrorKind::NotFound
+                                    | std::io::ErrorKind::IsADirectory
+                                    | std::io::ErrorKind::NotADirectory
+                                    | std::io::ErrorKind::InvalidInput
+                            ) =>
+                        {
+                            Ok(None)
+                        }
+                        Err(err) => Err(anyhow::Error::new(err))
+                            .with_context(|| format!("failed to read '{}'", path.display())),
+                    }
+                }
+            }
+        }
+        ContentAssetRoot::UrlBase(base) => {
+            cfg_if! {
+                if #[cfg(target_arch = "wasm32")] {
+                    let url = format!("{base}/{relative}");
+                    let response = reqwest::get(&url)
+                        .await
+                        .with_context(|| format!("HTTP request for '{url}' failed"))?;
+                    if !response.status().is_success() {
+                        return Ok(None);
+                    }
+                    let bytes = response
+                        .bytes()
+                        .await
+                        .with_context(|| format!("failed to read response body for '{url}'"))?;
+                    Ok(Some(bytes.to_vec()))
+                } else {
+                    let _ = relative;
+                    anyhow::bail!(
+                        "ContentAssetRoot::UrlBase is only supported on wasm32 (base '{base}')"
+                    )
+                }
+            }
         }
     }
-
-    Ok(data)
 }

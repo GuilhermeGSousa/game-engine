@@ -12,9 +12,13 @@ glam = { version = "0.30.1" }
 cfg-if = "1.0.0"
 env_logger = "0.11.8"
 log = "0.4.27"
-facet = "0.46"
+serde = { version = "1", features = ["derive"] }
 derive_more = { version = "2", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
+
+[build-dependencies]
+anyhow = "1.0.97"
+fs_extra = "1.3.0"

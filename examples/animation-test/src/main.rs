@@ -15,18 +15,12 @@ use debug_gizmos::DebugGizmosPlugin;
 use world_grid::WorldGrid;
 
 use crate::demo_overlay::{draw_entity_gizmos, spawn_overlay, update_overlay};
-use crate::movement_animation::{
-    setup_animations, setup_state_machine, spawn_character, update_movement,
-};
+use crate::movement_animation::{setup_animations, spawn_character, update_movement};
 
 mod demo_overlay;
 mod movement_animation;
 
 fn main() {
-    #[cfg(not(target_arch = "wasm32"))]
-    std::env::set_current_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
-        .expect("Failed to set working directory");
-
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -45,10 +39,9 @@ fn main() {
         .add_system(Startup, spawn_character)
         .add_system(Startup, spawn_overlay);
 
-    // Update: fly camera, the animation state-machine setup chain, FSM input, and the
+    // Update: fly camera, blend-space graph setup, movement input, and the
     // debug overlay / gizmos.
     app.add_system(Update, first_person_player_fly)
-        .add_system(Update, setup_state_machine)
         .add_system(Update, setup_animations)
         .add_system(Update, update_movement)
         .add_system(Update, update_overlay)

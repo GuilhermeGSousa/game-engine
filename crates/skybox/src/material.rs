@@ -27,7 +27,7 @@ use render::{
 ///   [`crate::material_plugin::MaterialPlugin::pipeline_only`] which creates
 ///   the [`crate::material_plugin::MaterialPipeline`] resource without adding
 ///   the generic mesh rendering systems.
-#[derive(Asset, AsBindGroup)]
+#[derive(Asset, AsBindGroup, serde::Serialize, serde::Deserialize)]
 #[material(
     vertex_shader = include_str!("shaders/skybox.wgsl"),
     fragment_shader = include_str!("shaders/skybox.wgsl"),

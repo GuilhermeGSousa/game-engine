@@ -67,9 +67,9 @@ impl<A: Asset + 'static> AssetStore<A> {
             if self.assets.contains_key(&event.id()) {
                 events.write(event.clone());
                 match event {
-                    AssetLifetimeEvent::Dropped(id, asset_path) => {
+                    AssetLifetimeEvent::Dropped(id) => {
                         self.assets.remove(&id);
-                        asset_server.process_handle_drop(&id, asset_path);
+                        asset_server.process_handle_drop(&id);
                     }
                 }
             }

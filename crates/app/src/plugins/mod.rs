@@ -91,6 +91,13 @@ impl Plugin for AssetManagerPlugin {
         app.register_event::<AssetLifetimeEvent>();
         app.add_system(LateUpdate, handle_asset_load_events);
     }
+
+    fn ready(&self, app: &App) -> bool {
+        app.get_resource::<AssetServer>()
+            .expect("AssetServer resource missing")
+            .poll_initialize()
+            .unwrap_or_else(|error| panic!("asset manager initialization failed: {error:#}"))
+    }
 }
 
 /// Plugin that registers [`Transform`] lifecycle callbacks and the global-transform
@@ -102,5 +109,69 @@ impl Plugin for TransformPlugin {
         app.register_component_lifetimes::<Transform>();
         app.add_system(LateUpdate, update_simple_entities)
             .add_system(LateUpdate, propagate_global_transforms);
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use essential::assets::{content::AssetRegistry, AssetId, ContentAssetRoot};
+    use std::time::{Duration, Instant};
+
+    fn temp_root() -> std::path::PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("asset-plugin-{}", AssetId::new().simple_hex()));
+        std::fs::create_dir_all(root.join("content")).unwrap();
+        root
+    }
+
+    fn wait_for_plugins(app: &mut App) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while app.plugin_state() == PluginsState::Building {
+            assert!(Instant::now() < deadline, "plugin initialization timed out");
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn initialization_uses_the_servers_content_root() {
+        let root = temp_root();
+        AssetRegistry::new().save(&root).unwrap();
+        let mut app = App::new();
+        app.register_plugin(AssetManagerPlugin);
+        let server = AssetServer::with_content_root(ContentAssetRoot::Directory(root.clone()));
+        app.insert_resource(server.clone());
+        wait_for_plugins(&mut app);
+        assert!(server.poll_initialize().unwrap());
+        // Startup can immediately resolve addresses against the initialized registry.
+        app.add_system(
+            crate::schedule_groups::Startup,
+            |server: Res<AssetServer>| {
+                assert!(server.poll_initialize().unwrap());
+            },
+        );
+        app.finish_plugin_build();
+        assert_eq!(app.plugin_state(), PluginsState::Finished);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn malformed_registry_stops_plugin_initialization_with_an_error() {
+        let root = temp_root();
+        std::fs::write(root.join("content/.registry.toml"), "broken = [").unwrap();
+        let mut app = App::new();
+        app.register_plugin(AssetManagerPlugin);
+        app.insert_resource(AssetServer::with_content_root(ContentAssetRoot::Directory(
+            root.clone(),
+        )));
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| wait_for_plugins(&mut app)));
+        let panic = result.expect_err("invalid registry should fail instead of polling forever");
+        let message = panic.downcast_ref::<String>().unwrap();
+        assert!(
+            message.contains("asset manager initialization failed"),
+            "{message}"
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

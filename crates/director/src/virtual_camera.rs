@@ -1,7 +1,11 @@
-use ecs::component::{Component, ComponentLifecycleCallback};
-use facet::Facet;
+use ecs::Entity;
+use ecs::component::{
+    Component, ComponentLifecycleCallback,
+    scene::{SceneComponent, SceneSpawnContext},
+};
 use glam::{Quat, Vec3};
 use render::components::camera::Camera;
+use serde::{Deserialize, Serialize};
 
 use crate::director::CameraDirector;
 
@@ -15,7 +19,7 @@ use crate::director::CameraDirector;
 /// Having the component *is* being in the [`CameraDirector`](crate::CameraDirector)'s
 /// stack, sorted by [`priority`](Self::priority); the top of that stack is live.
 /// Leave the stack by removing the component or despawning the entity.
-#[derive(Facet)]
+#[derive(Serialize, Deserialize)]
 pub struct VirtualCamera {
     /// Read-only: the director sorts the stack when the component is added, so
     /// an in-place edit would leave the stack out of order. Re-add the component
@@ -26,21 +30,25 @@ pub struct VirtualCamera {
     /// the flag — toggle it with
     /// [`CameraDirector::set_enabled`](crate::CameraDirector::set_enabled), not
     /// here, since an edit to this field is invisible to the director.
-    #[facet(default = true)]
+    ///
+    /// Omitted from authored JSON means "eligible": a camera an artist never
+    /// mentions `enabled` on still works.
+    #[serde(default = "default_enabled")]
     enabled: bool,
     /// `None` keeps whatever lens the main camera currently has. Free to edit —
-    /// the director reads it every frame.
+    /// the director reads it every frame. Absent from authored JSON is `None`.
+    #[serde(default)]
     pub lens: Option<Lens>,
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 /// Joining and leaving the director's stack is driven by the component's own
 /// lifecycle, so spawning or despawning a camera is all it takes to enter or
 /// leave the running order — including despawns, which no query can observe.
 impl Component for VirtualCamera {
-    fn name() -> &'static str {
-        "VirtualCamera"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let Some(vcam) = world.get_component_for_entity::<VirtualCamera>(context.entity) else {
@@ -61,6 +69,12 @@ impl Component for VirtualCamera {
                 director.stack_remove(context.entity);
             }
         })
+    }
+}
+
+impl SceneComponent for VirtualCamera {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
     }
 }
 
@@ -102,7 +116,7 @@ impl VirtualCamera {
 
 /// Projection parameters, split out of [`Camera`] so they can be overridden and
 /// blended independently of the render target and clear colour.
-#[derive(Clone, Copy, Facet)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Lens {
     pub fovy: f32,
     pub znear: f32,
@@ -136,7 +150,7 @@ impl Lens {
 }
 
 /// How a virtual camera takes over from whatever was live before it.
-#[derive(Clone, Copy, Facet)]
+#[derive(Clone, Copy)]
 pub struct BlendIn {
     pub duration: f32,
     pub ease: Ease,
@@ -170,7 +184,7 @@ impl Default for BlendIn {
     }
 }
 
-#[derive(Clone, Copy, Default, Facet)]
+#[derive(Clone, Copy, Default)]
 #[repr(u8)]
 pub enum Ease {
     Linear,
@@ -216,7 +230,7 @@ impl CameraPose {
 mod tests {
     use ecs::system::executor::single_thread::SingleThreadedExecutor;
     use ecs::system::schedule::Schedule;
-    use ecs::{CommandQueue, Entity, Res, Resource, world::World};
+    use ecs::{CommandQueue, Component, Entity, Res, Resource, world::World};
 
     use super::VirtualCamera;
     use crate::director::CameraDirector;
@@ -229,18 +243,18 @@ mod tests {
 
     fn insert_authored_camera(mut cmd: CommandQueue, authored: Res<AuthoredComponent>) {
         cmd.insert_from_json(
-            "VirtualCamera".to_string(),
+            VirtualCamera::name().to_string(),
             authored.json.to_string(),
             authored.node,
         );
     }
 
     /// Blender-authored components arrive as GLTF extras and are built through
-    /// facet reflection, which has to reach the private fields.
+    /// serde, which still reaches the private fields.
     fn spawn_from_json(json: &'static str) -> (World, Entity) {
         let mut world = World::new();
         world.register_component_lifetimes::<VirtualCamera>();
-        world.register_reflection::<VirtualCamera>();
+        world.register_component_type::<VirtualCamera>();
         world.insert_resource(CameraDirector::default());
 
         let node = world.spawn(());
@@ -274,6 +288,13 @@ mod tests {
     #[test]
     fn a_json_authored_camera_can_ship_disabled() {
         let (mut world, node) = spawn_from_json(r#"{ "priority": 7, "enabled": false }"#);
+
+        assert!(
+            world
+                .get_component_for_entity::<VirtualCamera>(node)
+                .is_some(),
+            "reflection should have inserted the component before we check it shipped disabled"
+        );
 
         let director = world.get_resource_mut::<CameraDirector>().unwrap();
         assert!(!director.is_enabled(node));

@@ -7,6 +7,51 @@ extern crate quote;
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, Data, DeriveInput, Fields};
 
+/// Implementation detail of essential's hygienic `asset_id!` wrapper.
+#[proc_macro]
+pub fn asset_id_bytes(input: TokenStream) -> TokenStream {
+    let path = parse_macro_input!(input as syn::LitStr);
+    match read_asset_id(&path) {
+        Ok(bytes) => quote!({
+            // Keep the configured root visible to rustc's environment tracking.
+            const _: &str = env!("GAME_ENGINE_ASSET_ROOT");
+            [#(#bytes),*]
+        })
+        .into(),
+        Err(message) => syn::Error::new(path.span(), message)
+            .to_compile_error()
+            .into(),
+    }
+}
+
+fn read_asset_id(literal: &syn::LitStr) -> Result<[u8; 16], String> {
+    use std::path::Path;
+
+    let tracking_root = std::env::var_os("GAME_ENGINE_ASSET_ROOT").ok_or_else(|| {
+        "asset_id! requires Cargo dependency tracking: add asset-build to [build-dependencies] and call asset_build::track_assets(\"content\") in build.rs".to_string()
+    })?;
+    let manifest = std::env::var_os("CARGO_MANIFEST_DIR")
+        .ok_or_else(|| "asset_id! must be compiled by Cargo".to_string())?;
+    let value = literal.value().replace('\\', "/");
+    let relative = Path::new(&value);
+    if relative.is_absolute() {
+        return Err("asset_id! expects a path relative to the calling package".into());
+    }
+    let path = Path::new(&manifest).join(relative);
+    let canonical = path
+        .canonicalize()
+        .map_err(|error| format!("asset_id!: cannot open '{}': {error}", path.display()))?;
+    if !canonical.starts_with(Path::new(&tracking_root)) {
+        return Err(format!(
+            "asset_id!: '{}' is outside the directory registered by asset_build::track_assets",
+            path.display()
+        ));
+    }
+    asset_format::read_content_asset_header(&canonical)
+        .map(|header| header.asset_id.to_bytes())
+        .map_err(|error| format!("asset_id!: {error:#}"))
+}
+
 #[proc_macro_derive(Asset)]
 pub fn asset(input: TokenStream) -> TokenStream {
     let ast = syn::parse(input).unwrap();

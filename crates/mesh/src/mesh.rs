@@ -1,14 +1,18 @@
-use ecs::Component;
-use essential::assets::{handle::AssetHandle, Asset};
+use ecs::component::scene::{SceneComponent, SceneSpawnContext};
+use ecs::{Component, Entity};
+use essential::assets::{asset_server::AssetServer, handle::AssetHandle, Asset, LoadableAsset};
 use glam::{Vec2, Vec3};
+use serde::{Deserialize, Serialize};
 
 use crate::vertex::Vertex;
 
-#[derive(Asset)]
+#[derive(Asset, serde::Serialize, serde::Deserialize)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
 }
+
+impl LoadableAsset for Mesh {}
 
 impl Mesh {
     pub fn compute_normals(&mut self) -> &mut Self {
@@ -105,7 +109,16 @@ impl Mesh {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct MeshComponent {
     pub handle: AssetHandle<Mesh>,
+}
+
+impl SceneComponent for MeshComponent {
+    fn apply(mut self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        if let Some(server) = ctx.get_resource::<AssetServer>() {
+            self.handle = server.load(self.handle.id());
+        }
+        ctx.insert(self, entity);
+    }
 }

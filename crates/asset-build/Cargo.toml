@@ -1,0 +1,8 @@
+[package]
+name = "asset-build"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+asset-format = { path = "../asset-format" }
+tempfile = "3"

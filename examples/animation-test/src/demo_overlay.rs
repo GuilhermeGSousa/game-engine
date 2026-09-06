@@ -7,8 +7,8 @@ use game_engine::{
     animation::{player::AnimationPlayer, root::AnimationRootBone},
     ecs::{command::CommandQueue, component::Component, query::Query, With},
     essential::transform::GlobalTransform,
-    gltf_loader::loader::GLTFSpawnerComponent,
     mesh::skeleton::SkeletonComponent,
+    scene::spawner::SceneSpawnerComponent,
     ui::{
         node::{UINode, UIRect},
         text::{FontFamily, TextComponent},
@@ -51,7 +51,7 @@ pub(crate) fn spawn_overlay(mut cmd: CommandQueue) {
 /// Update: reflect the character's load progress in the overlay.
 pub(crate) fn update_overlay(
     texts: Query<&mut TextComponent, With<OverlayText>>,
-    spawners: Query<&GLTFSpawnerComponent, With<AnimatedCharacter>>,
+    spawners: Query<&SceneSpawnerComponent, With<AnimatedCharacter>>,
     players: Query<&AnimationPlayer>,
 ) {
     let load = if players.iter().next().is_some() {

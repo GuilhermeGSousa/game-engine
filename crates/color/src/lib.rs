@@ -11,7 +11,7 @@ pub use srgba::Srgba;
 /// Construct in whichever space is most convenient to work in; use
 /// [`Color::to_linear`] to get the canonical [`LinearRgba`] representation
 /// (e.g. for GPU upload).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Color {
     LinearRgba(LinearRgba),
     Srgba(Srgba),

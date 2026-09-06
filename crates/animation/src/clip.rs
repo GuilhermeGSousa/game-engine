@@ -1,11 +1,13 @@
 use std::collections::{HashMap, hash_map::Keys};
 
-use essential::assets::Asset;
+use essential::assets::{Asset, LoadableAsset};
 use glam::{Quat, Vec3};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::pose::JointPose;
 
+#[derive(Serialize, Deserialize)]
 pub enum AnimationChanelOutput {
     Translation(Vec<Vec3>),
     Rotation(Vec<Quat>),
@@ -26,6 +28,7 @@ impl AnimationChanelOutput {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AnimationChannel {
     time_samples: Vec<f32>,
     outputs: AnimationChanelOutput,
@@ -116,7 +119,7 @@ impl AnimationChannel {
     }
 }
 
-#[derive(Asset)]
+#[derive(Asset, Serialize, Deserialize)]
 pub struct AnimationClip {
     channels: HashMap<Uuid, Vec<AnimationChannel>>,
     duration: f32,
@@ -152,3 +155,5 @@ impl AnimationClip {
         self.duration
     }
 }
+
+impl LoadableAsset for AnimationClip {}

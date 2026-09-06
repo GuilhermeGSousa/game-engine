@@ -27,10 +27,6 @@ struct TrackLog {
 struct Tracked;
 
 impl Component for Tracked {
-    fn name() -> &'static str {
-        "Tracked"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let readable = world
@@ -61,10 +57,6 @@ struct SiblingLog(Vec<bool>);
 struct WithSibling;
 
 impl Component for WithSibling {
-    fn name() -> &'static str {
-        "WithSibling"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let sibling = world
@@ -86,10 +78,6 @@ struct CompanionLog {
 struct Companion;
 
 impl Component for Companion {
-    fn name() -> &'static str {
-        "Companion"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, _context| {
             if let Some(log) = world.get_resource_mut::<CompanionLog>() {
@@ -115,10 +103,6 @@ impl Component for Companion {
 struct Body;
 
 impl Component for Body {
-    fn name() -> &'static str {
-        "Body"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             world.insert(Companion, context.entity, true);
@@ -136,10 +120,6 @@ impl Component for Body {
 struct Quiet;
 
 impl Component for Quiet {
-    fn name() -> &'static str {
-        "Quiet"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             world.insert(Companion, context.entity, false);
@@ -155,10 +135,6 @@ struct DespawnTarget(Option<Entity>);
 struct Reaper;
 
 impl Component for Reaper {
-    fn name() -> &'static str {
-        "Reaper"
-    }
-
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, _context| {
             let target = world

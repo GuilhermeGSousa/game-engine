@@ -35,10 +35,6 @@ impl Default for WorldGrid {
 }
 
 impl Component for WorldGrid {
-    fn name() -> &'static str {
-        "WorldGrid"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(world_grid_on_add)
     }

@@ -1,6 +1,9 @@
 use std::ops::Deref;
 
-use ecs::{component::Component, entity::Entity, query::Query};
+use ecs::{
+    component::{Component, scene::SceneEntityRef},
+    query::Query,
+};
 use essential::{
     assets::{asset_store::AssetStore, handle::AssetHandle},
     transform::Transform,
@@ -14,7 +17,7 @@ use crate::{
     evaluation::AnimationGraphContext,
     graph::{AnimationGraph, AnimationGraphInstance, AnimationNodeIndex},
     node::{
-        AnimationClipNodeInstance, AnimationNode, AnimationNodeInstance,
+        AnimationClipNodeInstance, AnimationNodeInstance, AnimationNodeKind,
         state_machine::AnimationStateMachineInstance,
     },
     pose::PosePool,
@@ -29,7 +32,7 @@ pub struct ActiveNodeInstance {
 impl ActiveNodeInstance {
     pub(crate) fn update(
         &mut self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         delta_time: f32,
         context: &AnimationGraphContext<'_>,
     ) {
@@ -145,7 +148,7 @@ impl AnimationPlayer {
         clips: &AssetStore<AnimationClip>,
         graphs: &AssetStore<AnimationGraph>,
         bone_ids: &[Uuid],
-        bones: &[Entity],
+        bones: &[SceneEntityRef],
         transforms: &Query<&mut Transform>,
         root_bones: &Query<&mut AnimationRootBone>,
     ) {
@@ -165,17 +168,20 @@ impl AnimationPlayer {
             return;
         }
 
-        for (bone_index, bone_entity) in bones.iter().enumerate() {
+        for (bone_index, bone) in bones.iter().enumerate() {
+            let Some(bone_entity) = bone.entity() else {
+                continue;
+            };
             let Some(joint_pose) = output_pose.get_joint_pose(bone_index) else {
                 continue;
             };
 
-            if let Some(mut root_bone) = root_bones.get_entity(*bone_entity) {
+            if let Some(mut root_bone) = root_bones.get_entity(bone_entity) {
                 root_bone.displacement = joint_pose.translation;
                 continue;
             }
 
-            if let Some(mut transform) = transforms.get_entity(*bone_entity) {
+            if let Some(mut transform) = transforms.get_entity(bone_entity) {
                 transform.translation = joint_pose.translation;
                 transform.rotation = joint_pose.rotation;
                 transform.scale = joint_pose.scale;

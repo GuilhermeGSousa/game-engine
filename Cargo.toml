@@ -45,9 +45,8 @@ gameplay = { path = "crates/gameplay" }
 window = { path = "crates/window" }
 ecs = { path = "crates/ecs" }
 color = { path = "crates/color" }
-gltf-loader = { path = "crates/gltf-loader" }
-obj-loader = { path = "crates/obj-loader" }
 ui = { path = "crates/ui" }
+scene = { path = "crates/scene" }
 skybox = { path = "crates/skybox" }
 world-grid = { path = "crates/world-grid" }
 # Physics runs everywhere: Jolt natively, Rapier on the web (Jolt's C++

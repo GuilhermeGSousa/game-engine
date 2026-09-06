@@ -1,13 +1,15 @@
 use std::ops::Mul;
 
+use ecs::component::scene::{SceneComponent, SceneSpawnContext};
 use ecs::component::{Component, ComponentLifecycleCallback};
+use ecs::entity::Entity;
 use glam::{Affine3A, Mat4, Quat, Vec3};
 
 use crate::blend::Blendable;
 
 pub mod systems;
 
-#[derive(Clone, Blendable)]
+#[derive(Clone, Blendable, serde::Serialize, serde::Deserialize)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -15,10 +17,6 @@ pub struct Transform {
 }
 
 impl Component for Transform {
-    fn name() -> &'static str {
-        "Transform"
-    }
-
     fn on_add() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let global_transform = GlobalTransform::new(
@@ -36,6 +34,12 @@ impl Component for Transform {
         Some(|mut world, context| {
             world.remove_component::<GlobalTransform>(context.entity, false);
         })
+    }
+}
+
+impl SceneComponent for Transform {
+    fn apply(self, entity: Entity, ctx: &mut SceneSpawnContext<'_>) {
+        ctx.insert(self, entity);
     }
 }
 

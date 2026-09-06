@@ -3,7 +3,7 @@ use crate::LinearRgba;
 /// Hue-Saturation-Lightness + alpha, all in [0.0, 1.0].
 ///
 /// Hue is normalised to [0.0, 1.0) rather than [0°, 360°).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Hsla {
     pub h: f32,
     pub s: f32,

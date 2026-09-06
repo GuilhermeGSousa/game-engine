@@ -4,8 +4,8 @@ use std::{
 };
 
 pub mod bundle;
-pub mod reflection;
 pub(crate) mod registry;
+pub mod scene;
 
 pub use ecs_macros::Component;
 
@@ -46,8 +46,12 @@ pub struct ComponentLifecycleContext {
 /// }
 /// ```
 pub trait Component: Send + Sync + 'static {
-    /// Returns the human-readable name of this component (usually the type name).
-    fn name() -> &'static str;
+    fn name() -> &'static str
+    where
+        Self: Sized,
+    {
+        std::any::type_name::<Self>()
+    }
 
     /// Optional callback invoked immediately after this component is added to an entity.
     fn on_add() -> Option<ComponentLifecycleCallback> {

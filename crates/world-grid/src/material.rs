@@ -4,7 +4,7 @@ use essential::assets::Asset;
 use render::AsBindGroup;
 
 #[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
+#[derive(Copy, Clone, Pod, Zeroable, serde::Serialize, serde::Deserialize)]
 pub struct WorldGridUniform {
     pub line_color: LinearRgba,
     pub cell_size: f32,
@@ -14,7 +14,7 @@ pub struct WorldGridUniform {
     pub surface_color: LinearRgba,
 }
 
-#[derive(Asset, AsBindGroup)]
+#[derive(Asset, AsBindGroup, serde::Serialize, serde::Deserialize)]
 #[material(
     vertex_shader   = include_str!("shaders/world_grid.wgsl"),
     fragment_shader = include_str!("shaders/world_grid.wgsl"),

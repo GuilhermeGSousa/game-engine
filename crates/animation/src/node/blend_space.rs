@@ -1,58 +1,61 @@
-use std::{any::Any, sync::Arc};
+use std::any::Any;
 
 use essential::{
     assets::handle::AssetHandle,
-    geometry::delauney::{Triangle, TriangulatedPoint2D, Triangulation2D},
+    geometry::delauney::{TriangulatedPoint2D, Triangulation2D},
     utils::AsAny,
 };
 use glam::Vec2;
 use log::warn;
 
 use crate::{
-    blackboard::AnimationBlackboard,
     clip::AnimationClip,
     graph::{AnimationGraph, AnimationNodeContext, AnimationNodeIndex},
-    node::{AnimationClipNode, AnimationNode, AnimationNodeInstance},
+    node::{AnimationClipNode, AnimationNodeInstance, AnimationNodeKind},
 };
 
-#[derive(AsAny)]
+/// Which blackboard `Vec2` param drives a blend space. Read with
+/// `blackboard.get_vec2(&param).unwrap_or(Vec2::ZERO)`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BlendInput {
+    pub param: String,
+}
+
+/// A 2D blend space definition: the sample points and which blackboard `Vec2`
+/// param drives sampling. Triangulation is built on the instance, not here.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct BlendSpace2DNode {
-    triangulation: Triangulation2D,
-    sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
+    points: Vec<Vec2>,
+    input: BlendInput,
 }
 
 impl BlendSpace2DNode {
-    pub(crate) fn new(
-        points: Vec<Vec2>,
-        sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
-    ) -> Self {
-        Self {
-            triangulation: Triangulation2D::build(points),
-            sampler,
-        }
+    pub(crate) fn new(points: Vec<Vec2>, input: BlendInput) -> Self {
+        Self { points, input }
     }
 
     pub fn points(&self) -> &[Vec2] {
-        self.triangulation.points()
+        &self.points
     }
 
-    pub fn triangles(&self) -> &[Triangle] {
-        self.triangulation.triangles()
-    }
-}
-
-impl AnimationNode for BlendSpace2DNode {
-    fn create_instance(
-        &self,
-        _creation_context: &crate::evaluation::AnimationGraphContext,
-    ) -> Box<dyn crate::node::AnimationNodeInstance> {
-        Box::new(BlendSpace2DInstanceNode::default())
+    pub fn input(&self) -> &BlendInput {
+        &self.input
     }
 }
 
-#[derive(AsAny, Default)]
+#[derive(AsAny)]
 pub struct BlendSpace2DInstanceNode {
+    triangulation: Triangulation2D,
     current_triangulated_point: Option<TriangulatedPoint2D>,
+}
+
+impl BlendSpace2DInstanceNode {
+    pub(crate) fn new(points: &[Vec2]) -> Self {
+        Self {
+            triangulation: Triangulation2D::build(points.to_vec()),
+            current_triangulated_point: None,
+        }
+    }
 }
 
 impl AnimationNodeInstance for BlendSpace2DInstanceNode {
@@ -62,20 +65,23 @@ impl AnimationNodeInstance for BlendSpace2DInstanceNode {
 
     fn update(
         &mut self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         _delta_time: f32,
         context: &crate::evaluation::AnimationGraphContext<'_>,
     ) {
-        let Some(blend_space) = node.as_any().downcast_ref::<BlendSpace2DNode>() else {
+        let AnimationNodeKind::BlendSpace2D(def) = node else {
             return;
         };
-        let sample = (blend_space.sampler)(context.blackboard());
-        self.current_triangulated_point = Some(blend_space.triangulation.locate_or_nearest(sample));
+        let sample = context
+            .blackboard()
+            .get_vec2(&def.input.param)
+            .unwrap_or(Vec2::ZERO);
+        self.current_triangulated_point = Some(self.triangulation.locate_or_nearest(sample));
     }
 
     fn evaluate(
         &self,
-        node: &dyn AnimationNode,
+        node: &AnimationNodeKind,
         _context: &crate::evaluation::AnimationGraphContext<'_>,
         _bone_ids: &[uuid::Uuid],
         evaluated_inputs: &[crate::pose::EvaluatedPose],
@@ -86,11 +92,11 @@ impl AnimationNodeInstance for BlendSpace2DInstanceNode {
             return;
         }
 
-        let Some(blend_space) = node.as_any().downcast_ref::<BlendSpace2DNode>() else {
+        let AnimationNodeKind::BlendSpace2D(def) = node else {
             return;
         };
 
-        if evaluated_inputs.len() != blend_space.points().len() {
+        if evaluated_inputs.len() != def.points().len() {
             warn!(
                 "Blend Space inputs and points count are different, this should not happen. Skipping this node"
             );
@@ -101,7 +107,7 @@ impl AnimationNodeInstance for BlendSpace2DInstanceNode {
             return;
         };
 
-        let triangle = &blend_space.triangles()[triangulated_point.triangle];
+        let triangle = &self.triangulation.triangles()[triangulated_point.triangle];
         let lambda_a = triangulated_point.lambda_a;
         let lambda_b = triangulated_point.lambda_b;
         let lambda_c = triangulated_point.lambda_c;
@@ -121,21 +127,24 @@ pub struct BlendSpace2DBuilderContext<'a> {
     pub(crate) graph: &'a mut AnimationGraph,
     pub(crate) output_node_index: AnimationNodeIndex,
     pub(crate) points: Vec<Vec2>,
-    pub(crate) nodes: Vec<Box<dyn AnimationNode>>,
-    pub(crate) sampler: Arc<dyn Fn(&AnimationBlackboard) -> Vec2 + Send + Sync>,
+    pub(crate) nodes: Vec<AnimationNodeKind>,
+    pub(crate) input: BlendInput,
 }
 
 impl<'a> BlendSpace2DBuilderContext<'a> {
     pub(crate) fn build(self) -> AnimationNodeContext<'a> {
-        let blend_space = BlendSpace2DNode::new(self.points, self.sampler);
+        let blend_space = BlendSpace2DNode::new(self.points, self.input);
 
         let blend_space_node = self
             .graph
-            .add_node(blend_space, self.output_node_index)
+            .add_node(
+                AnimationNodeKind::BlendSpace2D(blend_space),
+                self.output_node_index,
+            )
             .index();
 
         for node in self.nodes.into_iter() {
-            self.graph.add_boxed_node(node, blend_space_node);
+            self.graph.add_node(node, blend_space_node);
         }
 
         AnimationNodeContext {
@@ -144,9 +153,9 @@ impl<'a> BlendSpace2DBuilderContext<'a> {
         }
     }
 
-    pub fn input(&mut self, node: impl AnimationNode, point: Vec2) -> &mut Self {
+    pub fn input(&mut self, node: AnimationNodeKind, point: Vec2) -> &mut Self {
         self.points.push(point);
-        self.nodes.push(Box::new(node));
+        self.nodes.push(node);
         self
     }
 
@@ -156,7 +165,8 @@ impl<'a> BlendSpace2DBuilderContext<'a> {
         point: Vec2,
     ) -> &mut Self {
         self.points.push(point);
-        self.nodes.push(Box::new(AnimationClipNode::new(clip)));
+        self.nodes
+            .push(AnimationNodeKind::Clip(AnimationClipNode::new(clip)));
         self
     }
 }

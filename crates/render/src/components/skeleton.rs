@@ -28,10 +28,6 @@ pub struct RenderSkeletonComponent {
 }
 
 impl Component for RenderSkeletonComponent {
-    fn name() -> &'static str {
-        "RenderSkeletonComponent"
-    }
-
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let offset = world
@@ -172,13 +168,16 @@ pub(crate) fn extract_skeletons(
 
         let mut bone_matrices = [Mat4::IDENTITY; MAX_SKELETON_BONES];
 
-        for (bone_index, (inverse_bindpose, bone_entity)) in skeleton_asset
+        for (bone_index, (inverse_bindpose, bone)) in skeleton_asset
             .inverse_bindposes
             .iter()
             .zip(skeleton.bones())
             .enumerate()
         {
-            let transform = match bone_transforms.get_entity(*bone_entity) {
+            let transform = match bone
+                .entity()
+                .and_then(|entity| bone_transforms.get_entity(entity))
+            {
                 Some(bone_transform) => bone_transform.matrix() * *inverse_bindpose,
                 None => Mat4::IDENTITY,
             };

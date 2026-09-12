@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::{events::Event, world::{FromWorld, World}};
+use crate::{
+    events::Event,
+    world::{FromWorld, World},
+};
 
 /// A single reader's position in an event stream.
 ///

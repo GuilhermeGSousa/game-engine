@@ -99,7 +99,7 @@ impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, 's,
 #[derive(Debug, Deref, DerefMut)]
 pub struct SystemLocal<'s, T: FromWorld + Send + 'static>(pub(crate) &'s mut T);
 
-impl<'w, 's, T: FromWorld + Send + 'static> SystemInput for SystemLocal<'s, T> {
+impl<'s, T: FromWorld + Send + 'static> SystemInput for SystemLocal<'s, T> {
     type State = SyncCell<T>;
 
     type Data<'world, 'state> = SystemLocal<'state, T>;

@@ -6,8 +6,6 @@ use std::{
     ptr,
 };
 
-use derive_more::From;
-
 /// [`BuildHasher`] for types that already contain a high-quality hash.
 #[derive(Clone, Default)]
 pub struct NoOpHash;

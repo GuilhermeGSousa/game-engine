@@ -55,7 +55,10 @@ mod tests {
             filter::{Added, Changed, Or, With},
         },
         resource::{Res, ResMut, Resource},
-        system::{executor::single_thread::SingleThreadedExecutor, schedule::{CompiledSchedule, Schedule}},
+        system::{
+            executor::single_thread::SingleThreadedExecutor,
+            schedule::{CompiledSchedule, Schedule},
+        },
         world::World,
     };
 
@@ -582,11 +585,7 @@ mod tests {
     /// Compiles the write / buffer-swap / read schedules used by the event tests.
     fn event_schedules(
         world: &mut World,
-    ) -> (
-        CompiledSchedule,
-        CompiledSchedule,
-        CompiledSchedule,
-    ) {
+    ) -> (CompiledSchedule, CompiledSchedule, CompiledSchedule) {
         let mut write = Schedule::new();
         write.add_system(send_death);
         let write = write.compile::<SingleThreadedExecutor>(world);
@@ -647,7 +646,12 @@ mod tests {
         read.run(&mut world);
 
         assert_eq!(world.get_resource::<Score>().unwrap().0, 0);
-        assert!(world.get_resource::<EventChannel<PlayerDied>>().unwrap().is_empty());
+        assert!(
+            world
+                .get_resource::<EventChannel<PlayerDied>>()
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

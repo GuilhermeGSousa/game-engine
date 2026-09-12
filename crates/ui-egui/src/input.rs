@@ -7,7 +7,7 @@ use window::{plugin::Window, winit_events::WindowEvent};
 use crate::resources::UIRenderer;
 
 pub(crate) fn handle_window_events(
-    window_events: EventReader<WindowEvent>,
+    mut window_events: EventReader<WindowEvent>,
     mut ui_renderer: ResMut<UIRenderer>,
     window: Res<Window>,
 ) {

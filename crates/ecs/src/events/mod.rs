@@ -1,4 +1,5 @@
 pub mod event_channel;
+pub mod event_cursor;
 pub mod event_reader;
 pub mod event_writer;
 
@@ -12,7 +13,8 @@ pub use ecs_macros::Event;
 /// Send events from systems with [`EventWriter`](event_writer::EventWriter) and
 /// read them with [`EventReader`](event_reader::EventReader).
 ///
-/// Events are buffered for one frame and flushed at the end of `LateUpdate`.
+/// Events are double-buffered: each one stays readable until the second buffer swap
+/// (`LateUpdate`) after it was written, and every reader sees it exactly once.
 ///
 /// # Example
 /// ```ignore

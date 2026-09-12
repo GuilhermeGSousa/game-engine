@@ -49,7 +49,7 @@ pub struct CheckboxResource;
 
 /// Toggles [`UICheckbox::checked`] when the entity receives a [`UIClick`].
 pub(crate) fn toggle_checkboxes(
-    clicks: EventReader<UIClick>,
+    mut clicks: EventReader<UIClick>,
     checkboxes: Query<&mut UICheckbox>,
     mut writer: EventWriter<UICheckboxChanged>,
 ) {

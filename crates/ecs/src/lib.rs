@@ -55,7 +55,7 @@ mod tests {
             filter::{Added, Changed, Or, With},
         },
         resource::{Res, ResMut, Resource},
-        system::{executor::single_thread::SingleThreadedExecutor, schedule::Schedule},
+        system::{executor::single_thread::SingleThreadedExecutor, schedule::{CompiledSchedule, Schedule}},
         world::World,
     };
 
@@ -562,12 +562,44 @@ mod tests {
     }
 
     fn count_deaths(
-        reader: crate::events::event_reader::EventReader<PlayerDied>,
+        mut reader: crate::events::event_reader::EventReader<PlayerDied>,
         mut counter: ResMut<Score>,
     ) {
         for event in reader.read() {
             counter.0 += event.score;
         }
+    }
+
+    fn count_deaths_again(
+        mut reader: crate::events::event_reader::EventReader<PlayerDied>,
+        mut counter: ResMut<DoubleScore>,
+    ) {
+        for event in reader.read() {
+            counter.0 += event.score;
+        }
+    }
+
+    /// Compiles the write / buffer-swap / read schedules used by the event tests.
+    fn event_schedules(
+        world: &mut World,
+    ) -> (
+        CompiledSchedule,
+        CompiledSchedule,
+        CompiledSchedule,
+    ) {
+        let mut write = Schedule::new();
+        write.add_system(send_death);
+        let write = write.compile::<SingleThreadedExecutor>(world);
+
+        let mut update = Schedule::new();
+        update.add_system(crate::events::event_channel::update_event_channel::<PlayerDied>);
+        let update = update.compile::<SingleThreadedExecutor>(world);
+
+        let mut read = Schedule::new();
+        read.add_system(count_deaths);
+        let read = read.compile::<SingleThreadedExecutor>(world);
+
+        (write, update, read)
     }
 
     #[test]
@@ -587,29 +619,119 @@ mod tests {
     }
 
     #[test]
-    fn events_flushed_next_frame() {
+    fn event_survives_one_buffer_swap() {
         let mut world = World::new();
         world.insert_resource(EventChannel::<PlayerDied>::new());
         world.insert_resource(Score(0));
 
-        let mut frame1 = Schedule::new();
-        frame1.add_system(send_death);
-        let mut frame1 = frame1.compile::<SingleThreadedExecutor>(&mut world);
+        let (mut write, mut update, mut read) = event_schedules(&mut world);
 
-        let mut flush = Schedule::new();
-        flush.add_system(crate::events::event_channel::update_event_channel::<PlayerDied>);
-        let mut flush = flush.compile::<SingleThreadedExecutor>(&mut world);
+        write.run(&mut world);
+        update.run(&mut world);
+        read.run(&mut world);
 
-        let mut frame2 = Schedule::new();
-        frame2.add_system(count_deaths);
-        let mut frame2 = frame2.compile::<SingleThreadedExecutor>(&mut world);
+        assert_eq!(world.get_resource::<Score>().unwrap().0, 77);
+    }
 
-        frame1.run(&mut world);
-        flush.run(&mut world);
-        frame2.run(&mut world);
+    #[test]
+    fn event_expires_after_two_buffer_swaps() {
+        let mut world = World::new();
+        world.insert_resource(EventChannel::<PlayerDied>::new());
+        world.insert_resource(Score(0));
 
-        // After flushing, count_deaths should see 0 events.
+        let (mut write, mut update, mut read) = event_schedules(&mut world);
+
+        write.run(&mut world);
+        update.run(&mut world);
+        update.run(&mut world);
+        read.run(&mut world);
+
         assert_eq!(world.get_resource::<Score>().unwrap().0, 0);
+        assert!(world.get_resource::<EventChannel<PlayerDied>>().unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_event_is_never_read_twice() {
+        let mut world = World::new();
+        world.insert_resource(EventChannel::<PlayerDied>::new());
+        world.insert_resource(Score(0));
+
+        let (mut write, mut update, mut read) = event_schedules(&mut world);
+
+        write.run(&mut world);
+        read.run(&mut world);
+        update.run(&mut world);
+        read.run(&mut world);
+
+        assert_eq!(world.get_resource::<Score>().unwrap().0, 77);
+    }
+
+    #[test]
+    fn readers_of_the_same_event_have_independent_cursors() {
+        let mut world = World::new();
+        world.insert_resource(EventChannel::<PlayerDied>::new());
+        world.insert_resource(Score(0));
+        world.insert_resource(DoubleScore(0));
+
+        let mut schedule = Schedule::new();
+        schedule.add_system(send_death);
+        schedule.add_system(count_deaths);
+        schedule.add_system(count_deaths_again);
+        schedule
+            .compile::<SingleThreadedExecutor>(&mut world)
+            .run(&mut world);
+
+        assert_eq!(world.get_resource::<Score>().unwrap().0, 77);
+        assert_eq!(world.get_resource::<DoubleScore>().unwrap().0, 77);
+    }
+
+    #[test]
+    fn a_reader_that_skips_frames_resumes_from_the_oldest_buffered_event() {
+        let mut world = World::new();
+        world.insert_resource(EventChannel::<PlayerDied>::new());
+        world.insert_resource(Score(0));
+
+        let (mut write, mut update, mut read) = event_schedules(&mut world);
+
+        // Three frames of writes go by without the reader ever running.
+        for _ in 0..3 {
+            write.run(&mut world);
+            update.run(&mut world);
+        }
+        read.run(&mut world);
+
+        // The cursor is clamped forward instead of panicking: only the one event still
+        // buffered is delivered, the two older ones are gone.
+        assert_eq!(world.get_resource::<Score>().unwrap().0, 77);
+    }
+
+    #[test]
+    fn event_written_after_a_read_is_visible_next_frame() {
+        let mut world = World::new();
+        world.insert_resource(EventChannel::<PlayerDied>::new());
+        world.insert_resource(Score(0));
+
+        let mut read = Schedule::new();
+        read.add_system(count_deaths);
+        let mut read = read.compile::<SingleThreadedExecutor>(&mut world);
+
+        let mut write = Schedule::new();
+        write.add_system(send_death);
+        let mut write = write.compile::<SingleThreadedExecutor>(&mut world);
+
+        let mut update = Schedule::new();
+        update.add_system(crate::events::event_channel::update_event_channel::<PlayerDied>);
+        let mut update = update.compile::<SingleThreadedExecutor>(&mut world);
+
+        // Frame 1: the reader runs before the writer, so it sees nothing.
+        read.run(&mut world);
+        write.run(&mut world);
+        update.run(&mut world);
+
+        // Frame 2: the event must still be there.
+        read.run(&mut world);
+
+        assert_eq!(world.get_resource::<Score>().unwrap().0, 77);
     }
 
     // ----- remove_component tests -----

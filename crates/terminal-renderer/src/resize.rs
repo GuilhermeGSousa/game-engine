@@ -17,7 +17,7 @@ pub struct TerminalResizeEvent {
 }
 
 pub(crate) fn handle_terminal_resize(
-    events: EventReader<TerminalResizeEvent>,
+    mut events: EventReader<TerminalResizeEvent>,
     mut state: ResMut<TerminalRenderState>,
     device: Res<RenderDevice>,
     context: Res<RenderContext>,

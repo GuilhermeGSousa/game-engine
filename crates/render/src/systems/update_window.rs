@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub(crate) fn request_window_resize(
-    window_events: EventReader<WindowEvent>,
+    mut window_events: EventReader<WindowEvent>,
     mut window: ResMut<Window>,
 ) {
     for event in window_events.read() {

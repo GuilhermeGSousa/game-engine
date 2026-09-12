@@ -117,7 +117,7 @@ pub(crate) fn generate_mesh_shapes(
 
 pub(crate) fn clean_shapes_for_dropped_meshes(
     mut mesh_shapes: ResMut<PhysicsMeshShapes>,
-    dropped_events: EventReader<AssetLifetimeEvent>,
+    mut dropped_events: EventReader<AssetLifetimeEvent>,
 ) {
     for e in dropped_events.read() {
         match e {

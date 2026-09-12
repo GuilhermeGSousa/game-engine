@@ -162,9 +162,11 @@ impl App {
         self
     }
 
-    /// Registers an event type, creating its [`EventChannel`] resource and a flush system.
+    /// Registers an event type, creating its [`EventChannel`] resource and the system that
+    /// advances its double buffer once per frame.
     ///
     /// Call this once per event type before any system uses [`EventWriter`] or [`EventReader`].
+    /// Without it nothing swaps the buffers and they grow forever.
     pub fn register_event<T: Event + 'static>(&mut self) -> &mut Self {
         let event_channel = EventChannel::<T>::new();
 

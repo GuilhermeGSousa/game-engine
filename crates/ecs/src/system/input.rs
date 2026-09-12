@@ -2,8 +2,10 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     system::access::SystemAccess,
-    world::{UnsafeWorldCell, World},
+    utilities::SyncCell,
+    world::{FromWorld, UnsafeWorldCell, World},
 };
+use derive_more::{Deref, DerefMut};
 use typle::typle;
 
 pub trait SystemInput {
@@ -92,4 +94,26 @@ impl<'w, 's, P: SystemInput + 'static> SystemInput for StaticSystemInput<'w, 's,
     fn fill_access(access: &mut SystemAccess) {
         P::fill_access(access);
     }
+}
+
+#[derive(Debug, Deref, DerefMut)]
+pub struct SystemLocal<'s, T: FromWorld + Send + 'static>(pub(crate) &'s mut T);
+
+impl<'s, T: FromWorld + Send + 'static> SystemInput for SystemLocal<'s, T> {
+    type State = SyncCell<T>;
+
+    type Data<'world, 'state> = SystemLocal<'state, T>;
+
+    fn init_state(world: &mut World) -> Self::State {
+        SyncCell::new(T::from_world(world))
+    }
+
+    fn get_data<'world, 'state>(
+        state: &'state mut Self::State,
+        _world: UnsafeWorldCell<'world>,
+    ) -> Self::Data<'world, 'state> {
+        SystemLocal(state.get())
+    }
+
+    fn fill_access(_access: &mut SystemAccess) {}
 }

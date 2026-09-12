@@ -3,32 +3,85 @@ use crate::{
     resource::{ResMut, Resource},
 };
 
+/// One half of an [`EventChannel`]'s double buffer.
+///
+/// `start_event_count` is the id of the first event this buffer would hold, so a
+/// reader can turn an absolute event id into an index without scanning.
+pub(crate) struct EventSequence<T: Event + 'static> {
+    pub(crate) events: Vec<T>,
+    pub(crate) start_event_count: usize,
+}
+
+impl<T: Event + 'static> EventSequence<T> {
+    fn new() -> Self {
+        Self {
+            events: Vec::new(),
+            start_event_count: 0,
+        }
+    }
+
+    /// Returns the events with an id at or after `last_event_count`.
+    ///
+    /// A reader that has not run for several frames is clamped forward to the
+    /// oldest event still buffered rather than panicking.
+    pub(crate) fn unread_from(&self, last_event_count: usize) -> &[T] {
+        let index = last_event_count.saturating_sub(self.start_event_count);
+        self.events.get(index..).unwrap_or(&[])
+    }
+}
+
 /// Internal storage for a single event type.
 ///
-/// Events are buffered here and flushed once per frame by [`update_event_channel`].
+/// Events live in a double buffer: writes land in the newer buffer, and
+/// [`update`](EventChannel::update) swaps the two and clears the older one. An event
+/// therefore survives two `update` calls, so a reader that runs before the writer in
+/// one frame still sees the event in the next. Readers track their own position with
+/// an [`EventCursor`](super::event_cursor::EventCursor), so an event is never read twice.
+///
 /// Prefer the higher-level [`EventWriter`](super::event_writer::EventWriter) and
 /// [`EventReader`](super::event_reader::EventReader) in system code.
 #[derive(Resource)]
 pub struct EventChannel<T: Event + 'static> {
-    pub(crate) event_queue: Vec<T>,
+    pub(crate) events_a: EventSequence<T>,
+    pub(crate) events_b: EventSequence<T>,
+    /// Number of events ever written; doubles as the id of the next event.
+    pub(crate) event_count: usize,
 }
 
 impl<T: Event + 'static> EventChannel<T> {
     /// Creates an empty channel.
     pub fn new() -> Self {
         EventChannel {
-            event_queue: Vec::new(),
+            events_a: EventSequence::new(),
+            events_b: EventSequence::new(),
+            event_count: 0,
         }
     }
 
-    /// Enqueues `event` to be read by [`EventReader`](super::event_reader::EventReader)s this frame.
-    pub fn push_event(&mut self, event: T) {
-        self.event_queue.push(event);
+    /// Enqueues `event`, returning the id it was given.
+    pub fn push_event(&mut self, event: T) -> usize {
+        let id = self.event_count;
+        self.events_b.events.push(event);
+        self.event_count += 1;
+        id
     }
 
-    /// Clears all buffered events.
-    pub fn flush_events(&mut self) {
-        self.event_queue.clear();
+    /// Swaps the buffers and drops the events that have now expired.
+    ///
+    /// Must be called once per frame per event type, or the buffers grow forever.
+    pub fn update(&mut self) {
+        std::mem::swap(&mut self.events_a, &mut self.events_b);
+        self.events_b.events.clear();
+        self.events_b.start_event_count = self.event_count;
+    }
+
+    /// Number of events currently buffered across both halves.
+    pub fn len(&self) -> usize {
+        self.events_a.events.len() + self.events_b.events.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -38,9 +91,9 @@ impl<T: Event + 'static> Default for EventChannel<T> {
     }
 }
 
-/// System that flushes all events in a channel at the end of `LateUpdate`.
+/// System that advances an event channel's double buffer once per frame.
 ///
 /// Registered automatically by [`App::register_event`].
 pub fn update_event_channel<T: Event + 'static>(mut channel: ResMut<EventChannel<T>>) {
-    channel.flush_events();
+    channel.update();
 }

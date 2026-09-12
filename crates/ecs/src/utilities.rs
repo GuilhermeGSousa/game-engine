@@ -93,3 +93,41 @@ impl<T> From<T> for SyncUnsafeCell<T> {
         SyncUnsafeCell::new(t)
     }
 }
+
+#[repr(transparent)]
+pub struct SyncCell<T: ?Sized>(T);
+
+impl<T: Sized> SyncCell<T> {
+    /// Construct a new instance of a `SyncCell` from the given value.
+    pub fn new(val: T) -> Self {
+        Self(val)
+    }
+
+    /// Deconstruct this `SyncCell` into its inner value.
+    pub fn to_inner(Self(val): Self) -> T {
+        val
+    }
+}
+
+impl<T: ?Sized> SyncCell<T> {
+    pub fn get(&mut self) -> &mut T {
+        &mut self.0
+    }
+
+    /// For types that implement [`Sync`], get shared access to this `SyncCell`'s inner value.
+    pub fn read(&self) -> &T
+    where
+        T: Sync,
+    {
+        &self.0
+    }
+
+    /// Build a mutable reference to a `SyncCell` from a mutable reference
+    /// to its inner value, to skip constructing with [`new()`](SyncCell::new()).
+    pub fn from_mut(r: &'_ mut T) -> &'_ mut SyncCell<T> {
+        // SAFETY: repr is transparent, so refs have the same layout; and `SyncCell` properties are `&mut`-agnostic
+        unsafe { &mut *(ptr::from_mut(r) as *mut SyncCell<T>) }
+    }
+}
+
+unsafe impl<T: ?Sized> Sync for SyncCell<T> {}

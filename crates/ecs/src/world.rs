@@ -744,3 +744,7 @@ impl<'w> From<&'w mut World> for RestrictedWorld<'w> {
         }
     }
 }
+
+pub trait FromWorld {
+    fn from_world(world: &World) -> Self;
+}

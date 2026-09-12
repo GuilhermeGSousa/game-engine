@@ -53,9 +53,9 @@ impl ApplicationHandler for ApplicationWindowHandler {
                     .get_resource_mut::<EventChannel<WindowEvent>>()
                     .unwrap();
 
-                self.winit_events
-                    .drain(..)
-                    .for_each(|e| event_channel.push_event(WindowEvent::new(e.clone())));
+                self.winit_events.drain(..).for_each(|e| {
+                    event_channel.push_event(WindowEvent::new(e.clone()));
+                });
 
                 if self.app.plugin_state() == PluginsState::Finished {
                     self.app.update();

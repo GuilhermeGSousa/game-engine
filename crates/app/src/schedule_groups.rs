@@ -1,7 +1,8 @@
 use ecs::system::schedule::ScheduleLabel;
 
 macro_rules! define_schedule_label {
-    ($label_trait_name:ident) => {
+    ($(#[$meta:meta])* $label_trait_name:ident) => {
+        $(#[$meta])*
         #[derive(Clone, PartialEq, Eq, Hash, Debug)]
         pub struct $label_trait_name;
 
@@ -16,6 +17,7 @@ macro_rules! define_schedule_label {
 define_schedule_label!(Main);
 define_schedule_label!(RenderMain);
 define_schedule_label!(Startup);
+define_schedule_label!(First);
 define_schedule_label!(Update);
 define_schedule_label!(FixedUpdate);
 define_schedule_label!(LateUpdate);

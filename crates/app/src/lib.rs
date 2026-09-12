@@ -23,7 +23,7 @@ use essential::assets::{
 use crate::{
     plugins::PluginsState,
     runner::run_once,
-    schedule_groups::{LateUpdate, Update},
+    schedule_groups::{First, Update},
     subapp::{SubApp, SubApps},
 };
 
@@ -171,7 +171,7 @@ impl App {
         let event_channel = EventChannel::<T>::new();
 
         self.insert_resource(event_channel);
-        self.add_system(LateUpdate, update_event_channel::<T>);
+        self.add_system(First, update_event_channel::<T>);
         self
     }
 

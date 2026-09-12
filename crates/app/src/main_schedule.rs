@@ -2,13 +2,18 @@ use ecs::World;
 use essential::time::Time;
 
 use crate::{
-    schedule_groups::{FixedUpdate, LateFixedUpdate, LateUpdate, Main, Update},
+    schedule_groups::{First, FixedUpdate, LateFixedUpdate, LateUpdate, Main, Update},
     Plugin,
 };
 
 pub struct MainSchedulePlugin;
 
 fn run_main(world: &mut World) {
+    {
+        profiling::scope!("schedule::event_update");
+        world.run_schedule(First);
+    }
+
     world
         .get_resource_mut::<Time>()
         .expect("Time resource not found")

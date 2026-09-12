@@ -14,7 +14,8 @@ pub use ecs_macros::Event;
 /// read them with [`EventReader`](event_reader::EventReader).
 ///
 /// Events are double-buffered: each one stays readable until the second buffer swap
-/// (`LateUpdate`) after it was written, and every reader sees it exactly once.
+/// (the app's `EventUpdate`, which runs first in every frame) after it was written, and
+/// every reader sees it exactly once.
 ///
 /// # Example
 /// ```ignore

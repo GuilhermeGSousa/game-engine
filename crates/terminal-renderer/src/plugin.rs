@@ -1,6 +1,6 @@
 use app::{
     plugins::Plugin,
-    schedule_groups::{LateRender, LateUpdate, Update},
+    schedule_groups::{LateRender, Update},
 };
 use ecs::IntoSystemConfig;
 use render::{device::RenderDevice, systems::render::finish_render};
@@ -21,7 +21,7 @@ impl Plugin for TerminalRendererPlugin {
         app.set_runner(terminal_runner);
         app.add_system(Update, poll_terminal_input);
         app.add_system(LateRender, readback_terminal_frame.after(finish_render));
-        app.add_system(LateUpdate, handle_terminal_resize);
+        app.add_system(Update, handle_terminal_resize);
 
         app.register_event::<TerminalResizeEvent>();
 

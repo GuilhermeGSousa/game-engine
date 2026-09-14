@@ -8,12 +8,26 @@ pub struct Children {
 }
 
 impl Children {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Entity> + ExactSizeIterator {
+        self.children.iter()
+    }
+
     pub(crate) fn from_children(children: Vec<Entity>) -> Self {
         Self { children }
     }
 
     pub(crate) fn add_child(&mut self, child: Entity) {
-        self.children.push(child);
+        if !self.children.contains(&child) {
+            self.children.push(child);
+        }
+    }
+
+    pub(crate) fn remove_child(&mut self, child: Entity) {
+        self.children.retain(|candidate| *candidate != child);
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.children.is_empty()
     }
 }
 
@@ -45,6 +59,10 @@ pub struct ChildOf {
 impl ChildOf {
     pub fn new(parent: Entity) -> Self {
         Self { parent }
+    }
+
+    pub fn parent(&self) -> Entity {
+        self.parent
     }
 }
 

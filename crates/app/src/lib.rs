@@ -321,3 +321,39 @@ impl Default for App {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ecs::events::{event_channel::EventChannel, event_reader::EventReader};
+
+    #[derive(Event)]
+    struct ExternalEvent;
+
+    #[derive(Resource, Default)]
+    struct Seen(usize);
+
+    fn observe(mut events: EventReader<ExternalEvent>, mut seen: ResMut<Seen>) {
+        seen.0 += events.read().count();
+    }
+
+    #[test]
+    fn externally_queued_events_survive_until_late_update() {
+        let mut app = App::new();
+        app.register_plugin(main_schedule::MainSchedulePlugin)
+            .register_plugin(plugins::TimePlugin)
+            .register_event::<ExternalEvent>()
+            .insert_resource(Seen::default())
+            .add_system(schedule_groups::LateUpdate, observe);
+        app.get_resource_mut::<EventChannel<ExternalEvent>>()
+            .unwrap()
+            .push_event(ExternalEvent);
+        app.finish_plugin_build();
+
+        app.update();
+
+        assert_eq!(app.get_resource::<Seen>().unwrap().0, 1);
+        app.update();
+        assert_eq!(app.get_resource::<Seen>().unwrap().0, 1);
+    }
+}

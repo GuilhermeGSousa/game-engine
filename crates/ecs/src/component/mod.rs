@@ -4,7 +4,8 @@ use std::{
 };
 
 pub mod bundle;
-pub(crate) mod registry;
+pub mod name;
+pub mod registry;
 pub mod scene;
 
 pub use ecs_macros::Component;

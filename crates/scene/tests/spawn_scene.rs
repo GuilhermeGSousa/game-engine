@@ -17,9 +17,7 @@ use glam::Vec3;
 use mesh::mesh::{Mesh, MeshComponent};
 use render::components::camera::Camera;
 use scene::scene::{Scene, SceneNode, SerializedComponent};
-use scene::spawner::{
-    spawn_scene, spawn_scene_components, SceneSpawnPolicy, SceneSpawnerComponent, SpawnedScene,
-};
+use scene::spawner::{spawn_scene, spawn_scene_components, SceneSpawnerComponent, SpawnedScene};
 
 fn node(name: &str, children: Vec<usize>, components: Vec<SerializedComponent>) -> SceneNode {
     SceneNode {
@@ -64,12 +62,7 @@ fn spawn_filtered_scene(
     mut output: ResMut<SpawnOutput>,
 ) {
     if output.0.is_none() {
-        output.0 = Some(spawn_scene(
-            &mut cmd,
-            &fixture.0,
-            parent.0,
-            &SceneSpawnPolicy::new().skip_component("Camera"),
-        ));
+        output.0 = Some(spawn_scene(&mut cmd, &fixture.0, parent.0));
     }
 }
 

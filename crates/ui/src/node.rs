@@ -7,10 +7,10 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::{
-        Entity,
         hierarchy::{ChildOf, Children},
+        Entity,
     },
-    query::{Query, filter::Without},
+    query::{filter::Without, Query},
     resource::{Res, Resource},
 };
 use essential::assets::handle::AssetHandle;
@@ -21,8 +21,8 @@ use render::{
     components::render_entity::{RenderEntity, SyncWithRenderWorld},
     device::RenderDevice,
     render_asset::{
-        RenderAssets,
         render_texture::{DummyRenderTexture, RenderTexture},
+        RenderAssets,
     },
 };
 pub use taffy::{AlignContent, AlignItems, FlexDirection, Overflow, Position};
@@ -30,14 +30,14 @@ use taffy::{
     AvailableSpace, Dimension, Display, LengthPercentage, LengthPercentageAuto, NodeId, Point,
     Rect, Size, Style, TaffyTree,
 };
-use wgpu::{Buffer, util::DeviceExt};
+use wgpu::{util::DeviceExt, Buffer};
 use window::plugin::Window;
 
 use crate::{
     material::UIMaterial,
     resources::UIRenderDiagnostics,
     transform::UIValue,
-    vertex::{QUAD_INDICES, UIVertex},
+    vertex::{UIVertex, QUAD_INDICES},
 };
 
 /// A uniform padding/margin value for one or all sides of a UI node (in pixels).
@@ -1106,7 +1106,8 @@ fn material_signature(
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             handle.id().hash(&mut hasher);
             render_textures
-                .source_revision(&handle.id())
+                .get(&handle.id())
+                .map(|texture| &texture.view)
                 .hash(&mut hasher);
             hasher.finish() as u32
         }),

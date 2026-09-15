@@ -25,30 +25,12 @@ use std::any::Any;
 /// struct HasOpaque { inner: Opaque }
 /// ```
 pub use editable_macros::Editable;
-pub use property::{ApplyError, Property, PropertyPath, apply, collect};
+pub use property::{PathError, PropertyPath, with_property, with_property_mut};
 
-/// The value of one leaf in the form the editor shows and edits, which is not
-/// necessarily its Rust form: a `Quat` is presented as euler degrees.
-#[derive(Clone, Debug, PartialEq)]
-pub enum EditorValue {
-    Number(f64),
-    Vec3([f64; 3]),
-}
-
-/// A type the editor can show and change. A leaf answers `read`/`write`; a
-/// struct answers `visit`/`visit_mut`, usually through `#[derive(Editable)]`.
+/// Structural access to a value. Opaque values use the default empty visitors;
+/// named structs usually implement traversal through `#[derive(Editable)]`.
+/// Presentation, snapshots and validation belong to the caller.
 pub trait Editable: Any {
-    /// `Some` for a leaf, `None` for a struct.
-    fn read(&self) -> Option<EditorValue> {
-        None
-    }
-
-    /// Returns `false` when `value` has the wrong shape or is not finite; the
-    /// leaf is then left unchanged.
-    fn write(&mut self, _value: &EditorValue) -> bool {
-        false
-    }
-
     fn visit(&self, _visitor: &mut dyn PropertyVisitor) {}
 
     fn visit_mut(&mut self, _visitor: &mut dyn PropertyVisitorMut) {}

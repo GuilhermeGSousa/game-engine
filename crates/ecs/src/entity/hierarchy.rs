@@ -12,6 +12,10 @@ impl Children {
         self.children.iter()
     }
 
+    pub fn sort_by_key<K: Ord>(&mut self, mut key: impl FnMut(Entity) -> K) {
+        self.children.sort_by_key(|entity| key(*entity));
+    }
+
     pub(crate) fn from_children(children: Vec<Entity>) -> Self {
         Self { children }
     }

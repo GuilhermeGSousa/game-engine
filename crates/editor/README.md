@@ -39,3 +39,27 @@ attempts to recover a fully valid content catalogue.
 
 World composition is deliberately temporary and is cleared on project switch or
 exit. Imported outputs and their stable UUIDs remain in the project.
+
+## Custom property editors
+
+The inspector edits live component values through typed `PropertyEditor<T>`
+adapters. `editable` provides structural access; adapters own snapshots, widgets,
+and validated edits. A registered editor can handle a whole struct or an opaque
+type, and can replace any built-in numeric editor. Snapshots are cached per
+component, with snapshots owned by property-row entities. Component cards carry
+`InspectedComponent` and can be accessed through ordinary ECS queries.
+Unchanged components reuse their snapshots;
+component changes, selection changes, and editor registration changes refresh
+them. Widget input and focused edit buffers continue updating every frame.
+
+See the [adapter guide](src/inspector/custom_editors.md) and the
+[complete custom widget example](examples/custom_property.rs). The example
+includes registration, a non-Clone domain type, click handling, snapshot refresh,
+and validation. Run its headless demonstration with:
+
+```sh
+cargo run -p editor --example custom_property
+```
+
+Register custom widget systems in `LateUpdate` after `InspectorPlugin`. Queued
+edits apply in the following `Update` against their captured world targets.

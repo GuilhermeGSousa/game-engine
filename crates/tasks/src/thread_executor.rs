@@ -1,8 +1,10 @@
 use std::{
+    future::Future,
     marker::PhantomData,
     thread::{self, ThreadId},
 };
 
+use async_executor::Task;
 use derive_more::{Deref, DerefMut};
 
 type ExecutorInner<'a> = async_executor::Executor<'a>;
@@ -39,6 +41,13 @@ impl<'task> ThreadExecutor<'task> {
             });
         }
         None
+    }
+
+    pub fn spawn<T: Send + 'task>(
+        &self,
+        future: impl Future<Output = T> + Send + 'task,
+    ) -> Task<T> {
+        self.executor.spawn(future)
     }
 }
 

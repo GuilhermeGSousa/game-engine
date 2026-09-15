@@ -6,7 +6,10 @@ use std::{
 pub use ecs_macros::Resource;
 
 use crate::{
-    World, component::Tick, query::change_detection::DetectChanges, system::input::SystemInput,
+    World,
+    component::Tick,
+    query::change_detection::DetectChanges,
+    system::{input::SystemInput, meta::SystemMetadata},
     world::UnsafeWorldCell,
 };
 
@@ -91,7 +94,7 @@ where
         Res::new(world)
     }
 
-    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+    fn fill_access(_meta: &mut SystemMetadata, access: &mut crate::system::access::SystemAccess) {
         access.read_resource::<T>();
     }
 }
@@ -167,7 +170,7 @@ where
         ResMut::new(world)
     }
 
-    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+    fn fill_access(_meta: &mut SystemMetadata, access: &mut crate::system::access::SystemAccess) {
         access.write_resource::<T>();
     }
 }

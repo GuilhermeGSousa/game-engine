@@ -4,7 +4,7 @@ use crate::{
     component::{Component, bundle::ComponentBundle},
     entity::{Entity, entity_store::EntityStore},
     resource::Resource,
-    system::input::SystemInput,
+    system::{input::SystemInput, meta::SystemMetadata},
     world::World,
 };
 
@@ -72,6 +72,12 @@ impl<'w, 's> CommandQueue<'w, 's> {
 
     pub fn despawn(&mut self, entity: Entity) {
         self.queue_state.add_command(DespawnCommand::new(entity));
+    }
+
+    /// Queues removal of `entity` and its complete child hierarchy.
+    pub fn despawn_recursive(&mut self, entity: Entity) {
+        self.queue_state
+            .add_command(DespawnRecursiveCommand::new(entity));
     }
 
     pub fn insert<T: ComponentBundle + 'static>(&mut self, component: T, entity: Entity) {
@@ -170,7 +176,7 @@ impl SystemInput for CommandQueue<'_, '_> {
         state.execute_commands(world);
     }
 
-    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+    fn fill_access(_meta: &mut SystemMetadata, access: &mut crate::system::access::SystemAccess) {
         access.set_needs_apply();
     }
 }
@@ -209,6 +215,22 @@ impl DespawnCommand {
 impl Command for DespawnCommand {
     fn execute(self: Box<Self>, world: &mut World) {
         world.despawn(self.entity);
+    }
+}
+
+pub(crate) struct DespawnRecursiveCommand {
+    entity: Entity,
+}
+
+impl DespawnRecursiveCommand {
+    pub fn new(entity: Entity) -> Self {
+        Self { entity }
+    }
+}
+
+impl Command for DespawnRecursiveCommand {
+    fn execute(self: Box<Self>, world: &mut World) {
+        world.despawn_recursive(self.entity);
     }
 }
 

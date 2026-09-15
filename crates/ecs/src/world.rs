@@ -1,11 +1,13 @@
 use anymap3::AnyMap;
 use log::warn;
-use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::{
+    HashSet,
+    hash_map::Entry::{Occupied, Vacant},
+};
 use std::{any::TypeId, cell::UnsafeCell, collections::HashMap, marker::PhantomData, ptr};
 
-use crate::component::Tick;
 use crate::component::bundle::{ComponentBundle, MergeRow, PushRow, ReplaceRow};
-use crate::component::registry::ComponentRegistry;
+use crate::component::registry::{ComponentRegistry, TypeInfo};
 use crate::component::scene::{SceneComponent, SceneSpawnContext};
 use crate::entity::entity_store::EntityStore;
 use crate::entity::hierarchy::{ChildOf, Children};
@@ -25,6 +27,7 @@ use crate::{
     table::TableRowIndex,
     utilities::TypeIdMap,
 };
+use crate::{component::Tick, system::meta::SystemMetadata};
 
 /// The central container of the ECS.
 ///
@@ -111,6 +114,7 @@ impl World {
 
     /// Removes an entity and all of its components from the world.
     pub fn despawn(&mut self, entity: Entity) {
+        self.detach_hierarchy(entity);
         match self.entity_store.find_location(entity) {
             Some(location) => {
                 {
@@ -140,6 +144,79 @@ impl World {
                 self.entity_store.free(entity);
             }
             None => panic!("Entity {:?} should exist in the world", entity),
+        }
+    }
+
+    /// Removes `entity` and every descendant reachable through [`Children`].
+    ///
+    /// Traversal is iterative and cycle-safe so malformed or very deep imported
+    /// hierarchies cannot overflow the stack. Children are removed before their
+    /// parents, and every removed edge is detached from surviving relatives.
+    pub fn despawn_recursive(&mut self, entity: Entity) {
+        if !self.entity_is_valid(entity) {
+            return;
+        }
+
+        let mut stack = vec![(entity, false)];
+        let mut discovered = HashSet::new();
+        let mut postorder = Vec::new();
+
+        while let Some((current, expanded)) = stack.pop() {
+            if expanded {
+                postorder.push(current);
+                continue;
+            }
+            if !self.entity_is_valid(current) || !discovered.insert(current) {
+                continue;
+            }
+
+            stack.push((current, true));
+            if let Some(children) = self.get_component_for_entity::<Children>(current) {
+                let children: Vec<_> = children.into_iter().copied().collect();
+                for child in children.into_iter().rev() {
+                    stack.push((child, false));
+                }
+            }
+        }
+
+        for current in postorder {
+            if self.entity_is_valid(current) {
+                self.despawn(current);
+            }
+        }
+    }
+
+    fn detach_hierarchy(&mut self, entity: Entity) {
+        if !self.entity_is_valid(entity) {
+            return;
+        }
+
+        let parent = self
+            .get_component_for_entity::<ChildOf>(entity)
+            .map(ChildOf::parent);
+        if let Some(parent) = parent {
+            let remove_empty_children = self
+                .get_component_accessor_for_entity_mut::<Children>(parent)
+                .is_some_and(|children| {
+                    children.data.remove_child(entity);
+                    children.data.is_empty()
+                });
+            if remove_empty_children {
+                self.remove_component_internal::<Children>(parent, true);
+            }
+        }
+
+        let children = self
+            .get_component_for_entity::<Children>(entity)
+            .map(|children| children.into_iter().copied().collect::<Vec<_>>())
+            .unwrap_or_default();
+        for child in children {
+            let belongs_to_entity = self
+                .get_component_for_entity::<ChildOf>(child)
+                .is_some_and(|parent| parent.parent() == entity);
+            if belongs_to_entity {
+                self.remove_component_internal::<ChildOf>(child, true);
+            }
         }
     }
 
@@ -451,6 +528,32 @@ impl World {
         }
     }
 
+    /// Whether an existing component was added, replaced, or mutably accessed
+    /// between `since` and the current tick, inclusive. Returns false if absent.
+    ///
+    /// Unlike `was_component_changed`, this also observes changes from earlier
+    /// frames. Pass the tick of the last read. The inclusive boundary catches
+    /// writes later in that same tick; it can conservatively report a change
+    /// already seen by the reader. Keep observations less than a full u32 tick
+    /// cycle apart. This query does not mark the component changed.
+    pub fn component_changed_since(
+        &self,
+        entity: Entity,
+        component_id: ComponentId,
+        since: Tick,
+    ) -> bool {
+        self.entity_store
+            .find_location(entity)
+            .is_some_and(|location| {
+                self.archetypes[location.archetype_index as usize].component_changed_since(
+                    component_id,
+                    location.row,
+                    since,
+                    self.current_tick(),
+                )
+            })
+    }
+
     pub fn was_component_changed(&self, entity: Entity, component_id: ComponentId) -> bool {
         if let Some(location) = self.entity_store.find_location(entity) {
             self.archetypes[location.archetype_index as usize].was_entity_changed(
@@ -478,6 +581,21 @@ impl World {
     /// updates (or creates) the [`Children`](crate::entity::hierarchy::Children) component on
     /// `parent`.
     pub fn add_child(&mut self, parent: Entity, child: Entity) {
+        if let Some(previous_parent) = self
+            .get_component_for_entity::<ChildOf>(child)
+            .map(ChildOf::parent)
+            && previous_parent != parent
+        {
+            let remove_empty_children = self
+                .get_component_accessor_for_entity_mut::<Children>(previous_parent)
+                .is_some_and(|children| {
+                    children.data.remove_child(child);
+                    children.data.is_empty()
+                });
+            if remove_empty_children {
+                self.remove_component_internal::<Children>(previous_parent, true);
+            }
+        }
         self.insert(ChildOf::new(parent), child);
 
         match self.get_component_accessor_for_entity_mut::<Children>(parent) {
@@ -496,6 +614,40 @@ impl World {
 
     pub fn register_component_type<T: SceneComponent>(&mut self) {
         self.component_registry.register_scene_component::<T>();
+    }
+
+    /// Every component `entity` carries, including ones that are not scene
+    /// components. Empty for a stale entity.
+    pub fn component_ids(&self, entity: Entity) -> &[ComponentId] {
+        self.entity_store
+            .find_location(entity)
+            .map(|location| self.archetypes[location.archetype_index as usize].component_ids())
+            .unwrap_or(&[])
+    }
+
+    /// The read side of a registered scene component, or `None` if `id` is not one.
+    pub fn type_info(&self, id: ComponentId) -> Option<&TypeInfo> {
+        self.component_registry.type_info(&id)
+    }
+
+    /// The registered scene components `entity` currently carries.
+    ///
+    /// Empty for a stale entity handle. Components registered only through
+    /// [`register_component`](Self::register_component) — engine plumbing such
+    /// as render-world mirrors — are deliberately not listed: this reports what
+    /// a scene can describe, which is what a tool wants to show.
+    pub fn component_types(&self, entity: Entity) -> impl Iterator<Item = &TypeInfo> {
+        self.component_ids(entity)
+            .iter()
+            .filter_map(|component_id| self.component_registry.type_info(component_id))
+    }
+
+    /// Reads the current value of one component off `entity`, by canonical full
+    /// type path or short alias. See [`TypeInfo::read`] for what `None` covers.
+    pub fn read_component(&self, entity: Entity, type_name: &str) -> Option<serde_json::Value> {
+        self.component_registry
+            .type_info_by_name(type_name)?
+            .read(self, entity)
     }
 
     /// Deserializes `json` into the component registered under `type_name` and
@@ -594,7 +746,7 @@ impl SystemInput for &World {
         world.world()
     }
 
-    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+    fn fill_access(_meta: &mut SystemMetadata, access: &mut crate::system::access::SystemAccess) {
         access.read_world();
     }
 }
@@ -612,7 +764,7 @@ impl SystemInput for &mut World {
         world.world_mut()
     }
 
-    fn fill_access(access: &mut crate::system::access::SystemAccess) {
+    fn fill_access(_meta: &mut SystemMetadata, access: &mut crate::system::access::SystemAccess) {
         access.write_world();
     }
 }

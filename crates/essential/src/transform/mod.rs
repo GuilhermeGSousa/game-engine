@@ -287,7 +287,7 @@ pub struct GlobalTransformRaw {
 #[cfg(test)]
 mod editable_tests {
     use super::Transform;
-    use editable::{Editable, PropertyPath, PropertyVisitor, with_property};
+    use editable::{with_property, Editable, PropertyPath, PropertyVisitor};
     use glam::{Quat, Vec3};
     use std::any::{Any, TypeId};
 

@@ -24,7 +24,7 @@ deleting its assets.
 The center viewport uses a dedicated render target, editor camera, ground grid,
 and fallback light. Right-drag orbits, middle-drag or Shift-right-drag pans, and
 the wheel zooms. Press F over the viewport to frame selection or use **Frame
-All**. Clicking rendered mesh bounds synchronizes selection with the hierarchy.
+All**.
 
 Navigate the focused tree with Up/Down, Left/Right and Home/End. Wheel/trackpad
 scrolling applies only over the tree; buttons also scroll by one visible page.

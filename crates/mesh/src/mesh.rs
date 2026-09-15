@@ -13,13 +13,13 @@ pub struct Mesh {
 }
 
 /// An axis-aligned bounding box in mesh-local or world space.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MeshAabb {
+#[derive(Debug, Clone, Copy, PartialEq, Component)]
+pub struct Aabb {
     pub min: Vec3,
     pub max: Vec3,
 }
 
-impl MeshAabb {
+impl Aabb {
     pub fn center(self) -> Vec3 {
         (self.min + self.max) * 0.5
     }
@@ -53,7 +53,7 @@ impl Mesh {
     ///
     /// Returns `None` for an empty mesh. Callers that inspect the same loaded
     /// asset repeatedly should cache this value by asset id.
-    pub fn local_aabb(&self) -> Option<MeshAabb> {
+    pub fn local_aabb(&self) -> Option<Aabb> {
         let first = self.vertices.first()?;
         let mut min = Vec3::from(first.pos_coords);
         let mut max = min;
@@ -62,7 +62,7 @@ impl Mesh {
             min = min.min(point);
             max = max.max(point);
         }
-        Some(MeshAabb { min, max })
+        Some(Aabb { min, max })
     }
 
     pub fn compute_normals(&mut self) -> &mut Self {

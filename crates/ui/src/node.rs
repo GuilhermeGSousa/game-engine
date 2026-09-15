@@ -7,10 +7,10 @@ use ecs::{
     command::CommandQueue,
     component::Component,
     entity::{
-        hierarchy::{ChildOf, Children},
         Entity,
+        hierarchy::{ChildOf, Children},
     },
-    query::{filter::Without, Query},
+    query::{Query, filter::Without},
     resource::{Res, Resource},
 };
 use essential::assets::handle::AssetHandle;
@@ -21,8 +21,8 @@ use render::{
     components::render_entity::{RenderEntity, SyncWithRenderWorld},
     device::RenderDevice,
     render_asset::{
-        render_texture::{DummyRenderTexture, RenderTexture},
         RenderAssets,
+        render_texture::{DummyRenderTexture, RenderTexture},
     },
 };
 pub use taffy::{AlignContent, AlignItems, FlexDirection, Overflow, Position};
@@ -30,14 +30,14 @@ use taffy::{
     AvailableSpace, Dimension, Display, LengthPercentage, LengthPercentageAuto, NodeId, Point,
     Rect, Size, Style, TaffyTree,
 };
-use wgpu::{util::DeviceExt, Buffer};
+use wgpu::{Buffer, util::DeviceExt};
 use window::plugin::Window;
 
 use crate::{
     material::UIMaterial,
     resources::UIRenderDiagnostics,
     transform::UIValue,
-    vertex::{UIVertex, QUAD_INDICES},
+    vertex::{QUAD_INDICES, UIVertex},
 };
 
 /// A uniform padding/margin value for one or all sides of a UI node (in pixels).

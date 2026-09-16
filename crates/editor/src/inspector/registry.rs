@@ -284,6 +284,11 @@ pub fn apply_property_commit(world: &mut World, commit: PropertyCommit) -> Resul
 }
 
 /// Drain queued edits without consulting current selection or UI entity lifetime.
+///
+/// This is the editor's dynamic mutation boundary: captured component types are
+/// registered at runtime, so a static `Query<T>` cannot declare the full write
+/// set. Keep exclusive access here until ECS supports runtime component access;
+/// presentation and user adapters do not receive this world borrow.
 pub fn apply_property_commits(world: &mut World) {
     let Some(commits) = world.get_resource_mut::<PropertyCommits>() else {
         return;

@@ -55,7 +55,7 @@ struct SpawnParent(ecs::Entity);
 #[derive(Resource, Default)]
 struct SpawnOutput(Option<SpawnedScene>);
 
-fn spawn_filtered_scene(
+fn spawn_fixture_scene(
     mut cmd: ecs::command::CommandQueue,
     fixture: Res<SceneFixture>,
     parent: Res<SpawnParent>,
@@ -67,7 +67,7 @@ fn spawn_filtered_scene(
 }
 
 #[test]
-fn reusable_spawn_returns_source_mapping_and_filters_components() {
+fn reusable_spawn_returns_source_mapping_and_preserves_registered_components() {
     let mut world = World::default();
     world.register_component_type::<Transform>();
     world.register_component_type::<Camera>();
@@ -88,7 +88,7 @@ fn reusable_spawn_returns_source_mapping_and_filters_components() {
     world.insert_resource(SpawnParent(parent));
     world.insert_resource(SpawnOutput::default());
 
-    let mut system = spawn_filtered_scene.into_system();
+    let mut system = spawn_fixture_scene.into_system();
     system.initialize(&mut world);
     system.run_and_apply(&mut world);
 
@@ -109,8 +109,8 @@ fn reusable_spawn_returns_source_mapping_and_filters_components() {
     assert!(
         world
             .get_component_for_entity::<Camera>(output.node_entities[1])
-            .is_none(),
-        "short-name policy matching must suppress the canonical Camera type"
+            .is_some(),
+        "the generic spawner preserves registered scene components"
     );
     assert_eq!(
         world
@@ -139,7 +139,7 @@ fn spawned_nodes_carry_their_authored_name() {
     world.insert_resource(SpawnParent(parent));
     world.insert_resource(SpawnOutput::default());
 
-    let mut system = spawn_filtered_scene.into_system();
+    let mut system = spawn_fixture_scene.into_system();
     system.initialize(&mut world);
     system.run_and_apply(&mut world);
 

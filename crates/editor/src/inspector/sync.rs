@@ -2,7 +2,7 @@
 //! collection creates temporary values which are moved into those components.
 use super::*;
 
-use ecs::{component::Tick, entity::hierarchy::ChildOf, query::filter::With};
+use ecs::{component::Tick, entity::hierarchy::ChildOf, query::filter::With, World};
 
 /// A component card in the inspector's UI hierarchy. Query this component to
 /// discover which live world component a card inspects. Its child property rows
@@ -18,32 +18,36 @@ pub struct InspectedComponent {
 }
 
 /// Widget creation is deferred to a regular system with a CommandQueue, keeping
-/// the adapter API independent of the exclusive reflection/reconciliation pass.
+/// the adapter API independent of the read-only reflection pass.
 #[derive(Component)]
 pub(super) struct BuildPropertyWidget;
 
-pub(super) fn sync_inspected_components(world: &mut World) {
-    let target = world
-        .get_resource::<InspectorData>()
-        .and_then(|data| data.entity)
-        .filter(|&entity| world.entity_is_valid(entity));
-    let mut stacks = world.query::<Entity, With<ComponentStack>>();
-    let stack = stacks.iter(world).next();
-    let mut cards = world.query::<(Entity, &InspectedComponent, Option<&ChildOf>), ()>();
+/// World access is read-only because component discovery and snapshot reads
+/// use runtime type IDs. Every presentation change is a deferred ECS command.
+pub(super) fn sync_inspected_components(
+    world: &World,
+    data: Res<InspectorData>,
+    registry: Res<InspectorRegistry>,
+    theme: Res<UITheme>,
+    stacks: Query<Entity, With<ComponentStack>>,
+    cards: Query<(Entity, &InspectedComponent, Option<&ChildOf>)>,
+    mut cmd: CommandQueue,
+) {
+    let target = data.entity.filter(|&entity| world.entity_is_valid(entity));
+    let stack = stacks.iter().next();
     let cards: Vec<_> = cards
-        .iter(world)
+        .iter()
         .map(|(entity, card, parent)| (entity, *card, parent.map(ChildOf::parent)))
         .collect();
 
     // Descriptors are temporary discovery data, never another persistent model.
-    let registry = world.get_resource::<InspectorRegistry>();
-    let registry_revision = registry.map(InspectorRegistry::revision);
+    let registry_revision = Some(registry.revision());
     let mut desired: Vec<_> = target
         .into_iter()
         .flat_map(|entity| world.component_ids(entity))
         .filter_map(|&type_id| {
             let name = registry
-                .and_then(|registry| registry.component(type_id))
+                .component(type_id)
                 .map(|c| c.name)
                 .or_else(|| world.type_info(type_id).map(|info| info.short()))?;
             Some((type_id, name))
@@ -58,15 +62,12 @@ pub(super) fn sync_inspected_components(world: &mut World) {
             || Some(card.entity) != target
             || !desired.iter().any(|(type_id, _)| *type_id == card.type_id)
         {
-            world.despawn_recursive(entity);
+            cmd.despawn_recursive(entity);
         } else {
             retained.push((entity, card));
         }
     }
     let (Some(stack), Some(target)) = (stack, target) else {
-        return;
-    };
-    let Some(theme) = world.get_resource::<UITheme>().cloned() else {
         return;
     };
     let mut ordered = Vec::with_capacity(desired.len());
@@ -75,7 +76,7 @@ pub(super) fn sync_inspected_components(world: &mut World) {
             .iter()
             .find(|(_, card)| card.type_id == type_id)
             .copied()
-            .unwrap_or_else(|| spawn_card(world, stack, target, type_id, name, &theme));
+            .unwrap_or_else(|| spawn_card(&mut cmd, stack, target, type_id, name, &theme));
         ordered.push(entity);
         if card.last_read_tick.is_none()
             || card.registry_revision != registry_revision
@@ -83,19 +84,16 @@ pub(super) fn sync_inspected_components(world: &mut World) {
                 .last_read_tick
                 .is_some_and(|tick| world.component_changed_since(target, type_id, tick))
         {
-            let properties = world
-                .get_resource::<InspectorRegistry>()
-                .and_then(|registry| registry.collect_component(world, target, type_id))
+            let properties = registry
+                .collect_component(world, target, type_id)
                 .unwrap_or_default();
-            reconcile_rows(world, &card, properties, &theme);
+            reconcile_rows(world, &mut cmd, &card, properties, &theme);
             card.last_read_tick = Some(world.current_tick());
             card.registry_revision = registry_revision;
-            *world
-                .get_component_for_entity_mut::<InspectedComponent>(entity)
-                .expect("retained card") = card;
+            cmd.insert(card, entity);
         }
     }
-    order_children(world, stack, &ordered);
+    order_children(world, &mut cmd, stack, ordered);
 }
 
 fn child_entities(world: &World, parent: Entity) -> Vec<Entity> {
@@ -105,25 +103,42 @@ fn child_entities(world: &World, parent: Entity) -> Vec<Entity> {
         .unwrap_or_default()
 }
 
-fn order_children(world: &mut World, parent: Entity, ordered: &[Entity]) {
-    if world
-        .get_component_for_entity::<Children>(parent)
-        .is_some_and(|children| !children.iter().copied().eq(ordered.iter().copied()))
+/// A one-pass ordering request. Applied after deferred spawns/despawns so new
+/// children participate in the same ordering as retained widgets.
+#[derive(Component)]
+pub(super) struct PendingChildOrder(Vec<Entity>);
+
+fn order_children(world: &World, cmd: &mut CommandQueue, parent: Entity, ordered: Vec<Entity>) {
+    if !child_entities(world, parent)
+        .iter()
+        .copied()
+        .eq(ordered.iter().copied())
     {
-        world
-            .get_component_for_entity_mut::<Children>(parent)
-            .expect("existing children")
-            .sort_by_key(|child| {
-                ordered
+        cmd.insert(PendingChildOrder(ordered), parent);
+    }
+}
+
+pub(super) fn order_inspector_children(
+    parents: Query<(Entity, &PendingChildOrder, Option<&mut Children>)>,
+    mut cmd: CommandQueue,
+) {
+    for (entity, order, children) in parents.iter() {
+        if let Some(mut children) = children {
+            children.sort_by_key(|child| {
+                order
+                    .0
                     .iter()
-                    .position(|&entity| entity == child)
+                    .position(|&e| e == child)
                     .unwrap_or(usize::MAX)
             });
+        }
+        cmd.remove::<PendingChildOrder>(entity);
     }
 }
 
 fn reconcile_rows(
-    world: &mut World,
+    world: &World,
+    cmd: &mut CommandQueue,
     card: &InspectedComponent,
     properties: Vec<Property>,
     theme: &UITheme,
@@ -131,12 +146,14 @@ fn reconcile_rows(
     let visible = !properties.is_empty();
     if world
         .get_component_for_entity::<UINode>(card.body)
-        .is_some_and(|node| node.visible != visible)
+        .is_none_or(|node| node.visible != visible)
     {
-        world
-            .get_component_for_entity_mut::<UINode>(card.body)
-            .expect("card body")
-            .visible = visible;
+        let mut node = world
+            .get_component_for_entity::<UINode>(card.body)
+            .cloned()
+            .unwrap_or_else(|| body_node(theme));
+        node.visible = visible;
+        cmd.insert(node, card.body);
     }
     let mut existing = child_entities(world, card.body);
     let mut ordered = Vec::with_capacity(properties.len());
@@ -155,88 +172,86 @@ fn reconcile_rows(
         let row = if let Some(index) = matching {
             let row = existing.swap_remove(index);
             if world.get_component_for_entity::<PropertyRowValue>(row) != Some(&property.value) {
-                world.insert(property.value, row);
+                cmd.insert(property.value, row);
             }
             row
         } else {
-            spawn_row(world, card, property, theme)
+            spawn_row(cmd, card, property, theme)
         };
         ordered.push(row);
     }
     for row in existing {
-        world.despawn_recursive(row);
+        cmd.despawn_recursive(row);
     }
-    order_children(world, card.body, &ordered);
+    order_children(world, cmd, card.body, ordered);
 }
 
 fn spawn_card(
-    world: &mut World,
+    cmd: &mut CommandQueue,
     stack: Entity,
     target: Entity,
     type_id: TypeId,
     name: &'static str,
     theme: &UITheme,
 ) -> (Entity, InspectedComponent) {
-    let entity = world.spawn((
-        UINode {
+    let entity = cmd
+        .spawn((
+            UINode {
+                flex_shrink: 0.0,
+                flex_direction: FlexDirection::Column,
+                padding: UIRect::axes(theme.spacing_xs + 2.0, theme.spacing_sm),
+                ..Default::default()
+            },
+            UIMaterial {
+                corner_radius: theme.radius_md,
+                ..UIMaterial::flat(theme.surface_raised)
+            },
+        ))
+        .entity();
+    cmd.add_child(stack, entity);
+    let header = cmd
+        .spawn(UINode {
             flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            padding: UIRect::axes(theme.spacing_xs + 2.0, theme.spacing_sm),
+            flex_direction: FlexDirection::Row,
+            align_items: Some(taffy::AlignItems::Center),
+            gap: glam::Vec2::new(theme.spacing_xs + 2.0, 0.0),
             ..Default::default()
-        },
-        UIMaterial {
-            corner_radius: theme.radius_md,
-            ..UIMaterial::flat(theme.surface_raised)
-        },
-    ));
-    world.add_child(stack, entity);
-    let header = world.spawn(UINode {
-        flex_shrink: 0.0,
-        flex_direction: FlexDirection::Row,
-        align_items: Some(taffy::AlignItems::Center),
-        gap: glam::Vec2::new(theme.spacing_xs + 2.0, 0.0),
-        ..Default::default()
-    });
-    world.add_child(entity, header);
-    let label = world.spawn((
-        UINode {
-            flex_grow: 1.0,
-            ..Default::default()
-        },
-        TextComponent {
-            ellipsis: true,
-            wrap: false,
-            ..text(theme, name)
-        },
-    ));
-    world.add_child(header, label);
+        })
+        .entity();
+    cmd.add_child(entity, header);
+    let label = cmd
+        .spawn((
+            UINode {
+                flex_grow: 1.0,
+                ..Default::default()
+            },
+            TextComponent {
+                ellipsis: true,
+                wrap: false,
+                ..text(theme, name)
+            },
+        ))
+        .entity();
+    cmd.add_child(header, label);
     // Component enable/disable is not implemented; keep its visual disabled.
-    let toggle = world.spawn((
-        UINode {
-            width: UIValue::Px(22.0),
-            height: UIValue::Px(13.0),
-            flex_shrink: 0.0,
-            ..Default::default()
-        },
-        UIMaterial {
-            corner_radius: 6.5,
-            ..UIMaterial::flat(theme.accent)
-        },
-        UIDisabled,
-    ));
-    world.add_child(header, toggle);
-    let body = world.spawn(UINode {
-        visible: false,
-        flex_shrink: 0.0,
-        flex_direction: FlexDirection::Column,
-        gap: glam::Vec2::new(0.0, theme.spacing_xs),
-        padding: UIRect {
-            top: theme.spacing_xs,
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-    world.add_child(entity, body);
+    let toggle = cmd
+        .spawn((
+            UINode {
+                width: UIValue::Px(22.0),
+                height: UIValue::Px(13.0),
+                flex_shrink: 0.0,
+                ..Default::default()
+            },
+            UIMaterial {
+                corner_radius: 6.5,
+                ..UIMaterial::flat(theme.accent)
+            },
+            UIDisabled,
+        ))
+        .entity();
+    cmd.add_child(header, toggle);
+    let body = cmd.spawn(body_node(theme)).entity();
+    cmd.add_child(entity, body);
     let card = InspectedComponent {
         entity: target,
         type_id,
@@ -245,12 +260,12 @@ fn spawn_card(
         last_read_tick: None,
         registry_revision: None,
     };
-    world.insert(card, entity);
+    cmd.insert(card, entity);
     (entity, card)
 }
 
 fn spawn_row(
-    world: &mut World,
+    cmd: &mut CommandQueue,
     card: &InspectedComponent,
     property: Property,
     theme: &UITheme,
@@ -261,36 +276,54 @@ fn spawn_row(
     } else {
         label_for(&property.path)
     };
-    let row = world.spawn((
-        UINode {
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            align_items: Some(taffy::AlignItems::Center),
-            gap: glam::Vec2::new(theme.spacing_xs, 0.0),
-            ..Default::default()
-        },
-        target,
-        property.value,
-        BuildPropertyWidget,
-    ));
-    world.add_child(card.body, row);
-    let label = world.spawn((
-        UINode {
-            width: UIValue::Px(PROPERTY_LABEL_WIDTH),
-            flex_shrink: 0.0,
-            ..Default::default()
-        },
-        TextComponent {
-            color: theme.text_muted,
-            font_size: theme.font_size_sm,
-            line_height: theme.line_height(theme.font_size_sm),
-            wrap: false,
-            ellipsis: true,
-            ..text(theme, &label)
-        },
-    ));
-    world.add_child(row, label);
+    let row = cmd
+        .spawn((
+            UINode {
+                flex_shrink: 0.0,
+                flex_direction: FlexDirection::Row,
+                align_items: Some(taffy::AlignItems::Center),
+                gap: glam::Vec2::new(theme.spacing_xs, 0.0),
+                ..Default::default()
+            },
+            target,
+            property.value,
+            BuildPropertyWidget,
+        ))
+        .entity();
+    cmd.add_child(card.body, row);
+    let label = cmd
+        .spawn((
+            UINode {
+                width: UIValue::Px(PROPERTY_LABEL_WIDTH),
+                flex_shrink: 0.0,
+                ..Default::default()
+            },
+            TextComponent {
+                color: theme.text_muted,
+                font_size: theme.font_size_sm,
+                line_height: theme.line_height(theme.font_size_sm),
+                wrap: false,
+                ellipsis: true,
+                ..text(theme, &label)
+            },
+        ))
+        .entity();
+    cmd.add_child(row, label);
     row
+}
+
+fn body_node(theme: &UITheme) -> UINode {
+    UINode {
+        visible: false,
+        flex_shrink: 0.0,
+        flex_direction: FlexDirection::Column,
+        gap: glam::Vec2::new(0.0, theme.spacing_xs),
+        padding: UIRect {
+            top: theme.spacing_xs,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
 }
 
 pub(super) fn build_property_widgets(

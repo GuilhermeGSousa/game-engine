@@ -203,6 +203,7 @@ fn spawn_region(cmd: &mut CommandQueue, root: Entity, region: Region, theme: &UI
             inset: UIInset {
                 top: UIValue::Px(MARGIN),
                 left: UIValue::Px(MARGIN),
+                right: UIValue::Px(340.0),
                 ..Default::default()
             },
             flex_direction: FlexDirection::Row,
@@ -413,7 +414,9 @@ mod tests {
         assert_eq!(built.len(), Region::ALL.len());
         for (region, body) in built {
             assert_eq!(
-                world.get_component_for_entity::<Interactable>(*body).is_some(),
+                world
+                    .get_component_for_entity::<Interactable>(*body)
+                    .is_some(),
                 *region != Region::Scene,
                 "{region:?}: a panel drawn over the scene must be hit before the viewport behind it"
             );

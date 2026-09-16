@@ -1,17 +1,89 @@
 use super::*;
 use ecs::{
     component::scene::{SceneComponent, SceneSpawnContext},
-    IntoSystem, System,
+    IntoSystem, System, World,
 };
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 pub(super) fn update(world: &mut World) {
-    collect_inspector_data(world);
-    sync_inspected_components(world);
-    let mut build = build_property_widgets.into_system();
-    build.initialize(world);
-    build.run_and_apply(world);
+    for mut system in [
+        collect_inspector_data.into_system(),
+        sync_inspected_components.into_system(),
+        order_inspector_children.into_system(),
+        build_property_widgets.into_system(),
+    ] {
+        system.initialize(world);
+        system.run_and_apply(world);
+    }
+}
+
+#[test]
+fn inspector_presentation_systems_do_not_request_exclusive_access() {
+    for system in [
+        collect_inspector_data.into_system(),
+        sync_inspected_components.into_system(),
+        order_inspector_children.into_system(),
+        build_property_widgets.into_system(),
+    ] {
+        let mut meta = ecs::system::meta::SystemMetadata::default();
+        let mut access = ecs::system::access::SystemAccess::default();
+        system.fill_access(&mut meta, &mut access);
+        assert!(!access.is_exclusive());
+    }
+}
+
+#[test]
+fn metadata_tracks_live_names_children_and_removal_without_changing_selection() {
+    let (mut world, target, _) = world();
+    let mut collect = collect_inspector_data.into_system();
+    collect.initialize(&mut world);
+    collect.run_and_apply(&mut world);
+    world.tick();
+    collect.run_and_apply(&mut world);
+    let mut unchanged = (|data: Res<InspectorData>| {
+        use ecs::query::change_detection::DetectChanges;
+        assert!(!data.has_changed());
+    })
+    .into_system();
+    unchanged.initialize(&mut world);
+    unchanged.run_and_apply(&mut world);
+    world.insert(Name::new("Renamed"), target);
+    let child = world.spawn(());
+    world.add_child(target, child);
+    collect.run_and_apply(&mut world);
+    let data = world.get_resource::<InspectorData>().unwrap();
+    assert!(data.heading.starts_with("Renamed"));
+    assert!(data.heading.ends_with("1 children"));
+    world.despawn_recursive(target);
+    collect.run_and_apply(&mut world);
+    let data = world.get_resource::<InspectorData>().unwrap();
+    assert!(data.entity.is_none());
+    assert_eq!(data.heading, "Selection is no longer in the world.");
+}
+
+#[test]
+fn deferred_reconciliation_makes_new_bodies_visible_and_consumes_order_requests() {
+    let (mut world, _, _) = world();
+    update(&mut world);
+    let row = rows(&mut world)[0].0;
+    let body = world
+        .get_component_for_entity::<ecs::entity::hierarchy::ChildOf>(row)
+        .unwrap()
+        .parent();
+    assert!(
+        world
+            .get_component_for_entity::<UINode>(body)
+            .unwrap()
+            .visible
+    );
+    assert_eq!(
+        world
+            .query::<&sync::PendingChildOrder, ()>()
+            .iter(&mut world)
+            .count(),
+        0
+    );
 }
 
 fn world() -> (World, Entity, Entity) {
@@ -24,6 +96,7 @@ fn world() -> (World, Entity, Entity) {
     let mut selection = Selection::default();
     selection.select_entity(entity);
     world.insert_resource(selection);
+    world.insert_resource(InspectorData::default());
     let stack = world.spawn((UINode::default(), ComponentStack));
     (world, entity, stack)
 }

@@ -23,7 +23,7 @@ use ui::{
 use crate::dock::{DockedApp, PanelDescriptor, PanelRegistry, Region};
 use crate::marks::{self, selection_tint, Mark, TRANSPARENT};
 use crate::project::{AssetEntry, EditorCommand, EditorCommands, ProjectState};
-use crate::selection::Selection;
+use essential::assets::AssetId;
 
 pub const PANEL_ID: &str = "rabbithole.curiosities";
 
@@ -44,6 +44,8 @@ const KINDS: [(&str, Option<&str>); 5] = [
 
 #[derive(Resource, Default)]
 pub struct ContentState {
+    /// Catalogue selection is independent of the open editor's entity selection.
+    pub selected: Option<AssetId>,
     filter: String,
     /// Index into [`KINDS`] of the tag currently selected.
     kind: usize,
@@ -384,7 +386,6 @@ fn handle_actions(
     mut state: ResMut<ContentState>,
     views: Query<(&ContentView, &mut UIScrollArea)>,
     mut commands: ResMut<EditorCommands>,
-    mut selection: ResMut<Selection>,
 ) {
     let mut reset = false;
     for click in clicks.read() {
@@ -405,11 +406,9 @@ fn handle_actions(
             Action::Asset(slot) => {
                 let assets = visible_assets(&project, &state);
                 if let Some(asset) = assets.get(state.index(slot)) {
-                    if asset.kind == "Scene" {
-                        commands.0.push_back(EditorCommand::OpenScene(asset.id));
-                    } else {
-                        selection.select_asset(asset.id);
-                    }
+                    let id = asset.id;
+                    state.selected = Some(id);
+                    commands.0.push_back(EditorCommand::OpenAsset(id));
                 }
             }
         }
@@ -423,7 +422,7 @@ fn handle_actions(
 
 fn refresh_panel(
     project: Res<ProjectState>,
-    state: Res<ContentState>,
+    mut state: ResMut<ContentState>,
     labels: Query<(&Label, &mut TextComponent)>,
 ) {
     let assets = visible_assets(&project, &state);
@@ -464,7 +463,6 @@ fn asset_mark(kind: &str) -> Mark {
 fn render_marks(
     project: Res<ProjectState>,
     state: Res<ContentState>,
-    selection: Res<Selection>,
     theme: Res<UITheme>,
     slots: Query<(&MarkSlot, &mut UINode, &mut UIMaterial)>,
     styles: Query<(&Action, &mut UIInteractionStyle)>,
@@ -473,7 +471,7 @@ fn render_marks(
     let selected = |slot: usize| {
         assets
             .get(state.index(slot))
-            .is_some_and(|asset| selection.asset() == Some(asset.id))
+            .is_some_and(|asset| state.selected == Some(asset.id))
     };
     for (slot, mut node, mut material) in slots.iter() {
         let mark = assets

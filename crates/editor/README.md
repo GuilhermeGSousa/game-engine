@@ -1,44 +1,30 @@
-# Wonderland editor
+# Rabbithole editor
 
-The engine-native Looking Glass editor imports glTF content into a temporary,
-read-only world. It uses the engine's ECS, renderer, window, asset, scene, and UI
-crates directly.
+The engine-native editor uses the engine's ECS, renderer, assets, scene, and UI
+crates. It opens imported content and allows temporary inspector edits. It does
+not import or save assets; importing belongs to the `import` CLI.
 
 ```sh
 cargo run -p editor -- --project examples/render-test
 ```
 
-Run without arguments to choose a project folder. Linux folder selection uses
-`zenity`; entering a path and clicking **Open Project** works without it.
-Folder dialogs on other desktop platforms are not implemented yet.
+Add `--decorated` to use the window manager's title bar.
 
-The bottom Content browser scans imported asset headers and supports search and
-paging. Click a Scene to add a fresh instance at the origin. Repeated clicks add
-independent instances; other asset kinds can be selected for inspection.
+Selecting a supported asset in Curiosities opens its editor tab. Each asset type
+has one editor: another Scene reuses the Scene tab. The old preview, camera,
+selection, and temporary edits remain until its replacement loads successfully.
+A failed replacement preserves them. Selecting the displayed asset cancels a
+pending replacement. Unsupported assets remain selectable without opening a tab.
 
-The hierarchy preserves each scene as a separate instance root. Disclosure
-arrows expand branches and search reveals matches with their ancestors. Details
-shows imported component JSON and can remove the selected whole instance without
-deleting its assets.
+Closing a tab discards its temporary state. With no tabs open, the editor shows
+an empty viewport. Switching projects closes all editors. Tabs scroll
+horizontally with the wheel or trackpad, and the active tab is revealed.
 
-The center viewport uses a dedicated render target, editor camera, ground grid,
-and fallback light. Right-drag orbits, middle-drag or Shift-right-drag pans, and
-the wheel zooms. Press F over the viewport to frame selection or use **Frame
-All**.
-
-Navigate the focused tree with Up/Down, Left/Right and Home/End. Wheel/trackpad
-scrolling applies only over the tree; buttons also scroll by one visible page.
-The tree uses twelve reusable rows, keeping UI entity count independent of scene
-size. Deep indentation is visually capped; the document retains full ancestry.
-
-Import `.gltf`/`.glb` with the toolbar or drop a file over the viewport. Jobs are
-serialized. A successful import rescans and atomically publishes the UUID
-registry, refreshes resident assets, adds the emitted Scene, selects it, and
-frames it when bounds become available. A failed import spawns nothing and
-attempts to recover a fully valid content catalogue.
-
-World composition is deliberately temporary and is cleared on project switch or
-exit. Imported outputs and their stable UUIDs remain in the project.
+The scene hierarchy supports selection, filtering, expansion, and keyboard
+navigation. The inspector uses typed property adapters. Right-drag looks around;
+WASD and Q/E move while looking, Shift boosts speed, middle-drag pans, and the
+wheel dollies or adjusts flight speed while looking. F frames the selection;
+Shift-F frames the scene.
 
 ## Custom property editors
 
@@ -61,5 +47,49 @@ and validation. Run its headless demonstration with:
 cargo run -p editor --example custom_property
 ```
 
-Register custom widget systems in `LateUpdate` after `InspectorPlugin`. Queued
-edits apply in the following `Update` against their captured world targets.
+## Custom asset editors
+
+Asset editors are separate from property editors. Register the asset with
+`app.register_asset::<T>()`, then use `AssetEditorAppExt`:
+
+```rust,ignore
+app.register_asset::<Dialogue>();
+app.register_asset_editor::<Dialogue>(DialogueEditor)?;
+```
+
+Register after `EditorPlugin` installs its registry. Dispatch uses the asset's
+serialized kind (`Asset::name()`), which is what catalogue entries carry.
+Duplicate editor registrations are rejected.
+
+Implement `AssetEditor::build` using its `EntityCommandQueue` to queue the
+editor's components and children. The
+editor entity carries `EditorDocument` and `EditorHosts`; custom systems use
+ordinary `Query` and `ProjectState` access to load assets and update their
+components. Content browser and Chatter remain shared. Tag additional owned
+roots with `EditorOwned(document)` so closing the editor cleans them up
+recursively. Headless hosts have no UI containers.
+
+The [complete custom asset editor example](examples/custom_asset.rs) loads a
+non-Clone Dialogue asset, builds its own text widget, replaces its contents,
+rejects invalid input without mutation, and registers through the public API.
+Run its headless smoke test with:
+
+```sh
+cargo run -p editor --example custom_asset
+```
+
+The example uses a synchronous ECS loading system for clarity. Asynchronous
+systems capture `EditorDocument.request_generation` and
+`project_generation`; before mutating domain state, use
+`asset_request_is_current` to reject canceled, closed, or superseded results.
+Call `finish_asset_request` with a mutable document borrow, the captured request
+generation, the live `ProjectState::generation`, and success or an error to update the tab's current asset and status. Failed loads must leave
+the previous presentation intact.
+
+Register custom interaction systems in `Update` after `EditorPlugin`; lifecycle
+processing runs before viewport and transform propagation. Workspace visibility
+uses resource change detection and host component changes; tab switches release
+transient input without resetting the camera pose. Loading and
+temporary state belong to the custom editor.
+Only the Scene editor currently owns a 3D preview; multiple independent 3D
+editor worlds and render suppression are not implemented.

@@ -4,7 +4,7 @@ use app::{
 };
 use ecs::{
     command::CommandQueue, component::name::Name, entity::hierarchy::Children, Component, Entity,
-    Query, Res, ResMut, Resource, World,
+    Query, Res, ResMut, Resource,
 };
 use std::any::TypeId;
 
@@ -30,7 +30,7 @@ mod rows;
 mod sync;
 
 pub use sync::InspectedComponent;
-use sync::{build_property_widgets, sync_inspected_components};
+use sync::{build_property_widgets, order_inspector_children, sync_inspected_components};
 
 use essential::transform::Transform;
 use numeric::{
@@ -47,7 +47,7 @@ pub use rows::{
 pub const PANEL_ID: &str = "rabbithole.ecs";
 
 /// Panel metadata. Component cards and property rows own inspection state in ECS.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, PartialEq)]
 pub struct InspectorData {
     pub heading: String,
     pub entity: Option<Entity>,
@@ -99,6 +99,7 @@ impl Plugin for InspectorPlugin {
             .add_system(LateUpdate, cancel_numeric_fields)
             .add_system(LateUpdate, collect_inspector_data)
             .add_system(LateUpdate, sync_inspected_components)
+            .add_system(LateUpdate, order_inspector_children)
             .add_system(LateUpdate, build_property_widgets)
             .add_system(LateUpdate, refresh_inspector)
             .add_system(LateUpdate, refresh_numeric_fields)
@@ -106,46 +107,36 @@ impl Plugin for InspectorPlugin {
     }
 }
 
-fn collect_inspector_data(world: &mut World) {
-    let Some(selection) = world.get_resource::<Selection>() else {
-        return;
-    };
-    let revision = selection.revision();
-    let entity = selection.entity();
-
+fn collect_inspector_data(
+    selection: Res<Selection>,
+    selected: Query<(Option<&Name>, Option<&Children>, Option<&SceneRoot>)>,
+    mut current: ResMut<InspectorData>,
+) {
     let mut data = InspectorData {
-        revision: Some(revision),
+        revision: Some(selection.revision()),
         ..Default::default()
     };
-
-    if let Some(entity) = entity {
-        if world.entity_is_valid(entity) {
+    if let Some(entity) = selection.entity() {
+        if let Some((name, children, root)) = selected.get_entity(entity) {
             data.entity = Some(entity);
-
-            let name = world
-                .get_component_for_entity::<Name>(entity)
-                .map(|name| name.as_str().to_string());
-            let children = world
-                .get_component_for_entity::<Children>(entity)
-                .map_or(0, |children| children.iter().count());
-            let root = world.get_component_for_entity::<SceneRoot>(entity);
-
-            data.heading = match (&root, &name) {
+            let children = children.map_or(0, |children| children.iter().count());
+            data.heading = match (root, name) {
                 (Some(root), _) => format!("{}\n\nScene root · {children} children", root.address),
-                (None, Some(name)) => {
-                    format!("{name}\n\nEntity {} · {children} children", entity.index())
-                }
+                (None, Some(name)) => format!(
+                    "{}\n\nEntity {} · {children} children",
+                    name.as_str(),
+                    entity.index()
+                ),
                 (None, None) => format!("Entity {} · {children} children", entity.index()),
             };
             data.closable_scene = root.map(|_| entity);
         } else {
             data.heading = "Selection is no longer in the world.".into();
         }
-    } else {
-        data.heading.clear();
     }
-
-    world.insert_resource(data);
+    if *current != data {
+        *current = data;
+    }
 }
 
 fn text(theme: &UITheme, value: &str) -> TextComponent {

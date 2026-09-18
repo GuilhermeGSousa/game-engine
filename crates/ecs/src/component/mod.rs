@@ -33,8 +33,9 @@ pub struct ComponentLifecycleContext {
 /// should live in the ECS storage.
 ///
 /// # Lifecycle callbacks
-/// Override [`on_add`](Component::on_add) or [`on_remove`](Component::on_remove) to
-/// run logic automatically when the component is added to or removed from an entity.
+/// Override [`on_add`](Component::on_add), [`on_remove`](Component::on_remove), or
+/// [`on_despawn`](Component::on_despawn) to react to component insertion, explicit
+/// component removal, or entity despawning, respectively.
 ///
 /// # Example
 /// ```
@@ -59,8 +60,16 @@ pub trait Component: Send + Sync + 'static {
         None
     }
 
-    /// Optional callback invoked immediately before this component is removed from an entity.
+    /// Optional callback invoked after explicit component removal while the entity remains alive.
+    /// This callback is not invoked by despawning the entity.
     fn on_remove() -> Option<ComponentLifecycleCallback> {
+        None
+    }
+
+    /// Optional callback invoked when the entity is despawned, before its components are dropped.
+    /// This callback is not invoked by explicit component removal.
+    /// The component is still present unless an earlier callback removed it.
+    fn on_despawn() -> Option<ComponentLifecycleCallback> {
         None
     }
 }
@@ -69,6 +78,7 @@ pub trait Component: Send + Sync + 'static {
 pub(crate) struct ComponentLifecycleCallbacks {
     pub(crate) on_add: Option<ComponentLifecycleCallback>,
     pub(crate) on_remove: Option<ComponentLifecycleCallback>,
+    pub(crate) on_despawn: Option<ComponentLifecycleCallback>,
 }
 
 impl ComponentLifecycleCallbacks {
@@ -76,6 +86,7 @@ impl ComponentLifecycleCallbacks {
         Self {
             on_add: T::on_add(),
             on_remove: T::on_remove(),
+            on_despawn: T::on_despawn(),
         }
     }
 }

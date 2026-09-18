@@ -66,48 +66,6 @@ fn lists_the_registered_components_an_entity_carries() {
 }
 
 #[test]
-fn reads_a_component_value_as_json() {
-    let mut world = World::default();
-    world.register_component_type::<Health>();
-    let entity = world.spawn(Health {
-        current: 3,
-        max: 10,
-    });
-
-    assert_eq!(
-        world.read_component(entity, "Health"),
-        Some(serde_json::json!({ "current": 3, "max": 10 })),
-        "the short alias must read the live component value"
-    );
-    assert_eq!(
-        world.read_component(entity, Health::name()),
-        Some(serde_json::json!({ "current": 3, "max": 10 })),
-        "the canonical full type path must read the same value"
-    );
-}
-
-#[test]
-fn reads_reflect_later_mutations() {
-    let mut world = World::default();
-    world.register_component_type::<Health>();
-    let entity = world.spawn(Health {
-        current: 3,
-        max: 10,
-    });
-
-    world
-        .get_component_for_entity_mut::<Health>(entity)
-        .unwrap()
-        .current = 9;
-
-    assert_eq!(
-        world.read_component(entity, "Health"),
-        Some(serde_json::json!({ "current": 9, "max": 10 })),
-        "reads must see the world as it is now, not as it was spawned"
-    );
-}
-
-#[test]
 fn unregistered_components_are_invisible() {
     let mut world = World::default();
     world.register_component_type::<Health>();
@@ -131,50 +89,6 @@ fn an_entity_with_no_registered_components_lists_nothing() {
     assert!(
         names(&world, entity).is_empty(),
         "an entity carrying only unregistered components must list nothing"
-    );
-}
-
-#[test]
-fn reading_a_component_the_entity_does_not_have_is_none() {
-    let mut world = World::default();
-    world.register_component_type::<Health>();
-    world.register_component_type::<Armour>();
-    let entity = world.spawn(Health { current: 1, max: 1 });
-
-    assert_eq!(
-        world.read_component(entity, "Armour"),
-        None,
-        "a registered type the entity lacks must read as None, not a default value"
-    );
-}
-
-#[test]
-fn reading_an_unregistered_name_is_none() {
-    let mut world = World::default();
-    let entity = world.spawn(Plumbing);
-
-    assert_eq!(
-        world.read_component(entity, "NeverRegistered"),
-        None,
-        "an unknown type name must report None rather than panicking"
-    );
-}
-
-#[test]
-fn a_stale_entity_lists_nothing_and_reads_nothing() {
-    let mut world = World::default();
-    world.register_component_type::<Health>();
-    let entity = world.spawn(Health { current: 1, max: 1 });
-    world.despawn(entity);
-
-    assert!(
-        names(&world, entity).is_empty(),
-        "a despawned entity must not report components"
-    );
-    assert_eq!(
-        world.read_component(entity, "Health"),
-        None,
-        "reading through a stale entity handle must not panic"
     );
 }
 

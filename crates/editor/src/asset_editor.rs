@@ -248,11 +248,11 @@ pub fn process_editor_commands(
     }
     for (entity, owner) in owned.iter() {
         if closed.contains(&owner.0) {
-            commands.despawn_recursive(entity);
+            commands.despawn(entity);
         }
     }
     for entity in closed {
-        commands.despawn_recursive(entity);
+        commands.despawn(entity);
     }
 }
 

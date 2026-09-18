@@ -155,7 +155,7 @@ fn update_scenes(
                     Ok(scene) => {
                         let asset = doc.pending.as_ref().unwrap();
                         if let Some(root) = state.root {
-                            commands.despawn_recursive(root);
+                            commands.despawn(root);
                         }
                         let root = commands
                             .spawn((

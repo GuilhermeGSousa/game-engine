@@ -2,7 +2,6 @@ use std::ops::Deref;
 
 use crate::{component::Component, entity::Entity};
 
-#[derive(Component)]
 pub struct Children {
     children: Vec<Entity>,
 }
@@ -35,6 +34,28 @@ impl Children {
     }
 }
 
+impl Component for Children {
+    fn name() -> &'static str
+    where
+        Self: Sized,
+    {
+        std::any::type_name::<Self>()
+    }
+
+    fn on_despawn() -> Option<crate::component::ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            let Some(children) = world.get_component_for_entity::<Children>(context.entity) else {
+                return;
+            };
+
+            let children: Vec<_> = children.into_iter().map(|e| *e).collect();
+            for child in children {
+                world.despawn(child);
+            }
+        })
+    }
+}
+
 impl IntoIterator for Children {
     type Item = Entity;
 
@@ -55,9 +76,31 @@ impl<'a> IntoIterator for &'a Children {
 }
 
 #[allow(dead_code)]
-#[derive(Component)]
 pub struct ChildOf {
     parent: Entity,
+}
+
+impl Component for ChildOf {
+    fn on_despawn() -> Option<crate::component::ComponentLifecycleCallback> {
+        Some(|mut world, context| {
+            let Some(parent) = world
+                .get_component_for_entity::<ChildOf>(context.entity)
+                .map(ChildOf::parent)
+            else {
+                return;
+            };
+
+            let remove_empty_children = world
+                .get_component_for_entity_mut::<Children>(parent)
+                .is_some_and(|children| {
+                    children.remove_child(context.entity);
+                    children.is_empty()
+                });
+            if remove_empty_children {
+                world.remove_component::<Children>(parent, true);
+            }
+        })
+    }
 }
 
 impl ChildOf {

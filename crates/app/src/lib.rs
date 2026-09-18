@@ -3,7 +3,7 @@ use ecs::system::executor::multi_thread::MultiThreadedExecutor;
 #[cfg(not(all(feature = "multithreaded", not(target_arch = "wasm32"))))]
 use ecs::system::executor::single_thread::SingleThreadedExecutor;
 use ecs::{
-    component::{scene::SceneComponent, Component},
+    component::scene::SceneComponent,
     events::{
         event_channel::{update_event_channel, EventChannel},
         event_writer::EventWriter,
@@ -238,12 +238,6 @@ impl App {
 
     pub fn render_mut(&mut self) -> &mut SubApp {
         self.subapps.render_mut()
-    }
-
-    /// Registers component lifecycle callbacks (`on_add` / `on_remove`) for `T`.
-    pub fn register_component_lifetimes<T: Component>(&mut self) -> &mut Self {
-        self.main_mut().register_component_lifetimes::<T>();
-        self
     }
 
     /// Polls each plugin's [`ready`](Plugin::ready) method and transitions the state machine.

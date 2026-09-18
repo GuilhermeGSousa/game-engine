@@ -1432,6 +1432,102 @@ mod tests {
         );
     }
 
+    /// The widths a row of grown text fields ends up with, one per `texts`.
+    ///
+    /// Reproduces an inspector property row: a fixed label column followed by
+    /// fields that share what is left of the row.
+    fn field_widths(texts: &[&str], basis: UIValue) -> Vec<f32> {
+        let mut taffy: TaffyTree<TextMeasure> = TaffyTree::new();
+        let fields: Vec<_> = texts
+            .iter()
+            .map(|text| {
+                let measure = label(text);
+                let node = UINode {
+                    flex_grow: 1.0,
+                    width: basis,
+                    height: UIValue::Px(28.0),
+                    padding: UIRect::axes(0.0, 4.0),
+                    ..Default::default()
+                }
+                .clipped();
+                taffy
+                    .new_leaf_with_context(text_leaf_style(&node, &measure), measure)
+                    .unwrap()
+            })
+            .collect();
+        let mut children = vec![
+            taffy
+                .new_leaf(
+                    UINode {
+                        width: UIValue::Px(72.0),
+                        flex_shrink: 0.0,
+                        ..Default::default()
+                    }
+                    .style(),
+                )
+                .unwrap(),
+        ];
+        children.extend(fields.iter().copied());
+        let row = taffy
+            .new_with_children(
+                UINode {
+                    width: UIValue::Px(260.0),
+                    flex_direction: FlexDirection::Row,
+                    gap: Vec2::new(4.0, 0.0),
+                    ..Default::default()
+                }
+                .style(),
+                &children,
+            )
+            .unwrap();
+        let mut measurer = measurer();
+        taffy
+            .compute_layout_with_measure(
+                row,
+                Size {
+                    width: AvailableSpace::Definite(260.0),
+                    height: AvailableSpace::MaxContent,
+                },
+                |known, available, _id, context, _style| {
+                    measure_node(&mut measurer, known, available, context)
+                },
+            )
+            .unwrap();
+        fields
+            .into_iter()
+            .map(|field| taffy.layout(field).unwrap().size.width)
+            .collect()
+    }
+
+    /// The bug this guards: a text field with an automatic flex basis takes its
+    /// width from its own content, so typing into one of a row of fields — the
+    /// caret counts as content too — widened it and squeezed its neighbours.
+    /// Nothing a field holds may move its edges.
+    #[test]
+    fn a_row_of_grown_fields_keeps_equal_widths_whatever_they_contain() {
+        let uneven = ["0.000", "-1284.375", "7.5"];
+        let widths = field_widths(&uneven, UIValue::Px(0.0));
+        assert_eq!(
+            widths,
+            field_widths(&["0.000"; 3], UIValue::Px(0.0)),
+            "a field's width must not depend on its text"
+        );
+        // Free space that does not divide evenly leaves a pixel somewhere; what
+        // matters is that it is a pixel of rounding and not a word of text.
+        assert!(
+            widths
+                .windows(2)
+                .all(|pair| (pair[0] - pair[1]).abs() <= 1.0),
+            "fields sharing a row must be even: {widths:?}"
+        );
+
+        let automatic = field_widths(&uneven, UIValue::Auto);
+        assert!(
+            automatic.windows(2).any(|pair| pair[0] != pair[1]),
+            "an automatic basis is what let content drive the width: {automatic:?}"
+        );
+    }
+
     /// Uniforms live in the bind group, so a slot the signature ignored would
     /// leave a rotated shape drawn at its old angle.
     #[test]

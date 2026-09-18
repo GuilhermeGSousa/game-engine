@@ -150,8 +150,10 @@ impl<T: NumericValue> PropertyEditor<T> for NumericFields {
                 .spawn((
                     UINode {
                         flex_grow: 1.0,
+                        width: UIValue::Px(0.0),
+                        min_width: UIValue::Px(0.0),
                         height: UIValue::Px(theme.control_height),
-                        padding: UIRect::axes(0.0, theme.spacing_xs),
+                        padding: UIRect::axes(field_leading(theme), theme.spacing_xs),
                         ..Default::default()
                     }
                     .clipped(),
@@ -179,6 +181,11 @@ impl<T: NumericValue> PropertyEditor<T> for NumericFields {
             cmd.add_child(row, field);
         }
     }
+}
+
+fn field_leading(theme: &UITheme) -> f32 {
+    let line = theme.line_height(theme.font_size_sm);
+    ((theme.control_height - line) / 2.0).max(0.0)
 }
 
 fn slot_count(value: &NumericSnapshot) -> usize {
@@ -376,6 +383,30 @@ mod tests {
 
         assert_eq!(input.selection_anchor, Some(0));
         assert_eq!(input.cursor, input.value.len());
+    }
+
+    /// The bug this guards: a field with no vertical padding drew its text
+    /// against the top edge of a 28px-tall box, because the renderer starts at
+    /// the content box's top-left and nothing had moved it down.
+    #[test]
+    fn a_fields_text_sits_in_the_middle_of_its_box() {
+        let theme = UITheme::default();
+        let leading = field_leading(&theme);
+        let line = theme.line_height(theme.font_size_sm);
+        assert!(leading > 0.0, "a line shorter than the control needs room");
+        assert_eq!(
+            leading * 2.0 + line,
+            theme.control_height,
+            "the line and the space above and below it fill the control exactly"
+        );
+
+        // A theme whose text is taller than its controls cannot be centred, and
+        // must not be pushed out of its box trying.
+        let cramped = UITheme {
+            control_height: 8.0,
+            ..theme
+        };
+        assert_eq!(field_leading(&cramped), 0.0);
     }
 
     #[test]

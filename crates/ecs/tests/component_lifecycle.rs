@@ -38,6 +38,10 @@ impl Component for Tracked {
         })
     }
 
+    fn on_despawn() -> Option<ComponentLifecycleCallback> {
+        Self::on_remove()
+    }
+
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             let readable = world
@@ -86,6 +90,10 @@ impl Component for Companion {
         })
     }
 
+    fn on_despawn() -> Option<ComponentLifecycleCallback> {
+        Self::on_remove()
+    }
+
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, _context| {
             if let Some(log) = world.get_resource_mut::<CompanionLog>() {
@@ -97,7 +105,7 @@ impl Component for Companion {
 
 /// Inserts a `Companion` from `on_add` (triggering its callbacks) and removes
 /// it from `on_remove` with events suppressed. During a despawn the
-/// `Companion` still gets one `on_remove` firing from despawn's own pass over
+/// `Companion` still gets one `on_despawn` firing from despawn's own pass over
 /// the component list captured at despawn start; the suppression prevents a
 /// second firing from the removal itself.
 struct Body;
@@ -107,6 +115,10 @@ impl Component for Body {
         Some(|mut world, context| {
             world.insert(Companion, context.entity, true);
         })
+    }
+
+    fn on_despawn() -> Option<ComponentLifecycleCallback> {
+        Self::on_remove()
     }
 
     fn on_remove() -> Option<ComponentLifecycleCallback> {
@@ -135,6 +147,10 @@ struct DespawnTarget(Option<Entity>);
 struct Reaper;
 
 impl Component for Reaper {
+    fn on_despawn() -> Option<ComponentLifecycleCallback> {
+        Self::on_remove()
+    }
+
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, _context| {
             let target = world
@@ -156,8 +172,8 @@ fn value_of(world: &World, entity: Entity) -> Option<i32> {
 #[test]
 fn spawn_fires_on_add_with_bundle_fully_inserted() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Tracked>();
-    world.register_component_lifetimes::<WithSibling>();
+    world.register_component::<Tracked>();
+    world.register_component::<WithSibling>();
     world.insert_resource(TrackLog::default());
     world.insert_resource(SiblingLog::default());
 
@@ -182,7 +198,7 @@ fn spawn_fires_on_add_with_bundle_fully_inserted() {
 #[test]
 fn insert_fires_on_add() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Tracked>();
+    world.register_component::<Tracked>();
     world.insert_resource(TrackLog::default());
 
     let entity = world.spawn((Value(1),));
@@ -195,7 +211,7 @@ fn insert_fires_on_add() {
 #[test]
 fn remove_component_fires_on_remove_after_removal() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Tracked>();
+    world.register_component::<Tracked>();
     world.insert_resource(TrackLog::default());
 
     let entity = world.spawn((Tracked, Value(1)));
@@ -210,9 +226,9 @@ fn remove_component_fires_on_remove_after_removal() {
 }
 
 #[test]
-fn despawn_fires_on_remove_while_still_readable() {
+fn despawn_fires_on_despawn_while_still_readable() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Tracked>();
+    world.register_component::<Tracked>();
     world.insert_resource(TrackLog::default());
 
     let entity = world.spawn((Tracked, Value(1)));
@@ -222,15 +238,15 @@ fn despawn_fires_on_remove_while_still_readable() {
     assert_eq!(
         log.removed,
         vec![(entity, true)],
-        "despawn fires on_remove while the component is still readable"
+        "despawn fires on_despawn while the component is still readable"
     );
 }
 
 #[test]
 fn on_add_can_insert_a_companion_and_trigger_its_callbacks() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Body>();
-    world.register_component_lifetimes::<Companion>();
+    world.register_component::<Body>();
+    world.register_component::<Companion>();
     world.insert_resource(CompanionLog::default());
 
     let entity = world.spawn((Body, Value(1)));
@@ -252,8 +268,8 @@ fn on_add_can_insert_a_companion_and_trigger_its_callbacks() {
 #[test]
 fn suppressed_insert_does_not_fire_callbacks() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Quiet>();
-    world.register_component_lifetimes::<Companion>();
+    world.register_component::<Quiet>();
+    world.register_component::<Companion>();
     world.insert_resource(CompanionLog::default());
 
     let entity = world.spawn((Quiet, Value(1)));
@@ -271,17 +287,17 @@ fn suppressed_insert_does_not_fire_callbacks() {
 }
 
 #[test]
-fn on_remove_removing_a_sibling_component_during_despawn() {
+fn on_despawn_removing_a_sibling_component() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Body>();
-    world.register_component_lifetimes::<Companion>();
+    world.register_component::<Body>();
+    world.register_component::<Companion>();
     world.insert_resource(CompanionLog::default());
 
     // Two entities share the archetype so the swap-remove paths engage.
     let doomed = world.spawn((Body, Value(1)));
     let survivor = world.spawn((Body, Value(2)));
 
-    // Body::on_remove removes Companion mid-despawn, migrating the entity to
+    // Body::on_despawn removes Companion mid-despawn, migrating the entity to
     // another archetype while despawn is in flight.
     world.despawn(doomed);
 
@@ -299,16 +315,16 @@ fn on_remove_removing_a_sibling_component_during_despawn() {
     assert_eq!(log.adds, 2);
     assert_eq!(
         log.removes, 1,
-        "despawn fires on_remove once for every component captured at despawn \
+        "despawn fires on_despawn once for every component captured at despawn \
          start — the suppressed removal inside Body::on_remove must not add a \
          second firing"
     );
 }
 
 #[test]
-fn on_remove_despawning_another_entity() {
+fn on_despawn_despawning_another_entity() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Reaper>();
+    world.register_component::<Reaper>();
     world.insert_resource(DespawnTarget::default());
 
     // The victim sits in row 0; the reaper is the archetype's last row, so
@@ -377,7 +393,7 @@ fn despawn_keeps_swapped_entity_intact() {
 #[test]
 fn callbacks_balance_across_mixed_operations() {
     let mut world = World::new();
-    world.register_component_lifetimes::<Tracked>();
+    world.register_component::<Tracked>();
     world.insert_resource(TrackLog::default());
 
     let a = world.spawn((Tracked, Value(1)));
@@ -392,6 +408,6 @@ fn callbacks_balance_across_mixed_operations() {
     assert_eq!(
         log.removed.len(),
         2,
-        "one remove_component + one despawn should each fire on_remove exactly once"
+        "one remove_component + one despawn should each run cleanup exactly once"
     );
 }

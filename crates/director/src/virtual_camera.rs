@@ -63,6 +63,10 @@ impl Component for VirtualCamera {
         })
     }
 
+    fn on_despawn() -> Option<ComponentLifecycleCallback> {
+        Self::on_remove()
+    }
+
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             if let Some(director) = world.get_resource_mut::<CameraDirector>() {
@@ -253,7 +257,7 @@ mod tests {
     /// serde, which still reaches the private fields.
     fn spawn_from_json(json: &'static str) -> (World, Entity) {
         let mut world = World::new();
-        world.register_component_lifetimes::<VirtualCamera>();
+        world.register_component::<VirtualCamera>();
         world.register_component_type::<VirtualCamera>();
         world.insert_resource(CameraDirector::default());
 

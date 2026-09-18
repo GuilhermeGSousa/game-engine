@@ -62,7 +62,7 @@ pub(super) fn sync_inspected_components(
             || Some(card.entity) != target
             || !desired.iter().any(|(type_id, _)| *type_id == card.type_id)
         {
-            cmd.despawn_recursive(entity);
+            cmd.despawn(entity);
         } else {
             retained.push((entity, card));
         }
@@ -82,7 +82,7 @@ pub(super) fn sync_inspected_components(
             || card.registry_revision != registry_revision
             || card
                 .last_read_tick
-                .is_some_and(|tick| world.component_changed_since(target, type_id, tick))
+                .is_some_and(|tick| world.has_component_changed_since(target, type_id, tick))
         {
             let properties = registry
                 .collect_component(world, target, type_id)
@@ -181,7 +181,7 @@ fn reconcile_rows(
         ordered.push(row);
     }
     for row in existing {
-        cmd.despawn_recursive(row);
+        cmd.despawn(row);
     }
     order_children(world, cmd, card.body, ordered);
 }

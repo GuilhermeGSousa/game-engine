@@ -76,6 +76,10 @@ impl Component for Collider {
         None
     }
 
+    fn on_despawn() -> Option<ComponentLifecycleCallback> {
+        Self::on_remove()
+    }
+
     fn on_remove() -> Option<ComponentLifecycleCallback> {
         Some(|mut world, context| {
             // `remove_component::<Collider>` fires this after the Collider is

@@ -115,6 +115,10 @@ fn left_button_held() -> bool {
 }
 
 impl ApplicationHandler for ApplicationWindowHandler {
+    fn exiting(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        drop(std::mem::take(&mut self.app));
+    }
+
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let _ = event_loop;
     }

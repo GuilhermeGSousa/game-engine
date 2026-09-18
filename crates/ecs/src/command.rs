@@ -34,6 +34,16 @@ impl<'a> EntityCommandQueue<'a> {
         self
     }
 
+    /// Spawns a child of this entity and returns the child's command queue.
+    pub fn spawn_child_queue<T: ComponentBundle + 'static>(
+        &mut self,
+        components: T,
+    ) -> EntityCommandQueue<'_> {
+        let child = self.command_queue.spawn(components).entity();
+        self.command_queue.add_child(self.entity, child);
+        self.command_queue.entity(child)
+    }
+
     pub fn insert<T: ComponentBundle + 'static>(&mut self, component: T) {
         self.command_queue.insert(component, self.entity);
     }
@@ -70,14 +80,19 @@ impl<'w, 's> CommandQueue<'w, 's> {
         }
     }
 
-    pub fn despawn(&mut self, entity: Entity) {
-        self.queue_state.add_command(DespawnCommand::new(entity));
+    /// Scopes further commands to an existing entity.
+    pub fn entity(&mut self, entity: Entity) -> EntityCommandQueue<'_> {
+        EntityCommandQueue {
+            entity,
+            command_queue: CommandQueue {
+                queue_state: &mut *self.queue_state,
+                entities: &mut *self.entities,
+            },
+        }
     }
 
-    /// Queues removal of `entity` and its complete child hierarchy.
-    pub fn despawn_recursive(&mut self, entity: Entity) {
-        self.queue_state
-            .add_command(DespawnRecursiveCommand::new(entity));
+    pub fn despawn(&mut self, entity: Entity) {
+        self.queue_state.add_command(DespawnCommand::new(entity));
     }
 
     pub fn insert<T: ComponentBundle + 'static>(&mut self, component: T, entity: Entity) {
@@ -215,22 +230,6 @@ impl DespawnCommand {
 impl Command for DespawnCommand {
     fn execute(self: Box<Self>, world: &mut World) {
         world.despawn(self.entity);
-    }
-}
-
-pub(crate) struct DespawnRecursiveCommand {
-    entity: Entity,
-}
-
-impl DespawnRecursiveCommand {
-    pub fn new(entity: Entity) -> Self {
-        Self { entity }
-    }
-}
-
-impl Command for DespawnRecursiveCommand {
-    fn execute(self: Box<Self>, world: &mut World) {
-        world.despawn_recursive(self.entity);
     }
 }
 

@@ -86,6 +86,41 @@ fn deferred_reconciliation_makes_new_bodies_visible_and_consumes_order_requests(
     );
 }
 
+/// Switching selection despawns a card and builds the next one in the same
+/// pass, so the new card's entities come from recycled indexes. A recycled
+/// index that still resolves to its previous owner's row made the card's
+/// not-yet-spawned body read a live `UINode`, look already visible, and keep
+/// the hidden node it was spawned with — properties gone, uneditable.
+#[test]
+fn alternating_selections_keep_showing_their_properties() {
+    let (mut world, a, _) = world();
+    let b = world.spawn(Transform::IDENTITY);
+    for target in [a, b, a, b, a, b] {
+        world
+            .get_resource_mut::<Selection>()
+            .unwrap()
+            .select_entity(target);
+        update(&mut world);
+        world.tick();
+        let rows = rows(&mut world);
+        assert!(
+            !rows.is_empty(),
+            "selecting {target:?} built no property rows"
+        );
+        let body = world
+            .get_component_for_entity::<ecs::entity::hierarchy::ChildOf>(rows[0].0)
+            .unwrap()
+            .parent();
+        assert!(
+            world
+                .get_component_for_entity::<UINode>(body)
+                .unwrap()
+                .visible,
+            "the card body for {target:?} is hidden, so its properties cannot be edited"
+        );
+    }
+}
+
 fn world() -> (World, Entity, Entity) {
     let mut world = World::default();
     let entity = world.spawn(Transform::IDENTITY);

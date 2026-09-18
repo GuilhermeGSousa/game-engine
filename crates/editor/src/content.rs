@@ -422,7 +422,7 @@ fn handle_actions(
 
 fn refresh_panel(
     project: Res<ProjectState>,
-    mut state: ResMut<ContentState>,
+    state: Res<ContentState>,
     labels: Query<(&Label, &mut TextComponent)>,
 ) {
     let assets = visible_assets(&project, &state);

@@ -72,7 +72,7 @@ mod tests {
     #[test]
     fn propagates_a_ten_thousand_deep_hierarchy_without_recursion() {
         let mut world = World::new();
-        world.register_component_lifetimes::<Transform>();
+        world.register_component::<Transform>();
 
         let root = world.spawn(Transform::from_translation(Vec3::X));
         let mut leaf = root;

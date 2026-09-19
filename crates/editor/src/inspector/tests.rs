@@ -55,7 +55,7 @@ fn metadata_tracks_live_names_children_and_removal_without_changing_selection() 
     let data = world.get_resource::<InspectorData>().unwrap();
     assert!(data.heading.starts_with("Renamed"));
     assert!(data.heading.ends_with("1 children"));
-    world.despawn_recursive(target);
+    world.despawn(target);
     collect.run_and_apply(&mut world);
     let data = world.get_resource::<InspectorData>().unwrap();
     assert!(data.entity.is_none());

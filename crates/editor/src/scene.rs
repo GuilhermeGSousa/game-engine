@@ -270,7 +270,7 @@ mod tests {
     }
     fn world(root: &std::path::Path) -> World {
         let mut world = World::new();
-        world.register_component_lifetimes::<Transform>();
+        world.register_component::<Transform>();
         world.register_component_type::<Transform>();
         world.insert_resource(SceneState::default());
         world.insert_resource(crate::viewport::ViewportCommands::default());

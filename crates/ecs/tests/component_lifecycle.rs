@@ -106,8 +106,8 @@ impl Component for Companion {
 /// Inserts a `Companion` from `on_add` (triggering its callbacks) and removes
 /// it from `on_remove` with events suppressed. During a despawn the
 /// `Companion` still gets one `on_despawn` firing from despawn's own pass over
-/// the component list captured at despawn start; the suppression prevents a
-/// second firing from the removal itself.
+/// the component list captured at despawn start. Its queued removal is a no-op
+/// once the entity has been despawned.
 struct Body;
 
 impl Component for Body {
@@ -209,7 +209,7 @@ fn insert_fires_on_add() {
 }
 
 #[test]
-fn remove_component_fires_on_remove_after_removal() {
+fn remove_component_fires_on_remove_before_removal() {
     let mut world = World::new();
     world.register_component::<Tracked>();
     world.insert_resource(TrackLog::default());
@@ -220,9 +220,10 @@ fn remove_component_fires_on_remove_after_removal() {
     let log = world.get_resource::<TrackLog>().unwrap();
     assert_eq!(
         log.removed,
-        vec![(entity, false)],
-        "remove_component fires on_remove after the component is gone"
+        vec![(entity, true)],
+        "remove_component fires on_remove while the outgoing component is readable"
     );
+    assert!(world.get_component_for_entity::<Tracked>(entity).is_none());
 }
 
 #[test]
@@ -297,8 +298,8 @@ fn on_despawn_removing_a_sibling_component() {
     let doomed = world.spawn((Body, Value(1)));
     let survivor = world.spawn((Body, Value(2)));
 
-    // Body::on_despawn removes Companion mid-despawn, migrating the entity to
-    // another archetype while despawn is in flight.
+    // Body::on_despawn queues Companion removal, which must not prevent its
+    // own despawn callback from running during the complete hook pass.
     world.despawn(doomed);
 
     assert_eq!(
@@ -315,9 +316,8 @@ fn on_despawn_removing_a_sibling_component() {
     assert_eq!(log.adds, 2);
     assert_eq!(
         log.removes, 1,
-        "despawn fires on_despawn once for every component captured at despawn \
-         start — the suppressed removal inside Body::on_remove must not add a \
-         second firing"
+        "despawn fires on_despawn once per component; queued cleanup of the \
+         already-despawned entity must not fire again"
     );
 }
 
@@ -409,5 +409,158 @@ fn callbacks_balance_across_mixed_operations() {
         log.removed.len(),
         2,
         "one remove_component + one despawn should each run cleanup exactly once"
+    );
+}
+
+#[test]
+fn on_remove_can_queue_companion_removal() {
+    let mut world = World::new();
+    world.register_component::<Body>();
+    world.register_component::<Companion>();
+    world.insert_resource(CompanionLog::default());
+    let removed = world.spawn((Body, Value(1)));
+    let survivor = world.spawn((Body, Value(2)));
+
+    world.remove_component::<Body>(removed);
+
+    assert!(world.get_component_for_entity::<Body>(removed).is_none());
+    assert!(
+        world
+            .get_component_for_entity::<Companion>(removed)
+            .is_none()
+    );
+    assert_eq!(value_of(&world, removed), Some(1));
+    assert_eq!(value_of(&world, survivor), Some(2));
+    assert!(world.get_component_for_entity::<Body>(survivor).is_some());
+    assert!(
+        world
+            .get_component_for_entity::<Companion>(survivor)
+            .is_some()
+    );
+    assert_eq!(world.get_resource::<CompanionLog>().unwrap().removes, 0);
+}
+
+#[test]
+fn on_remove_can_queue_despawning_another_entity() {
+    let mut world = World::new();
+    world.register_component::<Reaper>();
+    world.insert_resource(DespawnTarget::default());
+    let victim = world.spawn((Reaper, Value(1)));
+    let reaper = world.spawn((Reaper, Value(2)));
+    world.get_resource_mut::<DespawnTarget>().unwrap().0 = Some(victim);
+
+    world.remove_component::<Reaper>(reaper);
+
+    assert!(!world.entity_is_valid(victim));
+    assert_eq!(value_of(&world, reaper), Some(2));
+    assert!(world.get_component_for_entity::<Reaper>(reaper).is_none());
+}
+
+#[test]
+fn on_remove_can_queue_component_insertion() {
+    struct LeavesMarker;
+    impl Component for LeavesMarker {
+        fn on_remove() -> Option<ComponentLifecycleCallback> {
+            Some(|mut world, context| {
+                assert!(
+                    world
+                        .get_component_for_entity::<Self>(context.entity)
+                        .is_some()
+                );
+                world.insert(Marker, context.entity, true);
+            })
+        }
+    }
+
+    let mut world = World::new();
+    world.register_component::<LeavesMarker>();
+    let removed = world.spawn((LeavesMarker, Value(1)));
+    let survivor = world.spawn((LeavesMarker, Value(2)));
+
+    world.remove_component::<LeavesMarker>(removed);
+
+    assert!(
+        world
+            .get_component_for_entity::<LeavesMarker>(removed)
+            .is_none()
+    );
+    assert!(world.get_component_for_entity::<Marker>(removed).is_some());
+    assert_eq!(value_of(&world, removed), Some(1));
+    assert_eq!(value_of(&world, survivor), Some(2));
+    assert!(
+        world
+            .get_component_for_entity::<LeavesMarker>(survivor)
+            .is_some()
+    );
+    assert!(world.get_component_for_entity::<Marker>(survivor).is_none());
+}
+
+#[test]
+fn on_remove_can_remove_itself_with_events_suppressed_and_drop_once() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct RemovesItself(Arc<AtomicUsize>);
+    impl Drop for RemovesItself {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    impl Component for RemovesItself {
+        fn on_remove() -> Option<ComponentLifecycleCallback> {
+            Some(|mut world, context| {
+                let component = world
+                    .get_component_for_entity::<Self>(context.entity)
+                    .unwrap();
+                assert_eq!(component.0.load(Ordering::SeqCst), 0);
+                world.remove_component::<Self>(context.entity, false);
+            })
+        }
+    }
+
+    let mut world = World::new();
+    world.register_component::<RemovesItself>();
+    let drops = Arc::new(AtomicUsize::new(0));
+    let entity = world.spawn((RemovesItself(drops.clone()), Value(1)));
+
+    world.remove_component::<RemovesItself>(entity);
+
+    assert!(
+        world
+            .get_component_for_entity::<RemovesItself>(entity)
+            .is_none()
+    );
+    assert_eq!(value_of(&world, entity), Some(1));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    drop(world);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn on_remove_can_despawn_its_entity() {
+    struct DespawnsItself;
+    impl Component for DespawnsItself {
+        fn on_remove() -> Option<ComponentLifecycleCallback> {
+            Some(|mut world, context| {
+                world.despawn(context.entity);
+            })
+        }
+    }
+
+    let mut world = World::new();
+    world.register_component::<DespawnsItself>();
+    let entity = world.spawn((DespawnsItself, Value(1)));
+    let survivor = world.spawn((DespawnsItself, Value(2)));
+
+    world.remove_component::<DespawnsItself>(entity);
+
+    assert!(!world.entity_is_valid(entity));
+    assert_eq!(value_of(&world, survivor), Some(2));
+    assert!(
+        world
+            .get_component_for_entity::<DespawnsItself>(survivor)
+            .is_some()
     );
 }

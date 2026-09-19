@@ -450,7 +450,7 @@ mod tests {
         let mut registry = InspectorRegistry::default();
         registry.register_component::<Transform>();
         let mut world = World::default();
-        world.register_component_lifetimes::<Transform>();
+        world.register_component::<Transform>();
         world.insert_resource(registry);
         let entity = world.spawn(Transform::IDENTITY);
         world.tick();

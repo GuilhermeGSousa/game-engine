@@ -62,7 +62,7 @@ fn recursive_despawn_handles_deep_hierarchies_iteratively() {
         parent = child;
     }
 
-    world.despawn_recursive(root);
+    world.despawn(root);
 
     assert!(
         entities
